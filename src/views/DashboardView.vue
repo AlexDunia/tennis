@@ -21,10 +21,7 @@ const challengeStore = useChallengeStore()
 const matchStore = useMatchStore()
 
 // 6. REACTIVE STATE
-const sectionLabels = {
-  create: '+ New Match',
-  pending: 'Pending Actions',
-}
+// none
 
 // 7. COMPUTED PROPERTIES
 const stats = computed(() => ({
@@ -132,24 +129,33 @@ onMounted(() => {
 
 <template>
   <section class="dashboard">
-    <header class="hero section-card">
-      <div class="hero__copy">
-        <p class="eyebrow">Tennis Ladder</p>
-        <h1>Overview first. Actions where they belong.</h1>
-        <p class="hero__text">
-          Track what matters now, then jump into the right flow for creating, confirming, and
-          playing matches.
+    <div class="dashboard__hero-grid">
+      <article class="dashboard__hero-card section-card">
+        <p class="dashboard__kicker">Current Focus</p>
+        <h2>{{ currentPlayer?.name || 'Loading player...' }}</h2>
+        <p class="dashboard__hero-copy">
+          Keep the ladder moving by clearing pending actions, locking in the next challenge, and
+          opening the live play view when a match is scheduled.
         </p>
-        <div class="hero__meta">
-          <span class="hero__badge">Current player: {{ currentPlayer?.name || 'Loading' }}</span>
-          <span class="hero__badge">Port Harcourt court rotation</span>
+        <div class="dashboard__hero-meta">
+          <span class="dashboard__hero-chip">Rank #{{ currentPlayer?.rank || '-' }}</span>
+          <span class="dashboard__hero-chip">
+            Record {{ currentPlayer?.wins || 0 }}-{{ currentPlayer?.losses || 0 }}
+          </span>
         </div>
-      </div>
+      </article>
 
-      <button class="hero__action" type="button" @click="openCreateView">
-        {{ sectionLabels.create }}
-      </button>
-    </header>
+      <article class="dashboard__hero-card dashboard__hero-card--action section-card">
+        <p class="dashboard__kicker">Next Setup</p>
+        <h2>Create the next ladder challenge</h2>
+        <p class="dashboard__hero-copy">
+          Match setup stays on its own page so the dashboard remains a clean decision surface.
+        </p>
+        <button class="dashboard__hero-button" type="button" @click="openCreateView">
+          Open Create Challenge
+        </button>
+      </article>
+    </div>
 
     <div class="stats-grid">
       <article class="stat-card section-card">
@@ -173,7 +179,7 @@ onMounted(() => {
       <section class="dashboard-panel section-card">
         <div class="panel-header">
           <div>
-            <p class="eyebrow">{{ sectionLabels.pending }}</p>
+            <p class="dashboard__kicker">Pending Actions</p>
             <h2>Most important things waiting on you</h2>
           </div>
         </div>
@@ -200,7 +206,7 @@ onMounted(() => {
       <section class="dashboard-panel dashboard-panel--feature section-card">
         <div class="panel-header">
           <div>
-            <p class="eyebrow">Featured Match</p>
+            <p class="dashboard__kicker">Featured Match</p>
             <h2>
               {{
                 featuredMatch
@@ -235,7 +241,7 @@ onMounted(() => {
       <section class="dashboard-panel section-card">
         <div class="panel-header">
           <div>
-            <p class="eyebrow">Recent Challenges</p>
+            <p class="dashboard__kicker">Recent Challenges</p>
             <h2>Latest ladder movement</h2>
           </div>
         </div>
@@ -267,7 +273,7 @@ onMounted(() => {
       <section class="dashboard-panel section-card">
         <div class="panel-header">
           <div>
-            <p class="eyebrow">Recent Matches</p>
+            <p class="dashboard__kicker">Recent Matches</p>
             <h2>Direct links into match details</h2>
           </div>
         </div>
@@ -303,36 +309,23 @@ onMounted(() => {
   gap: 1.5rem;
 }
 
-.hero {
+.dashboard__hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1.5rem;
-  padding: 1.75rem;
+  gap: 1rem;
+  grid-template-columns: 1.35fr 1fr;
+}
+
+.dashboard__hero-card {
+  padding: 1.55rem;
+}
+
+.dashboard__hero-card--action {
   background:
     linear-gradient(135deg, rgba(255, 248, 221, 0.96), rgba(243, 233, 177, 0.88)),
     linear-gradient(120deg, rgba(217, 31, 47, 0.08), rgba(15, 107, 63, 0.14));
-  border-radius: var(--radius-lg);
-  position: relative;
-  overflow: hidden;
 }
 
-.hero::after {
-  content: '';
-  position: absolute;
-  right: -2rem;
-  bottom: -5rem;
-  width: 18rem;
-  height: 18rem;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(15, 107, 63, 0.15), transparent 72%);
-}
-
-.hero__copy {
-  position: relative;
-  z-index: 1;
-}
-
-.eyebrow {
+.dashboard__kicker {
   margin: 0 0 0.35rem;
   color: var(--color-secondary);
   font-weight: 800;
@@ -341,38 +334,37 @@ onMounted(() => {
   font-size: 0.78rem;
 }
 
-.hero h1,
+.dashboard__hero-card h2,
 .panel-header h2 {
   margin: 0;
 }
 
-.hero__text {
-  max-width: 40rem;
-  margin: 0.8rem 0 0;
+.dashboard__hero-copy {
+  margin: 0.75rem 0 0;
   color: var(--color-muted);
 }
 
-.hero__meta {
+.dashboard__hero-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: 1.1rem;
+  margin-top: 1rem;
 }
 
-.hero__badge {
+.dashboard__hero-chip {
   padding: 0.55rem 0.85rem;
   border-radius: 999px;
   background: rgba(255, 252, 240, 0.82);
   border: 1px solid rgba(19, 35, 22, 0.08);
-  font-weight: 700;
   color: var(--color-primary-strong);
+  font-weight: 700;
 }
 
-.hero__action {
-  align-self: start;
+.dashboard__hero-button {
+  margin-top: 1rem;
   border: none;
-  border-radius: 1.15rem;
-  padding: 0.95rem 1.2rem;
+  border-radius: 1rem;
+  padding: 0.95rem 1.15rem;
   background: linear-gradient(135deg, var(--color-secondary), #ef5543);
   color: #fffdf5;
   font-weight: 800;
@@ -469,7 +461,7 @@ onMounted(() => {
 
 .action-card:hover,
 .activity-item:hover,
-.hero__action:hover,
+.dashboard__hero-button:hover,
 .feature-card__button:hover {
   transform: translateY(-2px);
   box-shadow: 0 16px 34px rgba(60, 47, 18, 0.15);
@@ -500,7 +492,7 @@ onMounted(() => {
   color: #fdf5d7;
 }
 
-.dashboard-panel--feature .eyebrow,
+.dashboard-panel--feature .dashboard__kicker,
 .dashboard-panel--feature h2,
 .dashboard-panel--feature .feature-card__status,
 .dashboard-panel--feature strong {
@@ -553,15 +545,14 @@ onMounted(() => {
   background: rgba(247, 242, 221, 0.96);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
+  .dashboard__hero-grid,
   .stats-grid,
   .dashboard-grid,
-  .activity-grid,
-  .hero {
+  .activity-grid {
     grid-template-columns: 1fr;
   }
 
-  .hero__action,
   .feature-card__button {
     max-width: none;
   }

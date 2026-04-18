@@ -73,7 +73,7 @@ Only some domains persist to localStorage:
 3. Vue Router is installed.
 4. `src/assets/main.css` applies the Shell/tennis visual system globally.
 5. `App.vue` renders `DefaultLayout`.
-6. `DefaultLayout.vue` renders the branded top bar and `RouterView`.
+6. `DefaultLayout.vue` renders the branded sidebar, route-aware page header, and `RouterView`.
 
 ## 2. Initial navigation
 
@@ -115,7 +115,7 @@ The dashboard then derives:
 
 Dashboard actions do not execute full workflows directly. They route the user into the correct page:
 
-- `+ New Match` -> `/create-challenge`
+- create challenge entry points in the page body or sidebar footer -> `/create-challenge`
 - pending challenge action -> `/challenges`
 - pending review action -> `/matches/:matchId`
 - featured match -> `/play/:matchId`
@@ -935,9 +935,10 @@ Global CSS responsibilities:
 
 Layout styling lives in `DefaultLayout.vue` and provides:
 
-- sticky top navigation
+- branded left sidebar with icon navigation
+- route-aware page header with current title and subtitle
+- sidebar footer create-challenge CTA instead of a header action button
 - background blur orbs
-- branded ShellTennis header
 - main content container
 
 Most routed views use scoped CSS on top of the global theme.
@@ -1016,7 +1017,7 @@ src/
   assets/
     main.css                  # Global theme, tokens, shared layout utilities
   layouts/
-    DefaultLayout.vue         # Active shell layout and navigation
+    DefaultLayout.vue         # Active sidebar shell with route-aware header
   router/
     index.js                  # Active routed flow
   services/

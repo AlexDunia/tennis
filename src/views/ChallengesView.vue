@@ -68,15 +68,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <section>
-    <header class="section-header">
-      <div>
-        <p class="eyebrow">Challenges</p>
-        <h1>Manage all open ladder challenges</h1>
-      </div>
-      <p class="section-copy">Filter by status, accept challenges, or review completed results.</p>
-    </header>
-
+  <section class="challenges">
     <div class="tabs">
       <button
         v-for="tab in tabs"
@@ -90,7 +82,7 @@ onMounted(() => {
     </div>
 
     <div class="challenge-list">
-      <div v-if="visibleChallenges.length === 0" class="empty-state">
+      <div v-if="visibleChallenges.length === 0" class="empty-state section-card">
         No challenges match this filter.
       </div>
       <ChallengeCard
@@ -111,38 +103,21 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.eyebrow {
-  margin: 0;
-  color: var(--color-secondary);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.8rem;
-}
-
-.section-copy {
-  margin: 0.75rem 0 0;
-  color: var(--color-muted);
+.challenges {
+  display: grid;
+  gap: 1.2rem;
 }
 
 .tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-bottom: 1.5rem;
 }
 
 .tab-button {
   border: 1px solid var(--color-border);
   border-radius: 999px;
-  padding: 0.65rem 1rem;
+  padding: 0.7rem 1rem;
   background: rgba(255, 252, 240, 0.82);
   color: var(--color-muted);
   font-weight: 700;
@@ -161,8 +136,6 @@ onMounted(() => {
 
 .empty-state {
   padding: 1.5rem;
-  background: rgba(255, 249, 231, 0.8);
-  border-radius: 1rem;
   color: var(--color-muted);
 }
 </style>

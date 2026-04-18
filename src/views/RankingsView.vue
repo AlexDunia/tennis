@@ -1,99 +1,135 @@
 <script setup>
-import { computed, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-
+// 1. IMPORTS
+import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { usePlayerStore } from '../stores/player'
 import PlayerCard from '../components/PlayerCard.vue'
 
-const router = useRouter()
-const route = useRoute()
+// 2. PROPS
+// none
 
+// 3. EMITS
+// none
+
+// 4. ROUTER / ROUTE
+const router = useRouter()
+
+// 5. STORES
 const playerStore = usePlayerStore()
 
+// 6. REACTIVE STATE
+// none
+
+// 7. COMPUTED PROPERTIES
 const sortedPlayers = computed(() => playerStore.sortedLadder)
 const currentPlayer = computed(() => playerStore.currentPlayer)
 
-function handleChallenge(playerId) {
+// 8. METHODS
+const handleChallenge = (playerId) => {
   router.push({ name: 'CreateChallenge', query: { opponent: playerId } })
 }
 
-// ✅ central init
-function init() {
+const loadRankings = () => {
   playerStore.loadPlayers()
 }
 
-// ✅ first load
-onMounted(init)
+// 9. WATCHERS
+// none
+
+// 10. LIFECYCLE HOOKS
+onMounted(() => {
+  loadRankings()
+})
 </script>
 
 <template>
-  <section>
-    <header class="section-header">
-      <div>
-        <p class="eyebrow">Rankings</p>
-        <h1>Current ladder positions</h1>
-      </div>
-      <p class="section-copy">
-        Challenge higher-ranked players within your permitted range to climb the leaderboard.
-      </p>
-    </header>
-
-    <div class="rankings-grid">
-      <div v-if="currentPlayer" class="current-player-card">
-        <p class="eyebrow">Current user</p>
+  <section class="rankings">
+    <div class="rankings__summary-grid">
+      <article v-if="currentPlayer" class="rankings__summary-card section-card">
+        <p class="rankings__kicker">Current Player</p>
         <h2>{{ currentPlayer.name }}</h2>
-        <p>Rank #{{ currentPlayer.rank }}</p>
-        <p>Record: {{ currentPlayer.wins }}–{{ currentPlayer.losses }}</p>
-      </div>
+        <p class="rankings__summary-copy">Rank #{{ currentPlayer.rank }}</p>
+        <p class="rankings__summary-copy">
+          Record {{ currentPlayer.wins }}-{{ currentPlayer.losses }}
+        </p>
+      </article>
 
-      <div class="player-list">
-        <PlayerCard
-          v-for="player in sortedPlayers"
-          :key="player.id"
-          :player="player"
-          :showChallenge="playerStore.availableOpponents.some((item) => item.id === player.id)"
-          @challenge="handleChallenge"
-        />
-      </div>
+      <article class="rankings__summary-card rankings__summary-card--accent section-card">
+        <p class="rankings__kicker">Challenge Window</p>
+        <h2>{{ playerStore.availableOpponents.length }}</h2>
+        <p class="rankings__summary-copy">
+          Eligible higher-ranked opponents are available from this ladder position.
+        </p>
+      </article>
+    </div>
+
+    <div class="player-list">
+      <PlayerCard
+        v-for="player in sortedPlayers"
+        :key="player.id"
+        :player="player"
+        :showChallenge="playerStore.availableOpponents.some((item) => item.id === player.id)"
+        @challenge="handleChallenge"
+      />
     </div>
   </section>
 </template>
 
 <style scoped>
-.section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
+.rankings {
+  display: grid;
+  gap: 1.4rem;
 }
-.eyebrow {
-  margin: 0;
-  color: #4338ca;
-  font-weight: 700;
+
+.rankings__summary-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rankings__summary-card {
+  padding: 1.4rem;
+}
+
+.rankings__summary-card--accent {
+  background:
+    linear-gradient(135deg, rgba(13, 85, 51, 0.92), rgba(10, 61, 36, 0.95)),
+    linear-gradient(145deg, rgba(245, 198, 45, 0.1), rgba(255, 255, 255, 0));
+  color: #fff8dd;
+}
+
+.rankings__summary-card--accent .rankings__kicker,
+.rankings__summary-card--accent h2,
+.rankings__summary-card--accent .rankings__summary-copy {
+  color: inherit;
+}
+
+.rankings__kicker {
+  margin: 0 0 0.35rem;
+  color: var(--color-secondary);
+  font-size: 0.8rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  font-size: 0.8rem;
 }
-.section-copy {
-  margin: 0.75rem 0 0;
-  color: #475569;
+
+.rankings__summary-card h2 {
+  margin: 0;
 }
-.rankings-grid {
-  display: grid;
-  gap: 1.5rem;
+
+.rankings__summary-copy {
+  margin: 0.55rem 0 0;
+  color: var(--color-muted);
 }
-.current-player-card {
-  background: #fff;
-  border-radius: 1.25rem;
-  border: 1px solid #e2e8f0;
-  padding: 1.5rem;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-}
-.current-player-card h2 {
-  margin: 0.5rem 0 0;
-}
+
 .player-list {
   display: grid;
   gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .rankings__summary-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

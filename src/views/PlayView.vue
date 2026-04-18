@@ -104,25 +104,19 @@ onMounted(() => {
 
 <template>
   <section class="play">
-    <header class="play__hero section-card">
-      <div>
-        <p class="play__eyebrow">Play Screen</p>
-        <h1 class="play__title">
+    <div class="play__meta-card section-card">
+      <div class="play__meta-copy">
+        <p class="play__eyebrow">{{ scoreboardStatus }}</p>
+        <h2>
           {{ currentMatch ? `${currentMatch.challengerName} vs ${currentMatch.defenderName}` : 'Live scoreboard' }}
-        </h1>
-        <p class="play__subtitle">
-          Route-based match flow with full-screen focus for scoring and review.
-        </p>
+        </h2>
+        <p class="play__subtitle">{{ formatDateTime(currentMatch?.scheduledAt) }}</p>
       </div>
 
-      <div class="play__meta">
-        <span class="play__chip">{{ scoreboardStatus }}</span>
-        <span class="play__chip">{{ formatDateTime(currentMatch?.scheduledAt) }}</span>
-        <button class="play__details" type="button" @click="openMatchDetails">
-          Open Match Details
-        </button>
-      </div>
-    </header>
+      <button class="play__details" type="button" @click="openMatchDetails">
+        Open Match Details
+      </button>
+    </div>
 
     <div class="play__wrapper">
       <TennisScoreboard v-if="currentMatch" :scoreboard="scoreboard" @point="handlePoint" />
@@ -137,18 +131,15 @@ onMounted(() => {
   gap: 1.5rem;
 }
 
-.play__hero {
+.play__meta-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
-  padding: 1.5rem;
-  background:
-    linear-gradient(135deg, rgba(255, 247, 211, 0.94), rgba(240, 232, 172, 0.84)),
-    linear-gradient(120deg, rgba(217, 31, 47, 0.08), rgba(15, 107, 63, 0.14));
+  padding: 1.4rem 1.5rem;
 }
 
 .play__eyebrow {
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.3rem;
   color: var(--color-secondary);
   font-size: 0.78rem;
   font-weight: 800;
@@ -156,39 +147,24 @@ onMounted(() => {
   letter-spacing: 0.12em;
 }
 
-.play__title,
+.play__meta-copy h2,
 .play__subtitle {
   margin: 0;
 }
 
 .play__subtitle {
-  margin-top: 0.75rem;
+  margin-top: 0.55rem;
   color: var(--color-muted);
-}
-
-.play__meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  align-items: start;
-  gap: 0.75rem;
-}
-
-.play__chip {
-  padding: 0.55rem 0.8rem;
-  border-radius: 999px;
-  background: rgba(255, 252, 240, 0.88);
-  border: 1px solid rgba(19, 35, 22, 0.08);
-  font-weight: 700;
 }
 
 .play__details {
   border: none;
   border-radius: 999px;
-  padding: 0.75rem 1rem;
+  padding: 0.8rem 1rem;
   background: linear-gradient(135deg, var(--color-primary), var(--color-primary-strong));
   color: #fffce8;
   font-weight: 800;
+  align-self: start;
 }
 
 .play__wrapper {
@@ -202,12 +178,8 @@ onMounted(() => {
 }
 
 @media (max-width: 900px) {
-  .play__hero {
+  .play__meta-card {
     grid-template-columns: 1fr;
-  }
-
-  .play__meta {
-    justify-content: start;
   }
 }
 </style>

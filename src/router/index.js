@@ -7,14 +7,70 @@ import CreateChallengeView from '../views/CreateChallengeView.vue'
 import PlayView from '../views/PlayView.vue'
 
 const routes = [
-  { path: '/', redirect: '/dashboard' },
-  { path: '/dashboard', name: 'Dashboard', component: DashboardView },
-  { path: '/rankings', name: 'Rankings', component: RankingsView },
-  { path: '/challenges', name: 'Challenges', component: ChallengesView },
-  { path: '/matches/:matchId', name: 'MatchDetails', component: MatchDetailsView, props: true },
-  { path: '/play/:matchId', name: 'PlayMatch', component: PlayView, props: true },
-  { path: '/create-challenge', name: 'CreateChallenge', component: CreateChallengeView },
-  { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
+  {
+    path: '/',
+    redirect: '/dashboard',
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: DashboardView,
+    meta: {
+      title: 'Dashboard',
+      subtitle: 'Overview first, then jump into the exact ladder action that needs attention.',
+    },
+  },
+  {
+    path: '/rankings',
+    name: 'Rankings',
+    component: RankingsView,
+    meta: {
+      title: 'Rankings',
+      subtitle: 'Track the ladder, compare records, and see who you can challenge next.',
+    },
+  },
+  {
+    path: '/challenges',
+    name: 'Challenges',
+    component: ChallengesView,
+    meta: {
+      title: 'Challenges',
+      subtitle: 'Accept, review, and monitor every ladder challenge from one focused queue.',
+    },
+  },
+  {
+    path: '/matches/:matchId',
+    name: 'MatchDetails',
+    component: MatchDetailsView,
+    props: true,
+    meta: {
+      title: 'Match Details',
+      subtitle: 'Confirm the final score, verify the winner, and move the ladder forward.',
+    },
+  },
+  {
+    path: '/play/:matchId',
+    name: 'PlayMatch',
+    component: PlayView,
+    props: true,
+    meta: {
+      title: 'Play',
+      subtitle: 'Run the live scoreboard in a focused full-screen match environment.',
+    },
+  },
+  {
+    path: '/create-challenge',
+    name: 'CreateChallenge',
+    component: CreateChallengeView,
+    meta: {
+      title: 'Create Challenge',
+      subtitle: 'Set up a new ladder challenge against an eligible higher-ranked opponent.',
+    },
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/dashboard',
+  },
 ]
 
 const router = createRouter({

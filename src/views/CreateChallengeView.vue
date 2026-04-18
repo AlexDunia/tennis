@@ -64,26 +64,16 @@ onMounted(() => {
 </script>
 
 <template>
-  <section>
-    <header class="section-header">
-      <div>
-        <p class="eyebrow">Create Challenge</p>
-        <h1>Issue a ladder challenge</h1>
-      </div>
-      <p class="section-copy">
-        Select a higher-ranked player and submit a challenge to move up the ladder.
-      </p>
-    </header>
-
+  <section class="create-challenge">
     <div class="challenge-panel">
-      <div class="challenge-info">
+      <div class="challenge-info section-card">
         <p class="subtitle">Current player</p>
         <h2>{{ currentPlayer?.name || 'Loading...' }}</h2>
         <p>Rank #{{ currentPlayer?.rank || '-' }}</p>
         <p>Record: {{ currentPlayer?.wins }}-{{ currentPlayer?.losses }}</p>
       </div>
 
-      <div class="challenge-form">
+      <div class="challenge-form section-card">
         <label class="field">
           <span class="field__label">Opponent</span>
           <select v-model="opponentId" class="field__input">
@@ -108,40 +98,19 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.eyebrow {
-  margin: 0;
-  color: var(--color-secondary);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.8rem;
-}
-
-.section-copy {
-  margin: 0.75rem 0 0;
-  color: var(--color-muted);
+.create-challenge {
+  display: grid;
 }
 
 .challenge-panel {
   display: grid;
   gap: 1.5rem;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 0.95fr 1.25fr;
 }
 
 .challenge-info,
 .challenge-form {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 1.25rem;
   padding: 1.5rem;
-  box-shadow: var(--shadow-soft);
 }
 
 .subtitle {
@@ -152,10 +121,13 @@ onMounted(() => {
   font-size: 0.8rem;
 }
 
+.challenge-info h2 {
+  margin-bottom: 0.65rem;
+}
+
 .field {
   display: grid;
   gap: 0.5rem;
-  margin-top: 1rem;
 }
 
 .field__label {
@@ -170,6 +142,11 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   background: rgba(255, 252, 240, 0.85);
   padding: 0.85rem 1rem;
+}
+
+.challenge-form {
+  display: grid;
+  gap: 1rem;
 }
 
 @media (max-width: 900px) {

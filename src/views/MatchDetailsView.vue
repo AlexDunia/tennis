@@ -67,28 +67,18 @@ onMounted(() => {
 </script>
 
 <template>
-  <section>
-    <header class="section-header">
-      <div>
-        <p class="eyebrow">Match Details</p>
-        <h1>Live match review</h1>
-      </div>
-      <p class="section-copy">
-        Submit results for scheduled matches and complete reviews for ladder updates.
-      </p>
-    </header>
-
-    <div v-if="!match" class="empty-state">Match not found.</div>
+  <section class="match-details">
+    <div v-if="!match" class="empty-state section-card">Match not found.</div>
 
     <div v-else class="match-grid">
-      <div class="match-summary">
-        <p class="eyebrow">{{ match.statusLabel }}</p>
+      <div class="match-summary section-card">
+        <p class="match-summary__status">{{ match.statusLabel }}</p>
         <h2>{{ challenger?.name || 'Challenger' }} vs {{ defender?.name || 'Defender' }}</h2>
         <p class="match-copy">Scheduled for: {{ match.scheduledAt || 'TBD' }}</p>
         <p class="match-copy">Score: {{ match.score || 'No score submitted' }}</p>
       </div>
 
-      <div class="result-panel">
+      <div class="result-panel section-card">
         <h3>Score submission</h3>
         <p class="panel-copy">Submit the mock match result to advance ladder rankings.</p>
 
@@ -119,40 +109,32 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.eyebrow {
-  margin: 0;
-  color: var(--color-secondary);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.8rem;
-}
-
-.section-copy {
-  margin: 0.75rem 0 0;
-  color: var(--color-muted);
+.match-details {
+  display: grid;
 }
 
 .match-grid {
   display: grid;
   gap: 1.5rem;
-  grid-template-columns: 1.2fr 0.8fr;
+  grid-template-columns: 1.1fr 0.9fr;
 }
 
 .match-summary,
 .result-panel {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 1.25rem;
   padding: 1.5rem;
-  box-shadow: var(--shadow-soft);
+}
+
+.match-summary__status {
+  margin: 0 0 0.4rem;
+  color: var(--color-secondary);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.match-summary h2 {
+  margin: 0;
 }
 
 .match-copy,
@@ -192,8 +174,6 @@ onMounted(() => {
 
 .empty-state {
   padding: 1.5rem;
-  border-radius: 1rem;
-  background: rgba(255, 249, 231, 0.8);
   color: var(--color-muted);
 }
 
