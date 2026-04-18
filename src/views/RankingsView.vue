@@ -45,7 +45,7 @@ onMounted(() => {
 <template>
   <section class="rankings">
     <div class="rankings__summary-grid">
-      <article v-if="currentPlayer" class="rankings__summary-card section-card">
+      <article v-if="currentPlayer" class="rankings__summary-card section-card stat-card--tier2">
         <p class="rankings__kicker">Current Player</p>
         <h2>{{ currentPlayer.name }}</h2>
         <p class="rankings__summary-copy">Rank #{{ currentPlayer.rank }}</p>
@@ -54,12 +54,10 @@ onMounted(() => {
         </p>
       </article>
 
-      <article class="rankings__summary-card section-card">
-        <p class="rankings__kicker">Challenge Window</p>
+      <article class="rankings__summary-card section-card stat-card--tier2">
+        <p class="rankings__kicker">Challenge opportunities</p>
         <h2>{{ playerStore.availableOpponents.length }}</h2>
-        <p class="rankings__summary-copy">
-          Eligible higher-ranked opponents available from this ladder position.
-        </p>
+        <p class="rankings__summary-copy">Higher-ranked opponents available to challenge.</p>
       </article>
     </div>
 
@@ -78,7 +76,7 @@ onMounted(() => {
 <style scoped>
 .rankings {
   display: grid;
-  gap: 1.2rem;
+  gap: 2rem;
 }
 
 .rankings__summary-grid {
@@ -88,13 +86,27 @@ onMounted(() => {
 }
 
 .rankings__summary-card {
-  padding: 1.2rem;
+  padding: 1.25rem;
+}
+
+.stat-card--tier2 {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  transition:
+    transform 0.12s ease-in-out,
+    box-shadow 0.12s ease-in-out;
+}
+
+.stat-card--tier2:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .rankings__kicker {
-  margin: 0 0 0.3rem;
-  color: var(--color-primary-strong);
-  font-size: 0.76rem;
+  margin: 0 0 0.35rem;
+  color: var(--color-accent-support);
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -102,7 +114,7 @@ onMounted(() => {
 
 .rankings__summary-card h2 {
   margin: 0;
-  font-size: 1.18rem;
+  font-size: 1.2rem;
 }
 
 .rankings__summary-copy {
@@ -113,7 +125,7 @@ onMounted(() => {
 
 .player-list {
   display: grid;
-  gap: 0.85rem;
+  gap: 1rem;
 }
 
 @media (max-width: 900px) {

@@ -24,47 +24,52 @@ defineProps({
 <style scoped>
 .base-button {
   border: 1px solid transparent;
-  border-radius: 0.9rem;
-  padding: 0.78rem 1.15rem;
-  font-size: 0.92rem;
+  border-radius: 0.5rem;
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 0.95rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+    background 0.12s ease-in-out,
+    border-color 0.12s ease-in-out,
+    color 0.12s ease-in-out,
+    transform 0.12s ease-in-out,
+    box-shadow 0.12s ease-in-out;
 }
 
 .base-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(20, 34, 24, 0.08);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+
+.base-button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .base-button--primary {
-  background: var(--color-primary);
-  color: #ffffff;
-  box-shadow: 0 8px 20px rgba(0, 181, 26, 0.18);
+  background: var(--color-accent-bright);
+  color: var(--color-light);
+  border-color: transparent;
 }
 
 .base-button--secondary {
-  background: rgba(0, 181, 26, 0.08);
-  color: var(--color-primary-strong);
-  border-color: rgba(0, 181, 26, 0.14);
+  background: transparent;
+  color: var(--color-accent-bright);
+  border-color: var(--color-accent-bright);
 }
 
 .base-button--ghost {
-  background: #ffffff;
+  background: transparent;
   color: var(--color-text);
   border-color: var(--color-border);
 }
 
 .base-button:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;

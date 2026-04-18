@@ -24,31 +24,16 @@
           <span class="sidebar__icon" aria-hidden="true" v-html="item.icon"></span>
           <span class="sidebar__link-copy">
             <span class="sidebar__label">{{ item.label }}</span>
-            <span class="sidebar__hint">{{ item.hint }}</span>
           </span>
         </RouterLink>
       </nav>
-
-      <div class="sidebar__footer">
-        <p class="sidebar__footer-label">Next action</p>
-        <RouterLink to="/create-challenge" class="sidebar__cta">
-          <span class="sidebar__cta-title">Create challenge</span>
-          <span class="sidebar__cta-copy">Open the dedicated setup page for the next ladder move.</span>
-        </RouterLink>
-      </div>
     </aside>
 
     <div class="shell">
       <header class="page-header">
         <div class="page-header__copy">
-          <p class="page-header__eyebrow">{{ currentSection }}</p>
           <h1 class="page-header__title">{{ currentTitle }}</h1>
           <p class="page-header__subtitle">{{ currentSubtitle }}</p>
-        </div>
-
-        <div class="page-header__meta">
-          <span class="page-header__chip">Renaissance-aligned workspace</span>
-          <span class="page-header__chip">White-first product shell</span>
         </div>
       </header>
 
@@ -72,28 +57,25 @@ const navigationItems = [
     to: '/dashboard',
     label: 'Dashboard',
     hint: 'Overview and priority actions',
-    icon:
-      '<svg viewBox="0 0 24 24" fill="none"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
   },
   {
     to: '/rankings',
     label: 'Rankings',
     hint: 'Ladder positions and records',
-    icon:
-      '<svg viewBox="0 0 24 24" fill="none"><path d="M7 18V9M12 18V5M17 18v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" fill="none"><path d="M7 18V9M12 18V5M17 18v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   },
   {
     to: '/challenges',
     label: 'Challenges',
     hint: 'Manage accepts and reviews',
-    icon:
-      '<svg viewBox="0 0 24 24" fill="none"><path d="M8 7h8M8 12h8M8 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" fill="none"><path d="M8 7h8M8 12h8M8 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/></svg>',
   },
 ]
 
 const currentTitle = computed(() => route.meta.title || 'ShellTennis PH')
 const currentSubtitle = computed(
-  () => route.meta.subtitle || 'Manage the Port Harcourt ladder from one calm workspace.',
+  () => route.meta.subtitle || 'Manage the ladder from one calm workspace.',
 )
 const currentSection = computed(() => {
   if (route.name === 'PlayMatch') {
@@ -118,9 +100,9 @@ const currentSection = computed(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0.75rem;
   padding: 1.5rem 1rem;
-  background: #ffffff;
+  background: var(--color-dark);
   border-right: 1px solid var(--color-border);
 }
 
@@ -169,46 +151,35 @@ const currentSection = computed(() => {
 .sidebar__logo-text,
 .sidebar__logo-copy {
   display: block;
-}
-
-.sidebar__logo-text {
-  font-size: 1rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-}
-
-.sidebar__logo-copy {
-  margin-top: 0.12rem;
-  color: var(--color-muted);
-  font-size: 0.78rem;
+  color: var(--color-light);
 }
 
 .sidebar__nav {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.375rem;
 }
 
 .sidebar__link {
   display: grid;
   grid-template-columns: 2.35rem minmax(0, 1fr);
-  gap: 0.8rem;
+  gap: 0.75rem;
   align-items: center;
-  padding: 0.8rem 0.85rem;
-  border-radius: 0.95rem;
-  color: var(--color-text-soft);
+  padding: 0 12px;
+  min-height: 40px;
+  border-radius: 0.5rem;
+  color: var(--color-light);
   border: 1px solid transparent;
   transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease;
+    background 0.12s ease-in-out,
+    border-color 0.12s ease-in-out,
+    color 0.12s ease-in-out;
 }
 
 .sidebar__link.router-link-active,
 .sidebar__link:hover {
-  background: var(--color-surface-soft);
-  border-color: rgba(0, 181, 26, 0.12);
-  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--color-light);
 }
 
 .sidebar__icon {
@@ -217,15 +188,15 @@ const currentSection = computed(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.85rem;
-  background: #f6f8f7;
-  border: 1px solid var(--color-border);
-  color: var(--color-primary-strong);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--color-light);
 }
 
 .sidebar__link.router-link-active .sidebar__icon {
-  background: rgba(0, 181, 26, 0.08);
-  border-color: rgba(0, 181, 26, 0.14);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .sidebar__icon :deep(svg) {
@@ -291,6 +262,9 @@ const currentSection = computed(() => {
 }
 
 .page-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -304,15 +278,6 @@ const currentSection = computed(() => {
   min-width: 0;
 }
 
-.page-header__eyebrow {
-  margin: 0 0 0.25rem;
-  color: var(--color-primary-strong);
-  font-size: 0.76rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .page-header__title {
   margin: 0;
   font-size: clamp(1.55rem, 2vw, 1.95rem);
@@ -322,26 +287,9 @@ const currentSection = computed(() => {
 
 .page-header__subtitle {
   max-width: 44rem;
-  margin: 0.4rem 0 0;
+  margin: 0.5rem 0 0;
   color: var(--color-muted);
   font-size: 0.95rem;
-}
-
-.page-header__meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  gap: 0.55rem;
-}
-
-.page-header__chip {
-  padding: 0.55rem 0.8rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-muted);
-  color: var(--color-text-soft);
-  font-size: 0.82rem;
-  font-weight: 600;
 }
 
 .layout__main {

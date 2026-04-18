@@ -74,13 +74,14 @@ onMounted(() => {
       <div class="match-summary section-card">
         <p class="match-summary__status">{{ match.statusLabel }}</p>
         <h2>{{ challenger?.name || 'Challenger' }} vs {{ defender?.name || 'Defender' }}</h2>
-        <p class="match-copy">Scheduled for: {{ match.scheduledAt || 'TBD' }}</p>
-        <p class="match-copy">Score: {{ match.score || 'No score submitted' }}</p>
+        <p class="match-copy">
+          {{ match.scheduledAt ? `Scheduled ${match.scheduledAt}` : 'Schedule pending' }}
+        </p>
+        <p class="match-copy">{{ match.score ? `Score ${match.score}` : 'No score submitted' }}</p>
       </div>
 
       <div class="result-panel section-card">
-        <h3>Score Submission</h3>
-        <p class="panel-copy">Submit the final score to move the match into review.</p>
+        <h3>Submit result</h3>
 
         <label class="field">
           <span class="field__label">Winner</span>
@@ -115,19 +116,31 @@ onMounted(() => {
 
 .match-grid {
   display: grid;
-  gap: 1rem;
+  gap: 2rem;
   grid-template-columns: 1.1fr 0.9fr;
 }
 
 .match-summary,
 .result-panel {
-  padding: 1.2rem;
+  padding: 1.25rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  transition:
+    transform 0.12s ease-in-out,
+    box-shadow 0.12s ease-in-out;
+}
+
+.match-summary:hover,
+.result-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .match-summary__status {
-  margin: 0 0 0.3rem;
-  color: var(--color-primary-strong);
-  font-size: 0.76rem;
+  margin: 0 0 0.35rem;
+  color: var(--color-accent-support);
+  font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -142,7 +155,7 @@ onMounted(() => {
 .panel-copy {
   margin: 0.6rem 0 0;
   color: var(--color-muted);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
 }
 
 .field {
@@ -159,25 +172,38 @@ onMounted(() => {
 
 .field__input {
   width: 100%;
-  border-radius: 0.9rem;
+  border-radius: 0.5rem;
   border: 1px solid var(--color-border);
-  background: #ffffff;
-  padding: 0.88rem 0.95rem;
+  background: var(--color-light);
+  padding: 0 14px;
+  min-height: 38px;
+  font-size: 0.9rem;
 }
 
 .submit-button {
   margin-top: 1.1rem;
   border: 1px solid transparent;
-  border-radius: 0.9rem;
-  padding: 0.82rem 1rem;
-  background: var(--color-primary);
-  color: #ffffff;
+  border-radius: 0.5rem;
+  padding: 0 14px;
+  min-height: 38px;
+  background: var(--color-accent-bright);
+  color: var(--color-light);
   font-weight: 700;
+  transition:
+    transform 0.12s ease-in-out,
+    box-shadow 0.12s ease-in-out;
+}
+
+.submit-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .empty-state {
-  padding: 1.2rem;
+  padding: 1.25rem;
   color: var(--color-muted);
+  border-radius: 0.75rem;
+  background: var(--color-surface-muted);
 }
 
 @media (max-width: 900px) {

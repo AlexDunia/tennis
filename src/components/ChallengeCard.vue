@@ -68,28 +68,36 @@ const challengeLabel = computed(
 
 <style scoped>
 .challenge-card {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 1.1rem;
-  padding: 1.15rem;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
   display: grid;
-  gap: 0.95rem;
+  gap: 1rem;
   box-shadow: var(--shadow-soft);
+  transition:
+    transform 0.12s ease-in-out,
+    box-shadow 0.12s ease-in-out;
+}
+
+.challenge-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-strong);
 }
 
 .challenge-card__identity {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
+  gap: 1rem;
 }
 
 .challenge-card__ladder {
-  min-width: 4.7rem;
-  padding: 0.7rem 0.8rem;
-  border-radius: 0.9rem;
-  background: rgba(255, 211, 61, 0.16);
+  min-width: 4.5rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.5rem;
+  background: rgba(255, 211, 61, 0.12);
   color: #845f00;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 800;
   text-align: center;
 }
@@ -102,14 +110,14 @@ const challengeLabel = computed(
 
 .challenge-card__details {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.3rem;
 }
 
 .challenge-card__meta {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.9rem;
-  line-height: 1.55;
+  font-size: 0.92rem;
+  line-height: 1.6;
 }
 
 .challenge-card__note {
@@ -120,7 +128,7 @@ const challengeLabel = computed(
 
 .challenge-card__actions {
   display: flex;
-  gap: 0.65rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
 

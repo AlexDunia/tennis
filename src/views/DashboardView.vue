@@ -131,50 +131,40 @@ onMounted(() => {
   <section class="dashboard">
     <section class="dashboard__intro section-card">
       <div>
-        <p class="dashboard__eyebrow">Current Player</p>
-        <h2>{{ currentPlayer?.name || 'Loading player...' }}</h2>
-        <p class="dashboard__intro-copy">
-          The dashboard stays lightweight: review priorities, jump into the right page, and keep
-          the ladder moving.
+        <p class="dashboard__greeting">Hello {{ currentPlayer?.name || 'Player' }}</p>
+        <p class="dashboard__subline">
+          Rank #{{ currentPlayer?.rank || '-' }} • {{ currentPlayer?.wins || 0 }}-{{
+            currentPlayer?.losses || 0
+          }}
         </p>
       </div>
 
-      <div class="dashboard__intro-meta">
-        <span class="dashboard__chip">Rank #{{ currentPlayer?.rank || '-' }}</span>
-        <span class="dashboard__chip">
-          Record {{ currentPlayer?.wins || 0 }}-{{ currentPlayer?.losses || 0 }}
-        </span>
-        <button class="dashboard__quick-action" type="button" @click="openCreateView">
-          Create challenge
+      <div class="dashboard__actions">
+        <button class="dashboard__action-button" type="button" @click="openCreateView">
+          New challenge
         </button>
       </div>
     </section>
 
     <div class="stats-grid">
-      <article class="stat-card section-card">
+      <article class="stat-card section-card stat-card--tier1">
         <p class="stat-card__label">Players</p>
         <p class="stat-card__value">{{ stats.players }}</p>
-        <p class="stat-card__hint">Active ladder spots.</p>
       </article>
-      <article class="stat-card section-card">
+      <article class="stat-card section-card stat-card--tier1">
         <p class="stat-card__label">Matches</p>
         <p class="stat-card__value">{{ stats.matches }}</p>
-        <p class="stat-card__hint">Scheduled and review-ready.</p>
       </article>
-      <article class="stat-card section-card">
+      <article class="stat-card section-card stat-card--tier1">
         <p class="stat-card__label">Ladder</p>
         <p class="stat-card__value">{{ stats.ladder }}</p>
-        <p class="stat-card__hint">Current competitive positions.</p>
       </article>
     </div>
 
     <div class="dashboard-grid">
       <section class="dashboard-panel section-card">
         <div class="panel-header">
-          <div>
-            <p class="dashboard__eyebrow">Pending Actions</p>
-            <h2>What needs attention now</h2>
-          </div>
+          <h2>Pending actions</h2>
         </div>
 
         <div v-if="hasPendingActions" class="action-list">
@@ -192,35 +182,28 @@ onMounted(() => {
         </div>
 
         <div v-else class="empty-panel">
-          No urgent actions right now. You can start the next move from Create Challenge.
+          No pending actions. Create a challenge or review the ladder.
         </div>
       </section>
 
       <section class="dashboard-panel section-card">
         <div class="panel-header">
-          <div>
-            <p class="dashboard__eyebrow">Featured Match</p>
-            <h2>
-              {{
-                featuredMatch
-                  ? `${featuredMatch.challengerName} vs ${featuredMatch.defenderName}`
-                  : 'No active match'
-              }}
-            </h2>
-          </div>
+          <h2>Featured match</h2>
         </div>
 
         <div v-if="featuredMatch" class="feature-card">
           <p class="feature-card__status">{{ featuredMatch.statusLabel }}</p>
+          <p class="feature-card__copy">
+            {{ featuredMatch.challengerName }} vs {{ featuredMatch.defenderName }}
+          </p>
           <p class="feature-card__copy">{{ formatDateTime(featuredMatch.scheduledAt) }}</p>
-          <p class="feature-card__copy">Open the play screen for live scoring.</p>
           <button class="feature-card__button" type="button" @click="openFeaturedMatch">
-            Open play screen
+            View match
           </button>
         </div>
 
         <div v-else class="empty-panel">
-          Your next scheduled match will appear here with a direct route into live play.
+          No active match yet. Your next scheduled match will appear here.
         </div>
       </section>
     </div>
@@ -228,10 +211,7 @@ onMounted(() => {
     <div class="activity-grid">
       <section class="dashboard-panel section-card">
         <div class="panel-header">
-          <div>
-            <p class="dashboard__eyebrow">Recent Challenges</p>
-            <h2>Latest ladder movement</h2>
-          </div>
+          <h2>Recent challenges</h2>
         </div>
 
         <div v-if="recentChallenges.length" class="activity-list">
@@ -246,24 +226,20 @@ onMounted(() => {
               {{ challenge.challengerName }} vs {{ challenge.defenderName }}
             </span>
             <span class="activity-item__meta">
-              {{
-                `${challenge.statusLabel} - ${formatDateTime(challenge.scheduledAt || challenge.requestedAt)}`
-              }}
+              {{ challenge.statusLabel }} ·
+              {{ formatDateTime(challenge.scheduledAt || challenge.requestedAt) }}
             </span>
           </button>
         </div>
 
         <div v-else class="empty-panel">
-          Recent challenges will show here once the ladder gets moving.
+          Recent challenges will appear after a challenge is created.
         </div>
       </section>
 
       <section class="dashboard-panel section-card">
         <div class="panel-header">
-          <div>
-            <p class="dashboard__eyebrow">Recent Matches</p>
-            <h2>Open the right match flow</h2>
-          </div>
+          <h2>Recent matches</h2>
         </div>
 
         <div v-if="recentMatches.length" class="activity-list">
@@ -278,7 +254,7 @@ onMounted(() => {
               {{ match.challengerName }} vs {{ match.defenderName }}
             </span>
             <span class="activity-item__meta">
-              {{ match.statusLabel }} - {{ match.score || formatDateTime(match.scheduledAt) }}
+              {{ match.statusLabel }} · {{ match.score || formatDateTime(match.scheduledAt) }}
             </span>
           </button>
         </div>
@@ -294,66 +270,50 @@ onMounted(() => {
 <style scoped>
 .dashboard {
   display: grid;
-  gap: 1.25rem;
+  gap: 2rem;
 }
 
 .dashboard__intro {
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.35rem 1.4rem;
+  padding: 1.4rem;
 }
 
-.dashboard__eyebrow {
-  margin: 0 0 0.3rem;
-  color: var(--color-primary-strong);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.76rem;
-}
-
-.dashboard__intro h2,
-.panel-header h2 {
+.dashboard__greeting {
   margin: 0;
-  font-size: 1.2rem;
-  letter-spacing: -0.03em;
+  font-size: 1.45rem;
+  font-weight: 800;
 }
 
-.dashboard__intro-copy {
-  max-width: 40rem;
+.dashboard__subline {
   margin: 0.55rem 0 0;
   color: var(--color-muted);
-  font-size: 0.94rem;
+  font-size: 0.95rem;
 }
 
-.dashboard__intro-meta {
+.dashboard__actions {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  justify-content: end;
+  justify-content: flex-end;
 }
 
-.dashboard__chip {
-  padding: 0.5rem 0.75rem;
-  border-radius: 999px;
-  background: var(--color-surface-muted);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-soft);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.dashboard__quick-action {
-  border: 1px solid rgba(255, 127, 50, 0.18);
-  border-radius: 0.9rem;
-  padding: 0.72rem 0.95rem;
-  background: rgba(255, 127, 50, 0.08);
-  color: #b15a21;
-  font-size: 0.9rem;
+.dashboard__action-button {
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0 14px;
+  min-height: 38px;
+  background: var(--color-accent-bright);
+  color: var(--color-light);
   font-weight: 700;
+  transition:
+    transform 0.12s ease-in-out,
+    box-shadow 0.12s ease-in-out;
+}
+
+.dashboard__action-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .stats-grid,
@@ -374,82 +334,69 @@ onMounted(() => {
 
 .stat-card,
 .dashboard-panel {
-  padding: 1.2rem;
+  padding: 1.4rem;
 }
 
-.stat-card__label,
-.stat-card__hint,
-.feature-card__copy,
-.activity-item__meta,
-.action-card__meta,
-.empty-panel {
-  color: var(--color-muted);
+.stat-card--tier1 {
+  background: var(--color-dark);
+  color: var(--color-light);
+  border-color: var(--color-dark-soft);
 }
 
 .stat-card__label {
   margin: 0;
+  color: inherit;
   font-size: 0.88rem;
-  font-weight: 600;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .stat-card__value {
-  margin: 0.45rem 0 0;
+  margin: 0.85rem 0 0;
   font-size: 2rem;
-  line-height: 1;
   font-weight: 800;
-}
-
-.stat-card__hint {
-  margin: 0.45rem 0 0;
-  font-size: 0.88rem;
 }
 
 .panel-header {
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 1rem;
 }
 
 .action-list,
 .activity-list {
   display: grid;
-  gap: 0.8rem;
-}
-
-.action-card,
-.activity-item,
-.feature-card__button {
-  width: 100%;
+  gap: 0.75rem;
 }
 
 .action-card,
 .activity-item {
   display: grid;
-  gap: 0.22rem;
-  padding: 0.95rem 1rem;
+  gap: 0.35rem;
+  padding: 1rem;
   border: 1px solid var(--color-border);
-  border-radius: 1rem;
-  background: var(--color-surface-muted);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
   text-align: left;
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
+    transform 0.12s ease-in-out,
+    box-shadow 0.12s ease-in-out,
+    border-color 0.12s ease-in-out;
 }
 
 .action-card:hover,
 .activity-item:hover,
-.dashboard__quick-action:hover,
+.dashboard__action-button:hover,
 .feature-card__button:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   box-shadow: var(--shadow-soft);
-}
-
-.action-card:hover,
-.activity-item:hover {
-  border-color: rgba(0, 181, 26, 0.14);
 }
 
 .action-card__title,
@@ -459,9 +406,17 @@ onMounted(() => {
   color: var(--color-text);
 }
 
+.action-card__meta,
+.activity-item__meta {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .action-card__cta {
-  margin-top: 0.25rem;
-  color: var(--color-primary-strong);
+  margin-top: 0.35rem;
+  color: var(--color-accent-bright);
   font-weight: 700;
   font-size: 0.88rem;
 }
@@ -473,36 +428,37 @@ onMounted(() => {
 
 .feature-card__status {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .feature-card__copy {
   margin: 0;
-  font-size: 0.9rem;
+  color: var(--color-muted);
+  font-size: 0.95rem;
 }
 
 .feature-card__button {
   justify-self: start;
-  max-width: 13rem;
+  max-width: 14rem;
   border: 1px solid rgba(0, 181, 26, 0.14);
-  border-radius: 0.9rem;
-  padding: 0.82rem 1rem;
+  border-radius: 0.5rem;
+  padding: 0 14px;
+  min-height: 38px;
   background: rgba(0, 181, 26, 0.08);
-  color: var(--color-primary-strong);
+  color: var(--color-accent-bright);
   font-weight: 700;
 }
 
 .empty-panel {
-  padding: 0.95rem 1rem;
-  border-radius: 1rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
   background: var(--color-surface-muted);
-  font-size: 0.9rem;
+  color: var(--color-muted);
 }
 
 @media (max-width: 1100px) {
-  .dashboard__intro,
   .stats-grid,
   .dashboard-grid,
   .activity-grid {
@@ -513,8 +469,8 @@ onMounted(() => {
     flex-direction: column;
   }
 
-  .dashboard__intro-meta {
-    justify-content: start;
+  .dashboard__actions {
+    justify-content: stretch;
   }
 
   .feature-card__button {

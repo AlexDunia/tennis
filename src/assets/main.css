@@ -15,10 +15,15 @@
   --color-muted: #6d7a70;
   --color-border: #e7ece8;
   --color-border-strong: #d7dfd8;
-  --shadow-soft: 0 12px 30px rgba(20, 34, 24, 0.05);
-  --shadow-strong: 0 18px 48px rgba(20, 34, 24, 0.08);
-  --radius: 1rem;
-  --radius-lg: 1.4rem;
+  --color-dark: #0f1419;
+  --color-dark-soft: #1a1a1a;
+  --color-light: #ffffff;
+  --color-accent-bright: #00b51a;
+  --color-accent-support: #ffd33d;
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-strong: 0 6px 18px rgba(0, 0, 0, 0.06);
+  --radius: 0.5rem;
+  --radius-lg: 0.75rem;
 }
 
 * {
@@ -39,11 +44,7 @@ body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-text);
-  font-family:
-    Inter,
-    'Avenir Next',
-    'Segoe UI',
-    sans-serif;
+  font-family: Inter, 'Avenir Next', 'Segoe UI', sans-serif;
   line-height: 1.55;
   text-rendering: optimizeLegibility;
 }

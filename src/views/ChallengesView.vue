@@ -105,7 +105,7 @@ onMounted(() => {
 <style scoped>
 .challenges {
   display: grid;
-  gap: 1rem;
+  gap: 2rem;
 }
 
 .tabs {
@@ -116,27 +116,40 @@ onMounted(() => {
 
 .tab-button {
   border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 0.65rem 0.95rem;
-  background: #ffffff;
+  border-radius: 0.5rem;
+  padding: 0 14px;
+  min-height: 38px;
+  background: var(--color-surface);
   color: var(--color-muted);
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   font-weight: 600;
+  transition:
+    background 0.12s ease-in-out,
+    border-color 0.12s ease-in-out,
+    color 0.12s ease-in-out,
+    transform 0.12s ease-in-out;
+}
+
+.tab-button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
 }
 
 .tab-button--active {
   background: rgba(0, 181, 26, 0.08);
-  color: var(--color-primary-strong);
+  color: var(--color-accent-bright);
   border-color: rgba(0, 181, 26, 0.14);
 }
 
 .challenge-list {
   display: grid;
-  gap: 0.9rem;
+  gap: 1rem;
 }
 
 .empty-state {
-  padding: 1.2rem;
+  padding: 1.25rem;
   color: var(--color-muted);
+  border-radius: 0.75rem;
+  background: var(--color-surface-muted);
 }
 </style>

@@ -28,7 +28,8 @@ const scoreboardState = ref(createScoreboard('Court A', 'Court B'))
 const matchId = computed(() => route.params.matchId)
 const currentMatch = computed(() => matchStore.matchById(matchId.value))
 const challenger = computed(
-  () => playerStore.players.find((player) => player.id === currentMatch.value?.challengerId) || null,
+  () =>
+    playerStore.players.find((player) => player.id === currentMatch.value?.challengerId) || null,
 )
 const defender = computed(
   () => playerStore.players.find((player) => player.id === currentMatch.value?.defenderId) || null,
@@ -108,7 +109,11 @@ onMounted(() => {
       <div class="play__meta-copy">
         <p class="play__eyebrow">{{ scoreboardStatus }}</p>
         <h2>
-          {{ currentMatch ? `${currentMatch.challengerName} vs ${currentMatch.defenderName}` : 'Live scoreboard' }}
+          {{
+            currentMatch
+              ? `${currentMatch.challengerName} vs ${currentMatch.defenderName}`
+              : 'Live scoreboard'
+          }}
         </h2>
         <p class="play__subtitle">{{ formatDateTime(currentMatch?.scheduledAt) }}</p>
       </div>
@@ -128,20 +133,31 @@ onMounted(() => {
 <style scoped>
 .play {
   display: grid;
-  gap: 1rem;
+  gap: 2rem;
 }
 
 .play__meta-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
-  padding: 1.2rem;
+  padding: 1.25rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  transition:
+    transform 0.12s ease-in-out,
+    box-shadow 0.12s ease-in-out;
+}
+
+.play__meta-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .play__eyebrow {
   margin: 0 0 0.25rem;
-  color: var(--color-primary-strong);
-  font-size: 0.76rem;
+  color: var(--color-accent-support);
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -153,23 +169,32 @@ onMounted(() => {
 }
 
 .play__meta-copy h2 {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
 }
 
 .play__subtitle {
   margin-top: 0.45rem;
   color: var(--color-muted);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
 
 .play__details {
   border: 1px solid rgba(0, 181, 26, 0.14);
-  border-radius: 0.9rem;
-  padding: 0.78rem 0.95rem;
+  border-radius: 0.5rem;
+  padding: 0 14px;
+  min-height: 38px;
   background: rgba(0, 181, 26, 0.08);
-  color: var(--color-primary-strong);
+  color: var(--color-accent-bright);
   font-weight: 700;
   align-self: start;
+  transition:
+    transform 0.12s ease-in-out,
+    box-shadow 0.12s ease-in-out;
+}
+
+.play__details:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .play__wrapper {
@@ -178,9 +203,11 @@ onMounted(() => {
 }
 
 .play__fallback {
-  padding: 1rem 1.2rem;
+  padding: 1.25rem;
   font-weight: 600;
   color: var(--color-muted);
+  border-radius: 0.75rem;
+  background: var(--color-surface-muted);
 }
 
 @media (max-width: 900px) {

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <DefaultLayout />
 </template>
 

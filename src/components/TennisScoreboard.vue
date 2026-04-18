@@ -108,11 +108,11 @@ function handlePointAward(playerKey) {
 .tennis-scoreboard {
   width: min(100%, 860px);
   background: #ffffff;
-  border-radius: 1.2rem;
-  padding: 1.35rem;
+  border-radius: 1rem;
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 1rem;
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-soft);
 }
@@ -120,7 +120,7 @@ function handlePointAward(playerKey) {
 .tennis-scoreboard__header {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
   text-align: center;
 }
 
@@ -134,14 +134,14 @@ function handlePointAward(playerKey) {
 .tennis-scoreboard__mode,
 .tennis-scoreboard__winner {
   margin: 0;
-  font-size: 0.84rem;
+  font-size: 0.9rem;
   color: var(--color-muted);
 }
 
 .tennis-scoreboard__players {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.9rem;
+  gap: 0.85rem;
 }
 
 .tennis-scoreboard__player {
@@ -162,28 +162,28 @@ function handlePointAward(playerKey) {
 }
 
 .tennis-scoreboard__player-points {
-  margin: 0.45rem 0 0;
-  font-size: 1.6rem;
+  margin: 0.5rem 0 0;
+  font-size: 1.7rem;
   font-weight: 800;
 }
 
 .tennis-scoreboard__sets {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 0.75rem;
 }
 
 .tennis-scoreboard__set {
   background: #ffffff;
-  border-radius: 0.9rem;
-  padding: 0.8rem;
+  border-radius: 0.95rem;
+  padding: 0.9rem;
   text-align: center;
   border: 1px solid var(--color-border);
 }
 
 .tennis-scoreboard__set-label {
   margin: 0;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   letter-spacing: 0.08rem;
   color: var(--color-muted);
 }
@@ -202,21 +202,48 @@ function handlePointAward(playerKey) {
 }
 
 .tennis-scoreboard__controls {
-  display: flex;
-  gap: 0.9rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
 }
 
 .tennis-scoreboard__button {
-  flex: 1;
   border-radius: 0.95rem;
   border: 1px solid var(--color-border);
-  padding: 0.85rem;
-  font-size: 0.9rem;
+  padding: 0.85rem 0.95rem;
+  font-size: 0.95rem;
   font-weight: 700;
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
+    transform 0.15s ease-in-out,
+    box-shadow 0.15s ease-in-out,
+    border-color 0.15s ease-in-out;
+}
+
+.tennis-scoreboard__button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tennis-scoreboard__button--left {
+  background: rgba(0, 181, 26, 0.1);
+  color: var(--color-primary-strong);
+}
+
+.tennis-scoreboard__button--right {
+  background: rgba(255, 127, 50, 0.1);
+  color: #b35a1f;
+}
+
+.tennis-scoreboard__button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
+}
+
+@media (max-width: 720px) {
+  .tennis-scoreboard__players,
+  .tennis-scoreboard__controls {
+    grid-template-columns: 1fr;
+  }
 }
 
 .tennis-scoreboard__button:disabled {

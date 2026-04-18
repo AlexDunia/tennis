@@ -104,57 +104,71 @@ onMounted(() => {
 
 .challenge-panel {
   display: grid;
-  gap: 1rem;
-  grid-template-columns: 0.95fr 1.25fr;
+  gap: 2rem;
+  grid-template-columns: 1fr 1.2fr;
 }
 
 .challenge-info,
 .challenge-form {
-  padding: 1.2rem;
+  padding: 1.25rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  transition:
+    transform 0.12s ease-in-out,
+    box-shadow 0.12s ease-in-out;
+}
+
+.challenge-info:hover,
+.challenge-form:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .subtitle {
   margin: 0;
-  color: var(--color-primary-strong);
+  color: var(--color-accent-support);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
 }
 
 .challenge-info h2 {
   margin: 0.35rem 0 0;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
 }
 
 .challenge-copy {
   margin: 0.45rem 0 0;
   color: var(--color-muted);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
 }
 
 .field {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.55rem;
 }
 
 .field__label {
   color: var(--color-text);
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   font-weight: 600;
 }
 
 .field__input {
   width: 100%;
-  border-radius: 0.9rem;
+  border-radius: 0.5rem;
   border: 1px solid var(--color-border);
-  background: #ffffff;
-  padding: 0.88rem 0.95rem;
+  background: var(--color-light);
+  padding: 0 14px;
+  min-height: 38px;
+  font-size: 0.9rem;
 }
 
 .challenge-form {
   display: grid;
-  gap: 0.95rem;
+  gap: 1rem;
 }
 
 @media (max-width: 900px) {
