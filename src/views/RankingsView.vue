@@ -4,6 +4,7 @@ import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePlayerStore } from '../stores/player'
 import PlayerCard from '../components/PlayerCard.vue'
+import PersonAvatar from '../components/PersonAvatar.vue'
 
 // 2. PROPS
 // none
@@ -47,8 +48,13 @@ onMounted(() => {
     <div class="rankings__summary-grid">
       <article v-if="currentPlayer" class="rankings__summary-card section-card stat-card--tier2">
         <p class="rankings__kicker">Current Player</p>
-        <h2>{{ currentPlayer.name }}</h2>
-        <p class="rankings__summary-copy">Rank #{{ currentPlayer.rank }}</p>
+        <div class="rankings__player-summary">
+          <PersonAvatar :image="currentPlayer.imageUrl" :name="currentPlayer.name" size="58" />
+          <div>
+            <h2>{{ currentPlayer.name }}</h2>
+            <p class="rankings__summary-copy">Rank #{{ currentPlayer.rank }}</p>
+          </div>
+        </div>
         <p class="rankings__summary-copy">
           Record {{ currentPlayer.wins }}-{{ currentPlayer.losses }}
         </p>
@@ -103,7 +109,18 @@ onMounted(() => {
   box-shadow: var(--shadow-soft);
 }
 
-.rankings__kicker {
+.rankings__player-summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.rankings__player-summary h2 {
+  margin: 0;
+}
+
+.rankings__summary-copy {
   margin: 0 0 0.35rem;
   color: var(--color-accent-support);
   font-size: 0.78rem;

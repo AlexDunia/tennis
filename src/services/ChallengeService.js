@@ -19,3 +19,8 @@ export async function reviewChallenge(challengeId) {
   const response = await ApiService.post(`/challenges/${challengeId}/review`, {})
   return response.data
 }
+
+export async function declineChallenge(challengeId) {
+  const response = await ApiService.post(`/challenges/${challengeId}/decline`, {})
+  return response.data
+}

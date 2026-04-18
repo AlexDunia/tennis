@@ -2,6 +2,7 @@
 // IMPORTS
 import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import PersonAvatar from '../components/PersonAvatar.vue'
 
 // PROPS
 // none
@@ -22,6 +23,7 @@ const authStore = useAuthStore()
 const profileName = computed(() => authStore.user?.name ?? 'Shell player')
 const profileEmail = computed(() => authStore.user?.email ?? 'player@shell.com')
 const statusTag = computed(() => (authStore.isLoggedIn ? 'Active access' : 'Guest'))
+const profileAvatar = computed(() => authStore.user?.avatar || '')
 
 // METHODS
 // none
@@ -40,9 +42,13 @@ const statusTag = computed(() => (authStore.isLoggedIn ? 'Active access' : 'Gues
       <p class="profile__status">{{ statusTag }}</p>
     </header>
     <div class="profile__card">
+      <PersonAvatar :image="profileAvatar" :name="profileName" size="72" class="profile__avatar" />
       <p class="profile__name">{{ profileName }}</p>
       <p class="profile__email">{{ profileEmail }}</p>
-      <p class="profile__detail">Court bookings, match history, and scoreboard credentials are synced locally with your Shell account.</p>
+      <p class="profile__detail">
+        Court bookings, match history, and scoreboard credentials are synced locally with your Shell
+        account.
+      </p>
     </div>
   </section>
 </template>
@@ -58,6 +64,12 @@ const statusTag = computed(() => (authStore.isLoggedIn ? 'Active access' : 'Gues
   padding: 1.5rem;
   box-shadow: 0 35px 70px rgba(0, 0, 0, 0.08);
 }
+
+.profile__avatar {
+  display: block;
+  margin: 0 auto 1rem;
+}
+
 .profile__title {
   margin: 0;
 }

@@ -338,9 +338,10 @@ onMounted(() => {
 }
 
 .stat-card--tier1 {
-  background: var(--color-dark);
-  color: var(--color-light);
-  border-color: var(--color-dark-soft);
+  background: rgba(255, 202, 58, 0.4);
+  color: #2f2f2f;
+  border-color: rgba(255, 202, 58, 0.35);
+  box-shadow: 0 14px 32px rgba(45, 45, 45, 0.08);
 }
 
 .stat-card__label {

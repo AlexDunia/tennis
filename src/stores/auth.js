@@ -4,6 +4,10 @@ import { fakeRequest, createTimestamp } from '../services/api'
 
 const STORAGE_KEY = 'sheltennis-auth'
 
+function createAvatarImage(name) {
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=EDF2F7&color=2E3A59`
+}
+
 function loadAuthFromStorage() {
   const stored = localStorage.getItem(STORAGE_KEY)
   if (!stored) {
@@ -45,6 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
         email: `${credentials.username}@shell.com`,
         lastLogin: createTimestamp(),
         role: 'Shell Tennis Player',
+        avatar: createAvatarImage(credentials.username),
       })
       user.value = response
       isLoggedIn.value = true

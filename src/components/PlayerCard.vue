@@ -1,9 +1,12 @@
 <template>
   <article class="player-card">
     <div class="player-card__identity">
-      <div class="player-card__rank-badge">#{{ player.rank }}</div>
+      <PersonAvatar :image="player.imageUrl" :name="player.name" size="52" />
       <div>
-        <h3 class="player-card__name">{{ player.name }}</h3>
+        <div class="player-card__header-row">
+          <div class="player-card__rank-badge">#{{ player.rank }}</div>
+          <h3 class="player-card__name">{{ player.name }}</h3>
+        </div>
         <p class="player-card__record">Record {{ player.wins }}-{{ player.losses }}</p>
       </div>
     </div>
@@ -24,6 +27,7 @@
 
 <script setup>
 import BaseButton from './BaseButton.vue'
+import PersonAvatar from './PersonAvatar.vue'
 
 defineProps({
   player: { type: Object, required: true },
@@ -69,6 +73,12 @@ defineProps({
   color: var(--color-primary-strong);
   font-size: 0.95rem;
   font-weight: 800;
+}
+
+.player-card__header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .player-card__name {

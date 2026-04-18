@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useChallengeStore } from '../stores/challenge'
 import { usePlayerStore } from '../stores/player'
+import { useNotificationStore } from '../stores/notification'
 import BaseButton from '../components/BaseButton.vue'
 import BaseInput from '../components/BaseInput.vue'
 
@@ -20,14 +21,19 @@ const router = useRouter()
 // 5. STORES
 const playerStore = usePlayerStore()
 const challengeStore = useChallengeStore()
+const notificationStore = useNotificationStore()
 
 // 6. REACTIVE STATE
 const opponentId = ref(route.query.opponent || '')
+const scorerId = ref('')
 const note = ref('Looking forward to a competitive ladder match.')
 
 // 7. COMPUTED PROPERTIES
 const currentPlayer = computed(() => playerStore.currentPlayer)
 const opponentOptions = computed(() => playerStore.availableOpponents)
+const scorerOptions = computed(() =>
+  playerStore.players.filter((player) => player.id !== opponentId.value),
+)
 
 // 8. METHODS
 const handleSubmit = async () => {
@@ -38,10 +44,20 @@ const handleSubmit = async () => {
   const result = await challengeStore.createChallenge({
     challengerId: currentPlayer.value.id,
     defenderId: opponentId.value,
+    scorerId: scorerId.value || null,
     note: note.value,
   })
 
   if (result) {
+    notificationStore.addToast({
+      message: 'Challenge request sent. Awaiting response from your opponent.',
+      type: 'success',
+    })
+    notificationStore.addNotification({
+      title: 'Challenge created',
+      message: `Your challenge request against ${opponentOptions.value.find((p) => p.id === opponentId.value)?.name || 'the opponent'} has been sent.`,
+      type: 'info',
+    })
     router.push({ name: 'Challenges' })
   }
 }
@@ -79,6 +95,16 @@ onMounted(() => {
           <select v-model="opponentId" class="field__input">
             <option v-for="player in opponentOptions" :key="player.id" :value="player.id">
               #{{ player.rank }} {{ player.name }} - {{ player.wins }}-{{ player.losses }}
+            </option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Scorer (Optional)</span>
+          <select v-model="scorerId" class="field__input">
+            <option value="">No scorer assigned</option>
+            <option v-for="player in scorerOptions" :key="player.id" :value="player.id">
+              #{{ player.rank }} {{ player.name }}
             </option>
           </select>
         </label>

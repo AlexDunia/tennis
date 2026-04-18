@@ -4,6 +4,7 @@ import RankingsView from '../views/RankingsView.vue'
 import ChallengesView from '../views/ChallengesView.vue'
 import MatchDetailsView from '../views/MatchDetailsView.vue'
 import CreateChallengeView from '../views/CreateChallengeView.vue'
+import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
 
 const routes = [
@@ -65,6 +66,15 @@ const routes = [
     meta: {
       title: 'Create Challenge',
       subtitle: 'Set up a new ladder challenge against an eligible higher-ranked opponent.',
+    },
+  },
+  {
+    path: '/notifications',
+    name: 'Notifications',
+    component: NotificationsView,
+    meta: {
+      title: 'Notifications',
+      subtitle: 'All your app alerts, invitations, and score updates in one place.',
     },
   },
   {

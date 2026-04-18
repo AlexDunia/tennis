@@ -50,7 +50,13 @@ function handleAuthAction() {
 <template>
   <header class="navbar">
     <div class="navbar__brand">
-      <RouterLink class="navbar__logo" to="/">ShellTennis PH</RouterLink>
+      <RouterLink class="navbar__logo" to="/">
+        <img
+          src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776503502/RENAISSANCE-AFRICA-ENERGY-LOGO-update_s4eb9u.png"
+          alt="Renaissance Africa Energy logo"
+          class="navbar__logo-image"
+        />
+      </RouterLink>
       <p class="navbar__tagline">Port Harcourt Team Court</p>
     </div>
     <nav class="navbar__links">
@@ -89,11 +95,18 @@ function handleAuthAction() {
   flex-direction: column;
 }
 .navbar__logo {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #ffffff;
+  display: flex;
+  align-items: center;
   text-decoration: none;
 }
+
+.navbar__logo-image {
+  display: block;
+  width: 160px;
+  max-width: 100%;
+  height: auto;
+}
+
 .navbar__tagline {
   margin: 0;
   font-size: 0.85rem;

@@ -4,6 +4,16 @@
       <div class="challenge-card__ladder">{{ challengeLabel }}</div>
       <div>
         <h3 class="challenge-card__title">{{ challengerName }} vs {{ defenderName }}</h3>
+        <div class="challenge-card__player-list">
+          <div class="challenge-card__person">
+            <PersonAvatar :image="props.challengerImage" :name="props.challengerName" />
+            <span>{{ props.challengerName }}</span>
+          </div>
+          <div class="challenge-card__person">
+            <PersonAvatar :image="props.defenderImage" :name="props.defenderName" />
+            <span>{{ props.defenderName }}</span>
+          </div>
+        </div>
         <p class="challenge-card__meta">
           Status <strong>{{ challenge.statusLabel }}</strong>
         </p>
@@ -13,6 +23,9 @@
     <div class="challenge-card__details">
       <p class="challenge-card__meta">Challenger: {{ challengerName }}</p>
       <p class="challenge-card__meta">Defender: {{ defenderName }}</p>
+      <p v-if="challenge.scorerName" class="challenge-card__meta">
+        Scorer: {{ challenge.scorerName }}
+      </p>
       <p v-if="challenge.scheduledAt" class="challenge-card__meta">
         Scheduled: {{ challenge.scheduledAt }}
       </p>
@@ -27,6 +40,14 @@
         @click="$emit('accept', challenge.id)"
       >
         Accept
+      </BaseButton>
+      <BaseButton
+        v-if="showDecline"
+        variant="secondary"
+        type="button"
+        @click="$emit('decline', challenge.id)"
+      >
+        Decline
       </BaseButton>
       <BaseButton
         v-if="showReview"
@@ -51,19 +72,33 @@
 <script setup>
 import { computed } from 'vue'
 import BaseButton from './BaseButton.vue'
+import PersonAvatar from './PersonAvatar.vue'
 
 const props = defineProps({
   challenge: { type: Object, required: true },
   challengerName: { type: String, default: '' },
   defenderName: { type: String, default: '' },
+  challengerImage: { type: String, default: '' },
+  defenderImage: { type: String, default: '' },
   showAccept: { type: Boolean, default: false },
+  showDecline: { type: Boolean, default: false },
   showReview: { type: Boolean, default: false },
   showDetails: { type: Boolean, default: true },
 })
 
-const challengeLabel = computed(
-  () => `#${props.challenge.challengerRank} -> #${props.challenge.defenderRank}`,
-)
+const {
+  challenge,
+  challengerName,
+  defenderName,
+  challengerImage,
+  defenderImage,
+  showAccept,
+  showDecline,
+  showReview,
+  showDetails,
+} = props
+
+const challengeLabel = computed(() => `#${challenge.challengerRank} -> #${challenge.defenderRank}`)
 </script>
 
 <style scoped>
@@ -105,6 +140,27 @@ const challengeLabel = computed(
 .challenge-card__title {
   margin: 0;
   font-size: 1rem;
+  color: var(--color-text);
+}
+
+.challenge-card__player-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin: 0.55rem 0;
+}
+
+.challenge-card__person {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(0, 181, 26, 0.06);
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.75rem;
+}
+
+.challenge-card__person span {
+  font-size: 0.9rem;
   color: var(--color-text);
 }
 

@@ -4,6 +4,8 @@ import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChallengeStore } from '../stores/challenge'
 import { useMatchStore } from '../stores/match'
+import { usePlayerStore } from '../stores/player'
+import { useNotificationStore } from '../stores/notification'
 import ChallengeCard from '../components/ChallengeCard.vue'
 
 // 2. PROPS
@@ -18,6 +20,8 @@ const router = useRouter()
 // 5. STORES
 const challengeStore = useChallengeStore()
 const matchStore = useMatchStore()
+const playerStore = usePlayerStore()
+const notificationStore = useNotificationStore()
 
 // 6. REACTIVE STATE
 const tabs = [
@@ -35,6 +39,31 @@ const handleAccept = (challengeId) => {
   challengeStore.acceptChallenge(challengeId).then((data) => {
     if (data) {
       matchStore.loadMatches()
+      notificationStore.addToast({
+        message: 'Challenge accepted. Match has been scheduled.',
+        type: 'success',
+      })
+      notificationStore.addNotification({
+        title: 'Challenge accepted',
+        message: 'You accepted a challenge and the match is now scheduled.',
+        type: 'success',
+      })
+    }
+  })
+}
+
+const handleDecline = (challengeId) => {
+  challengeStore.declineChallenge(challengeId).then((data) => {
+    if (data) {
+      notificationStore.addToast({
+        message: 'You declined the invitation to join the tournament.',
+        type: 'warning',
+      })
+      notificationStore.addNotification({
+        title: 'Challenge declined',
+        message: 'You declined the invitation, and the challenger has been notified.',
+        type: 'warning',
+      })
     }
   })
 }
@@ -43,12 +72,21 @@ const handleReview = (challengeId) => {
   challengeStore.reviewChallenge(challengeId).then((data) => {
     if (data) {
       matchStore.loadMatches()
+      notificationStore.addToast({
+        message: 'Match review complete. Ladder standings updated.',
+        type: 'success',
+      })
+      notificationStore.addNotification({
+        title: 'Match reviewed',
+        message: 'The result has been reviewed and ladder rankings updated.',
+        type: 'info',
+      })
     }
   })
 }
 
-const handleDetails = (challenge) => {
-  const match = matchStore.matches.find((item) => item.challengeId === challenge.id)
+const handleDetails = (challengeId) => {
+  const match = matchStore.matches.find((item) => item.challengeId === challengeId)
   if (match) {
     router.push({ name: 'MatchDetails', params: { matchId: match.id } })
   }
@@ -91,10 +129,16 @@ onMounted(() => {
         :challenge="challenge"
         :challengerName="challenge.challengerName"
         :defenderName="challenge.defenderName"
+        :challengerImage="challenge.challengerImage"
+        :defenderImage="challenge.defenderImage"
         :showAccept="challenge.status === 'awaiting'"
+        :showDecline="
+          challenge.status === 'awaiting' && challenge.defenderId === playerStore.currentPlayer?.id
+        "
         :showReview="challenge.status === 'pending_review'"
         :showDetails="challenge.status !== 'awaiting'"
         @accept="handleAccept"
+        @decline="handleDecline"
         @review="handleReview"
         @details="handleDetails"
       />

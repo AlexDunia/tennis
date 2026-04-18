@@ -4,6 +4,7 @@ import { usePlayerStore } from './player'
 import {
   acceptChallenge as acceptChallengeRequest,
   createChallenge as createChallengeRequest,
+  declineChallenge as declineChallengeRequest,
   getChallenges,
   reviewChallenge as reviewChallengeRequest,
 } from '../services/ChallengeService'
@@ -128,6 +129,31 @@ export const useChallengeStore = defineStore('challenge', () => {
     return null
   }
 
+  const declineChallenge = async (challengeId) => {
+    error.value = ''
+    isLoading.value = true
+
+    try {
+      const response = await declineChallengeRequest(challengeId)
+      if (response.success) {
+        const challengeIndex = challenges.value.findIndex((item) => item.id === challengeId)
+        if (challengeIndex !== -1) {
+          challenges.value.splice(challengeIndex, 1)
+        }
+
+        return response.data
+      }
+
+      error.value = response.message || 'Unable to decline challenge.'
+    } catch (declineError) {
+      error.value = declineError?.message || 'Unable to decline challenge.'
+    } finally {
+      isLoading.value = false
+    }
+
+    return null
+  }
+
   const setFilter = (status) => {
     filterStatus.value = status
   }
@@ -142,6 +168,7 @@ export const useChallengeStore = defineStore('challenge', () => {
     loadChallenges,
     createChallenge,
     acceptChallenge,
+    declineChallenge,
     reviewChallenge,
     setFilter,
   }

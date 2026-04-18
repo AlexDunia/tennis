@@ -4,7 +4,7 @@ import { getPlayers } from '../services/PlayerService'
 
 export const usePlayerStore = defineStore('player', () => {
   const players = ref([])
-  const currentPlayerId = ref('player-15')
+  const currentPlayerId = ref('player-02')
   const isLoading = ref(false)
   const error = ref('')
 
