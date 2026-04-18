@@ -114,7 +114,7 @@ onMounted(() => {
       </div>
 
       <button class="play__details" type="button" @click="openMatchDetails">
-        Open Match Details
+        Open match details
       </button>
     </div>
 
@@ -128,23 +128,23 @@ onMounted(() => {
 <style scoped>
 .play {
   display: grid;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .play__meta-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
-  padding: 1.4rem 1.5rem;
+  padding: 1.2rem;
 }
 
 .play__eyebrow {
-  margin: 0 0 0.3rem;
-  color: var(--color-secondary);
-  font-size: 0.78rem;
-  font-weight: 800;
+  margin: 0 0 0.25rem;
+  color: var(--color-primary-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
 }
 
 .play__meta-copy h2,
@@ -152,18 +152,23 @@ onMounted(() => {
   margin: 0;
 }
 
+.play__meta-copy h2 {
+  font-size: 1.2rem;
+}
+
 .play__subtitle {
-  margin-top: 0.55rem;
+  margin-top: 0.45rem;
   color: var(--color-muted);
+  font-size: 0.9rem;
 }
 
 .play__details {
-  border: none;
-  border-radius: 999px;
-  padding: 0.8rem 1rem;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-strong));
-  color: #fffce8;
-  font-weight: 800;
+  border: 1px solid rgba(0, 181, 26, 0.14);
+  border-radius: 0.9rem;
+  padding: 0.78rem 0.95rem;
+  background: rgba(0, 181, 26, 0.08);
+  color: var(--color-primary-strong);
+  font-weight: 700;
   align-self: start;
 }
 
@@ -174,7 +179,8 @@ onMounted(() => {
 
 .play__fallback {
   padding: 1rem 1.2rem;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--color-muted);
 }
 
 @media (max-width: 900px) {

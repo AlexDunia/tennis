@@ -5,7 +5,7 @@
       <div>
         <h3 class="challenge-card__title">{{ challengerName }} vs {{ defenderName }}</h3>
         <p class="challenge-card__meta">
-          Status: <strong>{{ challenge.statusLabel }}</strong>
+          Status <strong>{{ challenge.statusLabel }}</strong>
         </p>
       </div>
     </div>
@@ -68,13 +68,13 @@ const challengeLabel = computed(
 
 <style scoped>
 .challenge-card {
-  background: rgba(255, 249, 231, 0.84);
-  border: 1px solid rgba(19, 35, 22, 0.08);
-  border-radius: 1.5rem;
-  padding: 1.35rem;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 1.1rem;
+  padding: 1.15rem;
   display: grid;
-  gap: 1rem;
-  box-shadow: 0 18px 36px rgba(60, 47, 18, 0.1);
+  gap: 0.95rem;
+  box-shadow: var(--shadow-soft);
 }
 
 .challenge-card__identity {
@@ -86,17 +86,17 @@ const challengeLabel = computed(
 .challenge-card__ladder {
   min-width: 4.7rem;
   padding: 0.7rem 0.8rem;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, rgba(15, 107, 63, 0.14), rgba(15, 107, 63, 0.24));
-  color: var(--color-primary-strong);
-  font-size: 0.82rem;
-  font-weight: 900;
+  border-radius: 0.9rem;
+  background: rgba(255, 211, 61, 0.16);
+  color: #845f00;
+  font-size: 0.78rem;
+  font-weight: 800;
   text-align: center;
 }
 
 .challenge-card__title {
   margin: 0;
-  font-size: 1.06rem;
+  font-size: 1rem;
   color: var(--color-text);
 }
 
@@ -108,19 +108,19 @@ const challengeLabel = computed(
 .challenge-card__meta {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.95rem;
-  line-height: 1.6;
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 
 .challenge-card__note {
   margin: 0.25rem 0 0;
-  color: var(--color-text);
-  font-size: 0.95rem;
+  color: var(--color-text-soft);
+  font-size: 0.9rem;
 }
 
 .challenge-card__actions {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.65rem;
   flex-wrap: wrap;
 }
 

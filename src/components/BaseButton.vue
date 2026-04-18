@@ -24,13 +24,14 @@ defineProps({
 <style scoped>
 .base-button {
   border: 1px solid transparent;
-  border-radius: 1rem;
-  padding: 0.85rem 1.4rem;
+  border-radius: 0.9rem;
+  padding: 0.78rem 1.15rem;
+  font-size: 0.92rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  letter-spacing: 0.01em;
+  gap: 0.4rem;
   transition:
     background 0.2s ease,
     border-color 0.2s ease,
@@ -40,26 +41,26 @@ defineProps({
 }
 
 .base-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 36px rgba(86, 59, 17, 0.18);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(20, 34, 24, 0.08);
 }
 
 .base-button--primary {
-  background: linear-gradient(135deg, var(--color-secondary), #ef5543);
-  color: #fffdf6;
-  box-shadow: 0 14px 28px rgba(159, 17, 32, 0.22);
+  background: var(--color-primary);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(0, 181, 26, 0.18);
 }
 
 .base-button--secondary {
-  background: linear-gradient(135deg, rgba(15, 107, 63, 0.14), rgba(15, 107, 63, 0.22));
+  background: rgba(0, 181, 26, 0.08);
   color: var(--color-primary-strong);
-  border-color: rgba(15, 107, 63, 0.14);
+  border-color: rgba(0, 181, 26, 0.14);
 }
 
 .base-button--ghost {
-  background: rgba(255, 250, 234, 0.72);
+  background: #ffffff;
   color: var(--color-text);
-  border-color: rgba(19, 35, 22, 0.12);
+  border-color: var(--color-border);
 }
 
 .base-button:disabled {

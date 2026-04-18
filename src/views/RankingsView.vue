@@ -54,11 +54,11 @@ onMounted(() => {
         </p>
       </article>
 
-      <article class="rankings__summary-card rankings__summary-card--accent section-card">
+      <article class="rankings__summary-card section-card">
         <p class="rankings__kicker">Challenge Window</p>
         <h2>{{ playerStore.availableOpponents.length }}</h2>
         <p class="rankings__summary-copy">
-          Eligible higher-ranked opponents are available from this ladder position.
+          Eligible higher-ranked opponents available from this ladder position.
         </p>
       </article>
     </div>
@@ -78,7 +78,7 @@ onMounted(() => {
 <style scoped>
 .rankings {
   display: grid;
-  gap: 1.4rem;
+  gap: 1.2rem;
 }
 
 .rankings__summary-grid {
@@ -88,43 +88,32 @@ onMounted(() => {
 }
 
 .rankings__summary-card {
-  padding: 1.4rem;
-}
-
-.rankings__summary-card--accent {
-  background:
-    linear-gradient(135deg, rgba(13, 85, 51, 0.92), rgba(10, 61, 36, 0.95)),
-    linear-gradient(145deg, rgba(245, 198, 45, 0.1), rgba(255, 255, 255, 0));
-  color: #fff8dd;
-}
-
-.rankings__summary-card--accent .rankings__kicker,
-.rankings__summary-card--accent h2,
-.rankings__summary-card--accent .rankings__summary-copy {
-  color: inherit;
+  padding: 1.2rem;
 }
 
 .rankings__kicker {
-  margin: 0 0 0.35rem;
-  color: var(--color-secondary);
-  font-size: 0.8rem;
-  font-weight: 800;
+  margin: 0 0 0.3rem;
+  color: var(--color-primary-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
 }
 
 .rankings__summary-card h2 {
   margin: 0;
+  font-size: 1.18rem;
 }
 
 .rankings__summary-copy {
-  margin: 0.55rem 0 0;
+  margin: 0.45rem 0 0;
   color: var(--color-muted);
+  font-size: 0.9rem;
 }
 
 .player-list {
   display: grid;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 @media (max-width: 900px) {

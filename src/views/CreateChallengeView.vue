@@ -67,10 +67,10 @@ onMounted(() => {
   <section class="create-challenge">
     <div class="challenge-panel">
       <div class="challenge-info section-card">
-        <p class="subtitle">Current player</p>
+        <p class="subtitle">Current Player</p>
         <h2>{{ currentPlayer?.name || 'Loading...' }}</h2>
-        <p>Rank #{{ currentPlayer?.rank || '-' }}</p>
-        <p>Record: {{ currentPlayer?.wins }}-{{ currentPlayer?.losses }}</p>
+        <p class="challenge-copy">Rank #{{ currentPlayer?.rank || '-' }}</p>
+        <p class="challenge-copy">Record {{ currentPlayer?.wins }}-{{ currentPlayer?.losses }}</p>
       </div>
 
       <div class="challenge-form section-card">
@@ -104,49 +104,57 @@ onMounted(() => {
 
 .challenge-panel {
   display: grid;
-  gap: 1.5rem;
+  gap: 1rem;
   grid-template-columns: 0.95fr 1.25fr;
 }
 
 .challenge-info,
 .challenge-form {
-  padding: 1.5rem;
+  padding: 1.2rem;
 }
 
 .subtitle {
   margin: 0;
-  color: var(--color-primary);
+  color: var(--color-primary-strong);
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  font-size: 0.76rem;
 }
 
 .challenge-info h2 {
-  margin-bottom: 0.65rem;
+  margin: 0.35rem 0 0;
+  font-size: 1.2rem;
+}
+
+.challenge-copy {
+  margin: 0.45rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
 }
 
 .field {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .field__label {
   color: var(--color-text);
-  font-size: 0.92rem;
-  font-weight: 700;
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .field__input {
   width: 100%;
-  border-radius: 1rem;
+  border-radius: 0.9rem;
   border: 1px solid var(--color-border);
-  background: rgba(255, 252, 240, 0.85);
-  padding: 0.85rem 1rem;
+  background: #ffffff;
+  padding: 0.88rem 0.95rem;
 }
 
 .challenge-form {
   display: grid;
-  gap: 1rem;
+  gap: 0.95rem;
 }
 
 @media (max-width: 900px) {

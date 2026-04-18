@@ -1,12 +1,17 @@
 <template>
   <div class="layout">
-    <div class="layout__backdrop layout__backdrop--left"></div>
-    <div class="layout__backdrop layout__backdrop--right"></div>
-
     <aside class="sidebar">
       <div class="sidebar__brand">
-        <RouterLink to="/dashboard" class="sidebar__logo">ShellTennis PH</RouterLink>
-        <p class="sidebar__tagline">Port Harcourt ladder control</p>
+        <RouterLink to="/dashboard" class="sidebar__logo">
+          <span class="sidebar__logo-mark" aria-hidden="true">
+            <span class="sidebar__logo-arc sidebar__logo-arc--accent"></span>
+            <span class="sidebar__logo-arc sidebar__logo-arc--warm"></span>
+          </span>
+          <span>
+            <span class="sidebar__logo-text">ShellTennis</span>
+            <span class="sidebar__logo-copy">PH ladder workspace</span>
+          </span>
+        </RouterLink>
       </div>
 
       <nav class="sidebar__nav">
@@ -25,24 +30,25 @@
       </nav>
 
       <div class="sidebar__footer">
+        <p class="sidebar__footer-label">Next action</p>
         <RouterLink to="/create-challenge" class="sidebar__cta">
-          <span class="sidebar__cta-label">Create challenge</span>
-          <span class="sidebar__cta-copy">Set up the next ladder move from a dedicated page.</span>
+          <span class="sidebar__cta-title">Create challenge</span>
+          <span class="sidebar__cta-copy">Open the dedicated setup page for the next ladder move.</span>
         </RouterLink>
       </div>
     </aside>
 
     <div class="shell">
       <header class="page-header">
-        <div>
+        <div class="page-header__copy">
           <p class="page-header__eyebrow">{{ currentSection }}</p>
           <h1 class="page-header__title">{{ currentTitle }}</h1>
           <p class="page-header__subtitle">{{ currentSubtitle }}</p>
         </div>
 
         <div class="page-header__meta">
-          <span class="page-header__chip">Shell ladder workspace</span>
-          <span class="page-header__chip">Single court - focused flow</span>
+          <span class="page-header__chip">Renaissance-aligned workspace</span>
+          <span class="page-header__chip">White-first product shell</span>
         </div>
       </header>
 
@@ -65,7 +71,7 @@ const navigationItems = [
   {
     to: '/dashboard',
     label: 'Dashboard',
-    hint: 'Overview and entry points',
+    hint: 'Overview and priority actions',
     icon:
       '<svg viewBox="0 0 24 24" fill="none"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
   },
@@ -79,7 +85,7 @@ const navigationItems = [
   {
     to: '/challenges',
     label: 'Challenges',
-    hint: 'Accept, review, and manage',
+    hint: 'Manage accepts and reviews',
     icon:
       '<svg viewBox="0 0 24 24" fill="none"><path d="M8 7h8M8 12h8M8 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/></svg>',
   },
@@ -87,14 +93,14 @@ const navigationItems = [
 
 const currentTitle = computed(() => route.meta.title || 'ShellTennis PH')
 const currentSubtitle = computed(
-  () => route.meta.subtitle || 'Manage the Port Harcourt ladder experience from one workspace.',
+  () => route.meta.subtitle || 'Manage the Port Harcourt ladder from one calm workspace.',
 )
 const currentSection = computed(() => {
   if (route.name === 'PlayMatch') {
     return 'Live Match'
   }
 
-  return 'Workspace'
+  return 'ShellTennis PH'
 })
 </script>
 
@@ -102,222 +108,250 @@ const currentSection = computed(() => {
 .layout {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  position: relative;
-  overflow: hidden;
-}
-
-.layout__backdrop {
-  position: fixed;
-  width: 34rem;
-  height: 34rem;
-  border-radius: 50%;
-  filter: blur(20px);
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.layout__backdrop--left {
-  top: -6rem;
-  left: -8rem;
-  background: radial-gradient(circle, rgba(245, 198, 45, 0.52) 0%, transparent 70%);
-}
-
-.layout__backdrop--right {
-  right: -10rem;
-  bottom: -8rem;
-  background: radial-gradient(circle, rgba(15, 107, 63, 0.34) 0%, transparent 72%);
+  grid-template-columns: 270px minmax(0, 1fr);
+  background: var(--color-bg);
 }
 
 .sidebar {
   position: sticky;
   top: 0;
-  z-index: 2;
   height: 100vh;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  padding: 1.5rem 1.2rem;
-  background:
-    linear-gradient(180deg, rgba(18, 43, 27, 0.96), rgba(10, 32, 20, 0.98)),
-    linear-gradient(160deg, rgba(217, 31, 47, 0.06), rgba(245, 198, 45, 0.05));
-  border-right: 1px solid rgba(255, 248, 221, 0.08);
-  box-shadow: 28px 0 60px rgba(22, 21, 16, 0.18);
+  padding: 1.5rem 1rem;
+  background: #ffffff;
+  border-right: 1px solid var(--color-border);
 }
 
 .sidebar__brand {
-  display: grid;
-  gap: 0.35rem;
-  padding: 0.35rem 0.3rem 1rem;
+  padding: 0.25rem 0.35rem 0.75rem;
 }
 
 .sidebar__logo {
-  color: #fff4ce;
-  font-size: 1.35rem;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
 }
 
-.sidebar__tagline {
-  margin: 0;
-  color: rgba(255, 244, 206, 0.7);
-  font-size: 0.92rem;
+.sidebar__logo-mark {
+  position: relative;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.sidebar__logo-arc {
+  position: absolute;
+  border-radius: 999px;
+}
+
+.sidebar__logo-arc--accent {
+  inset: 0.15rem auto auto 0;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 0.34rem solid var(--color-accent);
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  transform: rotate(-18deg);
+}
+
+.sidebar__logo-arc--warm {
+  right: 0;
+  bottom: 0.2rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 0.32rem solid var(--color-clay);
+  border-left-color: transparent;
+  border-top-color: transparent;
+  transform: rotate(12deg);
+}
+
+.sidebar__logo-text,
+.sidebar__logo-copy {
+  display: block;
+}
+
+.sidebar__logo-text {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.sidebar__logo-copy {
+  margin-top: 0.12rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
 }
 
 .sidebar__nav {
   display: grid;
-  gap: 0.65rem;
+  gap: 0.35rem;
 }
 
 .sidebar__link {
   display: grid;
-  grid-template-columns: 2.75rem minmax(0, 1fr);
-  gap: 0.85rem;
+  grid-template-columns: 2.35rem minmax(0, 1fr);
+  gap: 0.8rem;
   align-items: center;
-  padding: 0.9rem 0.95rem;
-  border-radius: 1.15rem;
-  color: rgba(255, 248, 221, 0.86);
+  padding: 0.8rem 0.85rem;
+  border-radius: 0.95rem;
+  color: var(--color-text-soft);
   border: 1px solid transparent;
   transition:
     background 0.2s ease,
     border-color 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+    color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .sidebar__link.router-link-active,
 .sidebar__link:hover {
-  background: linear-gradient(135deg, rgba(255, 248, 221, 0.08), rgba(255, 248, 221, 0.03));
-  border-color: rgba(255, 248, 221, 0.12);
-  transform: translateX(2px);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
+  background: var(--color-surface-soft);
+  border-color: rgba(0, 181, 26, 0.12);
+  color: var(--color-text);
 }
 
 .sidebar__icon {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.35rem;
+  height: 2.35rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.95rem;
-  color: #fff4ce;
-  background: linear-gradient(135deg, rgba(217, 31, 47, 0.22), rgba(245, 198, 45, 0.16));
-  border: 1px solid rgba(255, 248, 221, 0.1);
+  border-radius: 0.85rem;
+  background: #f6f8f7;
+  border: 1px solid var(--color-border);
+  color: var(--color-primary-strong);
+}
+
+.sidebar__link.router-link-active .sidebar__icon {
+  background: rgba(0, 181, 26, 0.08);
+  border-color: rgba(0, 181, 26, 0.14);
 }
 
 .sidebar__icon :deep(svg) {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .sidebar__link-copy {
   display: grid;
-  gap: 0.1rem;
+  gap: 0.08rem;
 }
 
 .sidebar__label {
-  font-weight: 800;
-  color: #fff8dd;
+  font-weight: 700;
+  font-size: 0.94rem;
 }
 
 .sidebar__hint {
-  font-size: 0.86rem;
-  color: rgba(255, 248, 221, 0.6);
+  color: var(--color-muted);
+  font-size: 0.8rem;
 }
 
 .sidebar__footer {
   margin-top: auto;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.sidebar__footer-label {
+  margin: 0;
+  padding: 0 0.35rem;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .sidebar__cta {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.25rem;
   padding: 1rem;
-  border-radius: 1.3rem;
-  background: linear-gradient(135deg, rgba(245, 198, 45, 0.18), rgba(217, 31, 47, 0.18));
-  border: 1px solid rgba(255, 248, 221, 0.12);
-  color: #fff8dd;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, rgba(255, 211, 61, 0.16), rgba(255, 127, 50, 0.12));
+  border: 1px solid rgba(255, 127, 50, 0.16);
 }
 
-.sidebar__cta-label {
-  font-weight: 900;
+.sidebar__cta-title {
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
 .sidebar__cta-copy {
-  font-size: 0.9rem;
-  color: rgba(255, 248, 221, 0.72);
+  color: var(--color-text-soft);
+  font-size: 0.84rem;
 }
 
 .shell {
-  position: relative;
-  z-index: 1;
   min-width: 0;
   display: grid;
   grid-template-rows: auto 1fr;
-  padding: 1.35rem 1.35rem 2rem;
+  background: var(--color-bg);
 }
 
 .page-header {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.25rem;
-  padding: 1.4rem 1.45rem;
-  background: rgba(255, 249, 231, 0.72);
-  border: 1px solid rgba(19, 35, 22, 0.08);
-  border-radius: 1.6rem;
-  backdrop-filter: blur(16px);
-  box-shadow: 0 18px 42px rgba(60, 47, 18, 0.12);
+  padding: 1.4rem 1.75rem;
+  background: #ffffff;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.page-header__copy {
+  min-width: 0;
 }
 
 .page-header__eyebrow {
-  margin: 0 0 0.3rem;
-  color: var(--color-secondary);
-  font-size: 0.78rem;
-  font-weight: 900;
-  letter-spacing: 0.14em;
+  margin: 0 0 0.25rem;
+  color: var(--color-primary-strong);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .page-header__title {
   margin: 0;
-  font-size: clamp(1.8rem, 2vw, 2.4rem);
+  font-size: clamp(1.55rem, 2vw, 1.95rem);
+  line-height: 1.15;
   letter-spacing: -0.04em;
-  color: var(--color-text);
 }
 
 .page-header__subtitle {
-  max-width: 46rem;
-  margin: 0.45rem 0 0;
+  max-width: 44rem;
+  margin: 0.4rem 0 0;
   color: var(--color-muted);
+  font-size: 0.95rem;
 }
 
 .page-header__meta {
   display: flex;
   flex-wrap: wrap;
   justify-content: end;
-  gap: 0.6rem;
+  gap: 0.55rem;
 }
 
 .page-header__chip {
-  padding: 0.6rem 0.85rem;
+  padding: 0.55rem 0.8rem;
   border-radius: 999px;
-  background: rgba(255, 252, 240, 0.86);
-  border: 1px solid rgba(19, 35, 22, 0.08);
-  color: var(--color-primary-strong);
-  font-size: 0.9rem;
-  font-weight: 700;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .layout__main {
   min-width: 0;
+  padding: 1.5rem 0 2rem;
+  background: var(--color-bg);
 }
 
 .container {
-  width: min(1180px, 100%);
-  margin: 0 auto;
+  width: min(1180px, calc(100% - 2rem));
 }
 
 @media (max-width: 1120px) {
@@ -329,7 +363,7 @@ const currentSection = computed(() => {
     position: relative;
     height: auto;
     border-right: none;
-    border-bottom: 1px solid rgba(255, 248, 221, 0.08);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .sidebar__nav {
@@ -342,10 +376,6 @@ const currentSection = computed(() => {
 }
 
 @media (max-width: 760px) {
-  .shell {
-    padding: 1rem 1rem 1.5rem;
-  }
-
   .sidebar {
     padding: 1rem;
   }
@@ -357,10 +387,19 @@ const currentSection = computed(() => {
   .page-header {
     flex-direction: column;
     align-items: start;
+    padding: 1.1rem 1rem;
   }
 
   .page-header__meta {
     justify-content: start;
+  }
+
+  .layout__main {
+    padding-top: 1rem;
+  }
+
+  .container {
+    width: min(100%, calc(100% - 1rem));
   }
 }
 </style>

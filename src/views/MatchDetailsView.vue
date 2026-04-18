@@ -79,8 +79,8 @@ onMounted(() => {
       </div>
 
       <div class="result-panel section-card">
-        <h3>Score submission</h3>
-        <p class="panel-copy">Submit the mock match result to advance ladder rankings.</p>
+        <h3>Score Submission</h3>
+        <p class="panel-copy">Submit the final score to move the match into review.</p>
 
         <label class="field">
           <span class="field__label">Winner</span>
@@ -115,65 +115,68 @@ onMounted(() => {
 
 .match-grid {
   display: grid;
-  gap: 1.5rem;
+  gap: 1rem;
   grid-template-columns: 1.1fr 0.9fr;
 }
 
 .match-summary,
 .result-panel {
-  padding: 1.5rem;
+  padding: 1.2rem;
 }
 
 .match-summary__status {
-  margin: 0 0 0.4rem;
-  color: var(--color-secondary);
-  font-size: 0.8rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  margin: 0 0 0.3rem;
+  color: var(--color-primary-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.match-summary h2 {
+.match-summary h2,
+.result-panel h3 {
   margin: 0;
 }
 
 .match-copy,
 .panel-copy {
-  margin: 0.75rem 0 0;
+  margin: 0.6rem 0 0;
   color: var(--color-muted);
+  font-size: 0.9rem;
 }
 
 .field {
   display: grid;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  gap: 0.45rem;
+  margin-top: 0.95rem;
 }
 
 .field__label {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   color: var(--color-text);
+  font-weight: 600;
 }
 
 .field__input {
   width: 100%;
-  border-radius: 0.95rem;
+  border-radius: 0.9rem;
   border: 1px solid var(--color-border);
-  background: rgba(255, 252, 240, 0.86);
-  padding: 0.85rem 1rem;
+  background: #ffffff;
+  padding: 0.88rem 0.95rem;
 }
 
 .submit-button {
-  margin-top: 1.25rem;
-  border: none;
-  border-radius: 0.95rem;
-  padding: 0.85rem 1rem;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-strong));
-  color: #fffbea;
+  margin-top: 1.1rem;
+  border: 1px solid transparent;
+  border-radius: 0.9rem;
+  padding: 0.82rem 1rem;
+  background: var(--color-primary);
+  color: #ffffff;
   font-weight: 700;
 }
 
 .empty-state {
-  padding: 1.5rem;
+  padding: 1.2rem;
   color: var(--color-muted);
 }
 

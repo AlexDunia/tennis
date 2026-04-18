@@ -22,7 +22,7 @@ const matchStore = useMatchStore()
 // 6. REACTIVE STATE
 const tabs = [
   { label: 'All', value: 'all' },
-  { label: 'Awaiting Acceptance', value: 'awaiting' },
+  { label: 'Awaiting', value: 'awaiting' },
   { label: 'Scheduled', value: 'scheduled' },
   { label: 'Pending Review', value: 'pending_review' },
 ]
@@ -105,37 +105,38 @@ onMounted(() => {
 <style scoped>
 .challenges {
   display: grid;
-  gap: 1.2rem;
+  gap: 1rem;
 }
 
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .tab-button {
   border: 1px solid var(--color-border);
   border-radius: 999px;
-  padding: 0.7rem 1rem;
-  background: rgba(255, 252, 240, 0.82);
+  padding: 0.65rem 0.95rem;
+  background: #ffffff;
   color: var(--color-muted);
-  font-weight: 700;
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .tab-button--active {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-strong));
-  color: #fffbea;
-  border-color: transparent;
+  background: rgba(0, 181, 26, 0.08);
+  color: var(--color-primary-strong);
+  border-color: rgba(0, 181, 26, 0.14);
 }
 
 .challenge-list {
   display: grid;
-  gap: 1rem;
+  gap: 0.9rem;
 }
 
 .empty-state {
-  padding: 1.5rem;
+  padding: 1.2rem;
   color: var(--color-muted);
 }
 </style>
