@@ -1,5 +1,4 @@
 <script setup>
-// 1. IMPORTS
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChallengeStore } from '../stores/challenge'
@@ -8,17 +7,15 @@ import { usePlayerStore } from '../stores/player'
 import { useBookingStore } from '../stores/booking'
 import PerformanceChart from '@/components/charts/PerformanceChart.vue'
 
-// 2. STORES
 const router = useRouter()
+
 const playerStore = usePlayerStore()
 const challengeStore = useChallengeStore()
 const matchStore = useMatchStore()
 const bookingStore = useBookingStore()
 
-// 3. STATE
 const currentPlayer = computed(() => playerStore.currentPlayer)
 
-// 4. COMPUTED
 const matchesPlayed = computed(() => {
   if (currentPlayer.value) {
     return (currentPlayer.value.wins || 0) + (currentPlayer.value.losses || 0)
@@ -32,45 +29,30 @@ const winRate = computed(() => {
 })
 
 const upcomingMatches = computed(() => matchStore.scheduledMatches.length)
-
 const challengeSummary = computed(() => challengeStore.summaryCounts)
 
 const urgentActions = computed(() => [
-  {
-    label: 'Pending challenges',
-    value: challengeSummary.value.awaiting,
-  },
-  {
-    label: 'Matches to play',
-    value: upcomingMatches.value,
-  },
-  {
-    label: 'Awaiting review',
-    value: challengeSummary.value.pendingReview,
-  },
+  { label: 'Pending challenges', value: challengeSummary.value.awaiting },
+  { label: 'Matches to play', value: upcomingMatches.value },
+  { label: 'Awaiting review', value: challengeSummary.value.pendingReview },
 ])
 
 const activityFeed = computed(() => {
   const matches = matchStore.matches.map((m) => ({
-    type: 'match',
     title: `${m.challengerName} vs ${m.defenderName}`,
     meta: m.statusLabel,
-    date: m.scheduledAt,
     id: m.id,
   }))
 
   const challenges = challengeStore.challenges.map((c) => ({
-    type: 'challenge',
     title: `${c.challengerName} vs ${c.defenderName}`,
     meta: c.statusLabel,
-    date: c.requestedAt,
     id: c.id,
   }))
 
   return [...matches, ...challenges].slice(0, 6)
 })
 
-// 5. METHODS
 const openMatch = (id) => {
   router.push({ name: 'MatchDetails', params: { matchId: id } })
 }
@@ -79,135 +61,132 @@ const openCreate = () => {
   router.push({ name: 'CreateChallenge' })
 }
 
-const loadDashboard = async () => {
+onMounted(async () => {
   await Promise.all([
     playerStore.loadPlayers(),
     challengeStore.loadChallenges(),
     matchStore.loadMatches(),
     bookingStore.loadBookings(),
   ])
-}
-
-// 6. LIFECYCLE
-onMounted(loadDashboard)
+})
 </script>
 
 <template>
   <section class="dashboard">
     <!-- HERO -->
     <section class="hero">
-      <div class="hero__content">
+      <div>
         <p class="hero__eyebrow">Player overview</p>
-
-        <h1 class="hero__title">
-          {{ currentPlayer?.name || 'Player' }}
-        </h1>
+        <h1 class="hero__title">{{ currentPlayer?.name }}</h1>
 
         <p class="hero__subtitle">
-          You’re currently ranked <strong>#{{ currentPlayer?.rank ?? '-' }}</strong
-          >. Stay active to defend your position and climb higher.
+          Ranked #{{ currentPlayer?.rank }} — keep playing to stay on top.
         </p>
 
         <div class="hero__stats">
-          <div class="hero__stat">
+          <div>
             <span>Record</span>
-            <strong>{{ currentPlayer?.wins || 0 }} - {{ currentPlayer?.losses || 0 }}</strong>
+            <strong>{{ currentPlayer?.wins }} - {{ currentPlayer?.losses }}</strong>
           </div>
 
-          <div class="hero__stat">
+          <div>
             <span>Upcoming</span>
             <strong>{{ upcomingMatches }}</strong>
           </div>
         </div>
       </div>
 
-      <button class="hero__cta" @click="openCreate">Start challenge</button>
+      <button class="cta" @click="openCreate">Start challenge</button>
     </section>
 
     <!-- KPI -->
     <section class="kpi">
-      <div class="kpi__card">
-        <span>Matches</span>
-        <strong>{{ matchesPlayed }}</strong>
+      <div class="card">
+        <span class="kpi-label">Matches</span>
+        <strong class="kpi-number">{{ matchesPlayed }}</strong>
+        <span class="kpi-trend">+2 this week</span>
       </div>
 
-      <div class="kpi__card">
-        <span>Wins</span>
-        <strong>{{ currentPlayer?.wins || 0 }}</strong>
+      <div class="card">
+        <span class="kpi-label">Wins</span>
+        <strong class="kpi-number success">{{ currentPlayer?.wins }}</strong>
       </div>
 
-      <div class="kpi__card">
-        <span>Losses</span>
-        <strong>{{ currentPlayer?.losses || 0 }}</strong>
+      <div class="card">
+        <span class="kpi-label">Losses</span>
+        <strong class="kpi-number danger">{{ currentPlayer?.losses }}</strong>
       </div>
 
-      <div class="kpi__card">
-        <span>Win rate</span>
-        <strong>{{ winRate }}%</strong>
+      <div class="card">
+        <span class="kpi-label">Win rate</span>
+        <strong class="kpi-number">{{ winRate }}%</strong>
       </div>
     </section>
 
     <!-- GRID -->
     <section class="grid">
       <!-- ACTION -->
-      <div class="panel panel--tight">
-        <div class="panel__header">
-          <h2>Action required</h2>
-        </div>
+      <section class="card">
+        <h3 class="section-title">Action required</h3>
+        <div class="divider"></div>
 
-        <div class="action">
-          <div v-for="item in urgentActions" :key="item.label" class="action__row">
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-          </div>
+        <div class="action-row" v-for="item in urgentActions" :key="item.label">
+          <span class="action-left">
+            <span :class="['dot', item.value ? 'dot-danger' : 'dot-muted']"></span>
+            {{ item.label }}
+          </span>
+
+          <strong>{{ item.value }}</strong>
         </div>
-      </div>
+      </section>
 
       <!-- PERFORMANCE -->
-      <div class="panel panel--performance">
-        <div class="panel__header panel__header--stack">
+      <section class="card">
+        <!-- <div class="section-header">
           <div>
-            <h2>Performance</h2>
-            <p class="panel__subtext">
-              Your match results over time. Track momentum, identify streaks, and adjust your play.
-            </p>
+            <h3 class="section-title">Performance</h3>
+            <p class="section-sub">Match trends and performance over time</p>
           </div>
 
-          <div class="panel__highlight">
+          <div class="metric">
             <strong>{{ winRate }}%</strong>
-            <span>win rate</span>
+            <span>Win rate</span>
           </div>
         </div>
+
+        <div class="divider"></div>
+
+        <div class="chart-header">
+          <span class="muted">Last matches</span>
+
+          <div class="filter">
+            <button class="active">7D</button>
+            <button>30D</button>
+            <button>All</button>
+          </div>
+        </div> -->
 
         <PerformanceChart
           :matches="matchStore.matches"
           :currentPlayerId="playerStore.currentPlayerId"
         />
 
-        <div class="panel__insights">
-          <span> {{ matchStore.matches.length }} matches played </span>
-          <span> {{ upcomingMatches }} upcoming matches </span>
+        <div class="insights">
+          <span>{{ matchStore.matches.length }} matches</span>
+          <span>{{ upcomingMatches }} upcoming</span>
         </div>
-      </div>
+      </section>
     </section>
 
     <!-- ACTIVITY -->
-    <section class="panel panel--activity">
-      <div class="panel__header">
-        <h2>Recent activity</h2>
-      </div>
+    <section class="card">
+      <h3 class="section-title">Recent activity</h3>
+      <div class="divider"></div>
 
       <div class="activity">
-        <div
-          v-for="item in activityFeed"
-          :key="item.id"
-          class="activity__row"
-          @click="openMatch(item.id)"
-        >
-          <div class="activity__main">
-            <strong>{{ item.title }}</strong>
-            <span>{{ item.meta }}</span>
-          </div>
+        <div v-for="item in activityFeed" :key="item.id" @click="openMatch(item.id)">
+          <strong>{{ item.title }}</strong>
+          <span class="muted">{{ item.meta }}</span>
         </div>
       </div>
     </section>
@@ -217,213 +196,224 @@ onMounted(loadDashboard)
 <style scoped>
 .dashboard {
   display: grid;
-  gap: 2rem;
+  gap: 24px;
 }
 
 /* HERO */
 .hero {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 2rem;
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-soft);
-  border: 1px solid var(--color-border);
-}
-
-.hero__eyebrow {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--color-muted);
+  padding: 24px;
+  border-radius: 12px;
+  background: linear-gradient(to bottom, #ffffff, #f9fafb);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
 .hero__title {
-  margin: 0.25rem 0;
-  font-size: 2rem;
-  letter-spacing: -0.03em;
+  font-size: 28px;
+  font-weight: 700;
 }
 
 .hero__subtitle {
-  margin: 0;
-  color: var(--color-muted);
-  max-width: 32rem;
+  font-size: 14px;
+  color: #6b7280;
 }
 
 .hero__stats {
   display: flex;
-  gap: 2rem;
-  margin-top: 1.25rem;
+  gap: 24px;
+  margin-top: 12px;
 }
 
-.hero__stat span {
-  font-size: 0.8rem;
-  color: var(--color-muted);
-}
-
-.hero__cta {
-  background: var(--color-primary);
+/* CTA */
+.cta {
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 20px;
+  background: #16a34a;
   color: white;
   border: none;
-  padding: 0.85rem 1.4rem;
-  border-radius: 999px;
-  font-weight: 700;
-  transition: transform 0.15s ease;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
 }
 
-.hero__cta:hover {
-  transform: translateY(-1px);
+.cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
 }
 
 /* KPI */
 .kpi {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1.25rem;
+  gap: 16px;
 }
 
-.kpi__card {
-  padding: 1.4rem;
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+.card {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
 }
 
-.kpi__card span {
-  font-size: 0.75rem;
-  color: var(--color-muted);
-  text-transform: uppercase;
+.card:hover {
+  transform: translateY(-2px);
 }
 
-.kpi__card strong {
-  font-size: 1.8rem;
+.kpi-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.kpi-number {
+  font-size: 24px;
+  font-weight: 700;
   display: block;
-  margin-top: 0.5rem;
+  margin-top: 4px;
+}
+
+.kpi-trend {
+  font-size: 12px;
+  color: #16a34a;
+  margin-top: 2px;
+}
+
+.success {
+  color: #22c55e;
+}
+.danger {
+  color: #ef4444;
 }
 
 /* GRID */
 .grid {
   display: grid;
-  grid-template-columns: 1fr 1.2fr;
-  gap: 1.5rem;
+  grid-template-columns: 0.9fr 1.4fr;
+  gap: 24px;
 }
 
-/* PANELS */
-.panel {
-  padding: 1.5rem;
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-.panel--airy {
-  display: grid;
-  gap: 1rem;
+/* SECTION */
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
 }
 
-.panel__header {
+.section-sub {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.divider {
+  height: 1px;
+  background: #eef2f7;
+  margin: 10px 0 14px;
+}
+
+.section-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  align-items: flex-start;
 }
 
-.panel__meta {
-  font-size: 0.85rem;
-  color: var(--color-muted);
+/* METRIC */
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.metric strong {
+  font-size: 18px;
+}
+
+.metric span {
+  font-size: 11px;
+  color: #6b7280;
 }
 
 /* ACTION */
-.action {
-  display: grid;
-  gap: 1rem;
-}
-
-.action__row {
+.action-row {
   display: flex;
   justify-content: space-between;
-  font-size: 0.95rem;
+  padding: 6px 0;
+  transition: all 0.15s ease;
 }
 
-/* PERFORMANCE */
-.track {
-  height: 10px;
-  background: var(--color-border);
-  border-radius: 999px;
-  overflow: hidden;
+.action-row:hover {
+  transform: translateX(4px);
 }
 
-.fill {
-  height: 100%;
-  background: var(--color-primary);
+.action-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot-danger {
+  background: #ef4444;
+}
+.dot-muted {
+  background: #d1d5db;
+}
+
+/* FILTER */
+.filter {
+  display: inline-flex;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 20px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.filter button {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+
+.filter .active {
+  background: white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 /* ACTIVITY */
 .activity {
-  display: grid;
-  gap: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.activity__row {
-  padding: 1rem;
-  border-radius: var(--radius);
-  transition: background 0.15s ease;
+.activity > div {
+  padding: 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  cursor: pointer;
 }
 
-.activity__row:hover {
-  background: var(--color-surface-soft);
+.activity > div:hover {
+  background: #f9fafb;
+  transform: translateY(-1px);
 }
 
-.activity__main span {
-  display: block;
-  font-size: 0.85rem;
-  color: var(--color-muted);
+.muted {
+  color: #6b7280;
 }
 
-/* PERFORMANCE PANEL */
-.panel--performance {
-  display: grid;
-  gap: 1.25rem;
-}
-
-/* HEADER STACK */
-.panel__header--stack {
+.insights {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-/* SUBTEXT */
-.panel__subtext {
-  margin: 0.35rem 0 0;
-  font-size: 0.9rem;
-  color: var(--color-muted);
-  max-width: 28rem;
-  line-height: 1.5;
-}
-
-/* HIGHLIGHT METRIC */
-.panel__highlight {
-  text-align: right;
-}
-
-.panel__highlight strong {
-  display: block;
-  font-size: 1.6rem;
-  letter-spacing: -0.02em;
-}
-
-.panel__highlight span {
-  font-size: 0.8rem;
-  color: var(--color-muted);
-}
-
-/* INSIGHTS ROW */
-.panel__insights {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  color: var(--color-muted);
-  border-top: 1px solid var(--color-border);
-  padding-top: 0.75rem;
+  font-size: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eef2f7;
 }
 </style>
