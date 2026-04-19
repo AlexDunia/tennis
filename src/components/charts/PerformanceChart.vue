@@ -21,6 +21,10 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  currentPlayerId: {
+    type: String,
+    required: true,
+  },
 })
 
 // 4. COMPUTED DATA
@@ -29,16 +33,27 @@ const chartData = computed(() => {
 
   const labels = []
   const data = []
+  const meta = []
 
   props.matches.forEach((match, index) => {
     if (!match.winnerId) return
 
-    const isWin = match.winnerId === match.playerA?.id // adjust later if needed
+    const isPlayerA = match.playerA?.id === props.currentPlayerId
+
+    const isWin =
+      (isPlayerA && match.winnerId === match.playerA?.id) ||
+      (!isPlayerA && match.winnerId === match.playerB?.id)
 
     momentum += isWin ? 1 : -1
 
     labels.push(`Match ${index + 1}`)
     data.push(momentum)
+
+    meta.push({
+      opponent: isPlayerA ? match.defenderName : match.challengerName,
+      result: isWin ? 'Win' : 'Loss',
+      score: match.score || '—',
+    })
   })
 
   return {
@@ -51,9 +66,12 @@ const chartData = computed(() => {
         fill: true,
         backgroundColor: 'rgba(0, 181, 26, 0.08)',
         borderColor: '#00b51a',
-        pointRadius: 0,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointBackgroundColor: data.map((val) => (val >= 0 ? '#00b51a' : '#ff7f32')),
       },
     ],
+    meta,
   }
 })
 
@@ -65,9 +83,18 @@ const chartOptions = {
     legend: { display: false },
     tooltip: {
       backgroundColor: '#0f1419',
-      padding: 10,
-      titleColor: '#fff',
-      bodyColor: '#fff',
+      padding: 12,
+      displayColors: false,
+      callbacks: {
+        title: (items) => {
+          const index = items[0].dataIndex
+          return chartData.value.meta[index].opponent
+        },
+        label: (item) => {
+          const meta = chartData.value.meta[item.dataIndex]
+          return [`Result: ${meta.result}`, `Score: ${meta.score}`]
+        },
+      },
     },
   },
   scales: {
@@ -76,6 +103,8 @@ const chartOptions = {
       ticks: { color: '#6d7a70' },
     },
     y: {
+      suggestedMin: -3,
+      suggestedMax: 3,
       grid: {
         color: 'rgba(0,0,0,0.05)',
       },
@@ -93,6 +122,10 @@ const chartOptions = {
 
 <style scoped>
 .chart {
-  height: 220px;
+  height: 240px;
+}
+
+canvas {
+  cursor: crosshair;
 }
 </style>

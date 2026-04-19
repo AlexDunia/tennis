@@ -164,13 +164,30 @@ onMounted(loadDashboard)
       </div>
 
       <!-- PERFORMANCE -->
-      <div class="panel panel--airy">
-        <div class="panel__header">
-          <h2>Performance</h2>
-          <span class="panel__meta">{{ winRate }}% win rate</span>
+      <div class="panel panel--performance">
+        <div class="panel__header panel__header--stack">
+          <div>
+            <h2>Performance</h2>
+            <p class="panel__subtext">
+              Your match results over time. Track momentum, identify streaks, and adjust your play.
+            </p>
+          </div>
+
+          <div class="panel__highlight">
+            <strong>{{ winRate }}%</strong>
+            <span>win rate</span>
+          </div>
         </div>
 
-        <PerformanceChart :matches="matchStore.matches" />
+        <PerformanceChart
+          :matches="matchStore.matches"
+          :currentPlayerId="playerStore.currentPlayerId"
+        />
+
+        <div class="panel__insights">
+          <span> {{ matchStore.matches.length }} matches played </span>
+          <span> {{ upcomingMatches }} upcoming matches </span>
+        </div>
       </div>
     </section>
 
@@ -359,5 +376,54 @@ onMounted(loadDashboard)
   display: block;
   font-size: 0.85rem;
   color: var(--color-muted);
+}
+
+/* PERFORMANCE PANEL */
+.panel--performance {
+  display: grid;
+  gap: 1.25rem;
+}
+
+/* HEADER STACK */
+.panel__header--stack {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+/* SUBTEXT */
+.panel__subtext {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-muted);
+  max-width: 28rem;
+  line-height: 1.5;
+}
+
+/* HIGHLIGHT METRIC */
+.panel__highlight {
+  text-align: right;
+}
+
+.panel__highlight strong {
+  display: block;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+.panel__highlight span {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+/* INSIGHTS ROW */
+.panel__insights {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.75rem;
 }
 </style>
