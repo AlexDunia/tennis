@@ -68,6 +68,17 @@ onMounted(async () => {
     matchStore.loadMatches(),
     bookingStore.loadBookings(),
   ])
+
+  console.log('MATCHES:', matchStore.matches)
+})
+
+onMounted(async () => {
+  await Promise.all([
+    playerStore.loadPlayers(),
+    challengeStore.loadChallenges(),
+    matchStore.loadMatches(),
+    bookingStore.loadBookings(),
+  ])
 })
 </script>
 
