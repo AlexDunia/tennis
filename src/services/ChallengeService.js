@@ -24,3 +24,8 @@ export async function declineChallenge(challengeId) {
   const response = await ApiService.post(`/challenges/${challengeId}/decline`, {})
   return response.data
 }
+
+export async function withdrawChallenge(challengeId) {
+  const response = await ApiService.post(`/challenges/${challengeId}/withdraw`, {})
+  return response.data
+}

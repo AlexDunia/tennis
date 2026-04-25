@@ -1,18 +1,11 @@
 <script setup>
-// 1. IMPORTS
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePlayerStore } from '../stores/player'
-import RankingRow from '../components/RankingRow.vue'
-import PersonAvatar from '../components/PersonAvatar.vue'
 
-// 4. ROUTER
 const router = useRouter()
-
-// 5. STORES
 const playerStore = usePlayerStore()
 
-// 7. COMPUTED
 const sortedPlayers = computed(() => playerStore.sortedLadder)
 const currentPlayer = computed(() => playerStore.currentPlayer)
 
@@ -23,6 +16,15 @@ const winRate = computed(() => {
   if (total === 0) return '—'
   return `${Math.round((p.wins / total) * 100)}%`
 })
+
+const initials = computed(() => {
+  if (!currentPlayer.value?.name) return '??'
+  const parts = currentPlayer.value.name.trim().split(' ')
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  return currentPlayer.value.name.slice(0, 2).toUpperCase()
+})
+
+const nextTarget = computed(() => playerStore.availableOpponents[0] ?? null)
 
 const challengeablePlayers = computed(() =>
   sortedPlayers.value.filter((p) => playerStore.getPlayerZone(p.id) === 'challengeable'),
@@ -36,163 +38,204 @@ const outOfRangePlayers = computed(() =>
   sortedPlayers.value.filter((p) => playerStore.getPlayerZone(p.id) === 'out-of-range'),
 )
 
-// 8. METHODS
 const handleChallenge = (playerId) => {
   router.push({ name: 'CreateChallenge', query: { opponent: playerId } })
+}
+
+const getInitials = (name) => {
+  const parts = (name ?? '').trim().split(' ')
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  return (name ?? '').slice(0, 2).toUpperCase()
+}
+
+const calcWinRate = (player) => {
+  const total = player.wins + player.losses
+  if (total === 0) return '—'
+  return `${Math.round((player.wins / total) * 100)}%`
 }
 
 const loadRankings = async () => {
   await playerStore.loadPlayers()
 }
 
-// 10. LIFECYCLE
 onMounted(() => loadRankings())
 </script>
 
 <template>
   <section class="rankings">
-    <!-- ── Loading ── -->
+    <!-- Loading -->
     <div v-if="playerStore.isLoading" class="rankings__loading">
       <p>Loading ladder…</p>
     </div>
 
-    <!-- ── Error ── -->
-    <div v-else-if="playerStore.error" class="rankings__error section-card">
+    <!-- Error -->
+    <div v-else-if="playerStore.error" class="rankings__error">
       <p class="rankings__error-title">Failed to load rankings</p>
       <p class="rankings__error-copy">{{ playerStore.error }}</p>
       <button class="rankings__retry" @click="loadRankings">Retry</button>
     </div>
 
     <template v-else>
-      <!-- ══ TOP SUMMARY ROW ══ -->
-      <div class="rankings__summary-grid">
-        <!-- Your standing -->
-        <article v-if="currentPlayer" class="rankings__card">
-          <p class="rankings__eyebrow">Your standing</p>
+      <!-- Top summary grid -->
+      <div class="top">
+        <!-- Your position card (green gradient) -->
+        <div v-if="currentPlayer" class="card primary">
+          <img
+            class="ball"
+            src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776969016/ujk_nf7ts1.png"
+            alt=""
+          />
 
-          <div class="rankings__self-row">
-            <PersonAvatar :image="currentPlayer.imageUrl" :name="currentPlayer.name" size="44" />
+          <div class="section-title">Your Position</div>
+
+          <div class="identity">
+            <div class="avatar">{{ initials }}</div>
             <div>
-              <p class="rankings__self-name">{{ currentPlayer.name }}</p>
-              <p class="rankings__self-sub">Rank #{{ currentPlayer.rank }} · Active</p>
+              <div class="name">{{ currentPlayer.name }}</div>
+              <div class="rank-sub">Rank #{{ currentPlayer.rank }}</div>
             </div>
           </div>
 
-          <div class="rankings__stat-strip">
-            <div class="rankings__stat">
-              <span class="rankings__stat-n">{{ currentPlayer.wins }}</span>
-              <span class="rankings__stat-l">Wins</span>
+          <div class="stats">
+            <div class="stat">
+              <strong>{{ currentPlayer.wins }}</strong>
+              <span>Wins</span>
             </div>
-            <div class="rankings__stat">
-              <span class="rankings__stat-n">{{ currentPlayer.losses }}</span>
-              <span class="rankings__stat-l">Losses</span>
+            <div class="stat">
+              <strong>{{ currentPlayer.losses }}</strong>
+              <span>Losses</span>
             </div>
-            <div class="rankings__stat">
-              <span class="rankings__stat-n">{{ winRate }}</span>
-              <span class="rankings__stat-l">Win rate</span>
+            <div class="stat">
+              <strong>{{ winRate }}</strong>
+              <span>Win Rate</span>
             </div>
-            <div class="rankings__stat">
-              <span class="rankings__stat-n">{{ currentPlayer.matchesPlayed }}</span>
-              <span class="rankings__stat-l">Played</span>
+            <div class="stat">
+              <strong>{{ currentPlayer.matchesPlayed }}</strong>
+              <span>Played</span>
             </div>
           </div>
-        </article>
-
-        <!-- Challenge window -->
-        <article class="rankings__card">
-          <p class="rankings__eyebrow">Challenge window</p>
-
-          <p class="rankings__win-big">
-            {{ playerStore.availableOpponents.length }}
-            <span class="rankings__win-unit">
-              open {{ playerStore.availableOpponents.length === 1 ? 'target' : 'targets' }}
-            </span>
-          </p>
-
-          <p class="rankings__win-sub">
-            Beat any of these players to swap positions on the ladder. Challenges lock once
-            accepted.
-          </p>
-
-          <ul v-if="playerStore.availableOpponents.length > 0" class="rankings__opp-list">
-            <li
-              v-for="opp in playerStore.availableOpponents"
-              :key="opp.id"
-              class="rankings__opp-row"
-            >
-              <span class="rankings__opp-badge">#{{ opp.rank }}</span>
-              <span class="rankings__opp-name">{{ opp.name }}</span>
-              <button class="rankings__opp-btn" @click="handleChallenge(opp.id)">Challenge</button>
-            </li>
-          </ul>
-
-          <p v-else class="rankings__no-opps">No open targets right now. Keep climbing.</p>
-        </article>
-      </div>
-
-      <!-- ══ LADDER TABLE ══ -->
-      <div v-if="sortedPlayers.length > 0" class="rankings__ladder">
-        <!-- Table column headers -->
-        <div class="rankings__thead">
-          <span class="rankings__th"></span>
-          <span class="rankings__th">Rank</span>
-          <span class="rankings__th">Player</span>
-          <span class="rankings__th rankings__th--r">Record</span>
-          <span class="rankings__th rankings__th--r">Win rate</span>
-          <span class="rankings__th rankings__th--r">Action</span>
         </div>
 
-        <!-- Zone: challengeable -->
-        <template v-if="challengeablePlayers.length > 0">
-          <div class="rankings__zone-bar rankings__zone-bar--green">
-            <span class="rankings__zone-dot rankings__zone-dot--green" />
-            <span class="rankings__zone-label rankings__zone-label--green">
-              Challenge window — {{ challengeablePlayers.length }}
-              {{ challengeablePlayers.length === 1 ? 'player' : 'players' }} above you
-            </span>
-          </div>
-          <RankingRow
-            v-for="player in challengeablePlayers"
-            :key="player.id"
-            :player="player"
-            zone="challengeable"
-            @challenge="handleChallenge"
-          />
-        </template>
+        <!-- Next target card -->
+        <div class="card">
+          <div class="section-title">Next Target</div>
 
-        <!-- Zone: self -->
-        <template v-if="selfPlayer.length > 0">
-          <div class="rankings__zone-bar rankings__zone-bar--amber">
-            <span class="rankings__zone-dot rankings__zone-dot--amber" />
-            <span class="rankings__zone-label rankings__zone-label--amber">Your position</span>
-          </div>
-          <RankingRow
-            v-for="player in selfPlayer"
-            :key="player.id"
-            :player="player"
-            zone="self"
-            @challenge="handleChallenge"
-          />
-        </template>
+          <template v-if="nextTarget">
+            <div class="challenge-box">
+              <div>
+                <div class="rank-sub">Rank #{{ nextTarget.rank }}</div>
+                <div class="name">{{ nextTarget.name }}</div>
+              </div>
+              <button class="btn" @click="handleChallenge(nextTarget.id)">Challenge</button>
+            </div>
 
-        <!-- Zone: out of range -->
-        <template v-if="outOfRangePlayers.length > 0">
-          <div class="rankings__zone-bar">
-            <span class="rankings__zone-dot" />
-            <span class="rankings__zone-label">Out of challenge range</span>
-          </div>
-          <RankingRow
-            v-for="player in outOfRangePlayers"
-            :key="player.id"
-            :player="player"
-            zone="out-of-range"
-            @challenge="handleChallenge"
-          />
-        </template>
+            <!-- Extra targets if more than one available -->
+            <ul v-if="playerStore.availableOpponents.length > 1" class="extra-targets">
+              <li
+                v-for="opp in playerStore.availableOpponents.slice(1)"
+                :key="opp.id"
+                class="extra-target-row"
+              >
+                <span class="extra-badge">#{{ opp.rank }}</span>
+                <span class="extra-name">{{ opp.name }}</span>
+                <button class="btn btn--sm" @click="handleChallenge(opp.id)">Challenge</button>
+              </li>
+            </ul>
+          </template>
+
+          <p v-else class="no-targets">No open targets right now. Keep climbing.</p>
+        </div>
       </div>
 
-      <!-- Empty -->
-      <div v-else class="rankings__empty section-card">
+      <!-- Leaderboard -->
+      <div v-if="sortedPlayers.length > 0" class="leaderboard-container">
+        <div class="leaderboard-top">
+          <div class="leaderboard-title">Leaderboard</div>
+        </div>
+
+        <div class="leaderboard-inner">
+          <!-- Column headers -->
+          <div class="leaderboard-header">
+            <div>Rank</div>
+            <div>Player</div>
+            <div>W</div>
+            <div>L</div>
+            <div>WR</div>
+            <div></div>
+          </div>
+
+          <!-- Zone: challengeable -->
+          <template v-if="challengeablePlayers.length > 0">
+            <div class="zone-bar zone-bar--green">
+              <span class="zone-dot zone-dot--green" />
+              <span class="zone-label zone-label--green">
+                Challenge window —
+                {{ challengeablePlayers.length }}
+                {{ challengeablePlayers.length === 1 ? 'player' : 'players' }} above you
+              </span>
+            </div>
+            <div
+              v-for="player in challengeablePlayers"
+              :key="player.id"
+              class="leaderboard-row challengeable"
+            >
+              <div>#{{ player.rank }}</div>
+              <div class="player">
+                <div class="avatar">{{ getInitials(player.name) }}</div>
+                {{ player.name }}
+              </div>
+              <div>{{ player.wins }}</div>
+              <div>{{ player.losses }}</div>
+              <div class="winrate">{{ calcWinRate(player) }}</div>
+              <div class="action">
+                <button class="btn" @click="handleChallenge(player.id)">Challenge</button>
+              </div>
+            </div>
+          </template>
+
+          <!-- Zone: self -->
+          <template v-if="selfPlayer.length > 0">
+            <div class="zone-bar zone-bar--amber">
+              <span class="zone-dot zone-dot--amber" />
+              <span class="zone-label zone-label--amber">Your position</span>
+            </div>
+            <div v-for="player in selfPlayer" :key="player.id" class="leaderboard-row you">
+              <div>#{{ player.rank }}</div>
+              <div class="player">
+                <div class="avatar">{{ getInitials(player.name) }}</div>
+                {{ player.name }}
+                <span class="tag">YOU</span>
+              </div>
+              <div>{{ player.wins }}</div>
+              <div>{{ player.losses }}</div>
+              <div class="winrate">{{ calcWinRate(player) }}</div>
+              <div></div>
+            </div>
+          </template>
+
+          <!-- Zone: out of range -->
+          <template v-if="outOfRangePlayers.length > 0">
+            <div class="zone-bar">
+              <span class="zone-dot" />
+              <span class="zone-label">Out of challenge range</span>
+            </div>
+            <div v-for="player in outOfRangePlayers" :key="player.id" class="leaderboard-row">
+              <div>#{{ player.rank }}</div>
+              <div class="player">
+                <div class="avatar">{{ getInitials(player.name) }}</div>
+                {{ player.name }}
+              </div>
+              <div>{{ player.wins }}</div>
+              <div>{{ player.losses }}</div>
+              <div class="winrate">{{ calcWinRate(player) }}</div>
+              <div></div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div v-else class="rankings__empty">
         <p class="rankings__empty-title">No players on the ladder yet.</p>
         <p class="rankings__empty-copy">Check back once players have been added.</p>
       </div>
@@ -200,355 +243,435 @@ onMounted(() => loadRankings())
   </section>
 </template>
 
-<style scoped>
-/* ── Root ── */
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
 .rankings {
+  font-family: 'Poppins', sans-serif;
+  color: #0f1720;
   display: grid;
-  gap: 1.25rem;
+  gap: 32px;
 }
 
-/* ── Loading ── */
+/* LOADING */
 .rankings__loading {
   padding: 3rem 1rem;
   text-align: center;
-  color: var(--color-muted);
-  font-size: 0.95rem;
+  color: #7b8794;
+  font-size: 14px;
 }
 
-/* ── Error ── */
+/* ERROR */
 .rankings__error {
-  padding: 1.5rem;
+  padding: 18px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
   display: grid;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .rankings__error-title {
-  font-weight: 700;
-  color: var(--color-text);
+  font-weight: 600;
+  font-size: 14px;
+  color: #0f1720;
 }
 
 .rankings__error-copy {
-  color: var(--color-muted);
-  font-size: 0.9rem;
+  color: #7b8794;
+  font-size: 13px;
 }
 
 .rankings__retry {
   justify-self: start;
-  margin-top: 0.25rem;
-  padding: 0.4rem 1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 0.88rem;
-  font-weight: 600;
+  background: #00c853;
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Poppins', sans-serif;
   cursor: pointer;
-  transition:
-    border-color 0.12s ease,
-    box-shadow 0.12s ease;
 }
 
-.rankings__retry:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-soft);
-}
-
-/* ── Summary grid ── */
-.rankings__summary-grid {
+/* GRID */
+.top {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 20px;
 }
 
-.rankings__card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
-  display: grid;
-  gap: 1rem;
-  box-shadow: var(--shadow-soft);
+/* CARD */
+.card {
+  padding: 18px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
 }
 
-/* ── Eyebrow ── */
-.rankings__eyebrow {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--color-muted);
+/* GREEN CARD */
+.card.primary {
+  position: relative;
+  overflow: hidden;
+  color: #f4fff7;
+  border: none;
+  box-shadow: 0 10px 24px rgba(0, 200, 83, 0.1);
 }
 
-/* ── Self row ── */
-.rankings__self-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.card.primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #00b84a 0%, #4cd964 50%, #c6f300 100%);
+  opacity: 0.85;
+  z-index: 0;
 }
 
-.rankings__self-name {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--color-text);
-  line-height: 1.1;
+.card.primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.08);
+  z-index: 0;
 }
 
-.rankings__self-sub {
-  font-size: 0.82rem;
-  color: var(--color-muted);
-  margin-top: 3px;
+.card.primary .ball {
+  position: absolute;
+  right: -40px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 220px;
+  opacity: 0.35;
+  filter: blur(1px);
+  z-index: 1;
 }
 
-/* ── Stat strip ── */
-.rankings__stat-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-top: 1px solid var(--color-border);
-  padding-top: 0.85rem;
+.card.primary * {
+  position: relative;
+  z-index: 2;
 }
 
-.rankings__stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.rankings__stat + .rankings__stat {
-  border-left: 1px solid var(--color-border);
-  padding-left: 0.75rem;
-}
-
-.rankings__stat-n {
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: var(--color-text);
-  font-variant-numeric: tabular-nums;
-}
-
-.rankings__stat-l {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--color-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
-
-/* ── Win big ── */
-.rankings__win-big {
-  font-size: 2.1rem;
-  font-weight: 800;
-  color: var(--color-text);
-  line-height: 1;
-  display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
-}
-
-.rankings__win-unit {
-  font-size: 0.95rem;
+/* TITLES */
+.section-title {
+  font-size: 13px;
   font-weight: 500;
-  color: var(--color-muted);
+  color: #7b8794;
+  margin-bottom: 14px;
 }
 
-.rankings__win-sub {
-  font-size: 0.82rem;
-  color: var(--color-muted);
-  line-height: 1.55;
+.card.primary .section-title {
+  color: rgba(255, 255, 255, 0.75);
 }
 
-/* ── Opponent quick list ── */
-.rankings__opp-list {
-  list-style: none;
-  border-top: 1px solid var(--color-border);
-  padding-top: 0.75rem;
-  display: grid;
-  gap: 0.5rem;
+/* IDENTITY */
+.identity {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 14px;
 }
 
-.rankings__opp-row {
+.avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #eef2f5;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  justify-content: center;
+  font-weight: 500;
+  font-size: 13px;
 }
 
-.rankings__opp-badge {
-  font-size: 0.72rem;
-  font-weight: 800;
-  background: rgba(0, 181, 26, 0.12);
-  color: var(--color-primary-strong);
+.card.primary .avatar {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.rank-sub {
+  font-size: 12px;
+  color: #7b8794;
+}
+
+.card.primary .rank-sub {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* STATS */
+.stats {
+  display: flex;
+  margin-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.card.primary .stats {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.stat {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  position: relative;
+}
+
+.stat:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.card.primary .stat:not(:last-child)::after {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.stat strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.stat span {
+  display: block;
+  font-size: 11px;
+  color: #7b8794;
+}
+
+.card.primary .stat span {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* CHALLENGE BOX */
+.challenge-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0, 200, 83, 0.04);
+}
+
+.btn {
+  background: #00c853;
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+}
+
+/* EXTRA TARGETS (Vue-only addition for multiple opponents) */
+.extra-targets {
+  list-style: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  padding-top: 10px;
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.extra-target-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.extra-badge {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 200, 83, 0.12);
+  color: #00843a;
   border-radius: 5px;
   padding: 2px 6px;
-  min-width: 30px;
+  min-width: 28px;
   text-align: center;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
 }
 
-.rankings__opp-name {
+.extra-name {
   flex: 1;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 500;
+  color: #0f1720;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.rankings__opp-btn {
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 4px 11px;
-  border-radius: 6px;
-  border: 1px solid rgba(0, 181, 26, 0.35);
-  background: transparent;
-  color: var(--color-primary-strong);
-  cursor: pointer;
-  white-space: nowrap;
-  letter-spacing: 0.02em;
-  transition:
-    background 0.12s ease,
-    border-color 0.12s ease,
-    box-shadow 0.12s ease;
+.no-targets {
+  font-size: 13px;
+  color: #7b8794;
+  padding: 12px 0;
 }
 
-.rankings__opp-btn:hover {
-  background: rgba(0, 181, 26, 0.08);
-  border-color: rgba(0, 181, 26, 0.6);
-  box-shadow: 0 1px 4px rgba(0, 181, 26, 0.15);
+/* LEADERBOARD */
+.leaderboard-container {
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
 }
 
-.rankings__no-opps {
-  font-size: 0.85rem;
-  color: var(--color-muted);
-  border-top: 1px solid var(--color-border);
-  padding-top: 0.75rem;
+.leaderboard-top {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
 }
 
-/* ══ LADDER ══ */
-.rankings__ladder {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-soft);
+.leaderboard-title {
+  font-size: 14px;
+  font-weight: 500;
 }
 
-/* Column header row */
-.rankings__thead {
+.leaderboard-inner {
+  padding: 12px 16px 6px;
+}
+
+.leaderboard-header {
   display: grid;
-  grid-template-columns: 36px 44px 1fr 100px 80px 110px;
+  grid-template-columns: 60px 1fr 60px 60px 80px 120px;
+  font-size: 12px;
+  color: #7b8794;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px 60px 80px 120px;
   align-items: center;
-  gap: 0 10px;
-  padding: 9px 16px 9px 14px;
-  background: var(--color-bg-muted);
-  border-bottom: 1px solid var(--color-border);
+  padding: 14px 0;
 }
 
-.rankings__th {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-muted);
+.leaderboard-row:not(:last-child) {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
 }
 
-.rankings__th--r {
-  text-align: right;
+.leaderboard-row.you {
+  background: rgba(255, 211, 61, 0.08);
 }
 
-/* Zone separator bars */
-.rankings__zone-bar {
+.leaderboard-row.challengeable {
+  background: rgba(0, 200, 83, 0.04);
+}
+
+.player {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 16px 7px 14px;
-  background: var(--color-bg-muted);
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
+  gap: 10px;
+  font-size: 14px;
 }
 
-.rankings__zone-bar--green {
-  background: rgba(0, 181, 26, 0.04);
-}
-.rankings__zone-bar--amber {
-  background: rgba(255, 211, 61, 0.06);
-}
-
-.rankings__zone-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-border-strong);
+.leaderboard-row .avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
   flex-shrink: 0;
 }
 
-.rankings__zone-dot--green {
-  background: var(--color-primary);
-}
-.rankings__zone-dot--amber {
-  background: var(--color-accent);
+.tag {
+  font-size: 10px;
+  background: #ffd33d;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
-.rankings__zone-label {
-  font-size: 0.68rem;
-  font-weight: 700;
+.winrate {
+  color: #00c853;
+  font-size: 13px;
+}
+
+.action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ZONE BARS */
+.zone-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  margin: 4px -16px;
+}
+
+.zone-bar--green {
+  background: rgba(0, 200, 83, 0.04);
+}
+.zone-bar--amber {
+  background: rgba(255, 211, 61, 0.08);
+}
+
+.zone-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.zone-dot--green {
+  background: #00c853;
+}
+.zone-dot--amber {
+  background: #f5a623;
+}
+
+.zone-label {
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-muted);
+  letter-spacing: 0.07em;
+  color: #7b8794;
 }
 
-.rankings__zone-label--green {
-  color: var(--color-primary-strong);
+.zone-label--green {
+  color: #00843a;
 }
-.rankings__zone-label--amber {
+.zone-label--amber {
   color: #845f00;
 }
 
-/* ── Empty ── */
+/* EMPTY */
 .rankings__empty {
   padding: 2rem 1.5rem;
   text-align: center;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .rankings__empty-title {
-  font-weight: 700;
-  color: var(--color-text);
+  font-weight: 600;
+  font-size: 14px;
+  color: #0f1720;
 }
 
 .rankings__empty-copy {
   margin-top: 0.4rem;
-  color: var(--color-muted);
-  font-size: 0.9rem;
+  color: #7b8794;
+  font-size: 13px;
 }
 
-/* ── Responsive ── */
+/* RESPONSIVE */
 @media (max-width: 900px) {
-  .rankings__summary-grid {
+  .top {
     grid-template-columns: 1fr;
   }
-
-  .rankings__stat-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    row-gap: 0.75rem;
-  }
-
-  .rankings__stat:nth-child(3) {
-    border-left: none;
-    padding-left: 0;
-  }
-
-  .rankings__thead {
-    display: none;
-  }
 }
 
-@media (max-width: 480px) {
-  .rankings__win-big {
-    font-size: 1.7rem;
-  }
-
-  .rankings__ladder {
-    border-radius: var(--radius);
+@media (max-width: 600px) {
+  .leaderboard-header {
+    display: none;
   }
 }
 </style>

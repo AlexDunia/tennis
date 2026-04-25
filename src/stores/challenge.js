@@ -8,6 +8,10 @@ import {
   getChallenges,
   reviewChallenge as reviewChallengeRequest,
 } from '../services/ChallengeService'
+import {
+  // ...your existing imports
+  withdrawChallenge as withdrawChallengeRequest,
+} from '../services/ChallengeService'
 
 export const useChallengeStore = defineStore('challenge', () => {
   const challenges = ref([])
@@ -147,6 +151,30 @@ export const useChallengeStore = defineStore('challenge', () => {
       error.value = response.message || 'Unable to decline challenge.'
     } catch (declineError) {
       error.value = declineError?.message || 'Unable to decline challenge.'
+    } finally {
+      isLoading.value = false
+    }
+
+    return null
+  }
+
+  const withdrawChallenge = async (challengeId) => {
+    error.value = ''
+    isLoading.value = true
+
+    try {
+      const response = await withdrawChallengeRequest(challengeId)
+      if (response.success) {
+        const challengeIndex = challenges.value.findIndex((item) => item.id === challengeId)
+        if (challengeIndex !== -1) {
+          challenges.value.splice(challengeIndex, 1)
+        }
+        return response.data
+      }
+
+      error.value = response.message || 'Unable to withdraw challenge.'
+    } catch (withdrawError) {
+      error.value = withdrawError?.message || 'Unable to withdraw challenge.'
     } finally {
       isLoading.value = false
     }
