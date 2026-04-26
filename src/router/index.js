@@ -6,6 +6,7 @@ import MatchDetailsView from '../views/MatchDetailsView.vue'
 import CreateChallengeView from '../views/CreateChallengeView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
+import ProfileView from '../views/ProfileView.vue'
 
 const routes = [
   {
@@ -38,6 +39,12 @@ const routes = [
       title: 'Challenges',
       subtitle: 'Accept, review, and monitor every ladder challenge from one focused queue.',
     },
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: ProfileView,
+    meta: { title: 'Profile', subtitle: 'Your ladder record and stats.' },
   },
   {
     path: '/matches/:matchId',

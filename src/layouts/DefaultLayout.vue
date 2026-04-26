@@ -2,19 +2,11 @@
   <div class="layout">
     <aside class="sidebar">
       <div class="logo">
-        <div class="logo-mark">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="white" stroke-width="1.6" />
-            <path
-              d="M3.5 8 Q5.5 5 8 8 Q10.5 11 12.5 8"
-              stroke="white"
-              stroke-width="1.6"
-              fill="none"
-              stroke-linecap="round"
-            />
-          </svg>
-        </div>
-        ShellTennis
+        <img
+          src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776503502/RENAISSANCE-AFRICA-ENERGY-LOGO-update_s4eb9u.png"
+          alt="Renaissance Africa Tennis Club Port Harcourt"
+          class="logo-img"
+        />
       </div>
 
       <nav class="nav">
@@ -27,6 +19,12 @@
         >
           <span class="icon" v-html="item.icon"></span>
           <span class="label">{{ item.label }}</span>
+        </RouterLink>
+
+        <!-- PROFILE -->
+        <RouterLink to="/profile" class="nav-link" :class="{ active: route.path === '/profile' }">
+          <span class="icon" v-html="profileIcon"></span>
+          <span class="label">Profile</span>
         </RouterLink>
 
         <!-- NOTIFICATIONS -->
@@ -49,7 +47,6 @@
           <p>{{ currentSubtitle }}</p>
         </div>
 
-        <!-- USER (REACTIVE FROM PLAYER STORE) -->
         <div class="user" v-if="currentPlayer">
           <div class="avatar-btn">{{ initials }}</div>
           <span class="user-name">{{ currentPlayer.name }}</span>
@@ -100,16 +97,20 @@ const navigationItems = [
   },
 ]
 
+const profileIcon =
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 20c1.5-3.5 5-5 8-5s6.5 1.5 8 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
+
 const bellIcon =
   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5a4 4 0 0 1 4 4v3.5l1.5 1.5v.5H6v-.5L7.5 12.5V9a4 4 0 0 1 4-4Z" stroke="currentColor" stroke-width="1.7"/></svg>'
 
-const currentTitle = computed(() => route.meta.title || 'ShellTennis PH')
+const currentTitle = computed(
+  () => route.meta.title || 'Renaissance Africa Tennis Club Port Harcourt',
+)
 const currentSubtitle = computed(
   () => route.meta.subtitle || 'Manage the ladder from one calm workspace.',
 )
 
 const unreadCount = computed(() => notificationStore.unreadCount)
-
 const currentPlayer = computed(() => playerStore.currentPlayer)
 
 const initials = computed(() => {
@@ -123,18 +124,8 @@ const initials = computed(() => {
 </script>
 
 <style scoped>
-:root {
-  --green: #00c853;
-  --green-soft: rgba(0, 200, 83, 0.05);
-
-  --text: #0f1720;
-  --muted: #7b8794;
-
-  --border: rgba(0, 0, 0, 0.05);
-}
-
-/* LAYOUT */
 .layout {
+  font-family: 'Poppins', sans-serif;
   display: flex;
   min-height: 100vh;
 }
@@ -147,7 +138,7 @@ const initials = computed(() => {
   bottom: 0;
   padding: 28px 20px;
   background: #fff;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -156,23 +147,17 @@ const initials = computed(() => {
 }
 
 .logo {
-  font-size: 16px;
-  font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 10px;
 }
 
-.logo-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #00c853, #4cd964);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.logo-img {
+  width: 100%;
+  max-width: 160px;
+  object-fit: contain;
 }
 
+/* NAV */
 .nav {
   display: flex;
   flex-direction: column;
@@ -187,7 +172,7 @@ const initials = computed(() => {
   border-radius: 10px;
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--muted);
+  color: #7b8794;
   text-decoration: none;
 }
 
@@ -210,11 +195,11 @@ const initials = computed(() => {
 
 .nav-link:hover {
   background: #f3f6f3;
-  color: var(--text);
+  color: #0f1720;
 }
 
 .nav-link.active {
-  background: var(--green-soft);
+  background: rgba(0, 200, 83, 0.05);
   color: #007a32;
 }
 
@@ -236,29 +221,44 @@ const initials = computed(() => {
   flex-direction: column;
 }
 
-/* HEADER */
+/* HEADER (MORE PREMIUM SPACING) */
 .header {
   position: sticky;
   top: 0;
   background: #fff;
-  border-bottom: 1px solid var(--border);
-  padding: 18px 32px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+
+  padding: 24px 32px; /* increased vertical space */
+
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   z-index: 10;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.035);
+
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04); /* more floating feel */
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .header-left h1 {
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 600;
+  color: rgba(0, 0, 0, 0.8);
+  margin: 0;
+  line-height: 1.25;
+  letter-spacing: -0.2px;
 }
 
 .header-left p {
   font-size: 12.5px;
-  color: var(--muted);
-  margin-top: 2px;
+  color: #7b8794;
+  margin: 0;
+  line-height: 1.4;
 }
 
 /* USER */
@@ -284,7 +284,7 @@ const initials = computed(() => {
 .user-name {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text);
+  color: #0f1720;
 }
 
 /* CONTENT */
