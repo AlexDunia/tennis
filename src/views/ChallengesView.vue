@@ -131,7 +131,7 @@ onMounted(() => {
 
       <!-- Pending reply card -->
       <div class="next-card">
-        <div class="card-label">Pending reply</div>
+        <div class="next-card-label">Pending reply</div>
 
         <template v-if="pendingChallenge">
           <div class="pending-row">
@@ -286,6 +286,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 14px;
+  margin-bottom: 18px;
 }
 
 .hero-avatar {
@@ -299,7 +300,6 @@ onMounted(() => {
   font-size: 13px;
   font-weight: 600;
   border: 1.5px solid rgba(255, 255, 255, 0.3);
-  flex-shrink: 0;
 }
 
 .hero-name {
@@ -327,7 +327,7 @@ onMounted(() => {
   gap: 14px;
 }
 
-.card-label {
+.next-card-label {
   font-size: 11.5px;
   font-weight: 500;
   color: #a8b3bc;

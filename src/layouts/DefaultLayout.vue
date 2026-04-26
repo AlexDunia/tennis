@@ -1,96 +1,107 @@
-```vue
 <template>
   <div class="layout">
     <aside class="sidebar">
-      <div class="sidebar__brand">
-        <RouterLink to="/dashboard" class="sidebar__logo">
-          <img
-            src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776503502/RENAISSANCE-AFRICA-ENERGY-LOGO-update_s4eb9u.png"
-            alt="Renaissance Africa Energy logo"
-            class="sidebar__logo-image"
-          />
-        </RouterLink>
+      <div class="logo">
+        <div class="logo-mark">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="white" stroke-width="1.6" />
+            <path
+              d="M3.5 8 Q5.5 5 8 8 Q10.5 11 12.5 8"
+              stroke="white"
+              stroke-width="1.6"
+              fill="none"
+              stroke-linecap="round"
+            />
+          </svg>
+        </div>
+        ShellTennis
       </div>
 
-      <!-- NAV -->
-      <nav class="sidebar__nav">
+      <nav class="nav">
         <RouterLink
           v-for="item in navigationItems"
           :key="item.to"
           :to="item.to"
-          class="sidebar__link"
+          class="nav-link"
+          :class="{ active: route.path === item.to }"
         >
-          <span class="sidebar__icon" v-html="item.icon"></span>
-          <span class="sidebar__label">{{ item.label }}</span>
+          <span class="icon" v-html="item.icon"></span>
+          <span class="label">{{ item.label }}</span>
         </RouterLink>
 
-        <RouterLink to="/notifications" class="sidebar__link">
-          <span class="sidebar__icon" v-html="bellIcon"></span>
-          <span class="sidebar__label">Notifications</span>
-          <span v-if="unreadCount" class="sidebar__badge">{{ unreadCount }}</span>
+        <!-- NOTIFICATIONS -->
+        <RouterLink
+          to="/notifications"
+          class="nav-link"
+          :class="{ active: route.path === '/notifications' }"
+        >
+          <span class="icon" v-html="bellIcon"></span>
+          <span class="label">Notifications</span>
+          <span v-if="unreadCount" class="badge">{{ unreadCount }}</span>
         </RouterLink>
       </nav>
-
-      <!-- FOOTER -->
-      <div class="sidebar__footer">
-        <button class="sidebar__logout" @click="handleLogout">
-          <span class="sidebar__icon" v-html="logoutIcon"></span>
-          <span>Logout</span>
-        </button>
-      </div>
     </aside>
 
-    <div class="shell">
-      <header class="page-header">
-        <div>
-          <h1 class="page-header__title">{{ currentTitle }}</h1>
-          <p class="page-header__subtitle">{{ currentSubtitle }}</p>
+    <main class="main">
+      <div class="header">
+        <div class="header-left">
+          <h1>{{ currentTitle }}</h1>
+          <p>{{ currentSubtitle }}</p>
         </div>
-      </header>
 
-      <main class="layout__main">
-        <div class="container">
-          <RouterView />
+        <!-- USER (REACTIVE FROM PLAYER STORE) -->
+        <div class="user" v-if="currentPlayer">
+          <div class="avatar-btn">{{ initials }}</div>
+          <span class="user-name">{{ currentPlayer.name }}</span>
         </div>
-      </main>
-    </div>
+      </div>
+
+      <div class="content">
+        <RouterView />
+      </div>
+    </main>
   </div>
 
   <ToastShelf />
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
+import { usePlayerStore } from '../stores/player'
 import ToastShelf from '../components/ToastShelf.vue'
 
 const route = useRoute()
 const notificationStore = useNotificationStore()
+const playerStore = usePlayerStore()
+
+onMounted(() => {
+  if (!playerStore.players.length) {
+    playerStore.loadPlayers()
+  }
+})
 
 const navigationItems = [
   {
     to: '/dashboard',
     label: 'Dashboard',
-    icon: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7" height="4" rx="2" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="9" width="7" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="12" width="7" height="9" rx="2" stroke="currentColor" stroke-width="1.6"/></svg>',
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="5" height="5" rx="1.2"/><rect x="9" y="2" width="5" height="5" rx="1.2"/><rect x="2" y="9" width="5" height="5" rx="1.2"/><rect x="9" y="9" width="5" height="5" rx="1.2"/></svg>',
   },
   {
     to: '/rankings',
     label: 'Rankings',
-    icon: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 18V10M12 18V6M18 18v-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.6"/></svg>',
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 13V6M7 13V3M11 13V8" stroke-linecap="round"/></svg>',
   },
   {
     to: '/challenges',
     label: 'Challenges',
-    icon: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c3 4 3 14 0 18" stroke="currentColor" stroke-width="1.4"/></svg>',
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8h5M8 5.5v5" stroke-linecap="round"/></svg>',
   },
 ]
 
 const bellIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><path d="M12 5a4 4 0 0 1 4 4v3.5l1.5 1.5v.5H6v-.5L7.5 12.5V9a4 4 0 0 1 4-4Z" stroke="currentColor" stroke-width="1.7"/></svg>'
-
-const logoutIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><path d="M10 17l5-5-5-5" stroke="currentColor" stroke-width="1.8"/><path d="M15 12H3" stroke="currentColor" stroke-width="1.8"/><path d="M21 21V3" stroke="currentColor" stroke-width="1.4"/></svg>'
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5a4 4 0 0 1 4 4v3.5l1.5 1.5v.5H6v-.5L7.5 12.5V9a4 4 0 0 1 4-4Z" stroke="currentColor" stroke-width="1.7"/></svg>'
 
 const currentTitle = computed(() => route.meta.title || 'ShellTennis PH')
 const currentSubtitle = computed(
@@ -99,171 +110,185 @@ const currentSubtitle = computed(
 
 const unreadCount = computed(() => notificationStore.unreadCount)
 
-function handleLogout() {
-  alert('Logout logic here')
-}
+const currentPlayer = computed(() => playerStore.currentPlayer)
+
+const initials = computed(() => {
+  if (!currentPlayer.value?.name) return ''
+  return currentPlayer.value.name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+})
 </script>
 
 <style scoped>
+:root {
+  --green: #00c853;
+  --green-soft: rgba(0, 200, 83, 0.05);
+
+  --text: #0f1720;
+  --muted: #7b8794;
+
+  --border: rgba(0, 0, 0, 0.05);
+}
+
+/* LAYOUT */
 .layout {
+  display: flex;
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
 }
 
 /* SIDEBAR */
 .sidebar {
-  height: 100vh;
-  position: sticky;
+  position: fixed;
+  width: 240px;
   top: 0;
+  bottom: 0;
+  padding: 28px 20px;
+  background: #fff;
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 1.5rem 1rem;
-
-  background: #ffffff;
-
-  /* 🔥 subtle premium shadow */
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.04);
+  gap: 28px;
+  box-shadow: 4px 0 18px rgba(0, 0, 0, 0.04);
+  z-index: 30;
 }
 
-.sidebar__logo-image {
-  width: 130px;
-}
-
-/* NAV */
-.sidebar__nav {
-  margin-top: 1.4rem;
-  display: flex;
-  flex-direction: column;
-  gap: 8px; /* 🔥 more breathing space */
-}
-
-/* LINK */
-.sidebar__link {
+.logo {
+  font-size: 16px;
+  font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 12px;
-
-  padding: 10px 14px;
-  border-radius: 12px;
-
-  font-family: 'Poppins', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-
-  color: #2c2c2c;
-  text-decoration: none;
-
-  transition: all 0.2s ease;
+  gap: 10px;
 }
 
-/* HOVER */
-.sidebar__link:hover {
-  background: #f6f8f7;
-  transform: translateX(3px);
-}
-
-/* ACTIVE */
-.sidebar__link.router-link-active {
-  background: #00b51a;
-  color: #ffffff;
-  font-weight: 600;
-}
-
-/* ICON */
-.sidebar__icon {
-  width: 20px;
-  height: 20px;
+.logo-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #00c853, #4cd964);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.sidebar__icon :deep(svg) {
-  width: 18px;
-  height: 18px;
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-/* LABEL */
-.sidebar__label {
-  flex: 1;
-}
-
-/* BADGE */
-.sidebar__badge {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: #00b51a;
-  color: #fff;
-}
-
-/* FOOTER */
-.sidebar__footer {
-  margin-top: auto;
-  padding-top: 1rem;
-}
-
-.sidebar__logout {
-  width: 100%;
+.nav-link {
   display: flex;
   align-items: center;
   gap: 12px;
-
   padding: 10px 14px;
-  border-radius: 12px;
-
-  background: transparent;
-  border: none;
-  cursor: pointer;
-
-  font-family: 'Poppins', sans-serif;
-  font-size: 14px;
-  color: #444;
-
-  transition: all 0.2s ease;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
 }
 
-.sidebar__logout:hover {
-  background: #f6f8f7;
+.icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* CLICK FEEDBACK */
-.sidebar__link:active,
-.sidebar__logout:active {
-  transform: scale(0.97);
+.icon :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.label {
+  line-height: 1;
+}
+
+.nav-link:hover {
+  background: #f3f6f3;
+  color: var(--text);
+}
+
+.nav-link.active {
+  background: var(--green-soft);
+  color: #007a32;
+}
+
+.badge {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 20px;
+  background: rgba(0, 200, 83, 0.12);
+  color: #007a32;
 }
 
 /* MAIN */
-.shell {
-  display: grid;
-  grid-template-rows: auto 1fr;
+.main {
+  margin-left: 240px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-.page-header {
-  padding: 1.4rem 1.75rem;
-  border-bottom: 1px solid #eee;
+/* HEADER */
+.header {
+  position: sticky;
+  top: 0;
   background: #fff;
+  border-bottom: 1px solid var(--border);
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 10;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.035);
 }
 
-.page-header__title {
-  margin: 0;
-  font-size: 1.6rem;
+.header-left h1 {
+  font-size: 19px;
+  font-weight: 600;
 }
 
-.page-header__subtitle {
-  margin-top: 6px;
-  font-size: 14px;
-  color: #777;
+.header-left p {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 2px;
 }
 
-.layout__main {
-  padding: 1.5rem;
+/* USER */
+.user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.container {
-  max-width: 1180px;
-  margin: 0 auto;
+.avatar-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #00c853, #4cd964);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* CONTENT */
+.content {
+  padding: 32px;
 }
 </style>
-```
