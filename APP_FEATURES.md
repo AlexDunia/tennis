@@ -1,135 +1,45 @@
-# ShellTennis PH - Current Features and Canonical Product Rules
+# ShellTennis PH - Current Feature Set
 
-## Product Summary
+## What The App Is About
 
-ShellTennis PH is a player-driven tennis ladder system built around real-world play.
+ShellTennis PH is a simple tennis ladder app for real-world club play.
 
-The core experience is intentionally lightweight:
+The app helps players:
 
-1. Players move through a ladder by challenging eligible opponents.
-2. Accepting a challenge creates a match.
-3. The live play screen handles quick scoring with minimal friction.
-4. Final results are submitted after play.
-5. Rankings and player records update only when results are finalized.
+1. See where they stand on the ladder.
+2. Challenge eligible higher-ranked players.
+3. Accept or decline incoming challenges.
+4. Turn accepted challenges into scheduled matches.
+5. Use a live scoreboard during play.
+6. Submit match results.
+7. Review results so ladder rankings can move.
 
-The active routed app is now presented inside a clean white dashboard shell with:
-
-- a full-height left sidebar
-- icon + label navigation
-- a full-width route-aware page header
-- page content that stays focused on workflow, not decoration
+The main idea is easy: players climb the ladder by challenging other players, playing matches, and confirming results.
 
 ---
 
-## Canonical Product Model
+## Active App Experience
 
-This section is the intended product model other AI tools should reason from when designing or extending the app.
+The current live app is a dashboard-style Vue app.
 
-### Core match experience
+It has:
 
-- Two players create or join a match.
-- Scoring during the match should be fast and interruption-free.
-- Final scores become official only after confirmation.
-- Official results update rankings, wins, losses, and match counts across the ladder.
+- a fixed left sidebar
+- navigation for Dashboard, Rankings, Challenges, Profile, and Notifications
+- a top page header that changes by route
+- the current player's name and initials in the header
+- a notification badge in the sidebar
+- toast messages for important actions
+- white, green, and tennis-focused styling
+- Cloudinary-hosted brand and tennis images
 
-### Roles
-
-The product is built around three roles:
-
-- `Player A` - competitor
-- `Player B` - competitor
-- `Scorer` - optional and flexible
-
-Rules:
-
-- Only Player A and Player B can confirm results.
-- Only Player A and Player B can affect rankings.
-- The Scorer is not assigned up front.
-- The Scorer can be either player or a spectator.
-- The Scorer role can shift naturally during the match.
-
-### Canonical match data shape
-
-Official match data should be modeled with structured sets, not a plain score string.
-
-```javascript
-match: {
-  id: 'match-001',
-  challengeId: 'challenge-001',
-  playerA: { id, name, rank },
-  playerB: { id, name, rank },
-  winnerId: 'player-x',
-  status: 'scheduled' | 'in_progress' | 'pending_confirmation' | 'disputed' | 'completed',
-  scheduledAt: 'ISO string',
-  completedAt: 'ISO string',
-  confirmedBy: ['player-a-id', 'player-b-id'],
-  disputedBy: 'player-id' | null,
-  sets: [
-    {
-      playerA: 6,
-      playerB: 4,
-      tiebreak: null,
-    },
-    {
-      playerA: 7,
-      playerB: 6,
-      tiebreak: { playerA: 7, playerB: 5 },
-    },
-  ],
-  pointLog: [],
-}
-```
-
-Important rule:
-
-- a stored plain `score` string should not be the source of truth
-- render strings like `6-4, 7-6` should be derived from `sets`
-
-### Confirmation and disputes
-
-Canonical product rules:
-
-- both players have 48 hours to confirm a result
-- if neither player disputes within that window, the result auto-confirms
-- if the losing player disputes before the window closes, ranking updates are frozen
-- disputes are resolved manually by an admin
-- each player can raise only one dispute per calendar month
-
-### Dashboard and navigation philosophy
-
-The dashboard is a command center, not a place where full multi-step flows happen.
-
-It should surface:
-
-- ongoing matches
-- pending confirmations
-- active disputes
-- ladder standings
-- direct links into deeper pages
-
-Deeper actions happen on dedicated pages:
-
-- challenge creation
-- live scoring
-- result submission
-- result confirmation
-
-### Ladder rules
-
-- rankings update only on confirmed results
-- challengers may only target opponents within three places above them
-- if a lower-ranked challenger beats a higher-ranked opponent and the result confirms, the two positions swap
-- wins, losses, and matches played update at the same time as ladder confirmation
+The app uses hash routing, so the live browser URLs appear like `/#/dashboard`.
 
 ---
 
-## Current Implemented App Flow
+## Current Active Routes
 
-This section describes what the codebase currently does today.
-
-### Active routes
-
-The current router exposes:
+These are the routes currently exposed by the active router:
 
 - `/dashboard`
 - `/rankings`
@@ -137,170 +47,304 @@ The current router exposes:
 - `/create-challenge`
 - `/play/:matchId`
 - `/matches/:matchId`
+- `/profile`
+- `/notifications`
 
-The root path `/` redirects to `/dashboard`.
+`/` redirects to `/dashboard`.
 
 Unknown routes also redirect to `/dashboard`.
 
-### Current active shell
+---
 
-The live app shell currently uses:
-
-- full-height left sidebar navigation
-- full-width top page header
-- white background across the whole workspace
-- restrained Renaissance-inspired accents:
-  - green
-  - yellow
-  - orange
-
-Important UI rules now reflected in the app:
-
-- create challenge is not a top-header action
-- the page header shows the current page title and subtext
-- the sidebar is the persistent primary navigation
+## Page-By-Page Features
 
 ### Dashboard
 
-Purpose:
+The dashboard is the player's home screen.
 
-- overview page
-- command center
-- routing hub into deeper flows
+It shows:
 
-Current features:
-
-- current player summary
-- create challenge entry point in the page body
-- stats for players, matches, and ladder
-- pending actions
-- featured match
-- recent challenges
-- recent matches
+- a personalized greeting based on the time of day
+- the current player's first name and rank
+- a hero image section with a Start Challenge button
+- cards for matches, wins, losses, and win rate
+- a win streak badge when the player has more than one current win
+- action counts for pending challenges, matches to play, and reviews
+- a Chart.js performance chart showing weekly win rate
+- chart details for wins, losses, match count, win rate, and recent form
+- total match and upcoming match summary text
+- a recent activity feed combining matches and challenges
+- click-through behavior from recent activity to match details
 
 ### Rankings
 
-Purpose:
+The rankings page lets players understand the ladder and pick who to challenge.
 
-- ladder exploration
-- challenge discovery
+It shows:
 
-Current features:
+- the current player's position card
+- current rank, wins, losses, win rate, and matches played
+- the full leaderboard sorted by rank
+- player search by name
+- separate visual sections for challengeable players, the current player, and out-of-range players
+- Challenge buttons for legal opponents
+- route handoff into Create Challenge with the selected opponent prefilled
+- loading, error, retry, empty, and no-search-result states
 
-- current player summary
-- challenge window summary
-- full ranked player list
-- challenge CTA only for allowed opponents
+The rankings page also includes sharing tools:
+
+- share leaderboard to WhatsApp
+- share leaderboard to Facebook
+- copy the leaderboard link for Instagram use
+- open a share-card modal
+- download a branded ranking image with the current player's rank and the top 5 players
+- fallback behavior if image generation fails
 
 ### Challenges
 
-Purpose:
+The challenges page is the work queue for challenge activity.
 
-- challenge management queue
+It shows:
 
-Current features:
-
-- challenge filters
-- challenge cards
-- accept action
-- review action
-- details action
+- the current player's rank summary
+- a pending reply card for the next awaiting challenge
+- a View action that scrolls to the challenge, highlights it, then opens details
+- tabs for All, Awaiting, Scheduled, and Pending Review
+- tab counts for each challenge status
+- loading and empty states
+- challenge cards with player names, ranks, roles, status, scorer, date, note, and match format
+- rank gain hint when the challenger can move upward
+- accept and decline actions for incoming awaiting challenges
+- confirm result action for pending review challenges
+- View details action for scheduled, pending review, and completed challenges
+- a challenge details modal with matchup, rules, scorer, schedule, and note
+- toast and notification messages after accept, decline, or review actions
 
 ### Create Challenge
 
-Purpose:
+The create challenge page is where a player configures a new challenge.
 
-- dedicated setup page for creating a ladder challenge
+It includes:
 
-Current features:
+- a "challenging as" identity card for the current player
+- current player stats
+- opponent picker restricted to eligible higher-ranked players
+- opponent search
+- matchup preview after selecting an opponent
+- singles or doubles selection
+- doubles partner selectors
+- match length selection
+- custom set target with plus and minus controls
+- set rule selection for tiebreak at 6-6 or play until a 2-game lead
+- deuce rule selection for normal advantage or sudden death
+- final set rule selection for normal final set or super tiebreak
+- optional scorer selection
+- optional message to the opponent
+- disabled submit state until required fields are complete
+- success toast and notification after creating a challenge
+- redirect back to Challenges after submission
 
-- current player summary
-- opponent selector
-- message field
-- create challenge action
+Important implementation note:
+
+- the form collects match configuration, teams, scorer, and note
+- the current mock API stores the new challenge, scorer, and note
+- the current mock API does not yet persist every challenge configuration field, such as teams and full match rules
 
 ### Play
 
-Purpose:
+The play page provides a live scoreboard for a match.
 
-- live scoring screen for a scheduled match
+It includes:
 
-Current features:
-
-- live match summary
-- local scoreboard
+- match title with challenger and defender names
+- scheduled date and time display
+- status text for ready, review, completed, or missing match state
+- a live tennis scoreboard component
 - point buttons for both players
-- route into match details
+- current game point display using Love, 15, 30, 40, Deuce, and Advantage
+- set score display
+- tiebreak display when a set reaches 6-6
+- match winner display once the required sets are won
+- disabled scoring buttons after a match winner is reached
+- button to open the match details page
+
+Important implementation note:
+
+- live scoreboard state is local to the page
+- live points and set history are not saved into match history yet
+- the scoreboard currently defaults to best of 3 sets
 
 ### Match Details
 
-Purpose:
+The match details page is for submitting the official score after play.
 
-- post-match result submission
+It includes:
 
-Current features:
-
-- match summary
-- winner selection
+- match status
+- challenger and defender names
+- scheduled time text
+- existing score text if available
+- winner selector
 - score input
-- submit result action
+- default score example of `6-4, 6-4`
+- submit result button
+- disabled submission if the match is not scheduled
+- submitted state after a result is sent
+
+After result submission:
+
+- the mock API updates the match score
+- the match status becomes pending review
+- the related challenge also becomes pending review
+- player data is reloaded
+
+### Profile
+
+The profile page shows the current player's ladder summary.
+
+It includes:
+
+- initials avatar
+- player name
+- rank badge
+- wins
+- losses
+- win rate
+- matches played
+- total challenges
+- completed challenges
+- ladder standing card
+- current rank details
+- win/loss record
+- loading state while player data loads
+
+### Notifications
+
+The notifications page shows app activity.
+
+It includes:
+
+- notification feed grouped by Today, Yesterday, and Earlier
+- unread count
+- unread badge in the sidebar
+- mark one notification as read
+- mark all as read
+- dismiss one notification
+- clear all notifications
+- empty state when all notifications are cleared
+- type styles for info, success, warning, and danger notifications
+- seeded prototype notifications when the feed is empty
+
+Notifications are also added after important actions such as creating, accepting, declining, and reviewing challenges.
 
 ---
 
-## Current Technical Reality
+## Current Business Logic
 
-These points are critical if another AI tool is working without opening the code.
+### Player And Ladder Rules
 
-### Active ladder rules in code today
+- the active player is fixed to `player-02`
+- players are sorted by rank, with rank 1 at the top
+- legal challenge targets are players ranked above the current player
+- legal challenge targets must be within 3 ranking positions
+- the leaderboard clearly separates challengeable players, the current player, and out-of-range players
 
-- current active user is fixed at `player-15`
-- challenge creation is limited to opponents within three places above the current player
-- accepting a challenge creates a match
-- play scoring is local UI state only
-- final score submission happens on the match details page
-- ranking updates happen when a challenge is reviewed
+### Challenge Rules
 
-### Current data behavior
+- new challenges start as awaiting
+- accepting a challenge changes it to scheduled
+- accepting a challenge creates a scheduled match
+- declining a challenge removes it from the challenge list
+- submitting a match result changes the match and challenge to pending review
+- reviewing a challenge completes it
+- reviewing a completed result updates player wins, losses, matches played, and ranking order
+- if a lower-ranked challenger beats a higher-ranked defender, the challenger takes the defender's rank
 
-- player, challenge, and match data live in memory only and reset on reload
-- auth persists to localStorage under `sheltennis-auth`
-- booking persists to localStorage under `sheltennis-bookings`
+### Match And Scoring Rules
 
-### Current implementation gaps vs canonical product model
-
-These canonical rules are not fully implemented yet:
-
-- structured `sets` arrays are not yet the stored match source of truth
-- 48-hour confirmation windows are not implemented
-- dispute handling is not implemented
-- auto-confirmation is not implemented
-- monthly dispute limits are not implemented
-- live point logs are not persisted
-
-Treat those items as product-direction rules, not finished runtime behavior.
+- match result submission happens from Match Details
+- live point scoring happens from Play
+- the live scoreboard supports normal tennis point labels
+- the live scoreboard supports deuce and advantage
+- the live scoreboard starts a tiebreak at 6-6
+- a tiebreak is won by first to 7 with a 2-point lead
+- a set is won by at least 6 games with a 2-game lead, or by tiebreak
+- the match is won when a player wins enough sets for the selected best-of value
 
 ---
 
-## Secondary or Non-Routed Areas
+## Data And Persistence
 
-The repository still contains secondary or legacy views for:
+The app uses Pinia stores for:
+
+- players
+- challenges
+- matches
+- notifications
+- bookings
+- authentication
+
+Current data behavior:
+
+- player and challenge data come from an Axios mock adapter
+- the mock adapter simulates backend endpoints in memory
+- most ladder state resets when the app reloads
+- notifications and toasts are in memory
+- live scoring state is in memory
+- authentication state is saved to `localStorage` under `sheltennis-auth`
+- booking state is saved to `localStorage` under `sheltennis-bookings`
+
+Current match data note:
+
+- match result submission uses the mock API
+- the match list service still contains demo-style mock match data
+- the match list path should be reviewed before treating match history as production-ready
+
+---
+
+## Current Gaps
+
+These items are visible in the product direction but are not fully implemented yet:
+
+- real authentication and active-user switching
+- real backend persistence
+- full challenge configuration persistence
+- structured sets as the stored match result source of truth
+- saving live point-by-point history
+- saving live scoreboard state between page reloads
+- enforced 48-hour challenge response workflow
+- automatic challenge expiry
+- result confirmation timers
+- auto-confirmation
+- dispute creation and resolution
+- monthly dispute limits
+- exposed withdraw challenge action
+- full booking flow inside the active routed dashboard shell
+
+---
+
+## Secondary Or Legacy Code Paths
+
+The repo also contains other views and components that are not currently exposed by the active router.
+
+Examples include:
 
 - login
-- bookings
 - landing
-- matches
-- profile
+- booking
 - history
+- matches list
+- court booking form
+- auth composable
+- booking store and service
 
-Important:
-
-- these files exist in the repo
-- they are not part of the active routed ladder shell
-- a file existing does not mean it is currently active product UI
+These files still exist in the codebase, but they are not part of the current active dashboard flow unless the router is updated to expose them.
 
 ---
 
 ## Technology
+
+The app uses:
 
 - Vue 3.5+
 - Composition API
@@ -308,5 +352,9 @@ Important:
 - Pinia
 - Vue Router 4
 - Axios
+- Chart.js
+- vue-chartjs
 - Vite
 - Prettier
+- Cloudinary-hosted images
+- localStorage for selected prototype state

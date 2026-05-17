@@ -24,33 +24,61 @@ All styling is built on CSS custom properties defined at the `:root` level. This
 #### Color Palette
 
 ```css
-/* Primary Colors */
---color-primary: #00b51a (Green - Primary Action) --color-primary-strong: #008f15 (darker green)
-  --color-secondary: [derived from primary] --color-accent: #ffd33d (Yellow - Secondary Accent)
-  --color-accent-strong: #ffb400 (darker yellow) --color-accent-bright: #00b51a (bright green)
-  --color-accent-support: #ffd33d (yellow support) /* Tennis Court Theme */ --color-clay: #ff7f32
-  (Orange - Tennis Court Clay) /* Neutral Colors */ --color-text: #162218 (dark text)
-  --color-text-soft: #425044 (softer text) --color-muted: #6d7a70 (muted/secondary text)
-  --color-dark: #0f1419 (very dark - sidebar background) --color-dark-soft: #1a1a1a (dark variants)
-  --color-light: #ffffff (white) /* Backgrounds & Surfaces */ --color-bg: #ffffff (main background)
-  --color-bg-muted: #f7f8fa (muted background) --color-surface: #ffffff (card/surface background)
-  --color-surface-muted: #fbfcfd (muted surface) --color-surface-soft: #f4f7f5 (soft surface)
-  /* Borders */ --color-border: #e7ece8 (standard border) --color-border-strong: #d7dfd8
-  (stronger border);
+/* Primary / brand */
+--color-primary: #00b51a;
+--color-primary-strong: #008f15;
+--color-accent-bright: #00b51a;
+
+/* Support accents */
+--color-accent: #ffd33d;
+--color-accent-strong: #ffb400;
+--color-accent-support: #ffd33d;
+--color-clay: #ff7f32;
+
+/* Text and neutrals */
+--color-text: #162218;
+--color-text-soft: #425044;
+--color-muted: #6d7a70;
+--color-dark: #0f1419;
+--color-dark-soft: #1a1a1a;
+--color-light: #ffffff;
+
+/* Backgrounds and surfaces */
+--color-bg: #ffffff;
+--color-bg-muted: #f7f8fa;
+--color-surface: #ffffff;
+--color-surface-muted: #fbfcfd;
+--color-surface-soft: #f4f7f5;
+
+/* Borders */
+--color-border: #e7ece8;
+--color-border-strong: #d7dfd8;
 ```
+
+Current app note:
+
+- the global token system is still active
+- many active views also define local one-off colors directly in their component CSS
+- several routed views import Poppins from Google Fonts inside the view-level stylesheet
+- `DefaultLayout.vue` currently uses direct hex values for the sidebar/header instead of only global tokens
 
 #### Shadow System
 
 ```css
---shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04) (hover state elevation) --shadow-strong: 0 6px 18px
-  rgba(0, 0, 0, 0.06) (pressed state elevation);
+--shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04);
+--shadow-strong: 0 6px 18px rgba(0, 0, 0, 0.06);
 ```
+
+Active pages often use stronger local shadows, especially on dashboard cards, challenge cards, ranking cards, modals, and toasts.
 
 #### Spacing & Typography
 
 ```css
---radius: 0.5rem (standard border radius) --radius-lg: 0.75rem (large border radius for cards);
+--radius: 0.5rem;
+--radius-lg: 0.75rem;
 ```
+
+The global body font is Inter/Avenir/Segoe UI, but most active routed pages override to Poppins locally.
 
 ### Global HTML/Body Styling
 
@@ -105,119 +133,117 @@ body {
 }
 ```
 
-**External Assets:** No external CSS frameworks. **All styling is internal** using CSS variables and scoped component styles.
+**External Assets:** No external CSS frameworks are used. Styling is mostly local Vue CSS plus global CSS variables, with some active views importing Google Fonts and Cloudinary images.
 
 ---
 
 ## Navigation Architecture
 
-### NavBar Component
+### Current Sidebar Navigation
 
-**File:** `src/components/NavBar.vue`
+**File:** `src/layouts/DefaultLayout.vue`
+
+The active app no longer uses the top `NavBar.vue` as the primary navigation. The live shell uses a fixed left sidebar with icon + label links.
 
 #### Structure
 
-The navbar is rendered in the main `App.vue` via the `DefaultLayout` component, appearing at the top of the application.
+The sidebar is rendered inside `DefaultLayout.vue`, which is rendered directly by `App.vue`.
+
+Active sidebar links:
+
+- Dashboard
+- Rankings
+- Challenges
+- Profile
+- Notifications
+
+Notifications also show an unread badge from `notificationStore.unreadCount`.
 
 #### Styling Breakdown
 
 ```css
-.navbar {
+.layout {
+  font-family: 'Poppins', sans-serif;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-  color: #ffffff;
-  border-bottom: 4px solid rgba(245, 158, 11, 0.9); /* golden accent line */
+  min-height: 100vh;
 }
 
-.navbar__brand {
+.sidebar {
+  position: fixed;
+  width: 240px;
+  top: 0;
+  bottom: 0;
+  padding: 28px 20px;
+  background: #fff;
+  border-right: 1px solid rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
+  gap: 28px;
+  box-shadow: 4px 0 18px rgba(0, 0, 0, 0.04);
+  z-index: 30;
 }
 
-.navbar__logo {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #ffffff;
-  text-decoration: none;
-}
-
-.navbar__tagline {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.navbar__links {
+.nav {
   display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.navbar__link {
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.92);
-  text-decoration: none;
-  padding: 0.45rem 0.85rem;
-  border-radius: 999px;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
-}
-
-.navbar__link--active,
-.navbar__link:hover {
-  background: rgba(255, 255, 255, 0.16); /* translucent white on hover/active */
-  color: #ffffff;
-}
-
-.navbar__actions {
+.nav-link {
   display: flex;
   align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #7b8794;
+  text-decoration: none;
 }
 
-.navbar__cta {
-  background: rgba(245, 158, 11, 1); /* golden yellow button */
-  color: #0f172a;
-  border: none;
-  padding: 0.55rem 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  border-radius: 999px;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+.nav-link:hover {
+  background: #f3f6f3;
+  color: #0f1720;
 }
 
-.navbar__cta:hover {
-  transform: translateY(-1px); /* subtle lift effect */
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+.nav-link.active {
+  background: rgba(0, 200, 83, 0.05);
+  color: #007a32;
+}
+
+.badge {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 20px;
+  background: rgba(0, 200, 83, 0.12);
+  color: #007a32;
 }
 ```
 
-#### Color Flow for Navbar
+#### Color Flow for Current Navigation
 
-- **Background:** Green to Secondary gradient (`var(--color-primary)` to `var(--color-secondary)`)
-- **Text:** White (`#ffffff`)
-- **Active/Hover Link:** Translucent white overlay
-- **CTA Button:** Golden yellow (`rgba(245, 158, 11, 1)`)
+- **Sidebar background:** white
+- **Default link text:** muted gray `#7b8794`
+- **Hover background:** pale gray-green `#f3f6f3`
+- **Active state:** pale green background with dark green text
+- **Badge:** pale green background with dark green text
 
 #### Responsive Behavior
 
-```css
-@media (max-width: 720px) {
-  .navbar {
-    justify-content: center; /* center alignment on mobile */
-  }
-  .navbar__links {
-    justify-content: center;
-    width: 100%;
-  }
-}
-```
+`DefaultLayout.vue` currently does not define responsive sidebar breakpoints. The shell remains a fixed 240px sidebar with the main area offset by `margin-left: 240px`.
+
+This is important for future UI work:
+
+- the active pages contain their own responsive rules
+- the shell itself still needs a mobile/tablet navigation strategy if the app must work comfortably on narrow screens
+
+### Legacy NavBar Component
+
+**File:** `src/components/NavBar.vue`
+
+`NavBar.vue` still exists in the repo, but it is not part of the active routed dashboard shell. Treat it as secondary or legacy unless it is reintroduced in `App.vue` or `DefaultLayout.vue`.
 
 ---
 
@@ -227,16 +253,15 @@ The navbar is rendered in the main `App.vue` via the `DefaultLayout` component, 
 
 **File:** `src/layouts/DefaultLayout.vue`
 
-This is the **main layout wrapper** for all authenticated views. It includes the sidebar and shell structure.
+This is the main layout wrapper for the active app. It includes the fixed sidebar, sticky top header, route content area, and toast shelf.
 
-#### Two-Column Grid Layout
+#### Two-Column Flex Layout
 
 ```css
 .layout {
+  font-family: 'Poppins', sans-serif;
+  display: flex;
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 270px minmax(0, 1fr); /* sidebar + main content */
-  background: var(--color-bg);
 }
 ```
 
@@ -248,280 +273,171 @@ This is the **main layout wrapper** for all authenticated views. It includes the
 
 ```css
 .sidebar {
-  position: sticky;
+  position: fixed;
+  width: 240px;
   top: 0;
-  height: 100vh;
+  bottom: 0;
+  padding: 28px 20px;
+  background: #fff;
+  border-right: 1px solid rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1.5rem 1rem;
-  background: var(--color-dark); /* dark background */
-  border-right: 1px solid var(--color-border);
+  gap: 28px;
+  box-shadow: 4px 0 18px rgba(0, 0, 0, 0.04);
+  z-index: 30;
 }
 ```
 
 **Key Design Elements:**
 
-1. **Sidebar Brand/Logo**
+1. **Logo**
 
 ```css
-.sidebar__brand {
-  padding: 0.25rem 0.35rem 0.75rem;
-}
-
-.sidebar__logo {
+.logo {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
 }
 
-.sidebar__logo-text {
-  display: block;
-  color: var(--color-light); /* white text */
-}
-
-.sidebar__logo-copy {
-  display: block;
-  color: var(--color-light);
+.logo-img {
+  width: 100%;
+  max-width: 160px;
+  object-fit: contain;
 }
 ```
 
-2. **Sidebar Logo Marks (SVG Circles)**
+2. **Navigation Links**
 
 ```css
-.sidebar__logo-mark {
-  position: relative;
-  width: 2.5rem;
-  height: 2.5rem;
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.sidebar__logo-arc {
-  position: absolute;
-  border-radius: 999px;
-}
-
-.sidebar__logo-arc--accent {
-  /* Yellow arc */
-  inset: 0.15rem auto auto 0;
-  width: 1.8rem;
-  height: 1.8rem;
-  border: 0.34rem solid var(--color-accent); /* yellow border */
-  border-right-color: transparent;
-  border-bottom-color: transparent;
-  transform: rotate(-18deg);
-}
-
-.sidebar__logo-arc--warm {
-  /* Orange arc */
-  right: 0;
-  bottom: 0.2rem;
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 0.32rem solid var(--color-clay); /* orange border */
-  border-left-color: transparent;
-  border-top-color: transparent;
-  transform: rotate(12deg);
-}
-```
-
-3. **Navigation Links**
-
-```css
-.sidebar__nav {
-  display: grid;
-  gap: 0.375rem;
-}
-
-.sidebar__link {
-  display: grid;
-  grid-template-columns: 2.35rem minmax(0, 1fr);
-  gap: 0.75rem;
+.nav-link {
+  display: flex;
   align-items: center;
-  padding: 0 12px;
-  min-height: 40px;
-  border-radius: 0.5rem;
-  color: var(--color-light);
-  border: 1px solid transparent;
-  transition:
-    background 0.12s ease-in-out,
-    border-color 0.12s ease-in-out,
-    color 0.12s ease-in-out;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #7b8794;
+  text-decoration: none;
 }
 
-.sidebar__link.router-link-active,
-.sidebar__link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: var(--color-light);
-}
-
-.sidebar__icon {
-  width: 2.35rem;
-  height: 2.35rem;
-  display: inline-flex;
+.icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: var(--color-light);
 }
 
-.sidebar__link.router-link-active .sidebar__icon {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.sidebar__link-copy {
-  display: grid;
-  gap: 0.08rem;
-}
-
-.sidebar__label {
-  font-weight: 700;
-  font-size: 0.94rem;
+.nav-link.active {
+  background: rgba(0, 200, 83, 0.05);
+  color: #007a32;
 }
 ```
 
-4. **Sidebar CTA (Call-to-action Box)**
+3. **Notification Badge**
 
 ```css
-.sidebar__footer {
-  margin-top: auto; /* pushes to bottom */
-  display: grid;
-  gap: 0.7rem;
-}
-
-.sidebar__cta {
-  display: grid;
-  gap: 0.25rem;
-  padding: 1rem;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, rgba(255, 211, 61, 0.16), rgba(255, 127, 50, 0.12));
-  border: 1px solid rgba(255, 127, 50, 0.16);
-}
-
-.sidebar__cta-title {
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-
-.sidebar__cta-copy {
-  color: var(--color-text-soft);
-  font-size: 0.84rem;
+.badge {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 20px;
+  background: rgba(0, 200, 83, 0.12);
+  color: #007a32;
 }
 ```
 
 ### Shell (Main Content Area)
 
 ```css
-.shell {
-  min-width: 0;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  background: var(--color-bg);
+.main {
+  margin-left: 240px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 ```
+
+The `margin-left` is the layout offset that keeps route content from sitting under the fixed sidebar.
 
 ### Page Header (Inside Shell)
 
 ```css
-.page-header {
+.header {
   position: sticky;
   top: 0;
-  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 24px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1.4rem 1.75rem;
-  background: #ffffff;
-  border-bottom: 1px solid var(--color-border);
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
-.page-header__copy {
-  min-width: 0;
-}
-
-.page-header__title {
+.header-left h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.8);
   margin: 0;
-  font-size: clamp(1.55rem, 2vw, 1.95rem); /* fluid typography */
-  line-height: 1.15;
-  letter-spacing: -0.04em;
+  line-height: 1.25;
+  letter-spacing: -0.2px;
 }
 
-.page-header__subtitle {
-  max-width: 44rem;
-  margin: 0.5rem 0 0;
-  color: var(--color-muted);
-  font-size: 0.95rem;
+.header-left p {
+  font-size: 12.5px;
+  color: #7b8794;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #00c853, #4cd964);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 ```
 
 ### Main Content Container
 
 ```css
-.layout__main {
-  min-width: 0;
-  padding: 1.5rem 0 2rem;
-  background: var(--color-bg);
-}
-
-.container {
-  width: min(1180px, calc(100% - 2rem));
+.content {
+  padding: 32px;
 }
 ```
 
 #### Layout Responsive Breakpoints
 
-**Tablet (max-width: 1120px):**
+Current shell-level responsive breakpoints:
 
-```css
-.layout {
-  grid-template-columns: 1fr; /* single column */
-}
+- `DefaultLayout.vue` does not currently include media queries.
+- The fixed sidebar and `margin-left: 240px` stay active at all viewport widths.
+- Page-level components do have responsive rules, documented later in this file.
 
-.sidebar {
-  position: relative;
-  height: auto;
-  border-right: none;
-  border-bottom: 1px solid var(--color-border);
-}
+Recommended future shell cue:
 
-.sidebar__nav {
-  grid-template-columns: repeat(3, minmax(0, 1fr)); /* horizontal nav */
-}
-
-.sidebar__footer {
-  margin-top: 0;
-}
-```
-
-**Mobile (max-width: 760px):**
-
-```css
-.sidebar {
-  padding: 1rem;
-}
-
-.sidebar__nav {
-  grid-template-columns: 1fr; /* back to vertical */
-}
-
-.page-header {
-  flex-direction: column;
-  align-items: start;
-  padding: 1.1rem 1rem;
-}
-
-.layout__main {
-  padding-top: 1rem;
-}
-
-.container {
-  width: min(100%, calc(100% - 1rem));
-}
-```
+- add a tablet/mobile navigation pattern before relying on this shell for narrow screens.
 
 ---
 
@@ -639,9 +555,96 @@ Form input styling with focus states.
 }
 ```
 
+### PersonAvatar Component
+
+**File:** `src/components/PersonAvatar.vue`
+
+Used in the Create Challenge flow for current player and opponent identity display.
+
+```css
+.person-avatar {
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+```
+
+Responsive cue:
+
+- sizing is passed by prop, so the component adapts through inline width and height
+- it does not define breakpoints internally
+
+### ToastShelf Component
+
+**File:** `src/components/ToastShelf.vue`
+
+Toasts are rendered globally from `DefaultLayout.vue`.
+
+```css
+.toast-shelf {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  z-index: 10000;
+  width: min(360px, calc(100vw - 2rem));
+}
+
+.toast {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.14);
+  color: #0f172a;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.toast--success {
+  background: #ecfdf5;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.toast--warning {
+  background: #fffbeb;
+  border-color: rgba(234, 179, 8, 0.3);
+}
+
+.toast--info {
+  background: #eff6ff;
+  border-color: rgba(59, 130, 246, 0.25);
+}
+```
+
+Responsive cue:
+
+- toast width uses `min(360px, calc(100vw - 2rem))`, so it stays inside narrow screens
+- transitions are subtle: opacity and `translateY(-10px)` over 180ms
+
 ### PlayerCard Component
 
 **File:** `src/components/PlayerCard.vue`
+
+Current status:
+
+- `PlayerCard.vue` exists in the repo, but the active Rankings page currently uses its own inline leaderboard row/card styles instead of this component.
+- Keep this section as secondary component documentation, not as the active leaderboard styling source.
 
 Displays individual player information in a card format.
 
@@ -733,72 +736,122 @@ Displays individual player information in a card format.
 
 **File:** `src/components/ChallengeCard.vue`
 
-Displays challenge information with action buttons.
+This is active in `ChallengesView.vue`. The current component uses the `cc` class family, not the older `challenge-card` class family.
 
 ```css
-.challenge-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  padding: 1.25rem;
-  display: grid;
-  gap: 1rem;
-  box-shadow: var(--shadow-soft);
+.cc {
+  background: #fff;
+  border-radius: 18px;
+  padding: 22px 24px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  font-family: 'Poppins', sans-serif;
+  color: #0f1720;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   transition:
-    transform 0.12s ease-in-out,
-    box-shadow 0.12s ease-in-out;
+    transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 0.22s ease;
 }
 
-.challenge-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-strong);
+.cc:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.08);
 }
 
-.challenge-card__identity {
+.cc__top {
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.challenge-card__ladder {
-  min-width: 4.5rem;
-  padding: 0.65rem 0.8rem;
-  border-radius: 0.5rem;
-  background: rgba(255, 211, 61, 0.12); /* light yellow */
-  color: #845f00; /* brown text */
-  font-size: 0.8rem;
-  font-weight: 800;
-  text-align: center;
-}
-
-.challenge-card__title {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--color-text);
-}
-
-.challenge-card__details {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.challenge-card__meta {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.92rem;
-  line-height: 1.6;
-}
-
-.challenge-card__note {
-  margin: 0.25rem 0 0;
-  color: var(--color-text-soft);
-  font-size: 0.9rem;
-}
-
-.challenge-card__actions {
-  display: flex;
-  gap: 0.75rem;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
+}
+
+.cc__matchup {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cc__player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.cc__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.cc__avatar--green {
+  background: rgba(0, 200, 83, 0.1);
+  color: #007a32;
+}
+
+.cc__avatar--blue {
+  background: #e8f0fe;
+  color: #1a56c4;
+}
+
+.cc__info-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding: 14px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.cc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+}
+```
+
+Status pill colors:
+
+- awaiting uses amber
+- scheduled uses green
+- pending review uses blue
+- completed uses gray
+
+Responsive cue:
+
+```css
+@media (max-width: 640px) {
+  .cc__matchup {
+    gap: 10px;
+  }
+
+  .cc__actions {
+    width: 100%;
+  }
+
+  .cc-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .cc__player--right {
+    flex-direction: row;
+    text-align: left;
+  }
 }
 ```
 
@@ -810,291 +863,52 @@ Displays challenge information with action buttons.
 
 **File:** `src/views/DashboardView.vue`
 
-Multi-section layout with stats, pending actions, featured match, and activity feeds.
+The active dashboard is no longer the older stat-card/featured-match layout. It now uses an image hero, glass KPI cards, an overview grid, a performance chart, and a recent activity card.
 
-#### Main Grid Structure
+Current primary classes:
 
-```css
-.dashboard {
-  display: grid;
-  gap: 2rem;
-}
-```
+- `.dashboard`
+- `.hero`
+- `.hero-top`
+- `.hero__title`
+- `.cta`
+- `.kpi.inside`
+- `.card.glass`
+- `.section-group`
+- `.grid`
+- `.action-row`
+- `.insights`
+- `.activity-item`
 
-#### 1. Dashboard Intro Section
+Important styling cues:
 
-```css
-.dashboard__intro {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.4rem;
-}
+- Poppins is imported locally.
+- `.dashboard` is centered with `max-width: 1100px`.
+- `.hero` uses a Cloudinary tennis court background image.
+- `.hero::before`, `.hero::after`, and `.hero-scrim` create image, green tint, and dark readability layers.
+- KPI cards inside the hero use translucent green-tinted glass styling.
+- CTA button uses solid `#00c853`.
+- Activity rows use subtle hover translation.
 
-.dashboard__greeting {
-  margin: 0;
-  font-size: 1.45rem;
-  font-weight: 800;
-}
-
-.dashboard__subline {
-  margin: 0.55rem 0 0;
-  color: var(--color-muted);
-  font-size: 0.95rem;
-}
-
-.dashboard__actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.dashboard__action-button {
-  border: none;
-  border-radius: 0.5rem;
-  padding: 0 14px;
-  min-height: 38px;
-  background: var(--color-accent-bright); /* green */
-  color: var(--color-light);
-  font-weight: 700;
-  transition:
-    transform 0.12s ease-in-out,
-    box-shadow 0.12s ease-in-out;
-}
-
-.dashboard__action-button:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-soft);
-}
-```
-
-#### 2. Stats Grid (3-Column)
+Responsive cues:
 
 ```css
-.stats-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
+@media (max-width: 768px) {
+  .kpi.inside {
+    grid-template-columns: repeat(2, 1fr);
+  }
 
-.stat-card {
-  padding: 1.4rem;
-}
+  .grid {
+    grid-template-columns: 1fr;
+  }
 
-.stat-card--tier1 {
-  background: var(--color-dark); /* dark background */
-  color: var(--color-light);
-  border-color: var(--color-dark-soft);
-}
+  .hero-top {
+    flex-direction: column;
+  }
 
-.stat-card__label {
-  margin: 0;
-  color: inherit;
-  font-size: 0.88rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.stat-card__value {
-  margin: 0.85rem 0 0;
-  font-size: 2rem;
-  font-weight: 800;
-}
-```
-
-#### 3. Dashboard Grid Section (2-Column)
-
-```css
-.dashboard-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.dashboard-panel {
-  padding: 1.4rem;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
-.panel-header h2 {
-  margin: 0;
-  font-size: 1rem;
-}
-```
-
-#### 4. Pending Actions List
-
-```css
-.action-list {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.action-card {
-  display: grid;
-  gap: 0.35rem;
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  background: var(--color-surface);
-  text-align: left;
-  transition:
-    transform 0.12s ease-in-out,
-    box-shadow 0.12s ease-in-out,
-    border-color 0.12s ease-in-out;
-}
-
-.action-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-soft);
-}
-
-.action-card__title {
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.action-card__meta {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-.action-card__cta {
-  margin-top: 0.35rem;
-  color: var(--color-accent-bright);
-  font-weight: 700;
-  font-size: 0.88rem;
-}
-```
-
-#### 5. Featured Match Card
-
-```css
-.feature-card {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.feature-card__status {
-  margin: 0;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-text);
-}
-
-.feature-card__copy {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.95rem;
-}
-
-.feature-card__button {
-  justify-self: start;
-  max-width: 14rem;
-  border: 1px solid rgba(0, 181, 26, 0.14);
-  border-radius: 0.5rem;
-  padding: 0 14px;
-  min-height: 38px;
-  background: rgba(0, 181, 26, 0.08); /* light green */
-  color: var(--color-accent-bright);
-  font-weight: 700;
-}
-
-.feature-card__button:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-soft);
-}
-```
-
-#### 6. Activity Grid (Recent Matches/Challenges)
-
-```css
-.activity-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.activity-list {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.activity-item {
-  display: grid;
-  gap: 0.35rem;
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  background: var(--color-surface);
-  text-align: left;
-  transition:
-    transform 0.12s ease-in-out,
-    box-shadow 0.12s ease-in-out,
-    border-color 0.12s ease-in-out;
-}
-
-.activity-item:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-soft);
-}
-
-.activity-item__title {
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.activity-item__meta {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-```
-
-#### 7. Empty State Card
-
-```css
-.empty-panel {
-  padding: 1rem;
-  border-radius: 0.75rem;
-  background: var(--color-surface-muted);
-  color: var(--color-muted);
-}
-```
-
-#### Dashboard Responsive Breakpoints
-
-**Tablet (max-width: 1100px):**
-
-```css
-.stats-grid,
-.dashboard-grid,
-.activity-grid {
-  grid-template-columns: 1fr; /* stack vertically */
-}
-
-.dashboard__intro {
-  flex-direction: column;
-}
-
-.dashboard__actions {
-  justify-content: stretch;
-}
-
-.feature-card__button {
-  max-width: none;
+  .hero__title {
+    font-size: 24px;
+  }
 }
 ```
 
@@ -1104,70 +918,73 @@ Multi-section layout with stats, pending actions, featured match, and activity f
 
 **File:** `src/views/RankingsView.vue`
 
-Displays ladder standings and player challenge opportunities.
+The active Rankings page uses local leaderboard styling, not `PlayerCard.vue`.
 
-```css
-.rankings {
-  display: grid;
-  gap: 2rem;
-}
+Current primary classes:
 
-.rankings__summary-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
+- `.rankings`
+- `.card.primary`
+- `.position-body`
+- `.expanded-stats`
+- `.leaderboard-container`
+- `.leaderboard-top`
+- `.leaderboard-controls`
+- `.search-wrap`
+- `.share-wrap`
+- `.share-dropdown`
+- `.leaderboard-row`
+- `.zone-bar`
+- `.share-card-overlay`
+- `.share-card-inner`
 
-.rankings__summary-card {
-  padding: 1.25rem;
-}
+Important styling cues:
 
-.stat-card--tier2 {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  transition:
-    transform 0.12s ease-in-out,
-    box-shadow 0.12s ease-in-out;
-}
+- Poppins is imported locally.
+- The current player card uses a green/yellow gradient with a faint tennis ball image.
+- The leaderboard uses fixed grid columns for rank, player, wins, losses, win rate, and action.
+- Challengeable players use a pale green row background.
+- The current user row uses a pale amber row background and `YOU` tag.
+- Search has a fixed width on desktop to prevent control shifting.
+- The share-card modal uses a dark sports-poster style with green accents.
 
-.stat-card--tier2:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-soft);
-}
-
-.rankings__kicker {
-  margin: 0 0 0.35rem;
-  color: var(--color-accent-support); /* yellow */
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.rankings__summary-card h2 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.rankings__summary-copy {
-  margin: 0.45rem 0 0;
-  color: var(--color-muted);
-  font-size: 0.9rem;
-}
-
-.player-list {
-  display: grid;
-  gap: 1rem;
-}
-```
-
-**Responsive:**
+Responsive cues:
 
 ```css
 @media (max-width: 900px) {
-  .rankings__summary-grid {
-    grid-template-columns: 1fr;
+  .position-body {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .expanded-stats {
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    padding-left: 0;
+    padding-top: 16px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .leaderboard-top {
+    flex-wrap: wrap;
+  }
+
+  .leaderboard-controls {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .search-wrap {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .leaderboard-header {
+    display: none;
   }
 }
 ```
@@ -1178,58 +995,61 @@ Displays ladder standings and player challenge opportunities.
 
 **File:** `src/views/ChallengesView.vue`
 
-Tabbed interface for filtering challenges by status.
+The active Challenges page uses a summary row, segmented tabs, challenge cards, and a detail modal.
+
+Current primary classes:
+
+- `.challenges`
+- `.summary-row`
+- `.hero-card`
+- `.next-card`
+- `.tabs-wrap`
+- `.ch-tab`
+- `.cards-list`
+- `.card-wrapper`
+- `.modal-backdrop`
+- `.modal`
+- `.modal__details`
+
+Important styling cues:
+
+- Poppins is imported locally.
+- The summary hero card uses a Cloudinary tennis image with a dark overlay.
+- The pending reply card is a white card with a pale green pending row.
+- Tabs use a gray outer container and white active tab.
+- The selected/active challenge highlight is applied to `.card-wrapper--highlighted`.
+- The modal uses a blurred backdrop, rounded white panel, player matchup row, and compact detail grid.
+
+Responsive cues:
 
 ```css
-.challenges {
-  display: grid;
-  gap: 2rem;
+@media (max-width: 900px) {
+  .summary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tabs-wrap {
+    align-self: stretch;
+  }
+
+  .tabs-row {
+    flex-wrap: wrap;
+  }
 }
 
-.tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-}
+@media (max-width: 560px) {
+  .modal {
+    padding: 20px;
+    border-radius: 18px;
+  }
 
-.tab-button {
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  padding: 0 14px;
-  min-height: 38px;
-  background: var(--color-surface);
-  color: var(--color-muted);
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition:
-    background 0.12s ease-in-out,
-    border-color 0.12s ease-in-out,
-    color 0.12s ease-in-out,
-    transform 0.12s ease-in-out;
-}
+  .modal__details {
+    grid-template-columns: 1fr;
+  }
 
-.tab-button:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-soft);
-}
-
-.tab-button--active {
-  background: rgba(0, 181, 26, 0.08); /* light green */
-  color: var(--color-accent-bright);
-  border-color: rgba(0, 181, 26, 0.14);
-}
-
-.challenge-list {
-  display: grid;
-  gap: 1rem;
-}
-
-.empty-state {
-  padding: 1.25rem;
-  border-radius: 0.75rem;
-  background: var(--color-surface-muted);
-  color: var(--color-muted);
-  text-align: center;
+  .modal__actions {
+    flex-direction: column;
+  }
 }
 ```
 
@@ -1239,84 +1059,172 @@ Tabbed interface for filtering challenges by status.
 
 **File:** `src/views/CreateChallengeView.vue`
 
-Two-column layout for challenge creation form.
+The active Create Challenge page uses a two-column layout with an identity card on the left and the challenge form on the right.
+
+Current primary classes:
+
+- `.create-challenge`
+- `.intro`
+- `.layout`
+- `.section-card`
+- `.identity-card`
+- `.challenge-form`
+- `.player-row`
+- `.stat-row`
+- `.opponent-preview`
+- `.selected-strip`
+- `.player-picker`
+- `.toggle-group`
+- `.toggle-opt`
+- `.inset-block`
+- `.stepper`
+- `.form-select`
+- `.form-textarea`
+
+Important styling cues:
+
+- The form relies on compact controls and segmented toggle groups.
+- Opponent picker is a custom dropdown-style panel with search.
+- Selected opponent appears as a green-tinted strip.
+- Doubles and custom-set controls reveal inside pale inset blocks.
+- The submit button uses `BaseButton`.
+
+Responsive cue:
 
 ```css
-.create-challenge {
-  display: grid;
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .doubles-grid {
+    grid-template-columns: 1fr;
+  }
+}
+```
+
+---
+
+### Play View And TennisScoreboard
+
+**Files:** `src/views/PlayView.vue`, `src/components/TennisScoreboard.vue`
+
+Current primary classes:
+
+- `.play`
+- `.play__meta-card`
+- `.play__wrapper`
+- `.tennis-scoreboard`
+- `.tennis-scoreboard__players`
+- `.tennis-scoreboard__sets`
+- `.tennis-scoreboard__controls`
+
+Responsive cues:
+
+```css
+@media (max-width: 900px) {
+  .play__meta-card {
+    grid-template-columns: 1fr;
+  }
 }
 
-.challenge-panel {
-  display: grid;
-  gap: 2rem;
-  grid-template-columns: 1fr 1.2fr; /* info card + form */
+@media (max-width: 720px) {
+  .tennis-scoreboard__players,
+  .tennis-scoreboard__controls {
+    grid-template-columns: 1fr;
+  }
+}
+```
+
+---
+
+### Match Details View
+
+**File:** `src/views/MatchDetailsView.vue`
+
+Current primary classes:
+
+- `.match-details`
+- `.match-grid`
+- `.match-summary`
+- `.result-panel`
+- `.field`
+- `.submit-button`
+
+Responsive cue:
+
+```css
+@media (max-width: 900px) {
+  .match-grid {
+    grid-template-columns: 1fr;
+  }
+}
+```
+
+---
+
+### Profile View
+
+**File:** `src/views/ProfileView.vue`
+
+Current primary classes:
+
+- `.profile`
+- `.profile__hero`
+- `.profile__avatar`
+- `.profile__stats`
+- `.profile__stat`
+- `.profile__card`
+- `.profile__row`
+
+Responsive cues:
+
+```css
+@media (max-width: 640px) {
+  .profile__stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
-.challenge-info,
-.challenge-form {
-  padding: 1.25rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  transition:
-    transform 0.12s ease-in-out,
-    box-shadow 0.12s ease-in-out;
+@media (max-width: 400px) {
+  .profile__stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
+```
 
-.challenge-info:hover,
-.challenge-form:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-soft);
-}
+---
 
-.subtitle {
-  margin: 0;
-  color: var(--color-accent-support); /* yellow */
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.78rem;
-}
+### Notifications View
 
-.challenge-info h2 {
-  margin: 0.35rem 0 0;
-  font-size: 1.25rem;
-}
+**File:** `src/views/NotificationsView.vue`
 
-.challenge-copy {
-  margin: 0.45rem 0 0;
-  color: var(--color-muted);
-  font-size: 0.92rem;
-}
+Current primary classes:
 
-.field {
-  display: grid;
-  gap: 0.55rem;
-}
+- `.notifications-page`
+- `.page-header`
+- `.page-header__actions`
+- `.unread-badge`
+- `.feed`
+- `.feed-group`
+- `.notification-card`
+- `.notif-icon`
+- `.notif-btn`
 
-.field__label {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
+Responsive cue:
 
-.field__input {
-  width: 100%;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  padding: 0.88rem 0.95rem;
-  background: #ffffff;
-  color: var(--color-text);
-  font-family: inherit;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
-}
+```css
+@media (max-width: 600px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
-.field__input:focus {
-  outline: none;
-  border-color: rgba(0, 181, 26, 0.35);
-  box-shadow: 0 0 0 4px rgba(0, 181, 26, 0.08);
+  .notification-card {
+    grid-template-columns: 36px 1fr;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+  }
 }
 ```
 
@@ -1326,85 +1234,88 @@ Two-column layout for challenge creation form.
 
 ### Breakpoint Strategy
 
-The application uses a mobile-first responsive approach with CSS media queries at strategic breakpoints:
+The application uses page-level responsive rules more than shell-level responsive rules.
 
-#### 1. **Tablet Layout (max-width: 1120px)**
+Important current reality:
 
-- **Sidebar:** Changes from sticky vertical sidebar to horizontal navigation below header
-- **Navigation:** 3-column grid layout
-- **Grids:** 2-column layouts become single column
+- `DefaultLayout.vue` currently has no responsive media queries.
+- The sidebar remains fixed at 240px.
+- The main content remains offset with `margin-left: 240px`.
+- Individual pages do include responsive rules.
+
+#### 1. **Dashboard Mobile (max-width: 768px)**
+
+- KPI grid changes from 4 columns to 2 columns.
+- Overview grid becomes one column.
+- Hero top area stacks vertically.
+- Hero title gets smaller.
+
+#### 2. **Rankings Tablet/Mobile (max-width: 900px, 640px, 600px)**
+
+- At 900px, the current-player card stacks its identity and stats.
+- At 640px, leaderboard controls wrap and search becomes flexible.
+- At 600px, the leaderboard header is hidden.
+
+#### 3. **Challenges Tablet/Mobile (max-width: 900px, 560px)**
+
+- At 900px, the summary row stacks and tabs can wrap.
+- At 560px, modal detail grids become one column and modal actions stack.
+
+#### 4. **Create Challenge Tablet (max-width: 860px)**
 
 ```css
-@media (max-width: 1120px) {
+@media (max-width: 860px) {
   .layout {
     grid-template-columns: 1fr;
   }
-  .sidebar {
-    position: relative;
-    height: auto;
-  }
-  .sidebar__nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-```
 
-#### 2. **Mobile Layout (max-width: 760px)**
-
-- **Sidebar Navigation:** Back to single column
-- **Page Header:** Flexbox direction changes to column
-- **Containers:** Reduced side padding
-- **Cards/Panels:** Adapt to narrower layouts
-
-```css
-@media (max-width: 760px) {
-  .sidebar__nav {
+  .doubles-grid {
     grid-template-columns: 1fr;
   }
-  .page-header {
-    flex-direction: column;
-    align-items: start;
-  }
-  .container {
-    width: min(100%, calc(100% - 1rem));
-  }
 }
 ```
 
-#### 3. **NavBar Mobile (max-width: 720px)**
+#### 5. **Play / Scoreboard (max-width: 900px, 720px)**
 
-- **NavBar:** Centers content
-- **Links:** Full width with justified centering
+- At 900px, the Play meta card stacks.
+- At 720px, scoreboard player panels and scoring buttons stack.
+
+#### 6. **Profile (max-width: 640px, 400px)**
+
+- At 640px, profile stat cards move to 3 columns.
+- At 400px, profile stat cards move to 2 columns.
+
+#### 7. **Notifications (max-width: 600px)**
 
 ```css
-@media (max-width: 720px) {
-  .navbar {
-    justify-content: center;
+@media (max-width: 600px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
-  .navbar__links {
-    justify-content: center;
-    width: 100%;
+
+  .notification-card {
+    grid-template-columns: 36px 1fr;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
   }
 }
 ```
+
+#### 8. **Toast Shelf**
+
+- Uses width `min(360px, calc(100vw - 2rem))`.
+- This prevents toast cards from overflowing narrow viewports.
 
 ### Fluid Typography
 
-The page header uses `clamp()` for responsive font sizing:
+The active shell currently does not use `clamp()` in the page header. Header title sizing is fixed at `20px` in `DefaultLayout.vue`.
 
-```css
-.page-header__title {
-  font-size: clamp(1.55rem, 2vw, 1.95rem);
-}
-```
-
-**Meaning:**
-
-- Minimum: 1.55rem
-- Preferred: 2vw (2% of viewport width)
-- Maximum: 1.95rem
+Some page-level typography changes at breakpoints, such as the Dashboard hero title shrinking at `max-width: 768px`.
 
 ### Flexible Container Width
+
+Global `.container` still exists:
 
 ```css
 .container {
@@ -1413,10 +1324,10 @@ The page header uses `clamp()` for responsive font sizing:
 }
 ```
 
-**Meaning:**
+Current active shell note:
 
-- Use 1160px max width, but never exceed 100% - 2rem padding
-- Automatic horizontal centering
+- routed pages are placed inside `.content { padding: 32px; }`
+- many active views define their own max widths and grids instead of relying on `.container`
 
 ---
 
@@ -1432,25 +1343,30 @@ If an element already has emphasis (color, position, or weight), do NOT add anot
 
 Icons must:
 
-- be monochrome
-- have no background container
-- rely on spacing and alignment only
+- usually be monochrome
+- stay small and functional
+- use background containers only when the surrounding UI already establishes that pattern
 
 ### 3. Card Rule
 
 - Avoid nesting cards inside cards
 - Lists should be lightweight, not boxed
+- Cards are currently used for dashboard panels, challenge cards, ranking panels, profile stats, notification items, and modals
+- When adding new UI, match the local page pattern before introducing another card style
 
 ### 4. Hierarchy Rule
 
 - Tier 1 → strongest contrast
 - Tier 2 → structured but calm
 - Tier 3 → minimal and quiet
+- Hero image sections are allowed on current Dashboard and Challenges pages
+- Operational controls should stay compact and readable
 
 ### 5. Motion Rule
 
 - All animations must be subtle
 - No bounce, no exaggerated motion
+- Current motion is mostly hover lift, small translate, fade, modal transition, and toast slide/fade
 
 ### 6. Simplicity Rule
 
@@ -1473,22 +1389,28 @@ All similar elements must:
 ```
 App.vue
   ├─ DefaultLayout.vue (Layout styles)
-  │   ├─ NavBar.vue (embedded header)
-  │   ├─ Sidebar (embedded navigation)
-  │   └─ Main Content Area
+  │   ├─ Fixed Sidebar Navigation
+  │   ├─ Sticky Route Header
+  │   ├─ ToastShelf.vue
+  │   └─ Main Content Area / RouterView
   │       ├─ RouterView (loads current page)
   │       │   ├─ DashboardView.vue
-  │       │   │   ├─ BaseButton (primary action)
-  │       │   │   ├─ ChallengeCard (multiple)
-  │       │   │   └─ Various stat cards
+  │       │   │   ├─ PerformanceChart.vue
+  │       │   │   └─ Hero/KPI/activity local styles
   │       │   ├─ RankingsView.vue
-  │       │   │   └─ PlayerCard (multiple)
+  │       │   │   └─ Local leaderboard + share-card styles
   │       │   ├─ ChallengesView.vue
   │       │   │   ├─ Tab buttons
-  │       │   │   └─ ChallengeCard (multiple)
-  │       │   └─ CreateChallengeView.vue
-  │       │       ├─ BaseInput (form field)
-  │       │       └─ BaseButton (submit)
+  │       │   │   ├─ ChallengeCard.vue
+  │       │   │   └─ Modal styles
+  │       │   ├─ CreateChallengeView.vue
+  │       │   │   ├─ PersonAvatar.vue
+  │       │   │   └─ BaseButton.vue
+  │       │   ├─ PlayView.vue
+  │       │   │   └─ TennisScoreboard.vue
+  │       │   ├─ MatchDetailsView.vue
+  │       │   ├─ ProfileView.vue
+  │       │   └─ NotificationsView.vue
 ```
 
 ### CSS Import Order
@@ -1505,7 +1427,9 @@ App.vue
 
 3. **View-Level Styles**:
    - Each view file has scoped styles
-   - Inherits components used within (NavBar, Cards, etc.)
+   - Some active views use unscoped `<style>` blocks
+   - Many active views import Poppins directly
+   - Inherits components used within the route page
 
 ### Design Token System
 
@@ -1524,42 +1448,49 @@ src/assets/main.css ──► :root { CSS Variables }
 **Example Flow:**
 
 ```
-User clicks navbar link
+User clicks sidebar link
   ↓
-.navbar__link--active styles apply
+.nav-link.active styles apply
   ↓
-Uses var(--color-primary) for background color
+Uses pale green background and dark green text
   ↓
-Value comes from main.css (#00b51a)
+Style currently lives in DefaultLayout.vue
   ↓
-Change color in main.css, updates everywhere
+Change DefaultLayout.vue to update active sidebar navigation
 ```
 
-### No External Dependencies
+### No External CSS Framework Dependencies
 
 - ✅ No Tailwind CSS
 - ✅ No Bootstrap
 - ✅ No CSS-in-JS libraries
 - ✅ Custom CSS variables system
 - ✅ Scoped component styles (Vue feature)
-- ✅ Only external dependencies: Vue 3, Vue Router, Pinia
+- ✅ Chart.js is used for the performance chart
+- ✅ Some pages import Google Fonts via CSS `@import`
 
 ---
 
 ## Summary Table: Component-to-CSS Mapping
 
-| Component               | File                                | Primary Classes                                | CSS Variables Used                                                |
-| ----------------------- | ----------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------- |
-| NavBar                  | `src/components/NavBar.vue`         | `.navbar`, `.navbar__*`                        | `--color-primary`, `--color-secondary`, `--color-light`           |
-| DefaultLayout (Sidebar) | `src/layouts/DefaultLayout.vue`     | `.sidebar`, `.sidebar__*`                      | `--color-dark`, `--color-light`, `--color-accent`, `--color-clay` |
-| BaseButton              | `src/components/BaseButton.vue`     | `.base-button`, `.base-button--*`              | `--color-accent-bright`, `--color-light`, `--shadow-soft`         |
-| BaseInput               | `src/components/BaseInput.vue`      | `.field`, `.field__*`                          | `--color-border`, `--color-text`, accent colors                   |
-| PlayerCard              | `src/components/PlayerCard.vue`     | `.player-card`, `.player-card__*`              | `--color-surface`, `--color-border`, `--color-primary`            |
-| ChallengeCard           | `src/components/ChallengeCard.vue`  | `.challenge-card`, `.challenge-card__*`        | `--color-surface`, `--color-accent`, `--shadow-soft`              |
-| DashboardView           | `src/views/DashboardView.vue`       | `.dashboard`, `.stat-card`, `.dashboard-panel` | All color tokens, shadows                                         |
-| RankingsView            | `src/views/RankingsView.vue`        | `.rankings`, `.player-card`                    | Color tokens for tier2 cards                                      |
-| ChallengesView          | `src/views/ChallengesView.vue`      | `.challenges`, `.tab-button`                   | `--color-accent-bright`, accent colors                            |
-| CreateChallengeView     | `src/views/CreateChallengeView.vue` | `.create-challenge`, `.challenge-panel`        | Surface colors, accent colors                                     |
+| Component / View        | File                                | Primary Classes                                      | Current Styling Source                                           |
+| ----------------------- | ----------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
+| DefaultLayout           | `src/layouts/DefaultLayout.vue`     | `.layout`, `.sidebar`, `.nav-link`, `.header`        | Mostly local hex values plus Poppins                             |
+| ToastShelf              | `src/components/ToastShelf.vue`     | `.toast-shelf`, `.toast`, `.toast--*`                | Local toast colors and fixed positioning                         |
+| BaseButton              | `src/components/BaseButton.vue`     | `.base-button`, `.base-button--*`                    | Global tokens for accent, border, light, shadow                  |
+| BaseInput               | `src/components/BaseInput.vue`      | `.field`, `.field__input`                            | Global tokens for border/text and local green focus glow         |
+| PersonAvatar            | `src/components/PersonAvatar.vue`   | `.person-avatar`                                     | Global surface/text tokens                                       |
+| ChallengeCard           | `src/components/ChallengeCard.vue`  | `.cc`, `.cc__*`, `.cc-btn`                           | Mostly local colors, Poppins, status-specific pills              |
+| TennisScoreboard        | `src/components/TennisScoreboard.vue` | `.tennis-scoreboard`, `.tennis-scoreboard__*`      | Global tokens plus local left/right player button colors         |
+| PerformanceChart        | `src/components/charts/PerformanceChart.vue` | `.performance-card`, `.chart-wrapper`, `.custom-tooltip` | Chart.js plus local chart/card styles                      |
+| DashboardView           | `src/views/DashboardView.vue`       | `.dashboard`, `.hero`, `.kpi`, `.activity-item`      | Local image hero, glass cards, Poppins                           |
+| RankingsView            | `src/views/RankingsView.vue`        | `.rankings`, `.leaderboard-*`, `.share-card-*`       | Local leaderboard and share modal styles                         |
+| ChallengesView          | `src/views/ChallengesView.vue`      | `.challenges`, `.summary-row`, `.ch-tab`, `.modal`   | Local cards, tabs, hero image, modal styles                      |
+| CreateChallengeView     | `src/views/CreateChallengeView.vue` | `.create-challenge`, `.section-card`, `.toggle-*`    | Global tokens mixed with local form styles                       |
+| PlayView                | `src/views/PlayView.vue`            | `.play`, `.play__meta-card`, `.play__wrapper`        | Global section-card tokens and local layout                      |
+| MatchDetailsView        | `src/views/MatchDetailsView.vue`    | `.match-details`, `.match-grid`, `.result-panel`     | Global tokens and local form styles                              |
+| ProfileView             | `src/views/ProfileView.vue`         | `.profile`, `.profile__stats`, `.profile__card`      | Local Poppins profile styling                                    |
+| NotificationsView       | `src/views/NotificationsView.vue`   | `.notifications-page`, `.notification-card`          | Local feed, badge, and type-icon styling                         |
 
 ---
 
@@ -1571,19 +1502,23 @@ Change color in main.css, updates everywhere
 - **Secondary Green:** #008f15 (darker shade)
 - **Accent Yellow:** #ffd33d (secondary highlights)
 - **Clay Orange:** #ff7f32 (tennis theme)
+- **Active App Green:** #00c853 appears often in route-level CSS
 
 ### Neutral Colors
 
-- **Dark Sidebar:** #0f1419
+- **Current Sidebar:** #ffffff with muted gray text
+- **Legacy Dark Sidebar Token:** #0f1419 still exists as `--color-dark`
 - **White Surfaces:** #ffffff
 - **Light Gray Backgrounds:** #f7f8fa
 - **Medium Gray Text:** #6d7a70
+- **Current Layout Muted Gray:** #7b8794 appears often in route-level CSS
 
 ### Interactive States
 
 - **Hover Elevation:** `var(--shadow-soft)`
 - **Active Elevation:** `var(--shadow-strong)`
 - **Focus Glow:** Green with opacity `rgba(0, 181, 26, 0.08)`
+- **Current Sidebar Active:** `rgba(0, 200, 83, 0.05)` background with `#007a32` text
 
 ---
 
