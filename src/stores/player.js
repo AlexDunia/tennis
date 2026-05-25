@@ -14,9 +14,24 @@ export const usePlayerStore = defineStore('player', () => {
   // All players sorted by rank ascending (rank 1 = top of ladder)
   const sortedLadder = computed(() => [...players.value].sort((a, b) => a.rank - b.rank))
 
+  const playersByCategory = computed(() => {
+    return players.value.reduce((groups, player) => {
+      const categoryId = player.categoryId || 'uncategorized'
+      const group = groups[categoryId] || []
+      return {
+        ...groups,
+        [categoryId]: [...group, player],
+      }
+    }, {})
+  })
+
   const currentPlayer = computed(
     () => players.value.find((player) => player.id === currentPlayerId.value) ?? null,
   )
+
+  const categoryRoster = computed(() => (categoryId) => {
+    return playersByCategory.value[categoryId] || []
+  })
 
   // Players ranked higher (lower rank number) than the current player
   // and within 3 positions — these are the only legal challenge targets
@@ -69,15 +84,69 @@ export const usePlayerStore = defineStore('player', () => {
     return []
   }
 
+  const assignCategory = (playerId, category) => {
+    const playerIndex = players.value.findIndex((player) => player.id === playerId)
+    if (playerIndex === -1) {
+      return null
+    }
+
+    const player = players.value[playerIndex]
+    const categoryHistory = [
+      ...(player.categoryHistory || []).map((entry) =>
+        entry.to === null
+          ? {
+              ...entry,
+              to: new Date().toISOString().slice(0, 10),
+            }
+          : entry,
+      ),
+      {
+        categoryId: category.id,
+        category: category.name,
+        from: new Date().toISOString().slice(0, 10),
+        to: null,
+        reason: category.reason || 'Admin category assignment',
+      },
+    ]
+
+    players.value[playerIndex] = {
+      ...player,
+      categoryId: category.id,
+      category: category.name,
+      categoryHistory,
+    }
+
+    return players.value[playerIndex]
+  }
+
+  const promotePlayer = (playerId, category) => {
+    return assignCategory(playerId, {
+      ...category,
+      reason: category.reason || 'Promotion after tournament performance',
+    })
+  }
+
+  const relegatePlayer = (playerId, category) => {
+    return assignCategory(playerId, {
+      ...category,
+      reason: category.reason || 'Relegation after tournament performance',
+    })
+  }
+
   return {
     players,
     currentPlayerId,
     isLoading,
     error,
     sortedLadder,
+    playersByCategory,
     currentPlayer,
+    categoryRoster,
     availableOpponents,
     getPlayerZone,
     loadPlayers,
+    assignCategory,
+    promotePlayer,
+    relegatePlayer,
   }
 })

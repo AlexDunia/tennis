@@ -38,7 +38,36 @@ const names = [
   'Tunde Bello',
   'Lilian Ibiam',
   'Chinedu Nduka',
+  'Oyin Adewale',
+  'Kelechi Iro',
+  'Mariam Bello',
+  'Victor Etim',
+  'Rita Okafor',
+  'Samuel Okoro',
+  'Efe Ajayi',
+  'Fola Bakare',
+  'Chioma Udo',
+  'Peter Danjuma',
+  'Yemi Lawal',
+  'Theresa Obi',
 ]
+
+const femalePlayerNames = new Set([
+  'Amina Esin',
+  'Ify Okonkwo',
+  'Grace Nwosu',
+  'Nkechi Okonkwo',
+  'Ifeoma Umeh',
+  'Nadia Abdul',
+  'Amaka Osei',
+  'Aisha Musa',
+  'Lilian Ibiam',
+  'Oyin Adewale',
+  'Mariam Bello',
+  'Rita Okafor',
+  'Chioma Udo',
+  'Theresa Obi',
+])
 
 const mockDatabase = {
   players: [],
@@ -226,26 +255,97 @@ function deriveNameFromCloudinaryUrl(url) {
   return normalized.join(' ')
 }
 
-function createPlayers() {
-  const imagePlayers = profileImageUrls.map((imageUrl, index) => ({
-    id: `player-${String(index + 1).padStart(2, '0')}`,
-    name: deriveNameFromCloudinaryUrl(imageUrl),
-    imageUrl,
-    rank: index + 1,
-    wins: Math.max(0, 12 - index),
-    losses: Math.max(0, index - 2),
-    matchesPlayed: Math.max(1, 12 - index + index - 2),
-  }))
+function getSkillCategoryForRank(rank) {
+  if (rank <= 12) return 'premier'
+  if (rank <= 24) return 'category-a'
+  return 'category-b'
+}
 
-  const remainingPlayers = names.map((name, index) => ({
-    id: `player-${String(profileImageUrls.length + index + 1).padStart(2, '0')}`,
-    name,
-    imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=EDF2F7&color=2E3A59`,
-    rank: profileImageUrls.length + index + 1,
-    wins: Math.max(0, 8 - index),
-    losses: Math.max(0, index - 1),
-    matchesPlayed: Math.max(1, 8 - index + index - 1),
-  }))
+function getSkillCategoryName(categoryId) {
+  switch (categoryId) {
+    case 'premier':
+      return 'Premier'
+    case 'category-a':
+      return 'Category A'
+    case 'category-b':
+      return 'Category B'
+    case 'ladies':
+      return 'Ladies'
+    case 'veterans':
+      return 'Veterans'
+    default:
+      return categoryId
+  }
+}
+
+function createPlayerCategoryMetadata(name, rank, index) {
+  const categoryId = getSkillCategoryForRank(rank)
+  const gender = femalePlayerNames.has(name) ? 'female' : 'male'
+  const veteranRanks = new Set([2, 4, 7, 11, 15, 18, 22])
+  const birthYear = veteranRanks.has(rank) ? 1968 + (index % 6) : 1983 + (index % 18)
+  const isVeteran = new Date().getFullYear() - birthYear >= 50
+  const eligibleCategoryIds = [categoryId]
+
+  if (gender === 'female') {
+    eligibleCategoryIds.push('ladies')
+  }
+
+  if (isVeteran) {
+    eligibleCategoryIds.push('veterans')
+  }
+
+  return {
+    ladderRank: rank,
+    category: getSkillCategoryName(categoryId),
+    categoryId,
+    gender,
+    birthYear,
+    isVeteran,
+    status: 'active',
+    eligibleCategoryIds,
+    categoryHistory: [
+      {
+        categoryId,
+        category: getSkillCategoryName(categoryId),
+        from: '2026-01',
+        to: null,
+        reason: 'Initial ladder band assignment',
+      },
+    ],
+  }
+}
+
+function createPlayers() {
+  const imagePlayers = profileImageUrls.map((imageUrl, index) => {
+    const rank = index + 1
+    const name = deriveNameFromCloudinaryUrl(imageUrl)
+
+    return {
+      id: `player-${String(index + 1).padStart(2, '0')}`,
+      name,
+      imageUrl,
+      rank,
+      wins: Math.max(0, 12 - index),
+      losses: Math.max(0, index - 2),
+      matchesPlayed: Math.max(1, 12 - index + index - 2),
+      ...createPlayerCategoryMetadata(name, rank, index),
+    }
+  })
+
+  const remainingPlayers = names.map((name, index) => {
+    const rank = profileImageUrls.length + index + 1
+
+    return {
+      id: `player-${String(rank).padStart(2, '0')}`,
+      name,
+      imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=EDF2F7&color=2E3A59`,
+      rank,
+      wins: Math.max(0, 8 - index),
+      losses: Math.max(0, index - 1),
+      matchesPlayed: Math.max(1, 8 - index + index - 1),
+      ...createPlayerCategoryMetadata(name, rank, index + profileImageUrls.length),
+    }
+  })
 
   return [...imagePlayers, ...remainingPlayers]
 }

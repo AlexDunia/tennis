@@ -349,7 +349,8 @@ const shareLinks = [
               <div class="col-rank">#{{ player.rank }}</div>
               <div class="player col-player">
                 <div class="avatar row-avatar">{{ getInitials(player.name) }}</div>
-                {{ player.name }}
+                <span class="player-name">{{ player.name }}</span>
+                <span class="category-tag">{{ player.category || 'Unassigned' }}</span>
               </div>
               <div class="col-wins">{{ player.wins }}</div>
               <div class="col-losses">{{ player.losses }}</div>
@@ -374,7 +375,8 @@ const shareLinks = [
               <div class="col-rank">#{{ player.rank }}</div>
               <div class="player col-player">
                 <div class="avatar row-avatar">{{ getInitials(player.name) }}</div>
-                {{ player.name }}
+                <span class="player-name">{{ player.name }}</span>
+                <span class="category-tag">{{ player.category || 'Unassigned' }}</span>
                 <span class="tag">YOU</span>
               </div>
               <div class="col-wins">{{ player.wins }}</div>
@@ -398,7 +400,8 @@ const shareLinks = [
               <div class="col-rank">#{{ player.rank }}</div>
               <div class="player col-player">
                 <div class="avatar row-avatar">{{ getInitials(player.name) }}</div>
-                {{ player.name }}
+                <span class="player-name">{{ player.name }}</span>
+                <span class="category-tag">{{ player.category || 'Unassigned' }}</span>
               </div>
               <div class="col-wins">{{ player.wins }}</div>
               <div class="col-losses">{{ player.losses }}</div>
@@ -985,6 +988,23 @@ const shareLinks = [
   gap: 10px;
   font-size: 14px;
   min-width: 0;
+}
+.player-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.category-tag {
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 200, 83, 0.18);
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: rgba(0, 200, 83, 0.07);
+  color: #007a32;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
 }
 .row-avatar {
   width: 32px;
