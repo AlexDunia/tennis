@@ -14,10 +14,12 @@ const props = defineProps({
 })
 
 const playerCount = computed(() =>
-  props.category.groups.reduce(
-    (total, group) => total + group.players.filter((player) => !player.isBye).length,
-    0,
-  ),
+  props.category.groups?.length
+    ? props.category.groups.reduce(
+        (total, group) => total + group.players.filter((player) => !player.isBye).length,
+        0,
+      )
+    : props.category.players?.filter((player) => !player.isBye).length || 0,
 )
 const completedCount = computed(
   () => props.matches.filter((match) => ['completed', 'walkover'].includes(match.status)).length,
@@ -34,14 +36,22 @@ const knockoutSummary = computed(() => {
   }
 
   if (props.category.status === 'round-robin') {
-    return 'Knockout not started'
+    return 'Knockout waiting'
   }
 
   const quarterFinalsComplete =
-    props.category.knockout?.quarterFinals.filter((match) => match.status === 'completed').length || 0
-  return quarterFinalsComplete < 4
-    ? `QF in progress (${quarterFinalsComplete}/4)`
-    : 'SF or Final in progress'
+    props.category.knockout?.quarterFinals?.filter((match) => match.status === 'completed').length || 0
+  const semiFinalsComplete =
+    props.category.knockout?.semiFinals?.filter((match) => match.status === 'completed').length || 0
+  if (props.category.knockout?.quarterFinals?.length) {
+    return quarterFinalsComplete < props.category.knockout.quarterFinals.length
+      ? `Quarterfinals started (${quarterFinalsComplete}/${props.category.knockout.quarterFinals.length})`
+      : 'Knockout active'
+  }
+
+  return semiFinalsComplete < (props.category.knockout?.semiFinals?.length || 0)
+    ? `Semifinals started (${semiFinalsComplete}/${props.category.knockout?.semiFinals?.length || 0})`
+    : 'Final active'
 })
 </script>
 
@@ -57,12 +67,12 @@ const knockoutSummary = computed(() => {
 
     <div class="category-card__meta">
       <span>{{ playerCount }} players</span>
-      <span>{{ category.groups.length }} groups</span>
+      <span>{{ category.groups.length ? `${category.groups.length} match groups` : 'Straight draw' }}</span>
     </div>
 
     <div>
       <p class="category-card__progress-copy">
-        Group Stage: {{ completedCount }} of {{ groupMatches.length }} matches
+        Group stage: {{ completedCount }} of {{ groupMatches.length }}
       </p>
       <div class="t-progress">
         <span class="t-progress__fill" :style="{ width: `${progress}%` }"></span>
@@ -71,7 +81,7 @@ const knockoutSummary = computed(() => {
 
     <footer class="category-card__footer">
       <span>{{ knockoutSummary }}</span>
-      <strong>View</strong>
+      <strong>Open</strong>
     </footer>
   </RouterLink>
 </template>

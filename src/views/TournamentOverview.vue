@@ -38,15 +38,20 @@ onMounted(async () => {
           <h2 class="t-hero__title">{{ tournament.name }}</h2>
           <p class="t-hero__copy">{{ tournament.description }}</p>
         </div>
-        <RouterLink class="t-button t-button--primary" :to="`/tournaments/${tournament.id}/schedule`">
-          View Schedule
-        </RouterLink>
+        <div class="tournament-overview__actions">
+          <RouterLink class="t-button t-button--secondary" to="/tournaments">
+            Back to Tournaments
+          </RouterLink>
+          <RouterLink class="t-button t-button--primary" :to="`/tournaments/${tournament.id}/schedule`">
+            View Schedule
+          </RouterLink>
+        </div>
       </div>
 
       <div class="t-hero__stats">
         <div class="t-stat-tile">
           <span class="t-stat-tile__value">{{ tournament.categories.length }}</span>
-          <span class="t-stat-tile__label">Categories</span>
+          <span class="t-stat-tile__label">Divisions</span>
         </div>
         <div class="t-stat-tile">
           <span class="t-stat-tile__value">{{ completedCount }}</span>
@@ -81,8 +86,8 @@ onMounted(async () => {
     <section class="tournament-overview__categories">
       <div class="t-section-header">
         <div>
-          <h3 class="t-section-title">Categories</h3>
-          <p class="t-muted">Open a category to manage fixtures, standings, and knockout play.</p>
+          <h3 class="t-section-title">Divisions</h3>
+          <p class="t-muted">Open a category to see matches, standings, and knockout.</p>
         </div>
         <RouterLink class="t-button t-button--ghost" :to="`/tournaments/${tournament.id}/schedule`">
           Full schedule
@@ -130,6 +135,13 @@ onMounted(async () => {
 .tournament-overview__loading {
   display: grid;
   gap: 16px;
+}
+
+.tournament-overview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .tournament-overview__loading {

@@ -26,6 +26,10 @@ function getGroupId(index) {
 
 export function buildCategoryGroups({ tournamentId, category, players = [] }) {
   const groupCount = category.groupCount || 2
+  if (groupCount <= 0) {
+    return []
+  }
+
   const groups = Array.from({ length: groupCount }, (_, index) => ({
     id: getGroupId(index),
     name: `Group ${getGroupId(index)}`,

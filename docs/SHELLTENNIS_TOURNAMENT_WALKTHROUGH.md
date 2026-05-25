@@ -84,9 +84,9 @@ Button behavior:
 
 Expected context:
 
-This step defines when the tournament starts, when round-robin ends, when knockout begins, and when the final is played.
+This step defines when the tournament starts, when the group stage ends, when knockout begins, and when the final is played.
 
-## 5. Create Tournament - Step 2: Format
+## 5. Create Tournament - Step 2: Categories
 
 Click `Next`.
 
@@ -97,13 +97,13 @@ Visible categories:
 3. Category B
 4. Ladies
 5. Veterans
+6. Any custom categories the admin adds
 
 Each category card shows:
 
 1. Category name
-2. Meaning
-3. Group count
-4. BYE rule
+2. Who belongs there
+3. On or Off
 
 Button behavior:
 
@@ -115,17 +115,28 @@ All RSP Masters categories are on.
 
 Extra controls:
 
-`Allow Ladies/Veterans overlap`
+`Let eligible players enter twice`
 
-When on, eligible female or veteran players can appear in Ladies/Veterans and also remain in their skill category.
+When on, an eligible Lady or Veteran can also play Premier, Category A, or Category B.
 
 `Veterans Age`
 
 Default is `50`. Change this if the club defines Veterans differently.
 
+`Create a Custom Category`
+
+Use this when the club wants a category outside the RSP defaults, such as Juniors, Doubles, Invitational, Social Cup, or Guests.
+
+Custom category rules:
+
+1. `Manual only` starts empty and lets the admin pick players in Step 3.
+2. `Ladder range` auto-fills from a rank range.
+3. `Female players` works like a Ladies-style category.
+4. `Veterans age rule` works like a Veterans-style category.
+
 Tooltip:
 
-Hover or focus the `?` icon. It explains that categories decide who plays who, while ladder rank decides seeding.
+Hover or focus the `?` icon. It explains that categories decide who plays who, while ladder rank helps the app seed players fairly.
 
 ## 6. Create Tournament - Step 3: Players
 
@@ -135,10 +146,10 @@ Expected controls:
 
 1. `Select All`
 2. `Clear Players`
-3. `Auto Assign`
+3. `Fill From Ladder`
 4. Player checkboxes
 5. Manual category dropdown per player
-6. `Show Not Assigned` when some selected players do not match the enabled categories
+6. `Show Not Playing` when some selected players do not match the enabled categories
 
 Expected player row context:
 
@@ -154,13 +165,13 @@ Each row shows:
 
 The list is split by relevance:
 
-`Assigned by current format`
+`Playing in this event`
 
 Players who match the categories enabled in Step 2 appear first.
 
-`Not assigned by current format`
+`Not playing yet`
 
-Players who do not match the enabled categories are tucked into a separate section. Use `Show Not Assigned` if the admin wants to inspect them or manually override someone.
+Players who do not match the enabled categories are tucked into a separate section. Use `Show Not Playing` if the admin wants to inspect them or manually override someone.
 
 Button behavior:
 
@@ -172,7 +183,7 @@ Selects every active player.
 
 Removes every selected player and clears manual overrides.
 
-`Auto Assign`
+`Fill From Ladder`
 
 Clears manual overrides and lets the system assign players from the ladder and eligibility rules.
 
@@ -191,7 +202,7 @@ Expected assignment logic:
 
 Example:
 
-If only `Ladies` is enabled in Step 2, Step 3 should show female players assigned to Ladies first. Male players are not wrong; they simply do not match this tournament format, so they sit under `Not assigned by current format`.
+If only `Ladies` is enabled in Step 2, Step 3 should show female players assigned to Ladies first. Male players are not wrong; they simply do not match this tournament setup, so they sit under `Not playing yet`.
 
 ## 7. Create Tournament - Step 4: Review
 
@@ -205,12 +216,13 @@ Each card shows:
 
 1. Category name
 2. Player count
-3. Group count
-4. BYE count
-5. Qualifiers per group, shown as `Top 4/group`
+3. Player-first path, such as `3+ matches`
+4. Whether a BYE is needed
+5. Who goes through
 6. Group A preview
 7. Group B preview
 8. Warnings or blockers
+9. Format options
 
 Expected group split:
 
@@ -225,15 +237,32 @@ Example:
 
 Expected warnings:
 
-The app should clearly say when a category has BYEs, too few players, or no real players.
+The app should clearly say when a category has BYEs, too few players, or no players.
 
 It should also warn when more players are eligible than the category limit allows. Example: if Ladies has 14 eligible players but a 12-player cap, the app selects the top 12 by ladder/manual choice and tells the admin that 2 remain unassigned.
+
+Expected path options:
+
+Each category can use a different path. The app recommends the safest option based on player count, but the admin can choose another option.
+
+Common examples:
+
+1. `Play everyone. Top 2 reach final.` - useful for 4 players.
+2. `Play everyone. Top 4 go through.` - useful for 5-7 players.
+3. `Play your group. Top 2 go through.` - useful for 8-10 players.
+4. `Play your group. Top 4 go through.` - RSP default for 11-12 players.
+5. `Play a small group. Top 2 go through.` - useful for 13-16 players.
+6. `Lose once and you are out.` - useful when the club wants speed over guaranteed matches.
+
+Example:
+
+If Veterans has 7 real players, the app should recommend `Play everyone. Top 4 go through.` That allows the tournament to start without forcing fake players into the draw.
 
 Button behavior:
 
 `Generate Tournament`
 
-Creates the real tournament, categories, groups, round-robin fixtures, and empty knockout brackets.
+Creates the real tournament, categories, group-stage matches, standings, and knockout placeholders.
 
 The button stays disabled if a category has a blocking issue, such as no real players.
 
@@ -251,8 +280,8 @@ Expected overview:
 6. Completed match count
 7. Pending match count
 8. Officials count
-9. Group stage dates
-10. Knockout dates
+9. First match dates
+10. Final-round dates
 11. Officials list
 12. Category cards
 
@@ -288,7 +317,7 @@ Expected:
 
 Important:
 
-BYE slots must be visible, but they should not appear as real players in standings.
+BYE slots must be visible, but they should not appear as real players in the standings.
 
 ### Fixtures Tab
 
@@ -327,7 +356,7 @@ Default tiebreak order:
 
 ### Knockout Tab
 
-Before round-robin closes:
+Before group stage is finished:
 
 Expected:
 
@@ -335,13 +364,13 @@ Expected:
 
 Button:
 
-`Close Round Robin & Generate Bracket`
+`Generate Knockout`
 
 After closing:
 
 Expected:
 
-Quarterfinal bracket appears using top 4 crossover:
+Final-round draw appears using the selected path:
 
 1. A1 vs B4
 2. B2 vs A3

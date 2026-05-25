@@ -3,7 +3,7 @@ export const RSP_CATEGORY_TEMPLATE_ID = 'rsp-masters-default'
 export const RSP_CATEGORY_TEMPLATE = {
   id: RSP_CATEGORY_TEMPLATE_ID,
   name: 'RSP Masters Default',
-  description: 'Premier, Category A, Category B, Ladies, and Veterans with two groups each.',
+  description: 'The usual RSP categories are ready. Turn off any category you do not need.',
   categories: [
     {
       id: 'premier',
@@ -65,7 +65,7 @@ export const RSP_CATEGORY_TEMPLATE = {
     {
       id: 'ladies',
       name: 'Ladies',
-      description: 'Female member division',
+      description: 'Female member category',
       assignmentMode: 'eligibility',
       targetPlayers: 12,
       minPlayers: 4,

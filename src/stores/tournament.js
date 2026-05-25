@@ -54,7 +54,11 @@ export const useTournamentStore = defineStore('tournament', () => {
       return []
     }
 
-    return calculateGroupStandings(group, activeTournamentMatches.value, activeTournament.value.rules)
+    return calculateGroupStandings(group, activeTournamentMatches.value, {
+      ...activeTournament.value.rules,
+      qualifiersPerGroup:
+        category.settings?.qualifiersPerGroup ?? activeTournament.value.rules?.qualifiersPerGroup,
+    })
   })
 
   const knockoutForCategory = computed(() => (categoryId) => {

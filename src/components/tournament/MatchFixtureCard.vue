@@ -27,7 +27,7 @@ const emit = defineEmits({
     </div>
 
     <div v-if="match.isBye" class="match-fixture-card__bye">
-      {{ match.player1Name === 'BYE' ? match.player2Name : match.player1Name }} - BYE (Walkover)
+      {{ match.player1Name === 'BYE' ? match.player2Name : match.player1Name }} receives a BYE.
     </div>
 
     <div v-else class="match-fixture-card__body">

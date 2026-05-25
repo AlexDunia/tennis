@@ -95,6 +95,10 @@ export function assignPlayersToCategories({
         return false
       }
 
+      if (category.assignmentMode === 'manual-only') {
+        return false
+      }
+
       if (category.assignmentMode === 'ladder-range') {
         return isInLadderRange(player, category)
       }

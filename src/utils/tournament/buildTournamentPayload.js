@@ -1,4 +1,8 @@
-import { createEmptyKnockout } from '../../composables/useBracketBuilder'
+import {
+  createEmptyKnockout,
+  generateDirectKnockout,
+  progressKnockout,
+} from '../../composables/useBracketBuilder'
 import { buildCategoryGroups } from './buildCategoryGroups'
 import { RSP_CATEGORY_TEMPLATE_ID } from './categoryTemplates'
 
@@ -32,28 +36,56 @@ export function buildTournamentPayload({
       players: assignment.players,
     })
     const players = groups.flatMap((group) => group.players)
+    const allPlayers = settings.requiresGroupStage === false ? assignment.players : players
+    const emptyKnockout = createEmptyKnockout(
+      tournamentId,
+      settings.id,
+      settings.knockoutFormat || settings.settings?.knockoutFormat,
+    )
+    const seededDirectKnockout =
+      settings.requiresGroupStage === false
+        ? progressKnockout({
+            id: settings.id,
+            tournamentId,
+            status: 'knockout',
+            knockout: generateDirectKnockout(
+              {
+                ...settings,
+                tournamentId,
+              },
+              assignment.players,
+            ),
+          }).knockout
+        : emptyKnockout
 
     return {
       id: settings.id,
       tournamentId,
       name: settings.name,
       description: settings.description,
-      status: 'round-robin',
+      status: settings.requiresGroupStage === false ? 'knockout' : 'round-robin',
       source: assignmentMode,
       settings: {
+        ...(settings.settings || {}),
         assignmentMode: settings.assignmentMode,
         targetPlayers: settings.targetPlayers,
         minPlayers: settings.minPlayers,
         maxPlayers: settings.maxPlayers,
         groupCount: settings.groupCount,
         qualifiersPerGroup: settings.qualifiersPerGroup,
+        knockoutFormat: settings.knockoutFormat,
+        formatId: settings.formatId,
+        formatName: settings.formatName,
+        formatSummary: settings.formatSummary,
+        knockoutSize: settings.knockoutSize,
+        requiresGroupStage: settings.requiresGroupStage,
         allowByes: settings.allowByes,
         allowSpecialOverlap: settings.allowSpecialOverlap,
         eligibility: settings.eligibility,
       },
-      players,
+      players: allPlayers,
       groups,
-      knockout: createEmptyKnockout(tournamentId, settings.id),
+      knockout: seededDirectKnockout,
     }
   })
 

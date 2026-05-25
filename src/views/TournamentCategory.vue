@@ -24,17 +24,9 @@ const statusFilter = ref('all')
 const tabs = [
   { label: 'Overview', value: 'overview' },
   { label: 'Groups', value: 'groups' },
-  { label: 'Fixtures', value: 'fixtures' },
+  { label: 'Matches', value: 'fixtures' },
   { label: 'Standings', value: 'standings' },
   { label: 'Knockout', value: 'knockout' },
-]
-const groupFilters = [
-  { label: 'All Groups', value: 'all' },
-  { label: 'Group A', value: 'A' },
-  { label: 'Group B', value: 'B' },
-  { label: 'Quarterfinal', value: 'quarterfinal' },
-  { label: 'Semifinal', value: 'semifinal' },
-  { label: 'Final', value: 'final' },
 ]
 const statusFilters = [
   { label: 'All Status', value: 'all' },
@@ -69,14 +61,50 @@ const filteredMatches = computed(() =>
     return matchesGroup && matchesStatus
   }),
 )
-const groupAStandings = computed(() => tournamentStore.standingsForGroup(categoryId.value, 'A'))
-const groupBStandings = computed(() => tournamentStore.standingsForGroup(categoryId.value, 'B'))
+const groupFilters = computed(() => [
+  { label: 'All Groups', value: 'all' },
+  ...(category.value?.groups.map((group) => ({
+    label: group.name,
+    value: group.id,
+  })) || []),
+  { label: 'Quarterfinal', value: 'quarterfinal' },
+  { label: 'Semifinal', value: 'semifinal' },
+  { label: 'Final', value: 'final' },
+])
+const groupStandings = computed(() =>
+  category.value?.groups.map((group) => ({
+    group,
+    standings: tournamentStore.standingsForGroup(categoryId.value, group.id),
+  })) || [],
+)
 const champion = computed(() => tournamentStore.championForCategory(categoryId.value))
 const progress = computed(() =>
   groupMatches.value.length
     ? Math.round((completedGroupMatches.value.length / groupMatches.value.length) * 100)
     : 0,
 )
+const formatSummary = computed(() => {
+  const settings = category.value?.settings || {}
+  if (settings.playerTitle) {
+    return settings.playerTitle
+  }
+
+  if (settings.formatSummary) {
+    return settings.formatSummary
+  }
+
+  return 'Play group matches. Best players qualify for knockout.'
+})
+const qualifierCopy = computed(() => {
+  const qualifiers = category.value?.settings?.qualifiersPerGroup || tournament.value?.rules?.qualifiersPerGroup || 0
+  if (!qualifiers) {
+    return 'Best record wins.'
+  }
+
+  return category.value?.settings?.groupCount === 1
+    ? `Top ${qualifiers} go through.`
+    : `Top ${qualifiers} in each group go through.`
+})
 
 function countPlayed(groupId) {
   return categoryMatches.value.filter(
@@ -116,7 +144,7 @@ async function closeRoundRobin() {
     window.confirm(
       `${pendingGroupMatchCount.value} group match${
         pendingGroupMatchCount.value === 1 ? ' is' : 'es are'
-      } not yet complete. The standings may change. Generate the bracket anyway?`,
+      } not yet complete. The standings may change. Generate the knockout anyway?`,
     )
 
   if (canContinue) {
@@ -137,8 +165,7 @@ onMounted(async () => {
           <CategoryStatusBadge :status="category.status" />
           <h2 class="t-hero__title">{{ category.name }}</h2>
           <p class="t-hero__copy">
-            Everyone plays their group once. Enter scores, check who is qualifying, then generate
-            knockout matches when the group stage is ready.
+            Play matches, enter scores, and see who stays alive.
           </p>
         </div>
         <RouterLink class="t-button t-button--secondary" :to="`/tournaments/${tournamentId}`">
@@ -186,8 +213,8 @@ onMounted(async () => {
             <div>
               <h3 class="t-section-title">{{ group.name }}</h3>
               <p class="t-muted">
-                {{ group.players.filter((player) => !player.isBye).length }} players ·
-                {{ countPlayed(group.id) }} played · {{ countRemaining(group.id) }} remaining
+                {{ group.players.filter((player) => !player.isBye).length }} players /
+                {{ countPlayed(group.id) }} played / {{ countRemaining(group.id) }} left
               </p>
             </div>
           </div>
@@ -216,9 +243,7 @@ onMounted(async () => {
         <span class="t-section-kicker">Simple tournament guide</span>
         <h3 class="t-section-title">How this category works</h3>
         <p class="t-copy">
-          Group stage means everyone in the same group plays each other once. Top 4 from each group
-          qualify for the knockout round. Knockout means one loss and you are out. The winner of the
-          final is the champion.
+          {{ formatSummary }} {{ qualifierCopy }}
         </p>
       </article>
     </section>
@@ -228,10 +253,10 @@ onMounted(async () => {
         <div class="t-section-header">
           <div>
             <h3 class="t-section-title">{{ group.name }}</h3>
-            <p class="t-muted">Top 4 qualify for knockout.</p>
+            <p class="t-muted">{{ qualifierCopy }}</p>
           </div>
           <span class="category-status-badge category-status-badge--active">
-            {{ group.players.length }} slots
+            {{ group.players.length }} places
           </span>
         </div>
 
@@ -248,7 +273,7 @@ onMounted(async () => {
         </div>
 
         <p class="t-copy tournament-category__helper">
-          Everyone in {{ group.name }} plays each other once. Top 4 advance to the knockout round.
+          Everyone here plays each other once. {{ qualifierCopy }}
         </p>
       </article>
     </section>
@@ -289,13 +314,23 @@ onMounted(async () => {
       <TournamentEmptyState
         v-if="!filteredMatches.length"
         title="No matches found"
-        message="Try another group, round, or status filter."
+        message="Try another group or status filter."
       />
     </section>
 
     <section v-else-if="selectedTab === 'standings'" class="t-card-grid t-card-grid--two">
-      <StandingsTable title="Group A Standings" :standings="groupAStandings" />
-      <StandingsTable title="Group B Standings" :standings="groupBStandings" />
+      <StandingsTable
+        v-for="entry in groupStandings"
+        :key="entry.group.id"
+        :title="`${entry.group.name} Standings`"
+        :standings="entry.standings"
+        :qualifiers="category.settings?.qualifiersPerGroup || tournament.rules.qualifiersPerGroup"
+      />
+      <TournamentEmptyState
+        v-if="!groupStandings.length"
+        title="No table"
+        message="This category goes straight to knockout, so there is no group table."
+      />
     </section>
 
     <section v-else class="tournament-category__stack">
@@ -310,15 +345,15 @@ onMounted(async () => {
         title="Complete the group stage first"
         :message="`${pendingGroupMatchCount} group match${
           pendingGroupMatchCount === 1 ? ' is' : 'es are'
-        } still pending. Once standings are ready, the top 4 from each group qualify. Knockout means one loss and you are out.`"
+        } still pending. Finish those matches, then generate the knockout.`"
         @action="closeRoundRobin"
       >
-        <template #action>Close Round Robin & Generate Bracket</template>
+        <template #action>Generate Knockout</template>
       </TournamentEmptyState>
       <template v-else>
         <article class="t-shell-card tournament-category__ko-note">
-          <strong>Knockout stage is live.</strong>
-          <span>Quarterfinals use crossover seeding: 1st A vs 4th B, 2nd B vs 3rd A, 1st B vs 4th A, and 2nd A vs 3rd B.</span>
+          <strong>Knockout is live.</strong>
+          <span>{{ formatSummary }}</span>
         </article>
         <BracketTree :knockout="category.knockout" @score="openScore" />
         <BracketTreeMobile :knockout="category.knockout" @score="openScore" />

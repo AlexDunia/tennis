@@ -45,6 +45,8 @@ The idea of divisions is standard. The exact names are club-specific. A club can
 
 So the app should not treat category names as universal tennis law. It should ship with RSP Masters defaults, but the system should allow admins to edit category names, eligibility rules, sizes, and formats.
 
+Admins can also create custom tournament divisions when the club needs something outside the default RSP categories. Custom divisions can be manual-only, ladder-range based, female-player based, or veteran-age based.
+
 ## App Rule
 
 The product rule should be:
@@ -396,6 +398,35 @@ The architecture should allow category-level settings:
 8. `assignmentMode`
 9. `allowManualOverride`
 10. `allowPlayerOverlap`
+
+## Adaptive Format Rules
+
+Tournament scoring is stable, but tournament structure is configurable.
+
+The app should not force every category into the same shape. The tournament can have global defaults, but each category needs its own format recommendation based on player count.
+
+Recommended format map:
+
+| Player Count | Recommended Format | Why |
+| --- | --- | --- |
+| 1-3 | Round robin only | Too small for a meaningful knockout. |
+| 4 | One group + final | Everyone plays, top 2 decide champion. |
+| 5-7 | One group + semifinals | Everyone gets matches, top 4 enter knockout. |
+| 8 | Two groups + semifinals | Clean two groups of 4, top 2 each. |
+| 9-10 | Two groups + semifinals | Keeps qualification meaningful. |
+| 11-12 | Two groups + quarterfinals | RSP default, top 4 per group. |
+| 13-16 | Four groups + quarterfinals | Better balance for larger fields. |
+| 17+ | Four groups or qualifying | Consider qualifiers or sub-divisions. |
+
+Direct knockout should remain available as an admin option when speed matters more than guaranteed group matches.
+
+Important distinction:
+
+Warning means the admin can continue after reviewing.
+
+Blocker means the selected format cannot mathematically produce the next stage.
+
+The app should prefer suggestions over dead ends. Example: 7 Veterans should become "One group + semifinals" instead of blocking the tournament because the default 8-person quarterfinal field does not fit.
 
 ## Required UI Changes
 

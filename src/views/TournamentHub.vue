@@ -53,8 +53,7 @@ onMounted(async () => {
           <span class="t-section-kicker">Tournament Control</span>
           <h2 class="t-hero__title">Tournaments</h2>
           <p class="t-hero__copy">
-            Run group stages, enter scores, watch standings move, then close the round robin and
-            generate the knockout bracket.
+            Create events, enter scores, watch standings move, then generate the knockout.
           </p>
         </div>
         <button class="t-button t-button--primary" type="button" @click="router.push('/tournaments/create')">
@@ -123,7 +122,7 @@ onMounted(async () => {
         <TournamentEmptyState
           v-else
           title="No active tournaments"
-          message="Create a tournament when the club is ready for group-stage play."
+          message="Create one when the club is ready to play."
         />
       </section>
 

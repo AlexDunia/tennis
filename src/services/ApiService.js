@@ -1,7 +1,7 @@
 import axios from 'axios'
 import {
   createEmptyKnockout,
-  generateQuarterFinals,
+  generateKnockoutForCategory,
   progressKnockout,
 } from '../composables/useBracketBuilder'
 import { generateRoundRobinFixtures } from '../composables/useTournamentFixtures'
@@ -608,6 +608,10 @@ function getCategoryMatches(tournamentId, categoryId) {
 }
 
 function syncKnockoutMatchToSharedMatch(knockoutMatch) {
+  if (!knockoutMatch) {
+    return
+  }
+
   const existingIndex = mockDatabase.matches.findIndex((match) => match.id === knockoutMatch.id)
   const sharedMatch = {
     ...knockoutMatch,
@@ -638,8 +642,8 @@ function syncKnockoutMatchToSharedMatch(knockoutMatch) {
 }
 
 function syncCategoryKnockout(category) {
-  category.knockout.quarterFinals.forEach(syncKnockoutMatchToSharedMatch)
-  category.knockout.semiFinals.forEach(syncKnockoutMatchToSharedMatch)
+  category.knockout.quarterFinals?.forEach(syncKnockoutMatchToSharedMatch)
+  category.knockout.semiFinals?.forEach(syncKnockoutMatchToSharedMatch)
   syncKnockoutMatchToSharedMatch(category.knockout.final)
 }
 
@@ -772,6 +776,7 @@ const mockAdapter = async (config) => {
       updatedAt: new Date().toISOString(),
     }
     mockDatabase.tournaments.push(tournament)
+    tournament.categories?.forEach(syncCategoryKnockout)
 
     return {
       data: buildResponse(tournament),
@@ -908,11 +913,27 @@ const mockAdapter = async (config) => {
     }
 
     const matches = getCategoryMatches(tournamentId, categoryId)
-    const [groupA, groupB] = category.groups
-    const groupAStandings = calculateGroupStandings(groupA, matches, tournament.rules)
-    const groupBStandings = calculateGroupStandings(groupB, matches, tournament.rules)
-    category.knockout = generateQuarterFinals(category, groupAStandings, groupBStandings)
-    category.status = 'knockout'
+    const categoryRules = {
+      ...tournament.rules,
+      qualifiersPerGroup: category.settings?.qualifiersPerGroup ?? tournament.rules?.qualifiersPerGroup,
+    }
+    const standingsByGroup = category.groups.reduce((lookup, group) => {
+      lookup[group.id] = calculateGroupStandings(group, matches, categoryRules)
+      return lookup
+    }, {})
+    category.knockout = generateKnockoutForCategory(category, standingsByGroup)
+    if ((category.settings?.knockoutFormat || category.knockout?.format) === 'round-robin-only') {
+      const firstGroupId = category.groups[0]?.id
+      const champion = standingsByGroup[firstGroupId]?.[0]
+      category.status = 'completed'
+      category.knockout = {
+        ...category.knockout,
+        championId: champion?.playerId || null,
+        championName: champion?.name || null,
+      }
+    } else {
+      category.status = 'knockout'
+    }
     syncCategoryKnockout(category)
 
     return {

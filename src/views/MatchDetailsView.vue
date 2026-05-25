@@ -49,6 +49,25 @@ const tournamentRoundLabel = computed(() => {
     ? `Group ${match.value.groupId}`
     : match.value.matchCode || match.value.round
 })
+const playerOneName = computed(() =>
+  match.value?.type === 'tournament'
+    ? match.value?.player1Name || match.value?.challengerName || 'Player 1'
+    : challenger.value?.name || 'Challenger',
+)
+const playerTwoName = computed(() =>
+  match.value?.type === 'tournament'
+    ? match.value?.player2Name || match.value?.defenderName || 'Player 2'
+    : defender.value?.name || 'Defender',
+)
+const tournamentBackLink = computed(() => {
+  if (match.value?.type !== 'tournament') {
+    return '/challenges'
+  }
+
+  return match.value?.categoryId
+    ? `/tournaments/${match.value.tournamentId}/category/${match.value.categoryId}`
+    : `/tournaments/${match.value.tournamentId}`
+})
 
 // 8. METHODS
 const initializeForm = () => {
@@ -92,14 +111,17 @@ onMounted(() => {
 
     <div v-else class="match-grid">
       <div v-if="match.type === 'tournament'" class="tournament-context section-card">
+        <RouterLink class="match-back-link" :to="tournamentBackLink">
+          Back to {{ tournamentCategory?.name || 'Tournament' }}
+        </RouterLink>
         <p class="match-summary__status">{{ tournament?.name || 'Tournament match' }}</p>
-        <h2>{{ tournamentCategory?.name || match.categoryId }}</h2>
-        <p class="match-copy">{{ tournamentRoundLabel }}</p>
+        <h2>{{ tournamentCategory?.name || match.categoryId }} Match</h2>
+        <p class="match-copy">{{ tournamentRoundLabel }} - {{ playerOneName }} vs {{ playerTwoName }}</p>
       </div>
 
       <div class="match-summary section-card">
         <p class="match-summary__status">{{ match.statusLabel }}</p>
-        <h2>{{ challenger?.name || 'Challenger' }} vs {{ defender?.name || 'Defender' }}</h2>
+        <h2>{{ playerOneName }} vs {{ playerTwoName }}</h2>
         <p class="match-copy">
           {{ match.scheduledAt ? `Scheduled ${match.scheduledAt}` : 'Schedule pending' }}
         </p>
@@ -112,8 +134,8 @@ onMounted(() => {
         <label class="field">
           <span class="field__label">Winner</span>
           <select v-model="form.winnerId" class="field__input">
-            <option :value="challenger?.id">{{ challenger?.name }}</option>
-            <option :value="defender?.id">{{ defender?.name }}</option>
+            <option :value="match.challengerId || match.player1Id">{{ playerOneName }}</option>
+            <option :value="match.defenderId || match.player2Id">{{ playerTwoName }}</option>
           </select>
         </label>
 
@@ -160,6 +182,19 @@ onMounted(() => {
 
 .tournament-context {
   grid-column: 1 / -1;
+}
+
+.match-back-link {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 0.9rem;
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  background: rgba(0, 181, 26, 0.08);
+  color: var(--color-primary-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
 }
 
 .tournament-context:hover,

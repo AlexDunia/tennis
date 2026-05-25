@@ -8,6 +8,10 @@ defineProps({
     type: Array,
     required: true,
   },
+  qualifiers: {
+    type: Number,
+    default: 4,
+  },
 })
 </script>
 
@@ -16,7 +20,9 @@ defineProps({
     <div class="standings-table__header">
       <div>
         <h3>{{ title }}</h3>
-        <p>Top 4 qualify. Points, set difference, and game difference break ties.</p>
+        <p>
+          Top {{ qualifiers }} go through. Ties use points, sets, then games.
+        </p>
       </div>
     </div>
     <div class="standings-table__scroll">

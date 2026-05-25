@@ -12,7 +12,7 @@ export function validateTournamentSetup(categoryDrafts = []) {
     if (realPlayers.length === 0) {
       blockers.push({
         categoryId: draft.id,
-        message: `${draft.name} has no real players. Add players or disable this category before generating.`,
+        message: `${draft.name} has no players yet. Add players or turn this category off.`,
       })
     }
 
@@ -21,37 +21,35 @@ export function validateTournamentSetup(categoryDrafts = []) {
         categoryId: draft.id,
         message: `${draft.name} has ${realPlayers.length} player${
           realPlayers.length === 1 ? '' : 's'
-        }. Recommended minimum is ${category.minPlayers}.`,
+        }. It can run, but ${category.minPlayers}+ feels better.`,
       })
     }
 
     if (realPlayers.length > Number(category.maxPlayers || Infinity)) {
       blockers.push({
         categoryId: draft.id,
-        message: `${draft.name} has ${realPlayers.length} players. Maximum is ${category.maxPlayers}. Move players out or increase the limit.`,
+        message: `${draft.name} has ${realPlayers.length} players. Keep ${category.maxPlayers} or fewer, or raise the limit.`,
       })
     }
 
     if (requiredKnockoutPlayers > 0 && realPlayers.length < requiredKnockoutPlayers) {
       blockers.push({
         categoryId: draft.id,
-        message: `${draft.name} needs at least ${requiredKnockoutPlayers} real players for ${category.qualifiersPerGroup}/group knockout qualification. Add players or lower the qualifier count.`,
+        message: `${draft.name} needs ${requiredKnockoutPlayers} players for this path. Add players or choose an easier path.`,
       })
     }
 
     if (!category.allowByes && byeCount > 0) {
       blockers.push({
         categoryId: draft.id,
-        message: `${draft.name} does not allow BYEs, but ${byeCount} BYE slot${
-          byeCount === 1 ? '' : 's'
-        } were added.`,
+        message: `${draft.name} does not allow BYEs, but ${byeCount} would be needed.`,
       })
     }
 
     if (category.allowByes && byeCount > 0) {
       warnings.push({
         categoryId: draft.id,
-        message: `${draft.name} will use ${byeCount} BYE slot${byeCount === 1 ? '' : 's'}.`,
+        message: `${draft.name} will use ${byeCount} BYE${byeCount === 1 ? '' : 's'} (free pass).`,
       })
     }
   })

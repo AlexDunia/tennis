@@ -6,17 +6,20 @@ import { useTournamentStore } from '../stores/tournament'
 import { assignPlayersToCategories } from '../utils/tournament/assignPlayersToCategories'
 import { buildCategoryGroups } from '../utils/tournament/buildCategoryGroups'
 import { buildTournamentPayload } from '../utils/tournament/buildTournamentPayload'
+import { RSP_CATEGORY_TEMPLATE } from '../utils/tournament/categoryTemplates'
 import {
-  RSP_CATEGORY_TEMPLATE,
-  getEnabledCategoryTemplates,
-} from '../utils/tournament/categoryTemplates'
+  applyFormatToCategory,
+  getFormatChoicesForCount,
+  getFormatDefinition,
+  recommendFormatForCount,
+} from '../utils/tournament/tournamentFormatAdvisor'
 import { validateTournamentSetup } from '../utils/tournament/validateTournamentSetup'
 
 const router = useRouter()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
 
-const steps = ['Basics', 'Format', 'Players', 'Review']
+const steps = ['Basics', 'Categories', 'Players', 'Review']
 
 const form = reactive({
   step: 1,
@@ -28,9 +31,18 @@ const form = reactive({
   finalDate: '',
   officials: 'Igo, Harcourt, Zino, Dogiye, David',
   enabledCategories: RSP_CATEGORY_TEMPLATE.categories.map((category) => category.id),
+  customCategories: [],
+  customCategoryDraft: {
+    name: '',
+    assignmentRule: 'manual-only',
+    ladderStart: 1,
+    ladderEnd: 12,
+    maxPlayers: 12,
+  },
   selectedPlayerIds: [],
   manualAssignments: {},
   showUnassignedPlayers: false,
+  categoryFormatModes: {},
   allowSpecialOverlap: true,
   veteranAge: 50,
   winPoints: 1,
@@ -48,7 +60,14 @@ const selectedPlayerIdSet = computed(() => new Set(form.selectedPlayerIds))
 const selectedPlayers = computed(() =>
   activePlayers.value.filter((player) => selectedPlayerIdSet.value.has(player.id)),
 )
-const enabledCategoryTemplates = computed(() => getEnabledCategoryTemplates(form.enabledCategories))
+const allCategoryTemplates = computed(() => [
+  ...RSP_CATEGORY_TEMPLATE.categories,
+  ...form.customCategories,
+])
+const enabledCategoryTemplates = computed(() => {
+  const enabled = new Set(form.enabledCategories)
+  return allCategoryTemplates.value.filter((category) => enabled.has(category.id))
+})
 const allPlayersSelected = computed(
   () => activePlayers.value.length > 0 && form.selectedPlayerIds.length === activePlayers.value.length,
 )
@@ -65,23 +84,45 @@ const assignmentResult = computed(() =>
 
 const categoryDrafts = computed(() =>
   assignmentResult.value.assignments.map((assignment) => {
+    const playerCount = assignment.players.length
+    const formatChoices = getFormatChoicesForCount(playerCount)
+    const recommendedFormat = recommendFormatForCount(playerCount)
+    const selectedFormatId = form.categoryFormatModes[assignment.category.id] || recommendedFormat?.id
+    const selectedFormat =
+      formatChoices.find((format) => format.id === selectedFormatId) ||
+      recommendedFormat ||
+      formatChoices[0] ||
+      getFormatDefinition('two-groups-quarterfinals')
+    const effectiveCategory = applyFormatToCategory(assignment.category, selectedFormat, playerCount)
     const groups = buildCategoryGroups({
       tournamentId: 'preview-tournament',
-      category: assignment.category,
+      category: effectiveCategory,
       players: assignment.players,
     })
-    const players = groups.flatMap((group) => group.players)
+    const players = effectiveCategory.requiresGroupStage === false
+      ? assignment.players
+      : groups.flatMap((group) => group.players)
 
     return {
-      id: assignment.category.id,
-      name: assignment.category.name,
-      description: assignment.category.description,
-      settings: assignment.category,
+      id: effectiveCategory.id,
+      name: effectiveCategory.name,
+      description: effectiveCategory.description,
+      settings: effectiveCategory,
+      formatChoices,
+      recommendedFormat,
+      selectedFormat,
       assignmentPlayers: assignment.players,
       players,
       groups,
     }
   }),
+)
+const finalCategoryAssignments = computed(() =>
+  categoryDrafts.value.map((draft) => ({
+    categoryId: draft.id,
+    category: draft.settings,
+    players: draft.assignmentPlayers,
+  })),
 )
 
 const setupValidation = computed(() => validateTournamentSetup(categoryDrafts.value))
@@ -148,6 +189,85 @@ function toggleCategory(categoryId) {
   form.enabledCategories = [...form.enabledCategories, categoryId]
 }
 
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+}
+
+function buildCustomCategoryDescription(rule) {
+  switch (rule) {
+    case 'ladies':
+      return 'Custom female category'
+    case 'veterans':
+      return 'Custom age-eligible category'
+    case 'ladder-range':
+      return `Custom ladder range ${form.customCategoryDraft.ladderStart}-${form.customCategoryDraft.ladderEnd}`
+    case 'manual-only':
+    default:
+      return 'Custom category managed by admin'
+  }
+}
+
+function buildCustomCategoryEligibility(rule) {
+  if (rule === 'ladies') {
+    return { gender: 'female', veteranOnly: false }
+  }
+
+  if (rule === 'veterans') {
+    return { gender: 'any', veteranOnly: true }
+  }
+
+  return { gender: 'any', veteranOnly: false }
+}
+
+function createCustomCategory() {
+  const name = form.customCategoryDraft.name.trim()
+  if (!name) {
+    return
+  }
+
+  const id = `custom-${slugify(name)}-${Date.now()}`
+  const assignmentRule = form.customCategoryDraft.assignmentRule
+  const maxPlayers = Number(form.customCategoryDraft.maxPlayers || 12)
+
+  const category = {
+    id,
+    name,
+    description: buildCustomCategoryDescription(assignmentRule),
+    assignmentMode: assignmentRule === 'ladder-range' ? 'ladder-range' : assignmentRule,
+    ladderStart: Number(form.customCategoryDraft.ladderStart || 1),
+    ladderEnd: Number(form.customCategoryDraft.ladderEnd || maxPlayers),
+    targetPlayers: maxPlayers,
+    minPlayers: 2,
+    maxPlayers,
+    groupCount: 2,
+    qualifiersPerGroup: 4,
+    allowByes: true,
+    allowSpecialOverlap: ['ladies', 'veterans'].includes(assignmentRule),
+    eligibility: buildCustomCategoryEligibility(assignmentRule),
+    isCustom: true,
+  }
+
+  form.customCategories = [...form.customCategories, category]
+  form.enabledCategories = [...form.enabledCategories, id]
+  form.customCategoryDraft.name = ''
+}
+
+function removeCustomCategory(categoryId) {
+  form.customCategories = form.customCategories.filter((category) => category.id !== categoryId)
+  form.enabledCategories = form.enabledCategories.filter((id) => id !== categoryId)
+  delete form.categoryFormatModes[categoryId]
+
+  Object.keys(form.manualAssignments).forEach((playerId) => {
+    if (form.manualAssignments[playerId] === categoryId) {
+      delete form.manualAssignments[playerId]
+    }
+  })
+}
+
 function togglePlayer(playerId) {
   if (selectedPlayerIdSet.value.has(playerId)) {
     form.selectedPlayerIds = form.selectedPlayerIds.filter((id) => id !== playerId)
@@ -190,6 +310,10 @@ function autoAssign() {
   }
 }
 
+function selectCategoryFormat(categoryId, formatId) {
+  form.categoryFormatModes[categoryId] = formatId
+}
+
 function assignedCategoryNames(player) {
   const names = assignmentResult.value.assignments
     .filter((assignment) =>
@@ -206,6 +330,71 @@ function realPlayerCount(categoryDraft) {
 
 function byeCount(categoryDraft) {
   return categoryDraft.players.filter((player) => player.isBye).length
+}
+
+function freePassCopy(categoryDraft) {
+  const count = byeCount(categoryDraft)
+  if (!count) {
+    return 'No BYE'
+  }
+
+  return `${count} BYE${count === 1 ? '' : 's'}`
+}
+
+function formatMatchesPill(format, playerCount) {
+  const count = Number(playerCount || 0)
+
+  if (!count) {
+    return 'No matches yet'
+  }
+
+  if (format.requiresGroupStage === false) {
+    return '1+ match'
+  }
+
+  const groupCount = Math.max(1, Number(format.groupCount || 1))
+  const expectedGroupSize = Math.ceil(count / groupCount)
+  const guaranteedMatches = Math.max(1, expectedGroupSize - 1)
+
+  return `${guaranteedMatches}+ match${guaranteedMatches === 1 ? '' : 'es'}`
+}
+
+function visibleFormatPills(format, playerCount) {
+  const hiddenPills = new Set(['play everyone', 'group matches', 'small groups', 'fast draw'])
+  const detailPills = (format.playerPills || []).filter(
+    (pill) => !hiddenPills.has(pill.toLowerCase()),
+  )
+
+  return [formatMatchesPill(format, playerCount), ...detailPills].slice(0, 3)
+}
+
+function formatPillClass(pill) {
+  const label = pill.toLowerCase()
+
+  if (label.includes('no second')) {
+    return 'tournament-create__pill--danger'
+  }
+
+  if (label.includes('lose and continue')) {
+    return 'tournament-create__pill--safe'
+  }
+
+  if (label.includes('no knockout') || label.includes('no final')) {
+    return 'tournament-create__pill--calm'
+  }
+
+  if (
+    label.includes('final') ||
+    label.includes('semis') ||
+    label.includes('qf') ||
+    label.includes('sf') ||
+    label.includes('knockout') ||
+    label.includes('best record')
+  ) {
+    return 'tournament-create__pill--finish'
+  }
+
+  return 'tournament-create__pill--play'
 }
 
 function categoryWarnings(categoryDraft) {
@@ -254,7 +443,7 @@ async function submitTournament() {
       officials: parseOfficials(),
       status: 'active',
     },
-    categoryAssignments: assignmentResult.value.assignments,
+    categoryAssignments: finalCategoryAssignments.value,
     rules: buildRules(),
   })
 
@@ -288,8 +477,7 @@ onMounted(async () => {
           <span class="t-section-kicker">Tournament Wizard</span>
           <h2 class="t-hero__title">Create Tournament</h2>
           <p class="t-hero__copy">
-            Pick the format, select players, review the category split, then generate the full
-            tournament in one click.
+            Pick the categories, choose players, check the draw, then create the tournament.
           </p>
         </div>
         <RouterLink class="t-button t-button--secondary" to="/tournaments">Back</RouterLink>
@@ -313,8 +501,8 @@ onMounted(async () => {
 
       <section v-if="form.step === 1" class="tournament-create__panel tournament-create__panel--animated">
         <div>
-          <h3 class="t-section-title">Tournament Basics</h3>
-          <p class="t-muted">Name the event and set the group-stage and knockout windows.</p>
+            <h3 class="t-section-title">Tournament Basics</h3>
+            <p class="t-muted">Name the event and choose the main dates.</p>
         </div>
         <label>
           <span>Tournament Name *</span>
@@ -326,17 +514,17 @@ onMounted(async () => {
         </label>
         <div class="tournament-create__form-row">
           <label>
-            <span>Group Stage Start *</span>
+              <span>Group Stage Start *</span>
             <input v-model="form.roundRobinStart" type="date" />
           </label>
           <label>
-            <span>Group Stage End *</span>
+              <span>Group Stage End *</span>
             <input v-model="form.roundRobinEnd" type="date" />
           </label>
         </div>
         <div class="tournament-create__form-row">
           <label>
-            <span>Knockout Start *</span>
+              <span>Knockout Start *</span>
             <input v-model="form.knockoutStart" type="date" />
           </label>
           <label>
@@ -354,13 +542,13 @@ onMounted(async () => {
       <section v-else-if="form.step === 2" class="tournament-create__panel tournament-create__panel--animated">
         <div class="t-section-header">
           <div>
-            <h3 class="t-section-title">Format</h3>
-            <p class="t-muted">RSP Masters defaults are selected. Admins can turn categories on or off.</p>
+            <h3 class="t-section-title">Categories</h3>
+            <p class="t-muted">Turn on only the categories you want in this event.</p>
           </div>
           <span
             class="tournament-create__tooltip"
             tabindex="0"
-            data-tooltip="Categories decide who plays who. Ladder rank only decides seeding inside the category."
+            data-tooltip="Categories decide who plays who. Ladder rank helps the app seed players fairly."
           >
             ?
           </span>
@@ -375,31 +563,79 @@ onMounted(async () => {
         </article>
 
         <div class="tournament-create__categories">
-          <button
-            v-for="category in RSP_CATEGORY_TEMPLATE.categories"
+          <article
+            v-for="category in allCategoryTemplates"
             :key="category.id"
-            type="button"
             class="tournament-create__category-toggle"
             :class="{ 'tournament-create__category-toggle--active': form.enabledCategories.includes(category.id) }"
-            @click="toggleCategory(category.id)"
           >
-            <span>
-              <strong>{{ category.name }}</strong>
-              <small>{{ category.description }}</small>
-            </span>
-            <em>
-              {{ category.groupCount }} groups -
-              {{ category.allowByes ? 'BYEs allowed' : 'No BYEs' }}
-            </em>
-          </button>
+            <button type="button" class="tournament-create__category-main" @click="toggleCategory(category.id)">
+              <span>
+                <strong>{{ category.name }}</strong>
+                <small>{{ category.description }}</small>
+              </span>
+              <em>
+                {{ category.isCustom ? 'Custom' : 'Default' }} -
+                {{ form.enabledCategories.includes(category.id) ? 'On' : 'Off' }}
+              </em>
+            </button>
+            <button
+              v-if="category.isCustom"
+              class="tournament-create__category-remove"
+              type="button"
+              aria-label="Remove custom category"
+              @click="removeCustomCategory(category.id)"
+            >
+              Remove
+            </button>
+          </article>
         </div>
+
+        <article class="tournament-create__custom-builder">
+          <div>
+            <h4>Create a Custom Division</h4>
+            <p>
+              Use this for Juniors, Doubles, Invitational, or any club-only event.
+            </p>
+          </div>
+          <div class="tournament-create__custom-grid">
+            <label>
+              <span>Division Name</span>
+              <input v-model="form.customCategoryDraft.name" placeholder="e.g. Juniors" />
+            </label>
+            <label>
+              <span>Auto Rule</span>
+              <select v-model="form.customCategoryDraft.assignmentRule">
+                <option value="manual-only">Manual only</option>
+                <option value="ladder-range">Ladder range</option>
+                <option value="ladies">Female players</option>
+                <option value="veterans">Veterans age rule</option>
+              </select>
+            </label>
+            <label v-if="form.customCategoryDraft.assignmentRule === 'ladder-range'">
+              <span>Rank Start</span>
+              <input v-model.number="form.customCategoryDraft.ladderStart" min="1" type="number" />
+            </label>
+            <label v-if="form.customCategoryDraft.assignmentRule === 'ladder-range'">
+              <span>Rank End</span>
+              <input v-model.number="form.customCategoryDraft.ladderEnd" min="1" type="number" />
+            </label>
+            <label>
+              <span>Player Limit</span>
+              <input v-model.number="form.customCategoryDraft.maxPlayers" min="2" type="number" />
+            </label>
+            <button class="t-button t-button--primary" type="button" @click="createCustomCategory">
+              Add Division
+            </button>
+          </div>
+        </article>
 
         <div class="tournament-create__form-row">
           <label class="tournament-create__switch">
             <input v-model="form.allowSpecialOverlap" type="checkbox" />
             <span>
-              <strong>Allow Ladies/Veterans overlap</strong>
-              <small>Eligible players can also appear in their skill category.</small>
+              <strong>Let eligible players enter twice</strong>
+              <small>A Lady or Veteran can also play Premier, A, or B.</small>
             </span>
           </label>
           <label>
@@ -413,16 +649,14 @@ onMounted(async () => {
         <div class="t-section-header">
           <div>
             <h3 class="t-section-title">Players</h3>
-            <p class="t-muted">
-              Current format: {{ enabledCategoryNames }}. Matching players are shown first.
-            </p>
+            <p class="t-muted">Playing: {{ enabledCategoryNames }}. Best matches appear first.</p>
           </div>
           <div class="tournament-create__toolbar">
             <button class="t-button t-button--secondary" type="button" @click="toggleAllPlayers">
               {{ allPlayersSelected ? 'Clear Players' : 'Select All' }}
             </button>
             <button class="t-button t-button--primary" type="button" @click="autoAssign">
-              Auto Assign
+              Fill From Ladder
             </button>
           </div>
         </div>
@@ -432,7 +666,7 @@ onMounted(async () => {
             <strong>{{ assignedPlayerRows.length }} player{{ assignedPlayerRows.length === 1 ? '' : 's' }} matched</strong>
             <span>
               {{ unassignedPlayerRows.length }} selected player{{ unassignedPlayerRows.length === 1 ? '' : 's' }}
-              do not match the enabled categories.
+              will not play unless you add them.
             </span>
           </div>
           <button
@@ -441,13 +675,13 @@ onMounted(async () => {
             type="button"
             @click="form.showUnassignedPlayers = !form.showUnassignedPlayers"
           >
-            {{ form.showUnassignedPlayers ? 'Hide Not Assigned' : 'Show Not Assigned' }}
+            {{ form.showUnassignedPlayers ? 'Hide Not Playing' : 'Show Not Playing' }}
           </button>
         </article>
 
         <div class="tournament-create__player-list">
           <div v-if="assignedPlayerRows.length" class="tournament-create__player-section-title">
-            Assigned by current format
+            Playing in this event
           </div>
           <article
             v-for="row in assignedPlayerRows"
@@ -492,7 +726,7 @@ onMounted(async () => {
             v-if="unassignedPlayerRows.length"
             class="tournament-create__player-section-title tournament-create__player-section-title--muted"
           >
-            Not assigned by current format
+            Not playing yet
           </div>
           <article
             v-for="row in visibleUnassignedPlayerRows"
@@ -540,13 +774,13 @@ onMounted(async () => {
       <section v-else class="tournament-create__panel tournament-create__panel--animated">
         <div class="t-section-header">
           <div>
-            <h3 class="t-section-title">Review & Generate</h3>
-            <p class="t-muted">Check player counts, BYEs, groups, and warnings before creating fixtures.</p>
+            <h3 class="t-section-title">Ready to Create?</h3>
+            <p class="t-muted">Pick the clearest format for each category.</p>
           </div>
           <span
             class="tournament-create__tooltip"
             tabindex="0"
-            data-tooltip="Generate creates category groups, round-robin fixtures, standings inputs, and empty knockout brackets."
+            data-tooltip="Green is the easiest fit for the number of players. Other choices are allowed if the club prefers them."
           >
             ?
           </span>
@@ -572,12 +806,43 @@ onMounted(async () => {
             </header>
 
             <div class="tournament-create__review-stats">
-              <span>{{ categoryDraft.groups.length }} groups</span>
-              <span>{{ byeCount(categoryDraft) }} BYEs</span>
-              <span>Top {{ categoryDraft.settings.qualifiersPerGroup }}/group</span>
+              <span
+                v-for="pill in visibleFormatPills(categoryDraft.selectedFormat, realPlayerCount(categoryDraft))"
+                :key="pill"
+                :class="formatPillClass(pill)"
+              >
+                {{ pill }}
+              </span>
+              <span :class="byeCount(categoryDraft) ? 'tournament-create__pill--calm' : 'tournament-create__pill--play'">
+                {{ freePassCopy(categoryDraft) }}
+              </span>
             </div>
 
-            <div class="tournament-create__groups-preview">
+            <div class="tournament-create__format-picker">
+              <button
+                v-for="format in categoryDraft.formatChoices"
+                :key="format.id"
+                class="tournament-create__format-option"
+                :class="{ 'tournament-create__format-option--active': categoryDraft.selectedFormat.id === format.id }"
+                type="button"
+                @click="selectCategoryFormat(categoryDraft.id, format.id)"
+              >
+                <strong>{{ format.playerTitle }}</strong>
+                <span>{{ format.playerSummary }}</span>
+                <div class="tournament-create__format-pills">
+                  <small
+                    v-for="pill in visibleFormatPills(format, categoryDraft.assignmentPlayers.length)"
+                    :key="pill"
+                    :class="formatPillClass(pill)"
+                  >
+                    {{ pill }}
+                  </small>
+                </div>
+                <em v-if="format.recommended">Recommended</em>
+              </button>
+            </div>
+
+            <div v-if="categoryDraft.groups.length" class="tournament-create__groups-preview">
               <div v-for="group in categoryDraft.groups" :key="group.id">
                 <strong>{{ group.name }}</strong>
                 <span
@@ -588,6 +853,12 @@ onMounted(async () => {
                   {{ player.isBye ? 'BYE' : `${player.seed}. ${player.name}` }}
                 </span>
               </div>
+            </div>
+            <div v-else class="tournament-create__direct-preview">
+              <strong>Straight knockout</strong>
+              <span>
+                No group stage. Lose once and you are out.
+              </span>
             </div>
 
             <div
@@ -614,20 +885,20 @@ onMounted(async () => {
 
         <section class="tournament-create__rules">
           <div>
-            <span>Win Points</span>
+            <span>Win Earns</span>
             <strong>{{ form.winPoints }}</strong>
           </div>
           <div>
             <span>Qualifiers</span>
-            <strong>{{ form.qualifiersPerGroup }}/group</strong>
+            <strong>Per category</strong>
           </div>
           <div>
             <span>Knockout</span>
-            <strong>Top 4/group crossover</strong>
+            <strong>Auto-fit</strong>
           </div>
           <div>
-            <span>Tiebreak</span>
-            <strong>Points, set diff, game diff, wins</strong>
+            <span>Tie Breaker</span>
+            <strong>Points, sets, games, wins</strong>
           </div>
         </section>
       </section>
@@ -843,16 +1114,15 @@ onMounted(async () => {
 }
 
 .tournament-create__category-toggle {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   border: 1.5px solid var(--tournament-line);
   border-radius: 10px;
-  padding: 14px 16px;
   background: #ffffff;
   text-align: left;
-  cursor: pointer;
   transition:
     transform 0.16s ease,
     border-color 0.16s ease,
@@ -871,20 +1141,80 @@ onMounted(async () => {
   background: var(--tournament-green-soft);
 }
 
-.tournament-create__category-toggle span {
+.tournament-create__category-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 16px;
+  border: 0;
+  padding: 14px 16px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tournament-create__category-main span {
   display: grid;
   gap: 2px;
 }
 
-.tournament-create__category-toggle strong {
+.tournament-create__category-main strong {
   font-size: 14px;
 }
 
-.tournament-create__category-toggle em {
+.tournament-create__category-main em {
   color: var(--tournament-green-dark);
   font-size: 12px;
   font-style: normal;
   font-weight: 800;
+}
+
+.tournament-create__category-remove {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  border: 0;
+  border-radius: 6px;
+  padding: 3px 7px;
+  background: rgba(220, 53, 69, 0.08);
+  color: #991b1b;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tournament-create__custom-builder {
+  display: grid;
+  gap: 14px;
+  border: 1px dashed rgba(29, 111, 181, 0.32);
+  border-radius: 10px;
+  padding: 16px;
+  background: var(--tournament-blue-soft);
+}
+
+.tournament-create__custom-builder h4,
+.tournament-create__custom-builder p {
+  margin: 0;
+}
+
+.tournament-create__custom-builder h4 {
+  color: var(--tournament-blue);
+  font-size: 14px;
+}
+
+.tournament-create__custom-builder p {
+  margin-top: 4px;
+  color: var(--tournament-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tournament-create__custom-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
 }
 
 .tournament-create__switch {
@@ -1094,6 +1424,41 @@ onMounted(async () => {
   font-weight: 800;
 }
 
+.tournament-create__review-stats .tournament-create__pill--play,
+.tournament-create__format-pills .tournament-create__pill--play {
+  border: 1px solid rgba(29, 111, 181, 0.18);
+  background: var(--tournament-blue-soft);
+  color: var(--tournament-blue);
+}
+
+.tournament-create__review-stats .tournament-create__pill--safe,
+.tournament-create__format-pills .tournament-create__pill--safe {
+  border: 1px solid rgba(0, 181, 26, 0.2);
+  background: var(--tournament-green-soft);
+  color: var(--tournament-green-dark);
+}
+
+.tournament-create__review-stats .tournament-create__pill--finish,
+.tournament-create__format-pills .tournament-create__pill--finish {
+  border: 1px solid rgba(124, 58, 237, 0.18);
+  background: #f3e8ff;
+  color: #6d28d9;
+}
+
+.tournament-create__review-stats .tournament-create__pill--calm,
+.tournament-create__format-pills .tournament-create__pill--calm {
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.tournament-create__review-stats .tournament-create__pill--danger,
+.tournament-create__format-pills .tournament-create__pill--danger {
+  border: 1px solid rgba(220, 53, 69, 0.18);
+  background: rgba(220, 53, 69, 0.07);
+  color: #991b1b;
+}
+
 .tournament-create__groups-preview {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1137,6 +1502,95 @@ onMounted(async () => {
   border-color: rgba(220, 53, 69, 0.22);
   background: rgba(220, 53, 69, 0.07);
   color: #991b1b;
+}
+
+.tournament-create__format-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.tournament-create__format-option {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--tournament-line);
+  border-radius: 9px;
+  padding: 12px;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.tournament-create__format-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 181, 26, 0.28);
+}
+
+.tournament-create__format-option--active {
+  border-color: rgba(0, 181, 26, 0.42);
+  background: var(--tournament-green-soft);
+}
+
+.tournament-create__format-option strong {
+  padding-right: 94px;
+  color: var(--tournament-ink);
+  font-size: 12px;
+}
+
+.tournament-create__format-option span {
+  color: var(--tournament-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.tournament-create__format-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.tournament-create__format-pills small {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.tournament-create__format-option em {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--tournament-green-dark);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tournament-create__direct-preview {
+  display: grid;
+  gap: 5px;
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--tournament-blue-soft);
+  color: var(--tournament-blue);
+}
+
+.tournament-create__direct-preview strong {
+  font-size: 13px;
+}
+
+.tournament-create__direct-preview span {
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .tournament-create__rules {
@@ -1220,6 +1674,7 @@ onMounted(async () => {
   .tournament-create__categories,
   .tournament-create__review-grid,
   .tournament-create__form-row,
+  .tournament-create__custom-grid,
   .tournament-create__groups-preview,
   .tournament-create__rules {
     grid-template-columns: 1fr;
