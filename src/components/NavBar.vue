@@ -54,7 +54,7 @@ function handleAuthAction() {
         <img
           src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776503502/RENAISSANCE-AFRICA-ENERGY-LOGO-update_s4eb9u.png"
           alt="Renaissance Africa Energy logo"
-          class="navbar__logo-image"
+          class="navbar__logo-image cloudinary-img"
         />
       </RouterLink>
       <p class="navbar__tagline">Port Harcourt Team Court</p>

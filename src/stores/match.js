@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { usePlayerStore } from './player'
-import { getMatches, submitMatchResult } from '../services/MatchService'
+import { getMatches, submitMatchResult, updateMatch } from '../services/MatchService'
 
 export const useMatchStore = defineStore('match', () => {
   const matches = ref([])
@@ -42,6 +42,34 @@ export const useMatchStore = defineStore('match', () => {
     return []
   }
 
+  const patchMatch = async (matchId, payload) => {
+    error.value = ''
+
+    try {
+      const response = await updateMatch(matchId, payload)
+      if (response.success) {
+        const matchIndex = matches.value.findIndex((match) => match.id === matchId)
+        if (matchIndex !== -1) {
+          matches.value[matchIndex] = response.data
+        } else {
+          matches.value.push(response.data)
+        }
+
+        return response.data
+      }
+
+      error.value = response.message || 'Unable to update match.'
+    } catch (updateError) {
+      error.value = updateError?.message || 'Unable to update match.'
+    }
+
+    return null
+  }
+
+  const saveLiveState = async (matchId, liveState) => {
+    return patchMatch(matchId, { liveState })
+  }
+
   const submitResult = async (matchId, payload) => {
     error.value = ''
     isLoading.value = true
@@ -54,8 +82,10 @@ export const useMatchStore = defineStore('match', () => {
           matches.value[matchIndex] = response.data
         }
 
-        const playerStore = usePlayerStore()
-        await playerStore.loadPlayers()
+        if (response.data.type !== 'tournament') {
+          const playerStore = usePlayerStore()
+          await playerStore.loadPlayers()
+        }
         return response.data
       }
 
@@ -78,6 +108,8 @@ export const useMatchStore = defineStore('match', () => {
     pendingReviewMatches,
     openChallenges,
     loadMatches,
+    patchMatch,
+    saveLiveState,
     submitResult,
   }
 })

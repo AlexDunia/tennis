@@ -65,14 +65,20 @@ const syncScoreboard = () => {
     return
   }
 
+  if (currentMatch.value.liveState?.sets && currentMatch.value.liveState?.currentGame) {
+    scoreboardState.value = currentMatch.value.liveState
+    return
+  }
+
   scoreboardState.value = createScoreboard(
     challenger.value?.name || currentMatch.value.challengerName,
     defender.value?.name || currentMatch.value.defenderName,
   )
 }
 
-const handlePoint = (playerKey) => {
+const handlePoint = async (playerKey) => {
   scoreboardState.value = recordPoint(scoreboardState.value, playerKey)
+  await matchStore.saveLiveState(matchId.value, scoreboardState.value)
 }
 
 const openMatchDetails = () => {
@@ -140,6 +146,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
+  min-width: 0;
   padding: 1.25rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -200,6 +207,7 @@ onMounted(() => {
 .play__wrapper {
   display: flex;
   justify-content: center;
+  min-width: 0;
 }
 
 .play__fallback {

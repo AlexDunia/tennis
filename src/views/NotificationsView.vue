@@ -578,5 +578,10 @@ const formatTime = (value) => {
     gap: 0.75rem;
     padding: 0.9rem 1rem;
   }
+
+  .notif-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 </style>

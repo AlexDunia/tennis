@@ -384,6 +384,8 @@ onMounted(() => {
 <style scoped>
 /* ── Card ───────────────────────────────────────────────────────────────── */
 .performance-card {
+  width: 100%;
+  min-width: 0;
   background: var(--color-surface);
   border-radius: 16px;
   padding: 24px;
@@ -463,7 +465,8 @@ onMounted(() => {
 
 /* ── Chart wrapper ───────────────────────────────────────────────────────── */
 .chart-wrapper {
-  height: 240px;
+  width: 100%;
+  height: 280px;
   margin-top: 12px;
   position: relative;
   overflow: hidden;
@@ -473,6 +476,12 @@ onMounted(() => {
   cursor: crosshair;
   width: 100%;
   height: 100%;
+}
+
+@media (max-width: 768px) {
+  .chart-wrapper {
+    height: 220px;
+  }
 }
 
 /* ── Tooltip ─────────────────────────────────────────────────────────────── */

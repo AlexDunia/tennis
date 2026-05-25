@@ -138,6 +138,11 @@ function handlePointAward(playerKey) {
   color: var(--color-muted);
 }
 
+.tennis-scoreboard__winner {
+  text-align: center;
+  font-size: clamp(18px, 5vw, 28px);
+}
+
 .tennis-scoreboard__players {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -163,7 +168,7 @@ function handlePointAward(playerKey) {
 
 .tennis-scoreboard__player-points {
   margin: 0.5rem 0 0;
-  font-size: 1.7rem;
+  font-size: clamp(14px, 4vw, 18px);
   font-weight: 800;
 }
 
@@ -190,7 +195,7 @@ function handlePointAward(playerKey) {
 
 .tennis-scoreboard__set-score {
   margin: 0.35rem 0 0;
-  font-size: 1rem;
+  font-size: clamp(24px, 6vw, 48px);
   font-weight: 700;
 }
 
@@ -211,7 +216,9 @@ function handlePointAward(playerKey) {
   border-radius: 0.95rem;
   border: 1px solid var(--color-border);
   padding: 0.85rem 0.95rem;
-  font-size: 0.95rem;
+  min-width: 44px;
+  min-height: 56px;
+  font-size: clamp(13px, 3.5vw, 16px);
   font-weight: 700;
   transition:
     transform 0.15s ease-in-out,

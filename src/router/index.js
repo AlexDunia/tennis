@@ -7,6 +7,11 @@ import CreateChallengeView from '../views/CreateChallengeView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
 import ProfileView from '../views/ProfileView.vue'
+import TournamentCategoryView from '../views/TournamentCategory.vue'
+import TournamentCreateView from '../views/TournamentCreate.vue'
+import TournamentHubView from '../views/TournamentHub.vue'
+import TournamentOverviewView from '../views/TournamentOverview.vue'
+import TournamentScheduleView from '../views/TournamentSchedule.vue'
 
 const routes = [
   {
@@ -29,6 +34,61 @@ const routes = [
     meta: {
       title: 'Rankings',
       subtitle: 'Track the ladder, compare records, and see who you can challenge next.',
+    },
+  },
+  {
+    path: '/tournaments',
+    name: 'Tournaments',
+    component: TournamentHubView,
+    meta: {
+      title: 'Tournaments',
+      subtitle: 'Manage group stages, standings, knockout brackets, and champions.',
+    },
+  },
+  {
+    path: '/tournaments/create',
+    name: 'TournamentCreate',
+    component: TournamentCreateView,
+    meta: {
+      title: 'Create Tournament',
+      subtitle: 'Build a tournament with categories, groups, and rules.',
+    },
+  },
+  {
+    path: '/tournaments/:tournamentId',
+    name: 'TournamentOverview',
+    component: TournamentOverviewView,
+    meta: {
+      title: 'Tournament Overview',
+      subtitle: 'See categories, progress, officials, and the match schedule.',
+    },
+  },
+  {
+    path: '/tournaments/:tournamentId/category/:categoryId',
+    name: 'TournamentCategory',
+    component: TournamentCategoryView,
+    meta: {
+      title: 'Tournament Category',
+      subtitle: 'Work through groups, fixtures, standings, and knockout rounds.',
+    },
+  },
+  {
+    path: '/tournaments/:tournamentId/schedule',
+    name: 'TournamentSchedule',
+    component: TournamentScheduleView,
+    meta: {
+      title: 'Tournament Schedule',
+      subtitle: 'All tournament matches grouped by date and filterable by category.',
+    },
+  },
+  {
+    path: '/tournaments/:tournamentId/match/:matchId',
+    name: 'TournamentMatchDetails',
+    component: MatchDetailsView,
+    props: true,
+    meta: {
+      title: 'Tournament Match',
+      subtitle: 'Review the shared match record with tournament context.',
     },
   },
   {

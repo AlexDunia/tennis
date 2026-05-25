@@ -5,7 +5,7 @@
         <img
           src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776503502/RENAISSANCE-AFRICA-ENERGY-LOGO-update_s4eb9u.png"
           alt="Renaissance Africa Tennis Club Port Harcourt"
-          class="logo-img"
+          class="logo-img cloudinary-img"
         />
       </div>
 
@@ -15,7 +15,7 @@
           :key="item.to"
           :to="item.to"
           class="nav-link"
-          :class="{ active: route.path === item.to }"
+          :class="{ active: isNavigationActive(item.to) }"
         >
           <span class="icon" v-html="item.icon"></span>
           <span class="label">{{ item.label }}</span>
@@ -54,9 +54,42 @@
       </div>
 
       <div class="content">
+        <div class="watch-only">
+          <strong>Rank #{{ currentPlayer?.rank || '—' }}</strong>
+          <span>{{ currentPlayer?.name || 'Player' }}</span>
+          <span>{{ unreadCount }} unread</span>
+        </div>
         <RouterView />
       </div>
     </main>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <RouterLink
+        v-for="item in navigationItems"
+        :key="`bottom-${item.to}`"
+        :to="item.to"
+        class="nav-link"
+        :class="{ active: isNavigationActive(item.to) }"
+      >
+        <span class="icon" v-html="item.icon"></span>
+        <span class="label">{{ item.label }}</span>
+      </RouterLink>
+
+      <RouterLink to="/profile" class="nav-link" :class="{ active: route.path === '/profile' }">
+        <span class="icon" v-html="profileIcon"></span>
+        <span class="label">Profile</span>
+      </RouterLink>
+
+      <RouterLink
+        to="/notifications"
+        class="nav-link"
+        :class="{ active: route.path === '/notifications' }"
+      >
+        <span class="icon" v-html="bellIcon"></span>
+        <span class="label">Notifications</span>
+        <span v-if="unreadCount" class="badge">{{ unreadCount }}</span>
+      </RouterLink>
+    </nav>
   </div>
 
   <ToastShelf />
@@ -91,6 +124,11 @@ const navigationItems = [
     icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 13V6M7 13V3M11 13V8" stroke-linecap="round"/></svg>',
   },
   {
+    to: '/tournaments',
+    label: 'Tournaments',
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h6v2a3 3 0 0 1-6 0V3Z"/><path d="M4 3H2v1a2 2 0 0 0 2 2M12 3h2v1a2 2 0 0 1-2 2M8 8v3M6 13h4" stroke-linecap="round"/></svg>',
+  },
+  {
     to: '/challenges',
     label: 'Challenges',
     icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8h5M8 5.5v5" stroke-linecap="round"/></svg>',
@@ -121,6 +159,10 @@ const initials = computed(() => {
     .join('')
     .toUpperCase()
 })
+
+const isNavigationActive = (path) => {
+  return path === '/tournaments' ? route.path.startsWith('/tournaments') : route.path === path
+}
 </script>
 
 <style scoped>
@@ -154,6 +196,7 @@ const initials = computed(() => {
 .logo-img {
   width: 100%;
   max-width: 160px;
+  height: auto;
   object-fit: contain;
 }
 
@@ -165,9 +208,11 @@ const initials = computed(() => {
 }
 
 .nav-link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
   padding: 10px 14px;
   border-radius: 10px;
   font-size: 13.5px;
@@ -191,6 +236,7 @@ const initials = computed(() => {
 
 .label {
   line-height: 1;
+  min-width: 0;
 }
 
 .nav-link:hover {
@@ -217,32 +263,34 @@ const initials = computed(() => {
 .main {
   margin-left: 240px;
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  padding-top: 96px;
+  position: relative;
 }
 
 /* HEADER (MORE PREMIUM SPACING) */
 .header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 240px;
+  right: 0;
   background: #fff;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-
-  padding: 24px 32px; /* increased vertical space */
-
+  padding: 24px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-
-  z-index: 10;
-
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04); /* more floating feel */
+  z-index: 40;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
 .header-left {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .header-left h1 {
@@ -266,6 +314,7 @@ const initials = computed(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .avatar-btn {
@@ -285,10 +334,188 @@ const initials = computed(() => {
   font-size: 13px;
   font-weight: 500;
   color: #0f1720;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* CONTENT */
 .content {
   padding: 32px;
+  min-width: 0;
+}
+
+.watch-only,
+.bottom-nav {
+  display: none;
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .sidebar {
+    width: 68px;
+    padding: 24px 10px;
+    align-items: center;
+  }
+
+  .logo-img {
+    max-width: 44px;
+  }
+
+  .nav {
+    width: 100%;
+    align-items: center;
+  }
+
+  .nav-link {
+    width: 48px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 10px;
+    gap: 0;
+  }
+
+  .nav-link .label {
+    display: none;
+  }
+
+  .nav-link .badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    margin-left: 0;
+  }
+
+  .main {
+    margin-left: 68px;
+    padding-top: 96px;
+  }
+
+  .content {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 767px) {
+  .sidebar {
+    display: none;
+  }
+
+  .main {
+    margin-left: 0;
+    padding-top: 82px;
+    padding-bottom: 60px;
+  }
+
+  .header {
+    left: 0;
+    right: 0;
+    width: 100%;
+    padding: 18px 20px;
+  }
+
+  .user-name {
+    display: none;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 60px;
+    background: #fff;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    z-index: 40;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.04);
+  }
+
+  .bottom-nav .nav-link {
+    position: relative;
+    min-width: 44px;
+    min-height: 44px;
+    height: 60px;
+    justify-content: center;
+    flex-direction: column;
+    gap: 4px;
+    padding: 7px 2px 6px;
+    border-radius: 0;
+    font-size: 10px;
+    line-height: 1.1;
+    text-align: center;
+  }
+
+  .bottom-nav .icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .bottom-nav .label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bottom-nav .badge {
+    position: absolute;
+    top: 4px;
+    right: calc(50% - 20px);
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .header-left h1 {
+    font-size: clamp(15px, 4vw, 20px);
+  }
+
+  .header-left p {
+    font-size: 11.5px;
+  }
+
+  .user-name {
+    display: none;
+  }
+}
+
+@media (max-width: 162px) {
+  .sidebar,
+  .header,
+  .bottom-nav,
+  .content > *:not(.watch-only) {
+    display: none;
+  }
+
+  .main {
+    margin-left: 0;
+    padding-bottom: 0;
+  }
+
+  .content {
+    padding: 0;
+  }
+
+  .watch-only {
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    font-size: 9px;
+    text-align: center;
+  }
 }
 </style>

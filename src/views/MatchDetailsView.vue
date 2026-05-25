@@ -4,6 +4,7 @@ import { computed, onMounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
+import { useTournamentStore } from '../stores/tournament'
 
 // 2. PROPS
 // none
@@ -17,6 +18,7 @@ const route = useRoute()
 // 5. STORES
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
+const tournamentStore = useTournamentStore()
 
 // 6. REACTIVE STATE
 const matchId = route.params.matchId
@@ -32,6 +34,21 @@ const defender = computed(
   () => playerStore.players.find((player) => player.id === match.value?.defenderId) || null,
 )
 const canSubmitScore = computed(() => match.value?.status === 'scheduled')
+const tournament = computed(() => tournamentStore.activeTournament)
+const tournamentCategory = computed(
+  () =>
+    tournament.value?.categories.find((category) => category.id === match.value?.categoryId) ||
+    null,
+)
+const tournamentRoundLabel = computed(() => {
+  if (match.value?.type !== 'tournament') {
+    return ''
+  }
+
+  return match.value.groupId
+    ? `Group ${match.value.groupId}`
+    : match.value.matchCode || match.value.round
+})
 
 // 8. METHODS
 const initializeForm = () => {
@@ -54,6 +71,9 @@ const handleResultSubmit = async () => {
 
 const loadMatchDetails = async () => {
   await Promise.all([playerStore.loadPlayers(), matchStore.loadMatches()])
+  if (match.value?.type === 'tournament') {
+    await tournamentStore.fetchTournament(match.value.tournamentId)
+  }
   initializeForm()
 }
 
@@ -71,6 +91,12 @@ onMounted(() => {
     <div v-if="!match" class="empty-state section-card">Match not found.</div>
 
     <div v-else class="match-grid">
+      <div v-if="match.type === 'tournament'" class="tournament-context section-card">
+        <p class="match-summary__status">{{ tournament?.name || 'Tournament match' }}</p>
+        <h2>{{ tournamentCategory?.name || match.categoryId }}</h2>
+        <p class="match-copy">{{ tournamentRoundLabel }}</p>
+      </div>
+
       <div class="match-summary section-card">
         <p class="match-summary__status">{{ match.statusLabel }}</p>
         <h2>{{ challenger?.name || 'Challenger' }} vs {{ defender?.name || 'Defender' }}</h2>
@@ -120,6 +146,7 @@ onMounted(() => {
   grid-template-columns: 1.1fr 0.9fr;
 }
 
+.tournament-context,
 .match-summary,
 .result-panel {
   padding: 1.25rem;
@@ -131,6 +158,11 @@ onMounted(() => {
     box-shadow 0.12s ease-in-out;
 }
 
+.tournament-context {
+  grid-column: 1 / -1;
+}
+
+.tournament-context:hover,
 .match-summary:hover,
 .result-panel:hover {
   transform: translateY(-2px);
@@ -176,7 +208,7 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   background: var(--color-light);
   padding: 0 14px;
-  min-height: 38px;
+  min-height: 44px;
   font-size: 0.9rem;
 }
 
@@ -209,6 +241,12 @@ onMounted(() => {
 @media (max-width: 900px) {
   .match-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .submit-button {
+    width: 100%;
   }
 }
 </style>

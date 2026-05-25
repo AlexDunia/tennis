@@ -662,6 +662,7 @@ const pillClass = computed(() => ({
   .cc-btn {
     flex: 1;
     justify-content: center;
+    min-height: 44px;
   }
   .cc__player--right {
     flex-direction: row;
@@ -669,6 +670,12 @@ const pillClass = computed(() => ({
   }
   .cc__player--right .cc__player-info {
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .cc {
+    padding: 16px;
   }
 }
 </style>

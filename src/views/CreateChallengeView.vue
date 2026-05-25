@@ -850,6 +850,9 @@ onMounted(async () => {
 
 /* ── Player picker ── */
 .player-picker {
+  width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
   border: 1px solid rgba(0, 0, 0, 0.07);
   border-radius: 14px;
   background: #fff;
@@ -1170,6 +1173,33 @@ onMounted(async () => {
   }
   .doubles-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .selected-strip {
+    flex-wrap: wrap;
+  }
+
+  .toggle-group {
+    flex-wrap: wrap;
+  }
+
+  .stepper__btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .stepper__value {
+    line-height: 44px;
+  }
+
+  .form-select,
+  .form-textarea,
+  .picker-trigger,
+  .player-picker__search {
+    width: 100%;
+    min-height: 44px;
   }
 }
 </style>

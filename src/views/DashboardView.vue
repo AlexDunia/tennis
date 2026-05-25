@@ -5,6 +5,7 @@ import { useChallengeStore } from '../stores/challenge'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useBookingStore } from '../stores/booking'
+import { useTournamentStore } from '../stores/tournament'
 import PerformanceChart from '@/components/charts/PerformanceChart.vue'
 
 const router = useRouter()
@@ -13,6 +14,7 @@ const playerStore = usePlayerStore()
 const challengeStore = useChallengeStore()
 const matchStore = useMatchStore()
 const bookingStore = useBookingStore()
+const tournamentStore = useTournamentStore()
 
 const currentPlayer = computed(() => playerStore.currentPlayer)
 
@@ -59,6 +61,7 @@ const performanceNote = computed(() => {
 
 const upcomingMatches = computed(() => matchStore.scheduledMatches.length)
 const challengeSummary = computed(() => challengeStore.summaryCounts)
+const activeTournament = computed(() => tournamentStore.activeTournament)
 
 const urgentActions = computed(() => [
   { label: 'Pending challenges', value: challengeSummary.value.awaiting },
@@ -84,6 +87,11 @@ const activityFeed = computed(() => {
 
 const openMatch = (id) => router.push({ name: 'MatchDetails', params: { matchId: id } })
 const openCreate = () => router.push({ name: 'CreateChallenge' })
+const openTournament = () => {
+  if (activeTournament.value) {
+    router.push(`/tournaments/${activeTournament.value.id}`)
+  }
+}
 
 onMounted(async () => {
   await Promise.all([
@@ -91,6 +99,7 @@ onMounted(async () => {
     challengeStore.loadChallenges(),
     matchStore.loadMatches(),
     bookingStore.loadBookings(),
+    tournamentStore.fetchTournaments(),
   ])
 })
 </script>
@@ -178,6 +187,14 @@ onMounted(async () => {
           </div>
         </section>
 
+        <section v-if="activeTournament" class="card tournament-action-card">
+          <h3 class="section-title">Active Tournament</h3>
+          <div class="divider"></div>
+          <strong>{{ activeTournament.name }}</strong>
+          <span>{{ tournamentStore.todayMatchCount }} matches today · {{ tournamentStore.pendingMatchCount }} pending</span>
+          <button type="button" @click="openTournament">View tournament</button>
+        </section>
+
         <section class="card">
           <PerformanceChart
             :matches="matchStore.matches"
@@ -243,6 +260,7 @@ onMounted(async () => {
 .dashboard {
   display: grid;
   gap: 28px;
+  width: 100%;
   max-width: 1100px;
   margin: 0 auto;
   padding: 8px 0 40px;
@@ -253,9 +271,10 @@ onMounted(async () => {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  /* tiny breathing pad top+bottom on the image card */
-  padding: 10px 28px 10px;
+  gap: 14px;
+  min-height: clamp(180px, 34vw, 300px);
+  /* tighter bottom padding for a sharper hero layout */
+  padding: 10px 28px 2px 28px;
   border-radius: 20px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -307,8 +326,8 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: flex-start;
   gap: 20px;
-  /* give text content its own comfortable padding */
-  padding-top: 35px;
+  /* keep the top section balanced while tightening the hero height */
+  padding-top: 28px;
 }
 
 .hero-copy {
@@ -330,7 +349,7 @@ onMounted(async () => {
 
 /* Title — primary, strongest element on page */
 .hero__title {
-  font-size: 30px;
+  font-size: clamp(18px, 5vw, 32px);
   font-weight: 800;
   color: #ffffff;
   line-height: 1.15;
@@ -436,12 +455,13 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
-  margin-top: 8px; /* breathing space between hero text and glass cards */
-  padding-bottom: 18px; /* tiny bottom breathing pad inside the image */
+  margin-top: 6px; /* breathing space between hero text and glass cards */
+  padding-bottom: 12px; /* tighter hero bottom padding */
 }
 
 /* Glass cards — more transparent, tighter height */
 .card.glass {
+  min-width: 0;
   /* brand green tint at ~4% opacity instead of plain white */
   background: rgba(0, 184, 74, 0.04);
   backdrop-filter: blur(7px);
@@ -486,6 +506,7 @@ onMounted(async () => {
 
 /* ─── NORMAL CARDS ──────────────────────────────────── */
 .card {
+  min-width: 0;
   background: #ffffff;
   padding: 22px;
   border-radius: 16px;
@@ -609,6 +630,32 @@ onMounted(async () => {
   text-align: center;
 }
 
+.tournament-action-card {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+}
+
+.tournament-action-card strong {
+  color: #111827;
+  font-size: 0.98rem;
+}
+
+.tournament-action-card span {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.tournament-action-card button {
+  justify-self: start;
+  border: 0;
+  border-radius: 0.55rem;
+  padding: 0.65rem 0.85rem;
+  background: #00c853;
+  color: #fff;
+  font-weight: 800;
+}
+
 /* ─── INSIGHTS ──────────────────────────────────────── */
 .insights {
   display: flex;
@@ -696,6 +743,9 @@ onMounted(async () => {
 
 /* ─── RESPONSIVE ────────────────────────────────────── */
 @media (max-width: 768px) {
+  .dashboard {
+    padding: 0 16px 32px;
+  }
   .kpi.inside {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -705,11 +755,15 @@ onMounted(async () => {
   .hero-top {
     flex-direction: column;
   }
-  .hero__title {
-    font-size: 24px;
-  }
   .cta {
     margin-top: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .action-row {
+    flex-wrap: wrap;
+    gap: 8px;
   }
 }
 </style>

@@ -194,8 +194,8 @@ const completedChallenges = computed(
 }
 
 .profile__avatar {
-  width: 64px;
-  height: 64px;
+  width: clamp(60px, 15vw, 90px);
+  height: clamp(60px, 15vw, 90px);
   border-radius: 50%;
   background: rgba(0, 200, 83, 0.1);
   color: #007a32;
@@ -368,6 +368,10 @@ const completedChallenges = computed(
 
 /* ── RESPONSIVE ── */
 @media (max-width: 640px) {
+  .profile__hero {
+    gap: 14px;
+  }
+
   .profile__stats {
     grid-template-columns: repeat(3, 1fr);
   }

@@ -828,6 +828,8 @@ const modalSetLabel = computed(() => {
 .card-wrapper {
   border-radius: 18px;
   animation: ccIn 0.32s ease both;
+  min-width: 0;
+  overflow: hidden;
 }
 
 @keyframes ccIn {
@@ -1137,16 +1139,49 @@ const modalSetLabel = computed(() => {
   }
 }
 
+@media (max-width: 600px) {
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    border-radius: 20px 20px 0 0;
+  }
+}
+
 @media (max-width: 560px) {
   .modal {
     padding: 20px;
-    border-radius: 18px;
   }
   .modal__details {
     grid-template-columns: 1fr;
   }
   .modal__actions {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .tabs-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabs-row {
+    flex-wrap: nowrap;
+  }
+
+  .ch-tab {
+    flex: 0 0 auto;
   }
 }
 </style>

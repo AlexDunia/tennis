@@ -197,7 +197,7 @@ const shareLinks = [
       <!-- Your Position — full width -->
       <div v-if="currentPlayer" class="card primary full-width-card">
         <img
-          class="ball"
+          class="ball cloudinary-img"
           src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776969016/ujk_nf7ts1.png"
           alt=""
         />
@@ -321,6 +321,15 @@ const shareLinks = [
             <div></div>
           </div>
 
+          <div class="leaderboard-header-mobile">
+            <div></div>
+            <div></div>
+            <div>PLAYER</div>
+            <div>W</div>
+            <div>WIN%</div>
+            <div></div>
+          </div>
+
           <!-- Challengeable -->
           <template v-if="filteredPlayers(challengeablePlayers).length > 0">
             <div class="zone-bar zone-bar--green">
@@ -328,9 +337,7 @@ const shareLinks = [
               <span class="zone-label zone-label--green">
                 Challenge window —
                 {{ filteredPlayers(challengeablePlayers).length }}
-                {{
-                  filteredPlayers(challengeablePlayers).length === 1 ? 'player' : 'players'
-                }}
+                {{ filteredPlayers(challengeablePlayers).length === 1 ? 'player' : 'players' }}
                 above you
               </span>
             </div>
@@ -339,15 +346,15 @@ const shareLinks = [
               :key="player.id"
               class="leaderboard-row challengeable"
             >
-              <div>#{{ player.rank }}</div>
-              <div class="player">
+              <div class="col-rank">#{{ player.rank }}</div>
+              <div class="player col-player">
                 <div class="avatar row-avatar">{{ getInitials(player.name) }}</div>
                 {{ player.name }}
               </div>
-              <div>{{ player.wins }}</div>
-              <div>{{ player.losses }}</div>
-              <div class="winrate">{{ calcWinRate(player) }}</div>
-              <div class="action">
+              <div class="col-wins">{{ player.wins }}</div>
+              <div class="col-losses">{{ player.losses }}</div>
+              <div class="winrate col-winrate">{{ calcWinRate(player) }}</div>
+              <div class="action col-action">
                 <button class="btn" @click="handleChallenge(player.id)">Challenge</button>
               </div>
             </div>
@@ -364,16 +371,16 @@ const shareLinks = [
               :key="player.id"
               class="leaderboard-row you"
             >
-              <div>#{{ player.rank }}</div>
-              <div class="player">
+              <div class="col-rank">#{{ player.rank }}</div>
+              <div class="player col-player">
                 <div class="avatar row-avatar">{{ getInitials(player.name) }}</div>
                 {{ player.name }}
                 <span class="tag">YOU</span>
               </div>
-              <div>{{ player.wins }}</div>
-              <div>{{ player.losses }}</div>
-              <div class="winrate">{{ calcWinRate(player) }}</div>
-              <div></div>
+              <div class="col-wins">{{ player.wins }}</div>
+              <div class="col-losses">{{ player.losses }}</div>
+              <div class="winrate col-winrate">{{ calcWinRate(player) }}</div>
+              <div class="col-action"></div>
             </div>
           </template>
 
@@ -388,15 +395,15 @@ const shareLinks = [
               :key="player.id"
               class="leaderboard-row"
             >
-              <div>#{{ player.rank }}</div>
-              <div class="player">
+              <div class="col-rank">#{{ player.rank }}</div>
+              <div class="player col-player">
                 <div class="avatar row-avatar">{{ getInitials(player.name) }}</div>
                 {{ player.name }}
               </div>
-              <div>{{ player.wins }}</div>
-              <div>{{ player.losses }}</div>
-              <div class="winrate">{{ calcWinRate(player) }}</div>
-              <div></div>
+              <div class="col-wins">{{ player.wins }}</div>
+              <div class="col-losses">{{ player.losses }}</div>
+              <div class="winrate col-winrate">{{ calcWinRate(player) }}</div>
+              <div class="col-action"></div>
             </div>
           </template>
 
@@ -435,7 +442,7 @@ const shareLinks = [
 
             <div class="sc-header">
               <img
-                class="sc-logo-img"
+                class="sc-logo-img cloudinary-img"
                 src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776503502/RENAISSANCE-AFRICA-ENERGY-LOGO-update_s4eb9u.png"
                 alt="Renaissance Africa Energy"
                 crossorigin="anonymous"
@@ -530,6 +537,7 @@ const shareLinks = [
   display: grid;
   gap: 32px;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
 }
 
@@ -612,6 +620,8 @@ const shareLinks = [
   top: 50%;
   transform: translateY(-50%);
   width: 260px;
+  max-width: 100%;
+  height: auto;
   opacity: 0.22;
   filter: blur(1px);
   z-index: 1;
@@ -861,6 +871,7 @@ const shareLinks = [
   top: calc(100% + 6px);
   right: 0;
   min-width: 200px;
+  max-width: calc(100vw - 32px);
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
@@ -929,6 +940,7 @@ const shareLinks = [
 
 .leaderboard-inner {
   padding: 12px 20px 10px;
+  overflow-x: hidden;
 }
 
 .leaderboard-header {
@@ -939,11 +951,17 @@ const shareLinks = [
   padding-bottom: 6px;
 }
 
+.leaderboard-header-mobile {
+  display: none;
+}
+
 .leaderboard-row {
   display: grid;
   grid-template-columns: 60px 1fr 60px 60px 80px 120px;
   align-items: center;
   padding: 13px 0;
+  min-width: 0;
+  min-height: 54px;
 }
 .leaderboard-row:not(:last-child) {
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
@@ -966,6 +984,7 @@ const shareLinks = [
   align-items: center;
   gap: 10px;
   font-size: 14px;
+  min-width: 0;
 }
 .row-avatar {
   width: 32px;
@@ -1075,6 +1094,7 @@ const shareLinks = [
 
 .share-card-inner {
   position: relative;
+  width: 100%;
   background: #0a1018;
   font-family: 'Poppins', sans-serif;
   overflow: hidden;
@@ -1105,6 +1125,7 @@ const shareLinks = [
 .sc-logo-img {
   height: 38px;
   width: auto;
+  max-width: 100%;
   object-fit: contain;
   display: block;
 }
@@ -1352,6 +1373,10 @@ const shareLinks = [
 }
 
 @media (max-width: 640px) {
+  .rankings {
+    padding: 0 4px;
+  }
+
   .leaderboard-top {
     flex-wrap: wrap;
     gap: 10px;
@@ -1367,9 +1392,190 @@ const shareLinks = [
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .leaderboard-header {
     display: none;
+  }
+
+  .leaderboard-header-mobile {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) 40px 0px 56px 90px;
+    column-gap: 10px;
+    padding: 7px 16px;
+    background: var(--color-surface-soft);
+    border-radius: 10px;
+    margin-bottom: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--color-text-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .leaderboard-header-mobile > div {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .leaderboard-row {
+    grid-template-columns: 32px minmax(0, 1fr) 40px 0px 56px 90px;
+    column-gap: 10px;
+    padding: 11px 16px;
+  }
+
+  .leaderboard-row .row-avatar {
+    display: none;
+  }
+
+  .leaderboard-row > .col-rank {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-text);
+    text-align: center;
+  }
+
+  .leaderboard-row > .player {
+    font-size: 13px;
+    font-weight: 600;
+    color: #162218;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .leaderboard-row > .player .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .leaderboard-row > .col-wins {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text);
+    text-align: center;
+  }
+
+  .leaderboard-row > .col-winrate {
+    font-size: 12px;
+    font-weight: 700;
+    color: #00b51a;
+    text-align: center;
+  }
+
+  .leaderboard-row > .col-action {
+    justify-self: center;
+  }
+
+  .leaderboard-row .btn {
+    width: 100%;
+    white-space: nowrap;
+    min-height: 36px;
+    border-radius: 8px;
+  }
+
+  .leaderboard-row .tag {
+    margin-left: 5px;
+    vertical-align: middle;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 20px;
+  }
+
+  .leaderboard-row > .col-losses {
+    display: none;
+  }
+
+  .zone-bar {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    padding: 8px 16px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .share-card-overlay {
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  .share-card-wrapper {
+    max-width: 420px;
+    margin: auto;
+  }
+
+  .share-card-inner {
+    width: 100%;
+    max-width: 420px;
+  }
+}
+
+@media (max-width: 480px) {
+  .leaderboard-row {
+    grid-template-columns: 28px minmax(0, 1fr) 0px 0px 80px 80px;
+    column-gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .leaderboard-header-mobile {
+    grid-template-columns: 28px minmax(0, 1fr) 0px 0px 80px 80px;
+    column-gap: 8px;
+    padding: 7px 12px;
+  }
+
+  .leaderboard-header-mobile > :nth-child(2),
+  .leaderboard-header-mobile > :nth-child(4) {
+    display: none;
+  }
+
+  .leaderboard-row > .col-wins,
+  .leaderboard-row > .col-losses,
+  .leaderboard-row > .col-winrate {
+    display: none;
+  }
+
+  .leaderboard-row > .col-action {
+    justify-self: end;
+  }
+
+  .leaderboard-row .btn {
+    min-height: 36px;
+    padding: 7px 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .leaderboard-header-mobile > :nth-child(2),
+  .leaderboard-header-mobile > :nth-child(4),
+  .leaderboard-header-mobile > :nth-child(5) {
+    display: none;
+  }
+
+  .leaderboard-row {
+    grid-template-columns: 26px minmax(0, 1fr) 0px 0px 0px 72px;
+    column-gap: 6px;
+    padding: 9px 10px;
+  }
+
+  .leaderboard-header-mobile {
+    grid-template-columns: 26px minmax(0, 1fr) 0px 0px 0px 72px;
+  }
+
+  .leaderboard-row > .col-winrate,
+  .leaderboard-row > .col-wins,
+  .leaderboard-row > .col-losses {
+    display: none;
+  }
+
+  .leaderboard-row > .col-action {
+    justify-self: end;
   }
 }
 </style>
