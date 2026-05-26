@@ -64,6 +64,14 @@ Expected result:
 
 You arrive at `/tournaments/create`.
 
+Expected create flow shell:
+
+1. The fixed app header shows the current step title.
+2. Step 1 header title is `Basics`.
+3. Header back button says `Tournaments` on Step 1.
+4. Header back button says `Back` after Step 1.
+5. The old large `Create Tournament` hero is not repeated inside the wizard.
+
 ## 4. Create Tournament - Step 1: Basics
 
 Visible fields:
@@ -89,6 +97,11 @@ This step defines when the tournament starts, when the group stage ends, when kn
 ## 5. Create Tournament - Step 2: Categories
 
 Click `Next`.
+
+Expected app header:
+
+1. Title changes to `Categories`.
+2. Header back button says `Back`.
 
 Visible categories:
 
@@ -141,6 +154,11 @@ Hover or focus the `?` icon. It explains that categories decide who plays who, w
 ## 6. Create Tournament - Step 3: Players
 
 Click `Next`.
+
+Expected app header:
+
+1. Title changes to `Players`.
+2. Header back button says `Back`.
 
 Expected controls:
 
@@ -208,21 +226,37 @@ If only `Ladies` is enabled in Step 2, Step 3 should show female players assigne
 
 Click `Next`.
 
-Expected review cards:
+Expected app header:
 
-One card per enabled category.
+1. Title changes to `Review`.
+2. Header back button says `Back`.
 
-Each card shows:
+Expected review layout:
+
+One category is open at a time.
+
+Category tabs show:
 
 1. Category name
 2. Player count
-3. Player-first path, such as `3+ matches`
-4. Whether a BYE is needed
-5. Who goes through
-6. Group A preview
-7. Group B preview
-8. Warnings or blockers
-9. Format options
+
+The active category card shows:
+
+1. Category name
+2. Large player-count badge
+3. Format options
+4. Group A preview
+5. Group B preview
+6. Warnings or blockers
+
+Selected format behavior:
+
+1. Green border
+2. Filled radio
+3. Checkmark
+4. Toast confirming the selected format
+
+Do not repeat the format pills above the format options.
 
 Expected group split:
 

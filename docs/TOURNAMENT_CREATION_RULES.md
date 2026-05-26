@@ -9,6 +9,44 @@ Related docs:
 - `docs/TENNIS_CATEGORY_TOURNAMENT_ARCHITECTURE.md`
 - `docs/SHELLTENNIS_TOURNAMENT_WALKTHROUGH.md`
 
+## Create Mode Layout
+
+When the admin enters:
+
+```txt
+/tournaments/create
+```
+
+The normal app sidebar is hidden during tournament creation.
+
+On Basics and Categories:
+
+```txt
+No left sidebar
+Full setup workspace
+Top header progress only
+```
+
+On Players and Review, a fixed left rail appears because those steps need category selection.
+
+That rail shows:
+
+```txt
+Back to tournaments
+Premier
+Category A
+Category B
+Ladies
+Veterans
+Any custom category
+```
+
+The round arrow in the top header moves one setup step backward.
+
+The `Back to tournaments` button returns to the normal tournament page and restores the normal app sidebar.
+
+The sidebar does not repeat the wizard progress. `Basics`, `Categories`, `Players`, and `Review` stay in the top header only.
+
 ## Core Principle
 
 Tennis scoring is stable.
@@ -61,6 +99,37 @@ The exact system format can stay in code and docs, but it should not be the main
 
 ## Step 2: Category Selection
 
+The RSP Masters default starts ON.
+
+The screen shows:
+
+1. Active category count.
+2. Total category entries.
+3. Excluded category count.
+
+`Category entries` can be higher than unique players because one player may appear in two divisions.
+
+Example:
+
+```txt
+Amina -> Premier
+Amina -> Ladies
+```
+
+Then Amina counts as:
+
+```txt
+1 unique player
+2 category entries
+```
+
+Each category card is a toggle card:
+
+```txt
+Playing  = included in this tournament
+Excluded = not used in this tournament
+```
+
 ### If a category is ON
 
 Then the category exists in this tournament.
@@ -98,6 +167,17 @@ By default, the wizard enables:
 These are defaults, not permanent tennis law. The admin can turn any category off for a smaller event.
 
 ## Custom Category Rules
+
+Custom category creation lives inside an optional drawer on the Categories step.
+
+This is intentional:
+
+```txt
+Step 2 defines the tournament structure
+Step 3 assigns players into that structure
+```
+
+So the admin creates/removes categories before selecting the final player list.
 
 ### If the admin creates a custom category
 
@@ -138,11 +218,27 @@ Then:
 Ranks 37-48 -> custom category
 ```
 
-### If custom category rule is Female players
+### If custom category rule is Fill everyone who matches
 
-Then the custom category behaves like a Ladies-style category.
+Then the app uses the selected eligibility rules and fills the category automatically.
 
-Players with:
+Eligibility rules can be mixed:
+
+```txt
+Who Can Enter = Ladies only
+Veterans only = ON
+Auto Fill = Fill everyone who matches
+```
+
+Then:
+
+```txt
+Female veterans -> custom category
+```
+
+### If Who Can Enter is Ladies only
+
+Then only players with:
 
 ```txt
 gender = female
@@ -150,7 +246,17 @@ gender = female
 
 are eligible.
 
-### If custom category rule is Veterans age rule
+### If Who Can Enter is Men only
+
+Then only players with:
+
+```txt
+gender = male
+```
+
+are eligible.
+
+### If Veterans only is ON
 
 Then the custom category behaves like a Veterans-style category.
 
@@ -159,6 +265,58 @@ Players who satisfy the tournament Veterans Age setting are eligible.
 ### If the admin removes a custom category
 
 Then the category is removed from the tournament setup, its format choice is cleared, and any manual player assignments pointing to it are removed.
+
+### If Can play twice is ON
+
+Then players in the custom category can also remain in another category, such as Premier, Category A, or Category B.
+
+Use this for special side divisions such as:
+
+```txt
+Senior Ladies
+Veterans Invitational
+Sponsors Cup
+```
+
+### If Can play twice is OFF
+
+Then the custom category behaves like a normal exclusive category. Players selected there are not automatically reused elsewhere unless manually overridden.
+
+## Step 1: Date Rules
+
+Tournament creation is future-forward.
+
+### If the admin selects a past date
+
+Then the app pushes that date back to the earliest valid date.
+
+The earliest valid date is:
+
+```txt
+today
+```
+
+### If Group Stage End is before Group Stage Start
+
+Then Group Stage End is moved to Group Stage Start.
+
+### If Knockout Start is before Group Stage End
+
+Then Knockout Start is moved to Group Stage End.
+
+### If Final Date is before Knockout Start
+
+Then Final Date is moved to Knockout Start.
+
+The date order is:
+
+```txt
+Today or later
+Group Stage Start
+Group Stage End
+Knockout Start
+Final Date
+```
 
 ## Player Assignment Rules
 
@@ -268,6 +426,31 @@ The admin can still manually override if needed.
 
 Then manual assignment takes priority over auto assignment.
 
+Manual assignment is multi-category.
+
+That means one player can be added to more than one category when the event allows it.
+
+Example:
+
+```txt
+Amina
+Rank 5
+Gender female
+```
+
+Then the admin can place her in:
+
+```txt
+Premier
+Ladies
+```
+
+The player list shows the player's categories as removable chips. Click a chip to remove that player from that category.
+
+If the chip was auto-assigned by ladder, gender, or age, the app records an admin exclusion for that player/category pair.
+
+If the chip was manually added by the admin, the app removes the manual pick.
+
 If the manual assignment breaks eligibility rules, the app shows a warning.
 
 Example:
@@ -282,37 +465,188 @@ Then:
 Warning: check eligibility before generating
 ```
 
-## Step 3: Player List Display
+### If the admin adds a player to a custom category
 
-### If a player matches the enabled categories
-
-Then the player appears under:
-
-```txt
-Playing in this event
-```
-
-### If a player does not match the enabled categories
-
-Then the player is hidden under:
-
-```txt
-Not playing yet
-```
-
-The admin can click `Show Not Playing` to inspect or manually override those players.
+Then the player is automatically selected for the tournament and the custom category is added to that player's category list.
 
 Example:
 
 ```txt
-Only Ladies is ON
+Custom category = Senior Ladies
+Admin adds Ify
 ```
 
 Then:
 
 ```txt
-Female players appear first as Ladies
-Male players appear under Not playing yet
+Ify -> Senior Ladies
+```
+
+If the category allows overlap, Ify can still remain in Ladies, Veterans, Premier, Category A, or Category B where appropriate.
+
+### If the admin removes a player from one category
+
+Then only that category is removed.
+
+Example:
+
+```txt
+Amina is auto-assigned to Premier and Ladies
+Admin removes Premier chip
+```
+
+Then:
+
+```txt
+Amina -> Ladies
+Premier exclusion is remembered for this tournament setup
+```
+
+The player is not removed from the whole tournament unless the admin unticks the player checkbox.
+
+## Step 3: Player Assignment
+
+The Players step is category-first.
+
+The admin does not edit every player row at once.
+
+The page explains the rule in plain language:
+
+```txt
+Everything is auto-generated from player details and ladder ranking.
+Pick a category, then add or remove players there.
+```
+
+Instead, the admin picks one category from the left side:
+
+```txt
+Premier
+Category A
+Category B
+Ladies
+Veterans
+Any custom category
+```
+
+Then the right side shows:
+
+```txt
+Players already in that category
+Search box to add more players manually
+Reset/clear actions for that category
+```
+
+### If the admin picks a category
+
+Then the app shows only that category's working list.
+
+Example:
+
+```txt
+Admin clicks Ladies
+```
+
+Then:
+
+```txt
+Right side shows players currently in Ladies
+Admin can remove from Ladies only
+Admin can search members and add to Ladies
+```
+
+### If a custom category exists
+
+```txt
+Custom category = Senior Ladies
+```
+
+Then:
+
+```txt
+Senior Ladies appears in the category list
+Admin clicks Senior Ladies
+Admin searches members and adds names manually
+```
+
+This is how custom divisions take existing player data from the club roster.
+
+### If the category has an auto rule
+
+Then the app can fill it automatically.
+
+Examples:
+
+```txt
+Premier -> ladder rank range
+Ladies -> female players
+Veterans -> age-eligible players
+```
+
+The admin can still manually add or remove players after the auto fill.
+
+### If the admin clicks Use auto rule
+
+Then manual additions and removals for that category are cleared.
+
+The category returns to the rule defined in Step 2.
+
+Example:
+
+```txt
+Premier was edited manually
+Admin clicks Use auto rule
+```
+
+Then:
+
+```txt
+Premier goes back to ladder-based assignment
+```
+
+### If the admin clicks Empty category
+
+Then every current player is removed from that category for this tournament setup.
+
+This does not delete the category.
+
+Use this when the admin wants to hand-pick the category from zero.
+
+### If the admin searches in the add-player area
+
+Then the list is filtered locally by:
+
+```txt
+name
+rank
+category
+gender
+veteran status
+assigned category
+```
+
+Search input is sanitized before filtering. It only supports simple name/rank/category style characters.
+
+### If the admin adds a player manually
+
+Then the player is selected for the tournament and added to the active category.
+
+If that player already belongs to another category, the other category stays unless the admin removes it.
+
+### If the admin removes a player from the active category
+
+Then only the active category is removed.
+
+```txt
+Amina -> Premier + Ladies
+Admin is editing Ladies
+Admin removes Amina
+```
+
+Then:
+
+```txt
+Amina -> Premier
+Ladies removal is remembered for this tournament setup
 ```
 
 ## Step 4: Player Path Recommendation Rules

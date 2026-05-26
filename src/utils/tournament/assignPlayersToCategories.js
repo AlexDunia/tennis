@@ -29,7 +29,7 @@ function isInLadderRange(player, category) {
   return rank >= Number(category.ladderStart || 1) && rank <= Number(category.ladderEnd || 9999)
 }
 
-function toTournamentPlayer(player, category, seed) {
+function toTournamentPlayer(player, category, seed, assignmentSource = 'auto') {
   return {
     playerId: player.id,
     name: player.name,
@@ -41,9 +41,19 @@ function toTournamentPlayer(player, category, seed) {
     birthYear: player.birthYear || null,
     isVeteran: Boolean(player.isVeteran),
     isBye: false,
-    assignmentSource: 'auto',
+    assignmentSource,
     assignmentWarning: null,
   }
+}
+
+function getManualCategoryIds(manualAssignments, playerId) {
+  const value = manualAssignments[playerId]
+
+  if (Array.isArray(value)) {
+    return value.filter(Boolean)
+  }
+
+  return value ? [value] : []
 }
 
 export function assignPlayersToCategories({
@@ -52,17 +62,45 @@ export function assignPlayersToCategories({
   allowSpecialOverlap = true,
   veteranAge = 50,
   manualAssignments = {},
+  manualExclusions = {},
 } = {}) {
   const sortedPlayers = [...players].sort((playerOne, playerTwo) => getLadderRank(playerOne) - getLadderRank(playerTwo))
+  const categoryById = new Map(categories.map((category) => [category.id, category]))
   const usedPlayerIds = new Set()
-  const manuallyAssignedPlayerIds = new Set(Object.keys(manualAssignments).filter((playerId) => manualAssignments[playerId]))
+  const isCategoryOverlap = (category) => allowSpecialOverlap && category?.allowSpecialOverlap
+  const exclusiveManualPlayerIds = new Set(
+    Object.keys(manualAssignments).filter((playerId) =>
+      getManualCategoryIds(manualAssignments, playerId).some(
+        (categoryId) => !isCategoryOverlap(categoryById.get(categoryId)),
+      ),
+    ),
+  )
   const warnings = []
 
-  const assignments = categories.map((category) => {
-    const canOverlap =
-      allowSpecialOverlap && category.allowSpecialOverlap && category.assignmentMode === 'eligibility'
+  sortedPlayers.forEach((player) => {
+    const exclusiveCategoryNames = getManualCategoryIds(manualAssignments, player.id)
+      .map((categoryId) => categoryById.get(categoryId))
+      .filter((category) => category && !isCategoryOverlap(category))
+      .map((category) => category.name)
 
-    const manualPlayers = sortedPlayers.filter((player) => manualAssignments[player.id] === category.id)
+    if (exclusiveCategoryNames.length > 1) {
+      warnings.push({
+        type: 'manual-exclusive-overlap',
+        playerId: player.id,
+        message: `${player.name} was manually placed in multiple skill categories (${exclusiveCategoryNames.join(
+          ', ',
+        )}). Check this before generating.`,
+      })
+    }
+  })
+
+  const assignments = categories.map((category) => {
+    const canOverlap = allowSpecialOverlap && category.allowSpecialOverlap
+
+    const manualPlayers = sortedPlayers.filter((player) =>
+      getManualCategoryIds(manualAssignments, player.id).includes(category.id) &&
+      !getManualCategoryIds(manualExclusions, player.id).includes(category.id),
+    )
     manualPlayers.forEach((player) => {
       if (!isEligibleForCategory(player, category, { veteranAge })) {
         warnings.push({
@@ -79,7 +117,14 @@ export function assignPlayersToCategories({
     })
 
     const candidates = sortedPlayers.filter((player) => {
-      if (manualAssignments[player.id] === category.id) {
+      const manualCategoryIds = getManualCategoryIds(manualAssignments, player.id)
+      const excludedCategoryIds = getManualCategoryIds(manualExclusions, player.id)
+
+      if (manualCategoryIds.includes(category.id)) {
+        return false
+      }
+
+      if (excludedCategoryIds.includes(category.id)) {
         return false
       }
 
@@ -87,7 +132,7 @@ export function assignPlayersToCategories({
         return false
       }
 
-      if (!canOverlap && manuallyAssignedPlayerIds.has(player.id)) {
+      if (!canOverlap && exclusiveManualPlayerIds.has(player.id)) {
         return false
       }
 
@@ -140,7 +185,14 @@ export function assignPlayersToCategories({
     return {
       categoryId: category.id,
       category,
-      players: selected.map((player, index) => toTournamentPlayer(player, category, index + 1)),
+      players: selected.map((player, index) =>
+        toTournamentPlayer(
+          player,
+          category,
+          index + 1,
+          getManualCategoryIds(manualAssignments, player.id).includes(category.id) ? 'manual' : 'auto',
+        ),
+      ),
     }
   })
 

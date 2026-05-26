@@ -1,6 +1,6 @@
 <template>
   <div class="layout">
-    <aside class="sidebar">
+    <aside v-if="!isTournamentCreate" class="sidebar">
       <div class="logo">
         <img
           src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776503502/RENAISSANCE-AFRICA-ENERGY-LOGO-update_s4eb9u.png"
@@ -40,11 +40,46 @@
       </nav>
     </aside>
 
-    <main class="main">
-      <div class="header">
-        <div class="header-left">
-          <h1>{{ currentTitle }}</h1>
-          <p>{{ currentSubtitle }}</p>
+    <main
+      class="main"
+      :class="{ 'main--wizard': isTournamentCreate }"
+    >
+      <div
+        class="header"
+        :class="{ 'header--wizard': isTournamentCreate }"
+      >
+        <div class="header-main">
+          <button
+            v-if="headerBackLabel"
+            class="header-back"
+            type="button"
+            :aria-label="headerBackLabel"
+            :title="headerBackLabel"
+            @click="handleHeaderBack"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <div class="header-left" :class="{ 'header-left--wizard': isTournamentCreate }">
+            <ol v-if="isTournamentCreate" class="header-steps" aria-label="Tournament creation progress">
+              <li
+                v-for="(step, index) in tournamentCreateSteps"
+                :key="step"
+                :class="{
+                  'header-step--done': index < tournamentCreateStepIndex,
+                  'header-step--active': index === tournamentCreateStepIndex,
+                }"
+              >
+                <span>{{ index < tournamentCreateStepIndex ? 'OK' : index + 1 }}</span>
+                <strong>{{ tournamentCreateTitles[step] }}</strong>
+              </li>
+            </ol>
+            <template v-else>
+              <h1>{{ currentTitle }}</h1>
+              <p>{{ currentSubtitle }}</p>
+            </template>
+          </div>
         </div>
 
         <div class="user" v-if="currentPlayer">
@@ -55,7 +90,7 @@
 
       <div class="content">
         <div class="watch-only">
-          <strong>Rank #{{ currentPlayer?.rank || '—' }}</strong>
+          <strong>Rank #{{ currentPlayer?.rank || '-' }}</strong>
           <span>{{ currentPlayer?.name || 'Player' }}</span>
           <span>{{ unreadCount }} unread</span>
         </div>
@@ -63,7 +98,7 @@
       </div>
     </main>
 
-    <nav class="bottom-nav" aria-label="Primary navigation">
+    <nav v-if="!isTournamentCreate" class="bottom-nav" aria-label="Primary navigation">
       <RouterLink
         v-for="item in navigationItems"
         :key="`bottom-${item.to}`"
@@ -97,12 +132,13 @@
 
 <script setup>
 import { computed, onMounted } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
 import { usePlayerStore } from '../stores/player'
 import ToastShelf from '../components/ToastShelf.vue'
 
 const route = useRoute()
+const router = useRouter()
 const notificationStore = useNotificationStore()
 const playerStore = usePlayerStore()
 
@@ -141,12 +177,70 @@ const profileIcon =
 const bellIcon =
   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5a4 4 0 0 1 4 4v3.5l1.5 1.5v.5H6v-.5L7.5 12.5V9a4 4 0 0 1 4-4Z" stroke="currentColor" stroke-width="1.7"/></svg>'
 
-const currentTitle = computed(
-  () => route.meta.title || 'Renaissance Africa Tennis Club Port Harcourt',
+const tournamentCreateSteps = ['basics', 'categories', 'players', 'review']
+const tournamentCreateTitles = {
+  basics: 'Basics',
+  categories: 'Categories',
+  players: 'Players',
+  review: 'Review',
+}
+const tournamentCreateSubtitles = {
+  basics: 'Name the event and set the tournament dates.',
+  categories: 'Choose the categories this tournament will use.',
+  players: 'Select players and let the ladder help with placement.',
+  review: 'Pick formats, check groups, then generate the tournament.',
+}
+const isTournamentCreate = computed(() => route.name === 'TournamentCreate')
+const tournamentCreateStep = computed(() => {
+  const step = String(route.query.step || 'basics')
+  return tournamentCreateSteps.includes(step) ? step : 'basics'
+})
+const tournamentCreateStepIndex = computed(() =>
+  Math.max(0, tournamentCreateSteps.indexOf(tournamentCreateStep.value)),
 )
-const currentSubtitle = computed(
-  () => route.meta.subtitle || 'Manage the ladder from one calm workspace.',
-)
+
+const currentTitle = computed(() => {
+  if (isTournamentCreate.value) {
+    return tournamentCreateTitles[tournamentCreateStep.value]
+  }
+
+  return route.meta.title || 'Renaissance Africa Tennis Club Port Harcourt'
+})
+const currentSubtitle = computed(() => {
+  if (isTournamentCreate.value) {
+    return tournamentCreateSubtitles[tournamentCreateStep.value]
+  }
+
+  return route.meta.subtitle || 'Manage the ladder from one calm workspace.'
+})
+
+const headerBackLabel = computed(() => {
+  if (!isTournamentCreate.value) {
+    return ''
+  }
+
+  return tournamentCreateStep.value === 'basics' ? 'Back to tournaments' : 'Previous step'
+})
+
+function handleHeaderBack() {
+  if (!isTournamentCreate.value) {
+    return
+  }
+
+  const currentIndex = tournamentCreateSteps.indexOf(tournamentCreateStep.value)
+  if (currentIndex <= 0) {
+    router.push('/tournaments')
+    return
+  }
+
+  router.replace({
+    path: route.path,
+    query: {
+      ...route.query,
+      step: tournamentCreateSteps[currentIndex - 1],
+    },
+  })
+}
 
 const unreadCount = computed(() => notificationStore.unreadCount)
 const currentPlayer = computed(() => playerStore.currentPlayer)
@@ -270,6 +364,10 @@ const isNavigationActive = (path) => {
   position: relative;
 }
 
+.main--wizard {
+  margin-left: 0;
+}
+
 /* HEADER (MORE PREMIUM SPACING) */
 .header {
   position: fixed;
@@ -286,6 +384,56 @@ const isNavigationActive = (path) => {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
+.header-main {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  min-width: 0;
+}
+
+.header--wizard {
+  left: 0;
+  min-height: 96px;
+}
+
+.header-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(29, 111, 181, 0.08);
+  border-radius: 50%;
+  padding: 0;
+  margin-right: 2px;
+  background: #e8f4ff;
+  color: #1d6fb5;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.header-back svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.header-back:hover {
+  transform: translateY(-1px);
+  border-color: rgba(29, 111, 181, 0.2);
+  background: #dceeff;
+  box-shadow: 0 8px 18px rgba(29, 111, 181, 0.12);
+}
+
 .header-left {
   display: flex;
   flex-direction: column;
@@ -299,7 +447,7 @@ const isNavigationActive = (path) => {
   color: rgba(0, 0, 0, 0.8);
   margin: 0;
   line-height: 1.25;
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
 }
 
 .header-left p {
@@ -307,6 +455,79 @@ const isNavigationActive = (path) => {
   color: #7b8794;
   margin: 0;
   line-height: 1.4;
+}
+
+.header-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.header-steps li {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #8a96a5;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.header-steps li::after {
+  content: '';
+  width: 42px;
+  height: 2px;
+  margin: 0 12px;
+  background: #dbe3ec;
+}
+
+.header-steps li:last-child::after {
+  display: none;
+}
+
+.header-steps span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #eef2f6;
+  color: #7b8794;
+  font-size: 10px;
+  line-height: 1;
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.header-steps strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-step--done,
+.header-step--active {
+  color: #007a32;
+}
+
+.header-step--done span {
+  background: #00b51a;
+  color: #ffffff;
+}
+
+.header-step--active span {
+  transform: translateY(-1px);
+  border: 2px solid #00b51a;
+  background: rgba(0, 181, 26, 0.08);
+  color: #007a32;
 }
 
 /* USER */
@@ -401,17 +622,37 @@ const isNavigationActive = (path) => {
     display: none;
   }
 
-  .main {
+  .main,
+  .main--wizard {
     margin-left: 0;
     padding-top: 82px;
     padding-bottom: 60px;
   }
 
-  .header {
+  .header,
+  .header--wizard {
     left: 0;
     right: 0;
     width: 100%;
     padding: 18px 20px;
+  }
+
+  .header-main {
+    gap: 14px;
+  }
+
+  .header-steps {
+    max-width: min(52vw, 340px);
+    overflow: hidden;
+  }
+
+  .header-steps strong {
+    display: none;
+  }
+
+  .header-steps li::after {
+    width: 10px;
+    margin: 0 6px;
   }
 
   .user-name {
@@ -477,8 +718,18 @@ const isNavigationActive = (path) => {
     gap: 10px;
   }
 
+  .header-back {
+    width: 36px;
+    height: 36px;
+  }
+
   .header-left h1 {
     font-size: clamp(15px, 4vw, 20px);
+  }
+
+  .header-steps span {
+    width: 26px;
+    height: 26px;
   }
 
   .header-left p {
