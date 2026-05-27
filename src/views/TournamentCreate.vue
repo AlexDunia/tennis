@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
 import { usePlayerStore } from '../stores/player'
@@ -38,18 +38,20 @@ const form = reactive({
   customCategories: [],
   customCategoryDraft: {
     name: '',
-    assignmentRule: 'manual-only',
+    assignmentRule: 'ladder-range',
     gender: 'any',
     veteranOnly: false,
-    allowOverlap: false,
+    allowOverlap: true,
     ladderStart: 1,
     ladderEnd: 12,
     maxPlayers: 12,
   },
+  editingCustomCategoryId: '',
   selectedPlayerIds: [],
   manualAssignments: {},
   manualExclusions: {},
   playerSearch: '',
+  activePlayerView: 'playing',
   activePlayerCategoryId: '',
   activeReviewCategoryId: '',
   categoryFormatModes: {},
@@ -62,6 +64,7 @@ const form = reactive({
   walkovertimeMinutes: 30,
   rescheduleNoticeHours: 24,
 })
+const customBuilderRef = ref(null)
 
 const activePlayers = computed(() =>
   playerStore.sortedLadder.filter((player) => player.status !== 'inactive'),
@@ -179,6 +182,39 @@ const activeCategoryPlayerRows = computed(() => {
       }
     })
     .filter(Boolean)
+})
+const activeCategoryAddedRows = computed(() =>
+  activeCategoryPlayerRows.value.filter((row) => row.source === 'manual'),
+)
+const activeCategoryRemovedRows = computed(() => {
+  if (!activePlayerCategory.value) {
+    return []
+  }
+
+  const playerById = new Map(activePlayers.value.map((player) => [player.id, player]))
+
+  return Object.keys(form.manualExclusions)
+    .filter((playerId) => getExcludedCategoryIds(playerId).includes(activePlayerCategory.value.id))
+    .map((playerId) => playerById.get(playerId))
+    .filter(Boolean)
+    .map((player) => ({
+      player,
+      assignmentLabel: assignedCategoryNames(player),
+      otherCategoryNames: assignedCategoryIds(player)
+        .filter((categoryId) => categoryId !== activePlayerCategory.value?.id)
+        .map((categoryId) => categoryNameById(categoryId)),
+    }))
+})
+const activePlayerViewRows = computed(() => {
+  if (form.activePlayerView === 'added') {
+    return activeCategoryAddedRows.value
+  }
+
+  if (form.activePlayerView === 'removed') {
+    return activeCategoryRemovedRows.value
+  }
+
+  return activeCategoryPlayerRows.value
 })
 const availablePlayerRows = computed(() =>
   activePlayers.value
@@ -308,7 +344,7 @@ function categorySourceLabel(categoryId) {
     return 'Manual category'
   }
 
-  return 'Auto-generated'
+  return 'Easy auto fill'
 }
 
 function sanitizeSearchTerm(value) {
@@ -352,11 +388,16 @@ const isBasicsValid = computed(
     form.finalDate &&
     areDatesAligned.value,
 )
+const isCategoriesStepValid = computed(() => enabledCategoryTemplates.value.length > 0)
 const isPlayersStepValid = computed(
-  () => form.enabledCategories.length > 0 && form.selectedPlayerIds.length > 0,
+  () => isCategoriesStepValid.value && form.selectedPlayerIds.length > 0,
 )
 const canGenerate = computed(
-  () => isBasicsValid.value && isPlayersStepValid.value && setupValidation.value.canGenerate,
+  () =>
+    isBasicsValid.value &&
+    isCategoriesStepValid.value &&
+    isPlayersStepValid.value &&
+    setupValidation.value.canGenerate,
 )
 
 function syncRouteStep(stepNumber) {
@@ -371,6 +412,15 @@ function syncRouteStep(stepNumber) {
 }
 
 function goNext() {
+  if (form.step === 2 && !isCategoriesStepValid.value) {
+    notificationStore.addToast({
+      message: 'Choose or create at least one category before continuing.',
+      type: 'warning',
+      duration: 2200,
+    })
+    return
+  }
+
   if (form.step < steps.length) {
     syncRouteStep(form.step + 1)
   }
@@ -422,6 +472,20 @@ function buildCustomCategoryDescription() {
   return `Custom rule: ${customCategoryRuleSummary()}`
 }
 
+function resetCustomCategoryDraft() {
+  form.customCategoryDraft = {
+    name: '',
+    assignmentRule: 'ladder-range',
+    gender: 'any',
+    veteranOnly: false,
+    allowOverlap: true,
+    ladderStart: 1,
+    ladderEnd: 12,
+    maxPlayers: 12,
+  }
+  form.editingCustomCategoryId = ''
+}
+
 function customCategoryRuleSummary(draft = form.customCategoryDraft) {
   const genderLabel = {
     any: 'Any gender',
@@ -431,7 +495,7 @@ function customCategoryRuleSummary(draft = form.customCategoryDraft) {
   const fillLabel = draft.assignmentRule === 'ladder-range'
     ? `Ranks ${Number(draft.ladderStart || 1)}-${Number(draft.ladderEnd || draft.maxPlayers || 12)}`
     : draft.assignmentRule === 'eligibility'
-      ? 'Auto-fill eligible players'
+      ? 'Fill by rule'
       : 'Admin picks players'
   const ageLabel = draft.veteranOnly ? 'Veterans only' : 'Any age'
 
@@ -445,13 +509,8 @@ function buildCustomCategoryEligibility() {
   }
 }
 
-function createCustomCategory() {
+function buildCustomCategoryFromDraft(id, options = {}) {
   const name = form.customCategoryDraft.name.trim()
-  if (!name) {
-    return
-  }
-
-  const id = `custom-${slugify(name)}-${Date.now()}`
   const assignmentRule = form.customCategoryDraft.assignmentRule
   const maxPlayers = Number(form.customCategoryDraft.maxPlayers || 12)
   const assignmentMode = assignmentRule === 'ladder-range'
@@ -460,7 +519,8 @@ function createCustomCategory() {
       ? 'eligibility'
       : 'manual-only'
 
-  const category = {
+  return {
+    ...(options.existingCategory || {}),
     id,
     name,
     description: buildCustomCategoryDescription(),
@@ -477,20 +537,93 @@ function createCustomCategory() {
     eligibility: buildCustomCategoryEligibility(),
     isCustom: true,
   }
+}
+
+function saveCustomCategory() {
+  const name = form.customCategoryDraft.name.trim()
+  if (!name) {
+    notificationStore.addToast({
+      message: 'Name the custom category before saving it.',
+      type: 'warning',
+      duration: 1800,
+    })
+    return
+  }
+
+  if (form.editingCustomCategoryId) {
+    const existingCategory = form.customCategories.find(
+      (category) => category.id === form.editingCustomCategoryId,
+    )
+
+    if (!existingCategory) {
+      resetCustomCategoryDraft()
+      return
+    }
+
+    const category = buildCustomCategoryFromDraft(existingCategory.id, { existingCategory })
+    form.customCategories = form.customCategories.map((customCategory) =>
+      customCategory.id === category.id ? category : customCategory,
+    )
+    notificationStore.addToast({
+      message: `${category.name} division updated.`,
+      type: 'success',
+      duration: 1800,
+    })
+    resetCustomCategoryDraft()
+    return
+  }
+
+  const id = `custom-${slugify(name)}-${Date.now()}`
+  const category = buildCustomCategoryFromDraft(id)
 
   form.customCategories = [...form.customCategories, category]
   form.enabledCategories = [...form.enabledCategories, id]
   form.activePlayerCategoryId = id
-  form.customCategoryDraft.name = ''
+  resetCustomCategoryDraft()
   notificationStore.addToast({
-    message: `${category.name} category added.`,
+    message: `${category.name} division added.`,
     type: 'success',
     duration: 1800,
   })
 }
 
+async function editCustomCategory(categoryId) {
+  const category = form.customCategories.find((customCategory) => customCategory.id === categoryId)
+
+  if (!category) {
+    return
+  }
+
+  form.editingCustomCategoryId = category.id
+  form.customCategoryDraft = {
+    name: category.name,
+    assignmentRule:
+      category.assignmentMode === 'ladder-range'
+        ? 'ladder-range'
+        : category.assignmentMode === 'eligibility'
+          ? 'eligibility'
+          : 'manual-only',
+    gender: category.eligibility?.gender || 'any',
+    veteranOnly: Boolean(category.eligibility?.veteranOnly),
+    allowOverlap: Boolean(category.allowSpecialOverlap),
+    ladderStart: Number(category.ladderStart || 1),
+    ladderEnd: Number(category.ladderEnd || category.maxPlayers || 12),
+    maxPlayers: Number(category.maxPlayers || category.targetPlayers || 12),
+  }
+
+  await nextTick()
+  if (customBuilderRef.value) {
+    customBuilderRef.value.open = true
+    customBuilderRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
 function removeCustomCategory(categoryId) {
   const category = form.customCategories.find((customCategory) => customCategory.id === categoryId)
+  if (form.editingCustomCategoryId === categoryId) {
+    resetCustomCategoryDraft()
+  }
+
   form.customCategories = form.customCategories.filter((category) => category.id !== categoryId)
   form.enabledCategories = form.enabledCategories.filter((id) => id !== categoryId)
   delete form.categoryFormatModes[categoryId]
@@ -516,7 +649,7 @@ function removeCustomCategory(categoryId) {
 
   if (category) {
     notificationStore.addToast({
-      message: `${category.name} category removed.`,
+      message: `${category.name} division removed.`,
       type: 'info',
       duration: 1800,
     })
@@ -578,6 +711,7 @@ function removeCategoryIdFromAllLookups(categoryId) {
 function selectPlayerCategory(categoryId) {
   form.activePlayerCategoryId = categoryId
   form.playerSearch = ''
+  form.activePlayerView = 'playing'
 }
 
 function categoryNameById(categoryId) {
@@ -666,6 +800,24 @@ function removePlayerFromActiveCategory(playerId) {
   }
 
   removeAssignedCategory(playerId, activePlayerCategory.value.id)
+}
+
+function restorePlayerToActiveCategory(playerId) {
+  if (!activePlayerCategory.value) {
+    return
+  }
+
+  removeCategoryIdFromLookup(form.manualExclusions, playerId, activePlayerCategory.value.id)
+
+  if (!selectedPlayerIdSet.value.has(playerId)) {
+    form.selectedPlayerIds = [...form.selectedPlayerIds, playerId]
+  }
+
+  notificationStore.addToast({
+    message: `${categoryNameById(activePlayerCategory.value.id)} restored for this player.`,
+    type: 'success',
+    duration: 1500,
+  })
 }
 
 function resetActiveCategoryToAuto() {
@@ -1009,7 +1161,7 @@ onMounted(async () => {
         <div class="t-section-header">
           <div>
             <h3 class="t-section-title">Pick Categories To Run</h3>
-            <p class="t-muted">The RSP default is already selected. Click any card to remove or add it.</p>
+            <p class="t-muted">The RSP default is already selected. Use each switch to include or exclude a division.</p>
           </div>
           <span
             class="tournament-create__tooltip"
@@ -1047,25 +1199,32 @@ onMounted(async () => {
 
         <div class="tournament-create__section-label">All categories</div>
 
+        <article v-if="!isCategoriesStepValid" class="tournament-create__category-required">
+          <strong>Pick at least one category</strong>
+          <span>Select a default division below, or create a custom one for this tournament.</span>
+        </article>
+
         <div class="tournament-create__categories">
           <article
             v-for="category in allCategoryTemplates"
             :key="category.id"
             class="tournament-create__category-card"
             :class="{ 'tournament-create__category-card--off': !isCategoryEnabled(category.id) }"
-            role="button"
-            tabindex="0"
-            :aria-pressed="isCategoryEnabled(category.id)"
-            @click="toggleCategory(category.id)"
-            @keydown.enter.prevent="toggleCategory(category.id)"
-            @keydown.space.prevent="toggleCategory(category.id)"
           >
             <div class="tournament-create__category-top">
               <div>
                 <h4>{{ category.name }}</h4>
                 <span v-if="category.isCustom" class="tournament-create__custom-badge">Custom</span>
               </div>
-              <span class="tournament-create__toggle-pill" aria-hidden="true"></span>
+              <button
+                class="tournament-create__toggle-control"
+                type="button"
+                :aria-pressed="isCategoryEnabled(category.id)"
+                :aria-label="`${isCategoryEnabled(category.id) ? 'Exclude' : 'Include'} ${category.name}`"
+                @click="toggleCategory(category.id)"
+              >
+                <span class="tournament-create__toggle-pill" aria-hidden="true"></span>
+              </button>
             </div>
             <p>{{ category.description }}</p>
             <div class="tournament-create__category-footer">
@@ -1077,25 +1236,43 @@ onMounted(async () => {
                 {{ isCategoryEnabled(category.id) ? 'Playing' : 'Excluded' }}
               </em>
             </div>
-            <button
-              v-if="category.isCustom"
-              class="tournament-create__category-remove"
-              type="button"
-              aria-label="Remove custom category"
-              @click.stop="removeCustomCategory(category.id)"
-            >
-              Delete
-            </button>
+            <div v-if="category.isCustom" class="tournament-create__category-card-actions">
+              <button
+                class="tournament-create__category-edit"
+                type="button"
+                aria-label="Edit custom category"
+                @click="editCustomCategory(category.id)"
+              >
+                Edit
+              </button>
+              <button
+                class="tournament-create__category-remove"
+                type="button"
+                aria-label="Remove custom category"
+                @click="removeCustomCategory(category.id)"
+              >
+                Delete
+              </button>
+            </div>
           </article>
         </div>
 
-        <details class="tournament-create__custom-builder">
+        <details ref="customBuilderRef" class="tournament-create__custom-builder">
           <summary>
             <span>
-              <strong>Create a custom category</strong>
-              <small>Create the division here. Add or remove names in the Players step.</small>
+              <strong>{{ form.editingCustomCategoryId ? 'Edit custom division' : 'Create a custom category' }}</strong>
+              <small>
+                {{
+                  form.editingCustomCategoryId
+                    ? 'Update this division rule and save it.'
+                    : 'Create the division here. Add or remove names in the Players step.'
+                }}
+              </small>
             </span>
-            <em>Optional</em>
+            <em class="tournament-create__custom-builder-action">
+              <span aria-hidden="true">+</span>
+              {{ form.editingCustomCategoryId ? 'Editing' : 'Add division' }}
+            </em>
           </summary>
           <div class="tournament-create__custom-grid">
             <label>
@@ -1111,11 +1288,11 @@ onMounted(async () => {
               </select>
             </label>
             <label>
-              <span>Auto Fill</span>
+              <span>Fill Method</span>
               <select v-model="form.customCategoryDraft.assignmentRule">
                 <option value="manual-only">Admin picks players</option>
-                <option value="eligibility">Fill everyone who matches</option>
-                <option value="ladder-range">Fill by ladder range</option>
+                <option value="eligibility">Fill by rule</option>
+                <option value="ladder-range">Fill by rank</option>
               </select>
             </label>
             <label v-if="form.customCategoryDraft.assignmentRule === 'ladder-range'">
@@ -1151,9 +1328,17 @@ onMounted(async () => {
             <button
               class="t-button t-button--primary tournament-create__create-category-button"
               type="button"
-              @click="createCustomCategory"
+              @click="saveCustomCategory"
             >
-              Create Category
+              {{ form.editingCustomCategoryId ? 'Save Division' : 'Create Division' }}
+            </button>
+            <button
+              v-if="form.editingCustomCategoryId"
+              class="t-button t-button--ghost tournament-create__cancel-edit-button"
+              type="button"
+              @click="resetCustomCategoryDraft"
+            >
+              Cancel Edit
             </button>
           </div>
         </details>
@@ -1177,8 +1362,13 @@ onMounted(async () => {
         <div class="t-section-header">
           <div>
             <h3 class="t-section-title">Players</h3>
-            <p class="t-muted">Everything is auto-generated from player details and ladder ranking. Pick a category, then add or remove players there.</p>
+            <p class="t-muted">The app fills each division by rank or rule. Pick a division, then adjust the list when needed.</p>
           </div>
+        </div>
+
+        <div v-if="setupBlockers.length" class="tournament-create__blockers">
+          <strong>What is stopping generation</strong>
+          <span v-for="blocker in setupBlockers" :key="blocker.message">{{ blocker.message }}</span>
         </div>
 
         <section class="tournament-create__assignment-studio">
@@ -1192,22 +1382,14 @@ onMounted(async () => {
               <div class="tournament-create__category-kpis" aria-label="Category player summary">
                 <span>
                   <strong>{{ activeCategoryPlayerRows.length }}</strong>
-                  Playing
-                </span>
-                <span>
-                  <strong>{{ activeCategoryManualAddCount }}</strong>
-                  Added
-                </span>
-                <span>
-                  <strong>{{ activeCategoryManualRemoveCount }}</strong>
-                  Removed
+                  Playing here
                 </span>
               </div>
             </header>
 
             <div class="tournament-create__category-actions">
               <button class="t-button t-button--secondary" type="button" @click="resetActiveCategoryToAuto">
-                {{ activePlayerCategory.assignmentMode === 'manual-only' ? 'Clear manual picks' : 'Use auto rule' }}
+                {{ activePlayerCategory.assignmentMode === 'manual-only' ? 'Clear picks' : 'Use easy auto fill' }}
               </button>
               <button
                 class="t-button t-button--ghost"
@@ -1217,19 +1399,62 @@ onMounted(async () => {
               >
                 Empty category
               </button>
+              <button
+                class="tournament-create__view-tab"
+                :class="{ 'tournament-create__view-tab--active': form.activePlayerView === 'playing' }"
+                type="button"
+                @click="form.activePlayerView = 'playing'"
+              >
+                Playing
+                <strong>{{ activeCategoryPlayerRows.length }}</strong>
+              </button>
+              <button
+                class="tournament-create__view-tab"
+                :class="{ 'tournament-create__view-tab--active': form.activePlayerView === 'added' }"
+                type="button"
+                @click="form.activePlayerView = 'added'"
+              >
+                Added
+                <strong>{{ activeCategoryManualAddCount }}</strong>
+              </button>
+              <button
+                class="tournament-create__view-tab"
+                :class="{ 'tournament-create__view-tab--active': form.activePlayerView === 'removed' }"
+                type="button"
+                @click="form.activePlayerView = 'removed'"
+              >
+                Removed
+                <strong>{{ activeCategoryManualRemoveCount }}</strong>
+              </button>
             </div>
 
             <section class="tournament-create__category-members">
               <header>
                 <div>
-                  <h5>In {{ activePlayerCategory.name }}</h5>
-                  <p>Remove only from this category. Other categories stay untouched.</p>
+                  <h5>
+                    {{
+                      form.activePlayerView === 'removed'
+                        ? `Removed from ${activePlayerCategory.name}`
+                        : form.activePlayerView === 'added'
+                          ? `Added to ${activePlayerCategory.name}`
+                          : `Playing in ${activePlayerCategory.name}`
+                    }}
+                  </h5>
+                  <p>
+                    {{
+                      form.activePlayerView === 'removed'
+                        ? 'Restore anyone you removed by mistake.'
+                        : form.activePlayerView === 'added'
+                          ? 'These players were added by hand.'
+                          : 'Ranks and rule matches are filled for you. Remove only from this division when needed.'
+                    }}
+                  </p>
                 </div>
               </header>
 
-              <div v-if="activeCategoryPlayerRows.length" class="tournament-create__member-list">
+              <div v-if="activePlayerViewRows.length" class="tournament-create__member-list">
                 <article
-                  v-for="row in activeCategoryPlayerRows"
+                  v-for="row in activePlayerViewRows"
                   :key="row.player.id"
                   class="tournament-create__member-row"
                 >
@@ -1252,22 +1477,46 @@ onMounted(async () => {
                     </div>
                   </div>
                   <div class="tournament-create__member-tags">
-                    <em :class="{ 'tournament-create__source-pill--manual': row.source === 'manual' }">
-                      {{ row.source === 'manual' ? 'Manual' : 'Auto' }}
+                    <em
+                      v-if="form.activePlayerView !== 'removed'"
+                      :class="{ 'tournament-create__source-pill--manual': row.source === 'manual' }"
+                    >
+                      {{ row.source === 'manual' ? 'Added by hand' : 'Filled by rank/rule' }}
                     </em>
+                    <em v-else class="tournament-create__source-pill--removed">Removed</em>
                     <span v-for="categoryName in row.otherCategoryNames" :key="categoryName">
                       {{ categoryName }}
                     </span>
+                    <span v-if="form.activePlayerView === 'removed'">{{ row.assignmentLabel }}</span>
                   </div>
-                  <button class="tournament-create__mini-action" type="button" @click="removePlayerFromActiveCategory(row.player.id)">
+                  <button
+                    v-if="form.activePlayerView === 'removed'"
+                    class="tournament-create__mini-action tournament-create__mini-action--add"
+                    type="button"
+                    @click="restorePlayerToActiveCategory(row.player.id)"
+                  >
+                    Restore
+                  </button>
+                  <button
+                    v-else
+                    class="tournament-create__mini-action"
+                    type="button"
+                    @click="removePlayerFromActiveCategory(row.player.id)"
+                  >
                     Remove
                   </button>
                 </article>
               </div>
 
               <article v-else class="tournament-create__empty-results">
-                <strong>No players in {{ activePlayerCategory.name }} yet</strong>
-                <span>Search below and add players manually, or use the auto rule.</span>
+                <strong>No {{ form.activePlayerView }} players here yet</strong>
+                <span>
+                  {{
+                    form.activePlayerView === 'removed'
+                      ? 'Removed players will appear here so you can restore them.'
+                      : 'Search below to add players, or use easy auto fill.'
+                  }}
+                </span>
               </article>
             </section>
 
@@ -1441,6 +1690,11 @@ onMounted(async () => {
                 {{ warning.message }}
               </span>
             </div>
+
+            <article class="tournament-create__seeding-note">
+              <strong>Group order</strong>
+              <span>Players are seeded by ladder rank after every add or remove. Manual adds do not take the first slot.</span>
+            </article>
           </article>
         </div>
 
@@ -1474,6 +1728,7 @@ onMounted(async () => {
           type="button"
           :disabled="
             (form.step === 1 && !isBasicsValid) ||
+            (form.step === 2 && !isCategoriesStepValid) ||
             (form.step === 3 && !isPlayersStepValid)
           "
           @click="goNext"
@@ -1739,7 +1994,6 @@ onMounted(async () => {
   background: #ffffff;
   text-align: left;
   user-select: none;
-  cursor: pointer;
   transition:
     transform 0.16s ease,
     opacity 0.16s ease,
@@ -1787,6 +2041,17 @@ onMounted(async () => {
 
 .tournament-create__category-card--off h4 {
   color: var(--tournament-faint);
+}
+
+.tournament-create__toggle-control {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .tournament-create__custom-badge {
@@ -1887,27 +2152,42 @@ onMounted(async () => {
   color: #98a48c;
 }
 
+.tournament-create__category-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tournament-create__category-edit,
 .tournament-create__category-remove {
-  position: absolute;
-  right: 14px;
-  bottom: 56px;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 6px;
-  padding: 3px 7px;
+  padding: 6px 9px;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.tournament-create__category-edit {
+  border-color: rgba(29, 111, 181, 0.16);
+  background: var(--tournament-blue-soft);
+  color: var(--tournament-blue);
+}
+
+.tournament-create__category-remove {
+  border-color: rgba(220, 53, 69, 0.12);
   background: rgba(220, 53, 69, 0.08);
   color: #991b1b;
-  font-size: 10px;
-  font-weight: 800;
-  cursor: pointer;
 }
 
 .tournament-create__custom-builder {
   display: grid;
   gap: 14px;
-  border: 1px dashed rgba(29, 111, 181, 0.32);
+  border: 1.5px solid rgba(29, 111, 181, 0.34);
   border-radius: 10px;
   padding: 0;
   background: var(--tournament-blue-soft);
+  box-shadow: 0 12px 26px rgba(29, 111, 181, 0.08);
 }
 
 .tournament-create__custom-builder summary {
@@ -1915,40 +2195,65 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px;
+  min-height: 76px;
+  padding: 16px 18px;
   cursor: pointer;
   list-style: none;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.tournament-create__custom-builder summary:hover {
+  background: rgba(255, 255, 255, 0.44);
 }
 
 .tournament-create__custom-builder summary::-webkit-details-marker {
   display: none;
 }
 
-.tournament-create__custom-builder summary span {
+.tournament-create__custom-builder summary > span {
   display: grid;
   gap: 4px;
 }
 
-.tournament-create__custom-builder summary strong {
+.tournament-create__custom-builder summary > span strong {
   color: var(--tournament-blue);
   font-size: 14px;
 }
 
-.tournament-create__custom-builder summary small {
+.tournament-create__custom-builder summary > span small {
   color: var(--tournament-muted);
   font-size: 12px;
   line-height: 1.45;
 }
 
-.tournament-create__custom-builder summary em {
+.tournament-create__custom-builder-action {
   flex-shrink: 0;
-  border-radius: 999px;
-  padding: 4px 9px;
-  background: #ffffff;
-  color: var(--tournament-blue);
-  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--tournament-blue);
+  color: #ffffff;
+  font-size: 12px;
   font-style: normal;
   font-weight: 900;
+  box-shadow: 0 10px 18px rgba(29, 111, 181, 0.18);
+}
+
+.tournament-create__custom-builder-action span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--tournament-blue);
+  font-size: 15px;
+  line-height: 1;
 }
 
 .tournament-create__custom-grid {
@@ -1985,6 +2290,33 @@ onMounted(async () => {
   min-width: 156px;
 }
 
+.tournament-create__cancel-edit-button {
+  justify-self: start;
+}
+
+.tournament-create__category-required {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(220, 53, 69, 0.22);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #fff1f2;
+}
+
+.tournament-create__category-required strong {
+  flex-shrink: 0;
+  color: #991b1b;
+  font-size: 13px;
+}
+
+.tournament-create__category-required span {
+  color: #7f1d1d;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .tournament-create__switch {
   display: flex;
   align-items: center;
@@ -2011,10 +2343,10 @@ onMounted(async () => {
 }
 
 .tournament-create__category-editor {
-  border: 1px solid var(--tournament-line);
+  border: 1.5px dashed rgba(0, 181, 26, 0.58);
   border-radius: 14px;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.045);
+  box-shadow: 0 12px 28px rgba(0, 181, 26, 0.07);
 }
 
 .tournament-create__assignment-tab {
@@ -2186,6 +2518,42 @@ onMounted(async () => {
   background: #ffffff;
 }
 
+.tournament-create__view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--tournament-line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  color: var(--tournament-muted);
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.tournament-create__view-tab strong {
+  min-width: 22px;
+  border-radius: 999px;
+  padding: 2px 6px;
+  background: #f1f3ef;
+  color: var(--tournament-muted);
+  font-size: 10px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.tournament-create__view-tab--active {
+  border-color: rgba(0, 181, 26, 0.42);
+  background: var(--tournament-green-soft);
+  color: var(--tournament-green-dark);
+}
+
+.tournament-create__view-tab--active strong {
+  background: #ffffff;
+  color: var(--tournament-green-dark);
+}
+
 .tournament-create__category-members,
 .tournament-create__add-panel {
   display: grid;
@@ -2319,6 +2687,11 @@ onMounted(async () => {
 .tournament-create__member-tags .tournament-create__source-pill--manual {
   background: var(--tournament-green-soft);
   color: var(--tournament-green-dark);
+}
+
+.tournament-create__member-tags .tournament-create__source-pill--removed {
+  background: rgba(220, 53, 69, 0.08);
+  color: #991b1b;
 }
 
 .tournament-create__member-tags span {
@@ -3020,6 +3393,28 @@ onMounted(async () => {
 .tournament-create__direct-preview span {
   font-size: 12px;
   line-height: 1.45;
+}
+
+.tournament-create__seeding-note {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(29, 111, 181, 0.16);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--tournament-blue-soft);
+}
+
+.tournament-create__seeding-note strong {
+  flex-shrink: 0;
+  color: var(--tournament-blue);
+  font-size: 12px;
+}
+
+.tournament-create__seeding-note span {
+  color: var(--tournament-muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .tournament-create__rules {

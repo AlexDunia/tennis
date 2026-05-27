@@ -118,8 +118,10 @@ export const useTournamentStore = defineStore('tournament', () => {
       }
 
       error.value = response.message || 'Unable to load tournament.'
+      activeTournament.value = null
     } catch (fetchError) {
       error.value = fetchError?.message || 'Unable to load tournament.'
+      activeTournament.value = null
     } finally {
       loading.value = false
     }

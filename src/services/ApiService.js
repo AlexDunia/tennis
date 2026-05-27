@@ -9,6 +9,7 @@ import { calculateGroupStandings } from '../composables/useTournamentStandings'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 const defaultDelay = 300
+const TOURNAMENT_STORAGE_KEY = 'tennis.mock.tournamentState.v1'
 
 const profileImageUrls = [
   'https://res.cloudinary.com/dnuhjsckk/image/upload/v1776502607/Foster_Ezenwelu_c1ntjt.jpg',
@@ -74,6 +75,40 @@ const mockDatabase = {
   challenges: [],
   matches: [],
   tournaments: [],
+}
+
+function canUseStorage() {
+  return typeof window !== 'undefined' && Boolean(window.localStorage)
+}
+
+function loadTournamentState() {
+  if (!canUseStorage()) {
+    return null
+  }
+
+  try {
+    const stored = window.localStorage.getItem(TOURNAMENT_STORAGE_KEY)
+    return stored ? JSON.parse(stored) : null
+  } catch {
+    return null
+  }
+}
+
+function saveTournamentState() {
+  if (!canUseStorage()) {
+    return
+  }
+
+  const tournamentIds = new Set(mockDatabase.tournaments.map((tournament) => tournament.id))
+  const tournamentMatches = mockDatabase.matches.filter((match) => tournamentIds.has(match.tournamentId))
+
+  window.localStorage.setItem(
+    TOURNAMENT_STORAGE_KEY,
+    JSON.stringify({
+      tournaments: mockDatabase.tournaments,
+      matches: tournamentMatches,
+    }),
+  )
 }
 
 const tournamentRules = {
@@ -426,6 +461,22 @@ function ensureMatchDefaults(match) {
 }
 
 function ensureTournamentData() {
+  const savedState = loadTournamentState()
+
+  if (savedState?.tournaments?.length) {
+    mockDatabase.tournaments = savedState.tournaments
+    const savedMatches = (savedState.matches || []).map(ensureMatchDefaults)
+    const savedMatchIds = new Set(savedMatches.map((match) => match.id))
+    mockDatabase.matches = [
+      ...mockDatabase.matches.filter((match) => !savedMatchIds.has(match.id)),
+      ...savedMatches,
+    ]
+    mockDatabase.tournaments.forEach((tournament) => {
+      tournament.categories?.forEach(syncCategoryKnockout)
+    })
+    return
+  }
+
   if (mockDatabase.tournaments.length > 0) {
     return
   }
@@ -434,6 +485,7 @@ function ensureTournamentData() {
   mockDatabase.tournaments = [tournament]
   mockDatabase.matches.push(...seedTournamentFixtures(tournament))
   tournament.categories.forEach(syncCategoryKnockout)
+  saveTournamentState()
 }
 
 function getStatusLabel(status) {
@@ -745,6 +797,7 @@ const mockAdapter = async (config) => {
       ...body,
       updatedAt: new Date().toISOString(),
     }
+    saveTournamentState()
 
     return {
       data: buildResponse(buildMatchResponse(mockDatabase.matches[matchIndex])),
@@ -768,6 +821,21 @@ const mockAdapter = async (config) => {
   }
 
   if (method === 'post' && path === '/tournaments') {
+    if (!Array.isArray(body.categories) || body.categories.length === 0) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'Create at least one tournament category before generating.',
+        },
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
     const tournament = {
       ...body,
       id: body.id || `tournament-${Date.now()}`,
@@ -777,6 +845,7 @@ const mockAdapter = async (config) => {
     }
     mockDatabase.tournaments.push(tournament)
     tournament.categories?.forEach(syncCategoryKnockout)
+    saveTournamentState()
 
     return {
       data: buildResponse(tournament),
@@ -824,6 +893,7 @@ const mockAdapter = async (config) => {
       ...body,
       updatedAt: new Date().toISOString(),
     }
+    saveTournamentState()
 
     return {
       data: buildResponse(mockDatabase.tournaments[tournamentIndex]),
@@ -935,6 +1005,7 @@ const mockAdapter = async (config) => {
       category.status = 'knockout'
     }
     syncCategoryKnockout(category)
+    saveTournamentState()
 
     return {
       data: buildResponse(category),
@@ -983,6 +1054,7 @@ const mockAdapter = async (config) => {
         )
         .map((match) => match.id)
     })
+    saveTournamentState()
 
     return {
       data: buildResponse(category),
@@ -1088,6 +1160,7 @@ const mockAdapter = async (config) => {
         Object.assign(category, progressedCategory)
         syncCategoryKnockout(category)
       }
+      saveTournamentState()
 
       return {
         data: buildResponse(buildMatchResponse(match)),

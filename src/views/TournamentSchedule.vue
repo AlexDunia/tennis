@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useMatchStore } from '../stores/match'
 import { useTournamentStore } from '../stores/tournament'
 import MatchFixtureRow from '../components/tournament/MatchFixtureRow.vue'
@@ -8,6 +8,7 @@ import TournamentEmptyState from '../components/tournament/TournamentEmptyState.
 import TournamentMatchModal from '../components/tournament/TournamentMatchModal.vue'
 
 const route = useRoute()
+const router = useRouter()
 const matchStore = useMatchStore()
 const tournamentStore = useTournamentStore()
 
@@ -15,9 +16,12 @@ const categoryFilter = ref('all')
 const statusFilter = ref('all')
 const courtFilter = ref('all')
 const selectedMatch = ref(null)
+const hasLoaded = ref(false)
 
 const tournamentId = computed(() => route.params.tournamentId)
-const tournament = computed(() => tournamentStore.activeTournament)
+const tournament = computed(() =>
+  tournamentStore.activeTournament?.id === tournamentId.value ? tournamentStore.activeTournament : null,
+)
 const matches = computed(() =>
   matchStore.matches.filter((match) => match.tournamentId === tournamentId.value),
 )
@@ -60,9 +64,15 @@ async function saveSchedule(payload) {
   await tournamentStore.updateMatchSchedule(selectedMatch.value.id, payload)
 }
 
-onMounted(async () => {
-  await Promise.all([tournamentStore.fetchTournament(tournamentId.value), matchStore.loadMatches()])
-})
+watch(tournamentId, async (nextTournamentId) => {
+  hasLoaded.value = false
+  categoryFilter.value = 'all'
+  statusFilter.value = 'all'
+  courtFilter.value = 'all'
+  selectedMatch.value = null
+  await Promise.all([tournamentStore.fetchTournament(nextTournamentId), matchStore.loadMatches()])
+  hasLoaded.value = true
+}, { immediate: true })
 </script>
 
 <template>
@@ -170,12 +180,21 @@ onMounted(async () => {
       @schedule="saveSchedule"
     />
   </section>
-  <section v-else class="tournament-schedule">
+  <section v-else-if="!hasLoaded || tournamentStore.loading" class="tournament-schedule">
     <div class="t-shell-card tournament-schedule__day">
       <span class="t-skeleton"></span>
       <span class="t-skeleton"></span>
       <span class="t-skeleton"></span>
     </div>
+  </section>
+  <section v-else class="tournament-schedule">
+    <TournamentEmptyState
+      title="Tournament not found"
+      message="This schedule is not available. Open the tournaments page and choose an available tournament."
+      @action="router.push('/tournaments')"
+    >
+      <template #action>Back to tournaments</template>
+    </TournamentEmptyState>
   </section>
 </template>
 

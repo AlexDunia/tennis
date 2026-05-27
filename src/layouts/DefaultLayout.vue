@@ -94,7 +94,9 @@
           <span>{{ currentPlayer?.name || 'Player' }}</span>
           <span>{{ unreadCount }} unread</span>
         </div>
-        <RouterView />
+        <RouterView v-slot="{ Component }">
+          <component :is="Component" :key="route.path" />
+        </RouterView>
       </div>
     </main>
 

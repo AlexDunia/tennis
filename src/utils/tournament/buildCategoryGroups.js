@@ -24,6 +24,10 @@ function getGroupId(index) {
   return String.fromCharCode(65 + index)
 }
 
+function getPlayerSeedRank(player) {
+  return Number(player.ladderRank || player.seed || 9999)
+}
+
 export function buildCategoryGroups({ tournamentId, category, players = [] }) {
   const groupCount = category.groupCount || 2
   if (groupCount <= 0) {
@@ -40,15 +44,20 @@ export function buildCategoryGroups({ tournamentId, category, players = [] }) {
   }))
 
   const seededPlayers = [...players].sort((playerOne, playerTwo) => {
-    const firstSeed = Number(playerOne.seed || playerOne.ladderRank || 9999)
-    const secondSeed = Number(playerTwo.seed || playerTwo.ladderRank || 9999)
-    return firstSeed - secondSeed
+    const rankDifference = getPlayerSeedRank(playerOne) - getPlayerSeedRank(playerTwo)
+
+    if (rankDifference !== 0) {
+      return rankDifference
+    }
+
+    return String(playerOne.name || '').localeCompare(String(playerTwo.name || ''))
   })
 
   seededPlayers.forEach((player, index) => {
     const groupIndex = groupForSnakeSeed(index + 1, groupCount)
     groups[groupIndex].players.push({
       ...player,
+      seed: index + 1,
       groupId: groups[groupIndex].id,
     })
   })

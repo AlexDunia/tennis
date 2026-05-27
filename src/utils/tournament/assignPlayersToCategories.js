@@ -2,6 +2,16 @@ function getLadderRank(player) {
   return Number(player.ladderRank || player.rank || 9999)
 }
 
+function compareByLadderRank(playerOne, playerTwo) {
+  const rankDifference = getLadderRank(playerOne) - getLadderRank(playerTwo)
+
+  if (rankDifference !== 0) {
+    return rankDifference
+  }
+
+  return String(playerOne.name || '').localeCompare(String(playerTwo.name || ''))
+}
+
 function isVeteran(player, veteranAge = 50, currentYear = new Date().getFullYear()) {
   if (typeof player.isVeteran === 'boolean') {
     return player.isVeteran
@@ -64,7 +74,7 @@ export function assignPlayersToCategories({
   manualAssignments = {},
   manualExclusions = {},
 } = {}) {
-  const sortedPlayers = [...players].sort((playerOne, playerTwo) => getLadderRank(playerOne) - getLadderRank(playerTwo))
+  const sortedPlayers = [...players].sort(compareByLadderRank)
   const categoryById = new Map(categories.map((category) => [category.id, category]))
   const usedPlayerIds = new Set()
   const isCategoryOverlap = (category) => allowSpecialOverlap && category?.allowSpecialOverlap
@@ -155,7 +165,7 @@ export function assignPlayersToCategories({
       0,
       Number(category.maxPlayers || category.targetPlayers || candidates.length) - manualPlayers.length,
     )
-    const selected = [...manualPlayers, ...candidates.slice(0, autoSlots)]
+    const selected = [...manualPlayers, ...candidates.slice(0, autoSlots)].sort(compareByLadderRank)
     const skippedEligibleCount = Math.max(0, candidates.length - autoSlots)
 
     if (skippedEligibleCount > 0) {

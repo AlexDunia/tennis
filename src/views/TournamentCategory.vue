@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMatchStore } from '../stores/match'
 import { useTournamentStore } from '../stores/tournament'
@@ -21,6 +21,7 @@ const selectedTab = ref('overview')
 const selectedMatch = ref(null)
 const groupFilter = ref('all')
 const statusFilter = ref('all')
+const hasLoaded = ref(false)
 const tabs = [
   { label: 'Overview', value: 'overview' },
   { label: 'Groups', value: 'groups' },
@@ -37,7 +38,9 @@ const statusFilters = [
 
 const tournamentId = computed(() => route.params.tournamentId)
 const categoryId = computed(() => route.params.categoryId)
-const tournament = computed(() => tournamentStore.activeTournament)
+const tournament = computed(() =>
+  tournamentStore.activeTournament?.id === tournamentId.value ? tournamentStore.activeTournament : null,
+)
 const category = computed(() => tournamentStore.activeCategoryById(categoryId.value))
 const categoryMatches = computed(() =>
   matchStore.matches.filter(
@@ -152,8 +155,20 @@ async function closeRoundRobin() {
   }
 }
 
-onMounted(async () => {
-  await Promise.all([tournamentStore.fetchTournament(tournamentId.value), matchStore.loadMatches()])
+watch(tournamentId, async (nextTournamentId) => {
+  hasLoaded.value = false
+  selectedTab.value = 'overview'
+  groupFilter.value = 'all'
+  statusFilter.value = 'all'
+  selectedMatch.value = null
+  await Promise.all([tournamentStore.fetchTournament(nextTournamentId), matchStore.loadMatches()])
+  hasLoaded.value = true
+}, { immediate: true })
+
+watch(categoryId, () => {
+  selectedTab.value = 'overview'
+  groupFilter.value = 'all'
+  statusFilter.value = 'all'
 })
 </script>
 
@@ -368,12 +383,21 @@ onMounted(async () => {
       @schedule="saveSchedule"
     />
   </section>
-  <section v-else class="tournament-category">
+  <section v-else-if="!hasLoaded || tournamentStore.loading" class="tournament-category">
     <div class="t-shell-card tournament-category__loading">
       <span class="t-skeleton"></span>
       <span class="t-skeleton"></span>
       <span class="t-skeleton"></span>
     </div>
+  </section>
+  <section v-else class="tournament-category">
+    <TournamentEmptyState
+      title="Tournament not found"
+      message="This tournament may have been created before the app refreshed. Open the tournaments page and choose an available tournament."
+      @action="router.push('/tournaments')"
+    >
+      <template #action>Back to tournaments</template>
+    </TournamentEmptyState>
   </section>
 </template>
 

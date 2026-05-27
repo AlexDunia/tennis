@@ -26,6 +26,10 @@ export function buildTournamentPayload({
   templateId = RSP_CATEGORY_TEMPLATE_ID,
   assignmentMode = 'auto-with-admin-review',
 } = {}) {
+  if (!categoryAssignments.length) {
+    throw new Error('Create at least one tournament category before generating.')
+  }
+
   const tournamentId = basics.id || createTournamentId(basics.name)
 
   const categories = categoryAssignments.map((assignment) => {

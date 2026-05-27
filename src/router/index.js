@@ -153,6 +153,15 @@ const routes = [
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL), // 👈 changed
   routes,
+  scrollBehavior() {
+    return { top: 0, left: 0 }
+  },
+})
+
+router.afterEach(() => {
+  window.setTimeout(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, 0)
 })
 
 export default router

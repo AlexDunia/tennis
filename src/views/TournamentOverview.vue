@@ -1,17 +1,22 @@
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useMatchStore } from '../stores/match'
 import { useTournamentStore } from '../stores/tournament'
 import CategoryCard from '../components/tournament/CategoryCard.vue'
 import CategoryStatusBadge from '../components/tournament/CategoryStatusBadge.vue'
+import TournamentEmptyState from '../components/tournament/TournamentEmptyState.vue'
 
 const route = useRoute()
+const router = useRouter()
 const matchStore = useMatchStore()
 const tournamentStore = useTournamentStore()
+const hasLoaded = ref(false)
 
 const tournamentId = computed(() => route.params.tournamentId)
-const tournament = computed(() => tournamentStore.activeTournament)
+const tournament = computed(() =>
+  tournamentStore.activeTournament?.id === tournamentId.value ? tournamentStore.activeTournament : null,
+)
 const tournamentMatches = computed(() =>
   matchStore.matches.filter((match) => match.tournamentId === tournamentId.value),
 )
@@ -24,9 +29,11 @@ function matchesForCategory(categoryId) {
   return tournamentMatches.value.filter((match) => match.categoryId === categoryId)
 }
 
-onMounted(async () => {
-  await Promise.all([tournamentStore.fetchTournament(tournamentId.value), matchStore.loadMatches()])
-})
+watch(tournamentId, async (nextTournamentId) => {
+  hasLoaded.value = false
+  await Promise.all([tournamentStore.fetchTournament(nextTournamentId), matchStore.loadMatches()])
+  hasLoaded.value = true
+}, { immediate: true })
 </script>
 
 <template>
@@ -104,12 +111,21 @@ onMounted(async () => {
       </div>
     </section>
   </section>
-  <section v-else class="tournament-overview">
+  <section v-else-if="!hasLoaded || tournamentStore.loading" class="tournament-overview">
     <div class="t-shell-card tournament-overview__loading">
       <span class="t-skeleton"></span>
       <span class="t-skeleton"></span>
       <span class="t-skeleton"></span>
     </div>
+  </section>
+  <section v-else class="tournament-overview">
+    <TournamentEmptyState
+      title="Tournament not found"
+      message="This tournament is no longer available in the local app data. Open the tournaments page and choose an available tournament."
+      @action="router.push('/tournaments')"
+    >
+      <template #action>Back to tournaments</template>
+    </TournamentEmptyState>
   </section>
 </template>
 
