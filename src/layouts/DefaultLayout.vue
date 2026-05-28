@@ -236,12 +236,15 @@ const tournamentCreateSubtitles = {
   review: 'Pick formats, check groups, then generate the tournament.',
 }
 const isTournamentCreate = computed(() => route.name === 'TournamentCreate')
+const usesTournamentCreateRail = computed(
+  () => isTournamentCreate.value && ['players', 'review'].includes(String(route.query.step || 'basics')),
+)
 const isTournamentViewer = computed(
   () => route.path.startsWith('/tournaments/') && route.name !== 'TournamentCreate',
 )
 const isLiveFullscreen = computed(() => route.name === 'PlayMatch' && route.query.fullscreen === '1')
 const isWideWorkspace = computed(() => isTournamentCreate.value || isTournamentViewer.value)
-const showSidebar = computed(() => !isLiveFullscreen.value)
+const showSidebar = computed(() => !isLiveFullscreen.value && !usesTournamentCreateRail.value)
 const showHeader = computed(() => !isLiveFullscreen.value)
 const showBottomNav = computed(() => !isLiveFullscreen.value)
 const tournamentCreateStep = computed(() => {
