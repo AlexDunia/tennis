@@ -17,7 +17,7 @@ const profileImageUrls = [
   'https://res.cloudinary.com/dnuhjsckk/image/upload/v1776502607/Foster_Ezenwelu_c1ntjt.jpg',
   'https://res.cloudinary.com/dnuhjsckk/image/upload/v1776502607/Henry_Dunia_eraqx9.jpg',
   'https://res.cloudinary.com/dnuhjsckk/image/upload/v1776502606/Nestor_Madukaife_pyb3em.jpg',
-  'https://res.cloudinary.com/dnuhjsckk/image/upload/v1776502606/phillip_Onu_urjbqq.jpg',
+  'https://res.cloudinary.com/dnuhjsckk/image/upload/v1776502606/phillip_Onu_.jpg',
 ]
 
 const names = [
@@ -102,7 +102,9 @@ function saveTournamentState() {
   }
 
   const tournamentIds = new Set(mockDatabase.tournaments.map((tournament) => tournament.id))
-  const tournamentMatches = mockDatabase.matches.filter((match) => tournamentIds.has(match.tournamentId))
+  const tournamentMatches = mockDatabase.matches.filter((match) =>
+    tournamentIds.has(match.tournamentId),
+  )
 
   window.localStorage.setItem(
     TOURNAMENT_STORAGE_KEY,
@@ -307,7 +309,7 @@ const rspCategories = [
         id: 'B',
         name: 'Group B',
         players: [
-          ["rsp-veterans-02", "Chijioke Amu'nnadi", 2],
+          ['rsp-veterans-02', "Chijioke Amu'nnadi", 2],
           ['rsp-veterans-04', 'Greg Ojih', 4],
           ['rsp-veterans-05', 'Augustine Inyikalum', 5],
           ['rsp-veterans-08', 'Vincent Nwabueze', 8],
@@ -458,7 +460,8 @@ function createRspTournament() {
   return {
     id: tournamentId,
     name: '2026 RSP Masters Tennis Tournament',
-    description: 'Annual masters tournament for RSP Tennis Section members. Port Harcourt, Nigeria.',
+    description:
+      'Annual masters tournament for RSP Tennis Section members. Port Harcourt, Nigeria.',
     status: 'active',
     roundRobinStart: '2026-03-14',
     roundRobinEnd: '2026-03-31',
@@ -506,8 +509,23 @@ function findTournamentFixture(tournamentId, categoryId, groupId, playerOneId, p
   })
 }
 
-function applyScenarioResult([groupId, playerOneId, playerTwoId, p1Sets, p2Sets, p1Games, p2Games, winnerId]) {
-  const match = findTournamentFixture('rsp-masters-2026', 'category-a', groupId, playerOneId, playerTwoId)
+function applyScenarioResult([
+  groupId,
+  playerOneId,
+  playerTwoId,
+  p1Sets,
+  p2Sets,
+  p1Games,
+  p2Games,
+  winnerId,
+]) {
+  const match = findTournamentFixture(
+    'rsp-masters-2026',
+    'category-a',
+    groupId,
+    playerOneId,
+    playerTwoId,
+  )
   if (!match) {
     return
   }
@@ -527,7 +545,13 @@ function applyScenarioResult([groupId, playerOneId, playerTwoId, p1Sets, p2Sets,
 }
 
 function clearScenarioResult([groupId, playerOneId, playerTwoId]) {
-  const match = findTournamentFixture('rsp-masters-2026', 'category-a', groupId, playerOneId, playerTwoId)
+  const match = findTournamentFixture(
+    'rsp-masters-2026',
+    'category-a',
+    groupId,
+    playerOneId,
+    playerTwoId,
+  )
   if (!match) {
     return
   }
@@ -778,7 +802,12 @@ function formatTournamentMatchScore(match) {
     return formatTournamentSetScore(match.sets)
   }
 
-  if (match.p1Sets !== null && match.p1Sets !== undefined && match.p2Sets !== null && match.p2Sets !== undefined) {
+  if (
+    match.p1Sets !== null &&
+    match.p1Sets !== undefined &&
+    match.p2Sets !== null &&
+    match.p2Sets !== undefined
+  ) {
     return `${match.p1Sets}-${match.p2Sets}`
   }
 
@@ -1067,7 +1096,9 @@ const mockAdapter = async (config) => {
     const category = findCategory(tournamentId, categoryId)
 
     return {
-      data: category ? buildResponse(category) : { success: false, data: null, message: 'Category not found' },
+      data: category
+        ? buildResponse(category)
+        : { success: false, data: null, message: 'Category not found' },
       status: category ? 200 : 404,
       statusText: category ? 'OK' : 'Not Found',
       headers: {},
@@ -1090,7 +1121,10 @@ const mockAdapter = async (config) => {
     }
   }
 
-  if (method === 'get' && path.match(/^\/tournaments\/[^/]+\/categories\/[^/]+\/standings\/[^/]+$/)) {
+  if (
+    method === 'get' &&
+    path.match(/^\/tournaments\/[^/]+\/categories\/[^/]+\/standings\/[^/]+$/)
+  ) {
     const [, , tournamentId, , categoryId, , groupId] = path.split('/')
     const tournament = findTournament(tournamentId)
     const category = findCategory(tournamentId, categoryId)
@@ -1099,7 +1133,9 @@ const mockAdapter = async (config) => {
     const standings = group ? calculateGroupStandings(group, matches, tournament.rules) : []
 
     return {
-      data: group ? buildResponse(standings) : { success: false, data: null, message: 'Group not found' },
+      data: group
+        ? buildResponse(standings)
+        : { success: false, data: null, message: 'Group not found' },
       status: group ? 200 : 404,
       statusText: group ? 'OK' : 'Not Found',
       headers: {},
@@ -1108,7 +1144,10 @@ const mockAdapter = async (config) => {
     }
   }
 
-  if (method === 'post' && path.match(/^\/tournaments\/[^/]+\/categories\/[^/]+\/close-round-robin$/)) {
+  if (
+    method === 'post' &&
+    path.match(/^\/tournaments\/[^/]+\/categories\/[^/]+\/close-round-robin$/)
+  ) {
     const [, , tournamentId, , categoryId] = path.split('/')
     const tournament = findTournament(tournamentId)
     const category = findCategory(tournamentId, categoryId)
@@ -1127,7 +1166,8 @@ const mockAdapter = async (config) => {
     const matches = getCategoryMatches(tournamentId, categoryId)
     const categoryRules = {
       ...tournament.rules,
-      qualifiersPerGroup: category.settings?.qualifiersPerGroup ?? tournament.rules?.qualifiersPerGroup,
+      qualifiersPerGroup:
+        category.settings?.qualifiersPerGroup ?? tournament.rules?.qualifiersPerGroup,
     }
     const standingsByGroup = category.groups.reduce((lookup, group) => {
       lookup[group.id] = calculateGroupStandings(group, matches, categoryRules)
@@ -1159,7 +1199,10 @@ const mockAdapter = async (config) => {
     }
   }
 
-  if (method === 'post' && path.match(/^\/tournaments\/[^/]+\/categories\/[^/]+\/generate-fixtures$/)) {
+  if (
+    method === 'post' &&
+    path.match(/^\/tournaments\/[^/]+\/categories\/[^/]+\/generate-fixtures$/)
+  ) {
     const [, , tournamentId, , categoryId] = path.split('/')
     const category = findCategory(tournamentId, categoryId)
 
@@ -1291,8 +1334,7 @@ const mockAdapter = async (config) => {
       match.p2Games = body?.p2Games ?? null
       match.sets = Array.isArray(body?.sets) ? body.sets : []
       match.winnerId = body?.winnerId
-      match.winnerName =
-        match.winnerId === match.player1Id ? match.player1Name : match.player2Name
+      match.winnerName = match.winnerId === match.player1Id ? match.player1Name : match.player2Name
       match.status = body?.status || 'completed'
       match.score = formatTournamentMatchScore(match)
 
