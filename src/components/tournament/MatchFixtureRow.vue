@@ -1,7 +1,8 @@
 <script setup>
 import CategoryStatusBadge from './CategoryStatusBadge.vue'
+import { formatAppDate } from '../../utils/dateFormat'
 
-defineProps({
+const props = defineProps({
   match: {
     type: Object,
     required: true,
@@ -10,20 +11,40 @@ defineProps({
     type: String,
     default: '',
   },
+  currentPlayerId: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits({
   open: (match) => Boolean(match),
 })
+
+function isCurrentPlayerMatch(match) {
+  return Boolean(
+    props.currentPlayerId &&
+      (match.player1Id === props.currentPlayerId || match.player2Id === props.currentPlayerId),
+  )
+}
 </script>
 
 <template>
-  <button type="button" class="match-fixture-row" @click="emit('open', match)">
+  <button
+    type="button"
+    class="match-fixture-row"
+    :class="{ 'match-fixture-row--current-player': isCurrentPlayerMatch(match) }"
+    @click="emit('open', match)"
+  >
     <span class="match-fixture-row__time">{{ match.scheduledTime || '-' }}</span>
     <span>{{ match.court || '-' }}</span>
     <span class="match-fixture-row__category">{{ categoryName }}</span>
+    <span>{{ match.scheduledDate ? formatAppDate(match.scheduledDate, { includeYear: false }) : '-' }}</span>
     <span>{{ match.groupId ? `Group ${match.groupId}` : match.matchCode || match.round }}</span>
-    <strong>{{ match.player1Name || 'TBD' }} vs {{ match.player2Name || 'TBD' }}</strong>
+    <strong>
+      {{ match.player1Name || 'TBD' }} vs {{ match.player2Name || 'TBD' }}
+      <em v-if="isCurrentPlayerMatch(match)">You</em>
+    </strong>
     <CategoryStatusBadge :status="match.status" />
     <span class="match-fixture-row__score">{{ match.score || '-' }}</span>
   </button>
@@ -32,11 +53,11 @@ const emit = defineEmits({
 <style scoped>
 .match-fixture-row {
   display: grid;
-  grid-template-columns: 70px 80px 120px 90px minmax(220px, 1fr) 100px 70px;
+  grid-template-columns: 70px 80px 120px 110px 90px minmax(220px, 1fr) 100px 70px;
   gap: 8px;
   align-items: center;
   width: 100%;
-  min-width: 760px;
+  min-width: 890px;
   min-height: 52px;
   border: 0;
   border-bottom: 1px solid var(--tournament-line);
@@ -51,6 +72,11 @@ const emit = defineEmits({
   background: #fafbfc;
 }
 
+.match-fixture-row--current-player {
+  background: rgba(0, 181, 26, 0.045);
+  box-shadow: inset 4px 0 0 var(--tournament-green);
+}
+
 .match-fixture-row span {
   color: var(--tournament-muted);
   font-weight: 600;
@@ -63,6 +89,18 @@ const emit = defineEmits({
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.match-fixture-row strong em {
+  display: inline-flex;
+  margin-left: 6px;
+  border-radius: 999px;
+  padding: 1px 6px;
+  background: var(--tournament-green-soft);
+  color: var(--tournament-green-dark);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .match-fixture-row__category {

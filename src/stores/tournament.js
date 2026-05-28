@@ -178,13 +178,19 @@ export const useTournamentStore = defineStore('tournament', () => {
   const enterMatchResult = async (matchId, payload) => {
     const matchStore = useMatchStore()
     const notificationStore = useNotificationStore()
+    const previousMatch = matchStore.matchById(matchId)
+    const isResultEdit = ['completed', 'walkover'].includes(previousMatch?.status)
     const result = await matchStore.submitResult(matchId, payload)
 
     if (result?.type === 'tournament') {
       await Promise.all([fetchTournament(result.tournamentId), matchStore.loadMatches()])
-      notificationStore.addToast({ message: 'Score recorded.', type: 'success' })
+      notificationStore.addToast({
+        message: isResultEdit ? 'Score updated.' : 'Score recorded.',
+        type: 'success',
+        sound: true,
+      })
       notificationStore.addNotification({
-        title: 'Tournament score recorded',
+        title: isResultEdit ? 'Tournament score updated' : 'Tournament score recorded',
         message: `${result.challengerName} vs ${result.defenderName} is now ${result.score}.`,
         type: 'success',
       })

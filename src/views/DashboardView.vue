@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChallengeStore } from '../stores/challenge'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useBookingStore } from '../stores/booking'
 import { useTournamentStore } from '../stores/tournament'
+import { formatAppDateWithTime } from '../utils/dateFormat'
 import PerformanceChart from '@/components/charts/PerformanceChart.vue'
 
 const router = useRouter()
@@ -15,8 +16,10 @@ const challengeStore = useChallengeStore()
 const matchStore = useMatchStore()
 const bookingStore = useBookingStore()
 const tournamentStore = useTournamentStore()
+const hasLoaded = ref(false)
 
 const currentPlayer = computed(() => playerStore.currentPlayer)
+const isDashboardLoading = computed(() => !hasLoaded.value)
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -27,7 +30,7 @@ const greeting = computed(() => {
 
 const firstName = computed(() => {
   const name = currentPlayer.value?.name || ''
-  return name.split(' ')[0]
+  return name.split(' ')[0] || 'Player'
 })
 
 const matchesPlayed = computed(() => {
@@ -62,6 +65,91 @@ const performanceNote = computed(() => {
 const upcomingMatches = computed(() => matchStore.scheduledMatches.length)
 const challengeSummary = computed(() => challengeStore.summaryCounts)
 const activeTournament = computed(() => tournamentStore.activeTournament)
+const activeTournamentMatches = computed(() =>
+  activeTournament.value
+    ? matchStore.matches.filter((match) => match.tournamentId === activeTournament.value.id && !match.isBye)
+    : [],
+)
+const completedTournamentMatches = computed(() =>
+  activeTournamentMatches.value.filter((match) => ['completed', 'walkover'].includes(match.status)),
+)
+const pendingTournamentMatches = computed(() =>
+  activeTournamentMatches.value.filter((match) => ['pending', 'scheduled', 'waiting'].includes(match.status)),
+)
+const currentPlayerTournamentEntry = computed(() => {
+  if (!activeTournament.value || !playerStore.currentPlayerId) {
+    return null
+  }
+
+  for (const category of activeTournament.value.categories || []) {
+    for (const group of category.groups || []) {
+      const player = group.players.find((entry) => entry.playerId === playerStore.currentPlayerId)
+      if (player) {
+        return { category, group, player }
+      }
+    }
+  }
+
+  return null
+})
+const currentPlayerTournamentMatches = computed(() =>
+  activeTournamentMatches.value.filter(
+    (match) => match.player1Id === playerStore.currentPlayerId || match.player2Id === playerStore.currentPlayerId,
+  ),
+)
+const currentPlayerPendingTournamentMatches = computed(() =>
+  currentPlayerTournamentMatches.value.filter((match) => ['pending', 'scheduled'].includes(match.status)),
+)
+const currentPlayerCompletedTournamentMatches = computed(() =>
+  currentPlayerTournamentMatches.value.filter((match) => ['completed', 'walkover'].includes(match.status)),
+)
+const nextTournamentMatch = computed(() => {
+  const source = currentPlayerTournamentMatches.value.length
+    ? currentPlayerTournamentMatches.value
+    : activeTournamentMatches.value
+
+  return [...source]
+    .filter((match) => ['pending', 'scheduled'].includes(match.status))
+    .sort((matchA, matchB) => {
+      const timeA = matchA.scheduledAt ? new Date(matchA.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER
+      const timeB = matchB.scheduledAt ? new Date(matchB.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER
+      return timeA - timeB
+    })[0] || null
+})
+const tournamentDashboardCopy = computed(() => {
+  if (!activeTournament.value) {
+    return 'No active tournament is running right now.'
+  }
+
+  if (currentPlayerTournamentEntry.value) {
+    return `${firstName.value}, you are in ${currentPlayerTournamentEntry.value.category.name}, ${currentPlayerTournamentEntry.value.group.name}, seed #${currentPlayerTournamentEntry.value.player.seed}.`
+  }
+
+  if (playerStore.isCurrentPlayerAdmin) {
+    return `${firstName.value}, your admin view has ${pendingTournamentMatches.value.length} matches still waiting for action.`
+  }
+
+  return `${firstName.value}, you are not listed in this draw yet, but you can follow the tournament live.`
+})
+const tournamentDashboardStats = computed(() => {
+  if (currentPlayerTournamentEntry.value) {
+    return [
+      { label: 'Your pending', value: currentPlayerPendingTournamentMatches.value.length },
+      { label: 'Your completed', value: currentPlayerCompletedTournamentMatches.value.length },
+      { label: 'Seed', value: `#${currentPlayerTournamentEntry.value.player.seed}` },
+    ]
+  }
+
+  return [
+    { label: 'Needs scores', value: pendingTournamentMatches.value.length },
+    { label: 'Completed', value: completedTournamentMatches.value.length },
+    { label: 'Divisions', value: activeTournament.value?.categories.length || 0 },
+  ]
+})
+const tournamentProgress = computed(() => {
+  const total = activeTournamentMatches.value.length
+  return total ? Math.round((completedTournamentMatches.value.length / total) * 100) : 0
+})
 
 const urgentActions = computed(() => [
   { label: 'Pending challenges', value: challengeSummary.value.awaiting },
@@ -92,15 +180,40 @@ const openTournament = () => {
     router.push(`/tournaments/${activeTournament.value.id}`)
   }
 }
+const openTournamentCategory = () => {
+  if (!activeTournament.value) {
+    return
+  }
+
+  if (currentPlayerTournamentEntry.value) {
+    router.push(`/tournaments/${activeTournament.value.id}/category/${currentPlayerTournamentEntry.value.category.id}`)
+    return
+  }
+
+  router.push(`/tournaments/${activeTournament.value.id}`)
+}
+const openTournamentMatch = (match) => {
+  if (match?.id && match?.tournamentId) {
+    router.push(`/tournaments/${match.tournamentId}/match/${match.id}`)
+  }
+}
+const getTournamentCategoryName = (categoryId) =>
+  activeTournament.value?.categories.find((category) => category.id === categoryId)?.name || categoryId
+const formatTournamentMatchDate = (match) =>
+  formatAppDateWithTime(match?.scheduledDate, match?.scheduledTime, { fallback: 'Schedule pending' })
 
 onMounted(async () => {
-  await Promise.all([
-    playerStore.loadPlayers(),
-    challengeStore.loadChallenges(),
-    matchStore.loadMatches(),
-    bookingStore.loadBookings(),
-    tournamentStore.fetchTournaments(),
-  ])
+  try {
+    await Promise.all([
+      playerStore.loadPlayers(),
+      challengeStore.loadChallenges(),
+      matchStore.loadMatches(),
+      bookingStore.loadBookings(),
+      tournamentStore.fetchTournaments(),
+    ])
+  } finally {
+    hasLoaded.value = true
+  }
 })
 </script>
 
@@ -166,7 +279,25 @@ onMounted(async () => {
         <span class="section-group__label">Overview</span>
       </div>
 
-      <section class="grid">
+      <section v-if="isDashboardLoading" class="grid dashboard-skeleton-grid">
+        <section class="card dashboard-skeleton-card">
+          <span class="dashboard-skeleton-line"></span>
+          <span class="dashboard-skeleton-line"></span>
+          <span class="dashboard-skeleton-line"></span>
+        </section>
+        <section class="card dashboard-skeleton-card">
+          <span class="dashboard-skeleton-line"></span>
+          <span class="dashboard-skeleton-line"></span>
+          <span class="dashboard-skeleton-line"></span>
+        </section>
+        <section class="card dashboard-skeleton-card">
+          <span class="dashboard-skeleton-line"></span>
+          <span class="dashboard-skeleton-line"></span>
+          <span class="dashboard-skeleton-line"></span>
+        </section>
+      </section>
+
+      <section v-else class="grid">
         <section class="card">
           <h3 class="section-title">Action Required</h3>
           <div class="divider"></div>
@@ -188,11 +319,45 @@ onMounted(async () => {
         </section>
 
         <section v-if="activeTournament" class="card tournament-action-card">
-          <h3 class="section-title">Active Tournament</h3>
+          <div class="tournament-action-card__top">
+            <div>
+              <span class="tournament-action-card__kicker">Tournament pulse</span>
+              <h3 class="section-title">Your tournament lane</h3>
+            </div>
+            <strong>{{ tournamentProgress }}%</strong>
+          </div>
           <div class="divider"></div>
           <strong>{{ activeTournament.name }}</strong>
-          <span>{{ tournamentStore.todayMatchCount }} matches today · {{ tournamentStore.pendingMatchCount }} pending</span>
-          <button type="button" @click="openTournament">View tournament</button>
+          <span>{{ tournamentDashboardCopy }}</span>
+
+          <div class="tournament-action-card__stats">
+            <div v-for="item in tournamentDashboardStats" :key="item.label">
+              <small>{{ item.label }}</small>
+              <b>{{ item.value }}</b>
+            </div>
+          </div>
+
+          <button
+            v-if="nextTournamentMatch"
+            class="tournament-action-card__next"
+            type="button"
+            @click="openTournamentMatch(nextTournamentMatch)"
+          >
+            <span>
+              Next: {{ getTournamentCategoryName(nextTournamentMatch.categoryId) }}
+              {{ nextTournamentMatch.groupId ? `Group ${nextTournamentMatch.groupId}` : nextTournamentMatch.matchCode || '' }}
+            </span>
+            <strong>{{ formatTournamentMatchDate(nextTournamentMatch) }}</strong>
+          </button>
+
+          <div class="tournament-action-card__actions">
+            <button type="button" @click="openTournamentCategory">
+              {{ currentPlayerTournamentEntry ? 'Open my division' : 'Open tournament' }}
+            </button>
+            <button type="button" class="tournament-action-card__ghost" @click="openTournament">
+              Overview
+            </button>
+          </div>
         </section>
 
         <section class="card">
@@ -212,7 +377,14 @@ onMounted(async () => {
          Card already has its own title — no outer label needed.
          This pattern is standard (Stripe, Linear, Vercel).
     ──────────────────────────────────────────────────── -->
-    <section class="card">
+    <section v-if="isDashboardLoading" class="card dashboard-skeleton-card dashboard-skeleton-card--wide">
+      <span class="dashboard-skeleton-line"></span>
+      <span class="dashboard-skeleton-line"></span>
+      <span class="dashboard-skeleton-line"></span>
+      <span class="dashboard-skeleton-line"></span>
+    </section>
+
+    <section v-else class="card">
       <div class="activity-header">
         <h3 class="section-title">Recent Activity</h3>
         <span class="activity-count">{{ activityFeed.length }} events</span>
@@ -512,6 +684,17 @@ onMounted(async () => {
   border-radius: 16px;
   border: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  animation: dashboardCardIn 260ms ease both;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.card:hover {
+  border-color: rgba(0, 200, 83, 0.14);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
 }
 
 /* ─── SECTION GROUP (Overview label row) ───────────────
@@ -551,7 +734,7 @@ onMounted(async () => {
 /* ─── GRID ──────────────────────────────────────────── */
 .grid {
   display: grid;
-  grid-template-columns: 0.85fr 1.5fr;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(260px, 1fr) minmax(320px, 1.2fr);
   gap: 24px;
 }
 
@@ -633,17 +816,110 @@ onMounted(async () => {
 .tournament-action-card {
   display: grid;
   align-content: start;
-  gap: 0.55rem;
+  gap: 0.75rem;
+  overflow: hidden;
+  position: relative;
 }
 
-.tournament-action-card strong {
+.tournament-action-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #00c853, #1d6fb5);
+}
+
+.tournament-action-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.tournament-action-card__top > strong {
+  border-radius: 999px;
+  padding: 0.32rem 0.58rem;
+  background: rgba(0, 200, 83, 0.08);
+  color: #087524;
+  font-size: 0.8rem;
+}
+
+.tournament-action-card__kicker {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #9ca3af;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tournament-action-card > strong {
   color: #111827;
   font-size: 0.98rem;
 }
 
-.tournament-action-card span {
+.tournament-action-card > span {
   color: #6b7280;
   font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.tournament-action-card__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.tournament-action-card__stats div {
+  display: grid;
+  gap: 0.2rem;
+  border-radius: 0.75rem;
+  padding: 0.7rem;
+  background: #f8fafc;
+}
+
+.tournament-action-card__stats small {
+  color: #9ca3af;
+  font-size: 0.67rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.tournament-action-card__stats b {
+  color: #111827;
+  font-size: 1rem;
+}
+
+.tournament-action-card__next {
+  display: grid;
+  justify-items: start;
+  width: 100%;
+  border: 1px solid rgba(29, 111, 181, 0.16) !important;
+  border-radius: 0.85rem !important;
+  padding: 0.75rem !important;
+  background: #e8f0fb !important;
+  color: #1d6fb5 !important;
+  text-align: left;
+}
+
+.tournament-action-card__next span {
+  color: #1d6fb5;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.tournament-action-card__next strong {
+  margin-top: 0.2rem;
+  color: #23415f;
+  font-size: 0.78rem;
+}
+
+.tournament-action-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .tournament-action-card button {
@@ -654,6 +930,55 @@ onMounted(async () => {
   background: #00c853;
   color: #fff;
   font-weight: 800;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.tournament-action-card button:hover {
+  background: #087524;
+  box-shadow: 0 10px 22px rgba(0, 200, 83, 0.22);
+  transform: translateY(-1px);
+}
+
+.tournament-action-card__ghost {
+  background: #f3f4f6 !important;
+  color: #374151 !important;
+}
+
+.dashboard-skeleton-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dashboard-skeleton-card {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.dashboard-skeleton-card--wide {
+  min-height: 170px;
+}
+
+.dashboard-skeleton-line {
+  display: block;
+  height: 15px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f3f4f6 20%, #e5e7eb 42%, #f8fafc 62%, #f3f4f6 84%);
+  background-size: 200% 100%;
+  animation: dashboardShimmer 1.4s linear infinite;
+}
+
+.dashboard-skeleton-line:nth-child(1) {
+  width: 74%;
+}
+
+.dashboard-skeleton-line:nth-child(2) {
+  width: 92%;
+}
+
+.dashboard-skeleton-line:nth-child(3) {
+  width: 56%;
 }
 
 /* ─── INSIGHTS ──────────────────────────────────────── */
@@ -742,6 +1067,28 @@ onMounted(async () => {
 }
 
 /* ─── RESPONSIVE ────────────────────────────────────── */
+@keyframes dashboardCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dashboardShimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
 @media (max-width: 768px) {
   .dashboard {
     padding: 0 16px 32px;
@@ -764,6 +1111,17 @@ onMounted(async () => {
   .action-row {
     flex-wrap: wrap;
     gap: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .cta,
+  .activity-item,
+  .tournament-action-card button,
+  .dashboard-skeleton-line {
+    animation: none !important;
+    transition: none !important;
   }
 }
 </style>

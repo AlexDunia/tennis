@@ -640,6 +640,34 @@ function buildMatchResponse(match) {
   }
 }
 
+function formatTournamentSetScore(sets = []) {
+  return sets
+    .map((set) => {
+      const playerAGames = Number(set.games?.playerA ?? 0)
+      const playerBGames = Number(set.games?.playerB ?? 0)
+      const tieBreak = set.tieBreak?.score
+
+      if (tieBreak) {
+        return `${playerAGames}-${playerBGames} (${tieBreak.playerA}-${tieBreak.playerB})`
+      }
+
+      return `${playerAGames}-${playerBGames}`
+    })
+    .join(', ')
+}
+
+function formatTournamentMatchScore(match) {
+  if (match.sets?.length) {
+    return formatTournamentSetScore(match.sets)
+  }
+
+  if (match.p1Sets !== null && match.p1Sets !== undefined && match.p2Sets !== null && match.p2Sets !== undefined) {
+    return `${match.p1Sets}-${match.p2Sets}`
+  }
+
+  return null
+}
+
 function buildResponse(data) {
   return { success: true, data, message: '' }
 }
@@ -674,12 +702,9 @@ function syncKnockoutMatchToSharedMatch(knockoutMatch) {
     challengerId: knockoutMatch.player1Id,
     defenderId: knockoutMatch.player2Id,
     isBye: false,
-    sets: [],
+    sets: knockoutMatch.sets || [],
     liveState: null,
-    score:
-      knockoutMatch.p1Sets !== null && knockoutMatch.p2Sets !== null
-        ? `${knockoutMatch.p1Sets}-${knockoutMatch.p2Sets}`
-        : null,
+    score: formatTournamentMatchScore(knockoutMatch),
   }
 
   if (existingIndex === -1) {
@@ -1147,11 +1172,12 @@ const mockAdapter = async (config) => {
       match.p2Sets = body?.p2Sets
       match.p1Games = body?.p1Games ?? null
       match.p2Games = body?.p2Games ?? null
+      match.sets = Array.isArray(body?.sets) ? body.sets : []
       match.winnerId = body?.winnerId
       match.winnerName =
         match.winnerId === match.player1Id ? match.player1Name : match.player2Name
       match.status = body?.status || 'completed'
-      match.score = `${match.p1Sets}-${match.p2Sets}`
+      match.score = formatTournamentMatchScore(match)
 
       const category = findCategory(match.tournamentId, match.categoryId)
       if (category && match.groupId === null) {

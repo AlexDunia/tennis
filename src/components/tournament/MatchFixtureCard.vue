@@ -1,26 +1,64 @@
 <script setup>
 import CategoryStatusBadge from './CategoryStatusBadge.vue'
+import { formatAppDateWithTime } from '../../utils/dateFormat'
 
-defineProps({
+const props = defineProps({
   match: {
     type: Object,
     required: true,
   },
+  canManage: {
+    type: Boolean,
+    default: false,
+  },
+  currentPlayerId: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits({
+  live: (match) => Boolean(match),
   score: (match) => Boolean(match),
   view: (match) => Boolean(match),
 })
+
+function canScoreMatch(match) {
+  return (
+    props.canManage &&
+    ['pending', 'scheduled', 'completed', 'walkover'].includes(match.status) &&
+    match.player1Id &&
+    match.player2Id
+  )
+}
+
+function scoreActionLabel(match) {
+  return ['completed', 'walkover'].includes(match.status) ? 'Edit Result' : 'Enter Score'
+}
+
+function isCurrentPlayer(playerId) {
+  return Boolean(props.currentPlayerId && playerId === props.currentPlayerId)
+}
+
+function isCurrentPlayerMatch(match) {
+  return isCurrentPlayer(match.player1Id) || isCurrentPlayer(match.player2Id)
+}
 </script>
 
 <template>
-  <article class="match-fixture-card t-fade-up" :class="{ 'match-fixture-card--bye': match.isBye }">
+  <article
+    class="match-fixture-card t-fade-up"
+    :class="{
+      'match-fixture-card--bye': match.isBye,
+      'match-fixture-card--current-player': isCurrentPlayerMatch(match),
+    }"
+  >
     <div class="match-fixture-card__top">
       <div class="match-fixture-card__badges">
         <span class="match-fixture-card__round">
           {{ match.groupId ? `Group ${match.groupId}` : match.matchCode || match.round }}
         </span>
+        <span v-if="isCurrentPlayerMatch(match)" class="match-fixture-card__you">Your match</span>
         <CategoryStatusBadge :status="match.status" />
       </div>
       <strong v-if="match.score" class="match-fixture-card__score">{{ match.score }}</strong>
@@ -31,32 +69,54 @@ const emit = defineEmits({
     </div>
 
     <div v-else class="match-fixture-card__body">
-      <div class="match-fixture-card__player">
+      <div
+        class="match-fixture-card__player"
+        :class="{ 'match-fixture-card__player--current': isCurrentPlayer(match.player1Id) }"
+      >
         <span>{{ match.player1Seed || '-' }}</span>
         <strong>{{ match.player1Name || 'TBD' }}</strong>
+        <small v-if="isCurrentPlayer(match.player1Id)">You</small>
       </div>
       <small>vs</small>
-      <div class="match-fixture-card__player">
+      <div
+        class="match-fixture-card__player"
+        :class="{ 'match-fixture-card__player--current': isCurrentPlayer(match.player2Id) }"
+      >
         <span>{{ match.player2Seed || '-' }}</span>
         <strong>{{ match.player2Name || 'TBD' }}</strong>
+        <small v-if="isCurrentPlayer(match.player2Id)">You</small>
       </div>
     </div>
 
     <footer class="match-fixture-card__footer">
       <div class="match-fixture-card__meta">
-        <span>{{ match.scheduledDate ? `${match.scheduledDate} ${match.scheduledTime || ''}` : 'Not yet scheduled' }}</span>
+        <span>{{ formatAppDateWithTime(match.scheduledDate, match.scheduledTime, { fallback: 'Not yet scheduled' }) }}</span>
         <span>{{ match.court || 'No court' }}</span>
       </div>
       <div v-if="!match.isBye" class="match-fixture-card__actions">
         <button
-          v-if="match.status === 'pending'"
+          v-if="['pending', 'scheduled'].includes(match.status)"
+          v-show="canManage"
+          class="t-button t-button--secondary"
+          type="button"
+          @click="emit('live', match)"
+        >
+          Live Board
+        </button>
+        <button
+          v-if="canScoreMatch(match)"
           class="t-button t-button--primary"
           type="button"
           @click="emit('score', match)"
         >
-          Enter Score
+          {{ scoreActionLabel(match) }}
         </button>
-        <button v-else class="t-button t-button--secondary" type="button" @click="emit('view', match)">
+        <button
+          v-if="!canManage || match.status !== 'pending'"
+          class="t-button t-button--secondary"
+          type="button"
+          @click="emit('view', match)"
+        >
           View Match
         </button>
       </div>
@@ -85,6 +145,11 @@ const emit = defineEmits({
 .match-fixture-card--bye {
   background: var(--tournament-shell);
   opacity: 0.78;
+}
+
+.match-fixture-card--current-player {
+  border-color: rgba(0, 181, 26, 0.42);
+  background: linear-gradient(180deg, #ffffff 0%, rgba(0, 181, 26, 0.045) 100%);
 }
 
 .match-fixture-card__top,
@@ -116,6 +181,15 @@ const emit = defineEmits({
   font-size: 16px;
 }
 
+.match-fixture-card__you {
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: var(--tournament-green-soft);
+  color: var(--tournament-green-dark);
+  font-size: 11px;
+  font-weight: 900;
+}
+
 .match-fixture-card__body {
   display: flex;
   align-items: center;
@@ -129,6 +203,12 @@ const emit = defineEmits({
   gap: 6px;
   min-width: 0;
   font-size: 13px;
+}
+
+.match-fixture-card__player--current {
+  border-radius: 999px;
+  padding: 3px 7px 3px 3px;
+  background: var(--tournament-green-soft);
 }
 
 .match-fixture-card__player span {
@@ -150,11 +230,30 @@ const emit = defineEmits({
   font-weight: 800;
 }
 
+.match-fixture-card__player small {
+  border-radius: 999px;
+  padding: 1px 6px;
+  background: #ffffff;
+  color: var(--tournament-green-dark);
+  font-size: 10px;
+  font-weight: 900;
+}
+
 .match-fixture-card__body small {
   color: var(--tournament-faint);
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.match-fixture-card__body .match-fixture-card__player small {
+  border-radius: 999px;
+  padding: 1px 6px;
+  background: #ffffff;
+  color: var(--tournament-green-dark);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: none;
 }
 
 .match-fixture-card__meta {

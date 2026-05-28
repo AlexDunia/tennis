@@ -1,10 +1,13 @@
 <script setup>
 // 1. IMPORTS
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
+import { useTournamentLiveRefresh } from '../composables/useTournamentLiveRefresh'
+import { formatAppDateTime } from '../utils/dateFormat'
+import TournamentMatchModal from '../components/tournament/TournamentMatchModal.vue'
 
 // 2. PROPS
 // none
@@ -21,20 +24,37 @@ const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
 
 // 6. REACTIVE STATE
-const matchId = route.params.matchId
+const matchId = computed(() => route.params.matchId)
 const form = reactive({ winnerId: '', score: '' })
 const hasSubmitted = reactive({ value: false })
+const selectedTournamentMatch = ref(null)
 
 // 7. COMPUTED PROPERTIES
-const match = computed(() => matchStore.matchById(matchId))
+const match = computed(() => matchStore.matchById(matchId.value))
 const challenger = computed(
   () => playerStore.players.find((player) => player.id === match.value?.challengerId) || null,
 )
 const defender = computed(
   () => playerStore.players.find((player) => player.id === match.value?.defenderId) || null,
 )
-const canSubmitScore = computed(() => match.value?.status === 'scheduled')
+const canSubmitScore = computed(() => match.value?.type !== 'tournament' && match.value?.status === 'scheduled')
 const tournament = computed(() => tournamentStore.activeTournament)
+const tournamentId = computed(() => route.params.tournamentId || match.value?.tournamentId || '')
+const canManageTournament = computed(() => playerStore.currentPlayerCan('tournaments.score.update'))
+const canOpenLiveBoard = computed(
+  () => match.value?.type === 'tournament' && canManageTournament.value && ['pending', 'scheduled'].includes(match.value.status),
+)
+const canEditTournamentResult = computed(
+  () =>
+    match.value?.type === 'tournament' &&
+    canManageTournament.value &&
+    ['pending', 'scheduled', 'completed', 'walkover'].includes(match.value.status) &&
+    match.value.player1Id &&
+    match.value.player2Id,
+)
+const tournamentScoreActionLabel = computed(() =>
+  ['completed', 'walkover'].includes(match.value?.status) ? 'Edit result' : 'Enter score',
+)
 const tournamentCategory = computed(
   () =>
     tournament.value?.categories.find((category) => category.id === match.value?.categoryId) ||
@@ -84,8 +104,33 @@ const handleResultSubmit = async () => {
     return
   }
 
-  await matchStore.submitResult(matchId, { winnerId: form.winnerId, score: form.score })
+  await matchStore.submitResult(matchId.value, { winnerId: form.winnerId, score: form.score })
   hasSubmitted.value = true
+}
+
+const openTournamentScoreModal = () => {
+  if (!canEditTournamentResult.value) {
+    return
+  }
+
+  selectedTournamentMatch.value = match.value
+}
+
+const saveTournamentScore = async (payload) => {
+  if (!selectedTournamentMatch.value) {
+    return
+  }
+
+  await tournamentStore.enterMatchResult(selectedTournamentMatch.value.id, payload)
+  selectedTournamentMatch.value = null
+}
+
+const saveTournamentSchedule = async (payload) => {
+  if (!selectedTournamentMatch.value) {
+    return
+  }
+
+  await tournamentStore.updateMatchSchedule(selectedTournamentMatch.value.id, payload)
 }
 
 const loadMatchDetails = async () => {
@@ -95,6 +140,8 @@ const loadMatchDetails = async () => {
   }
   initializeForm()
 }
+
+useTournamentLiveRefresh(tournamentId)
 
 // 9. WATCHERS
 // none
@@ -123,12 +170,12 @@ onMounted(() => {
         <p class="match-summary__status">{{ match.statusLabel }}</p>
         <h2>{{ playerOneName }} vs {{ playerTwoName }}</h2>
         <p class="match-copy">
-          {{ match.scheduledAt ? `Scheduled ${match.scheduledAt}` : 'Schedule pending' }}
+          {{ match.scheduledAt ? `Scheduled ${formatAppDateTime(match.scheduledAt)}` : 'Schedule pending' }}
         </p>
         <p class="match-copy">{{ match.score ? `Score ${match.score}` : 'No score submitted' }}</p>
       </div>
 
-      <div class="result-panel section-card">
+      <div v-if="match.type !== 'tournament'" class="result-panel section-card">
         <h3>Submit result</h3>
 
         <label class="field">
@@ -153,7 +200,40 @@ onMounted(() => {
           {{ hasSubmitted.value ? 'Result submitted' : 'Submit result' }}
         </button>
       </div>
+
+      <div v-else-if="canManageTournament" class="result-panel section-card">
+        <h3>Tournament controls</h3>
+        <p class="panel-copy">Use the live board or the category fixture tools to keep this match accurate.</p>
+        <button
+          v-if="canEditTournamentResult"
+          class="submit-button"
+          type="button"
+          @click="openTournamentScoreModal"
+        >
+          {{ tournamentScoreActionLabel }}
+        </button>
+        <RouterLink
+          v-if="canOpenLiveBoard"
+          class="submit-button submit-button--link"
+          :to="`/play/${match.id}`"
+        >
+          Open live board
+        </RouterLink>
+      </div>
+
+      <div v-else class="result-panel section-card">
+        <h3>Score updates</h3>
+        <p class="panel-copy">Players can follow this match here. Tournament admins handle score updates.</p>
+      </div>
     </div>
+
+    <TournamentMatchModal
+      v-if="selectedTournamentMatch"
+      :match="selectedTournamentMatch"
+      @close="selectedTournamentMatch = null"
+      @save="saveTournamentScore"
+      @schedule="saveTournamentSchedule"
+    />
   </section>
 </template>
 
@@ -248,6 +328,9 @@ onMounted(() => {
 }
 
 .submit-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 1.1rem;
   border: 1px solid transparent;
   border-radius: 0.5rem;
@@ -256,6 +339,7 @@ onMounted(() => {
   background: var(--color-accent-bright);
   color: var(--color-light);
   font-weight: 700;
+  text-decoration: none;
   transition:
     transform 0.12s ease-in-out,
     box-shadow 0.12s ease-in-out;

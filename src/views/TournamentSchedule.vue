@@ -2,14 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMatchStore } from '../stores/match'
+import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
 import MatchFixtureRow from '../components/tournament/MatchFixtureRow.vue'
 import TournamentEmptyState from '../components/tournament/TournamentEmptyState.vue'
 import TournamentMatchModal from '../components/tournament/TournamentMatchModal.vue'
+import { useTournamentLiveRefresh } from '../composables/useTournamentLiveRefresh'
+import { formatAppDate } from '../utils/dateFormat'
 
 const route = useRoute()
 const router = useRouter()
 const matchStore = useMatchStore()
+const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
 
 const categoryFilter = ref('all')
@@ -23,8 +27,10 @@ const tournament = computed(() =>
   tournamentStore.activeTournament?.id === tournamentId.value ? tournamentStore.activeTournament : null,
 )
 const matches = computed(() =>
-  matchStore.matches.filter((match) => match.tournamentId === tournamentId.value),
+  matchStore.matches.filter((match) => match.tournamentId === tournamentId.value && !match.isBye),
 )
+const canManageTournament = computed(() => playerStore.currentPlayerCan('tournaments.score.update'))
+const currentPlayerId = computed(() => playerStore.currentPlayer?.id || '')
 const categoryFilters = computed(() => [
   { label: 'All Categories', value: 'all' },
   ...(tournament.value?.categories.map((category) => ({
@@ -51,6 +57,8 @@ const scheduledGroups = computed(() =>
 )
 const unscheduledMatches = computed(() => filteredMatches.value.filter((match) => !match.scheduledDate))
 
+useTournamentLiveRefresh(tournamentId)
+
 function categoryName(categoryId) {
   return tournament.value?.categories.find((category) => category.id === categoryId)?.name || categoryId
 }
@@ -62,6 +70,15 @@ async function saveScore(payload) {
 
 async function saveSchedule(payload) {
   await tournamentStore.updateMatchSchedule(selectedMatch.value.id, payload)
+}
+
+function handleMatchOpen(match) {
+  if (canManageTournament.value) {
+    selectedMatch.value = match
+    return
+  }
+
+  router.push(`/tournaments/${tournamentId.value}/match/${match.id}`)
 }
 
 watch(tournamentId, async (nextTournamentId) => {
@@ -137,14 +154,15 @@ watch(tournamentId, async (nextTournamentId) => {
       :key="day"
       class="t-shell-card tournament-schedule__day"
     >
-      <h3 class="t-section-title">{{ day }}</h3>
+      <h3 class="t-section-title">{{ formatAppDate(day) }}</h3>
       <div class="tournament-schedule__scroll">
         <MatchFixtureRow
           v-for="match in dayMatches"
           :key="match.id"
+          :current-player-id="currentPlayerId"
           :match="match"
           :category-name="categoryName(match.categoryId)"
-          @open="selectedMatch = $event"
+          @open="handleMatchOpen"
         />
       </div>
     </section>
@@ -160,9 +178,10 @@ watch(tournamentId, async (nextTournamentId) => {
         <MatchFixtureRow
           v-for="match in unscheduledMatches"
           :key="match.id"
+          :current-player-id="currentPlayerId"
           :match="match"
           :category-name="categoryName(match.categoryId)"
-          @open="selectedMatch = $event"
+          @open="handleMatchOpen"
         />
       </div>
       <TournamentEmptyState
@@ -173,7 +192,7 @@ watch(tournamentId, async (nextTournamentId) => {
     </section>
 
     <TournamentMatchModal
-      v-if="selectedMatch"
+      v-if="selectedMatch && canManageTournament"
       :match="selectedMatch"
       @close="selectedMatch = null"
       @save="saveScore"

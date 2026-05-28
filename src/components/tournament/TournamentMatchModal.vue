@@ -28,10 +28,22 @@ const form = reactive({
 })
 
 const isAlreadyScheduled = computed(() => Boolean(props.match.scheduledDate || props.match.scheduledAt))
+const isEditingResult = computed(() =>
+  ['completed', 'walkover'].includes(props.match.status) && Boolean(props.match.winnerId),
+)
 const hasScheduleChange = computed(() => Boolean(form.date || form.time || form.court))
 const hasScore = computed(() => form.p1Sets !== '' && form.p2Sets !== '')
 const winnerName = computed(() =>
   form.winnerId === props.match.player1Id ? props.match.player1Name : props.match.player2Name,
+)
+const modalInstruction = computed(() =>
+  isEditingResult.value
+    ? 'Update the saved result, adjust the schedule, or correct both at once.'
+    : 'Enter the score, schedule the match, or do both at once.',
+)
+const submitLabel = computed(() => (isEditingResult.value ? 'Update Result' : 'Save Result'))
+const scoreModeCopy = computed(() =>
+  'Manual result uses total sets and total games. Use Live Board when you need deuce, advantage, or tie-break point history.',
 )
 const scoreError = computed(() => {
   const p1Sets = Number(form.p1Sets)
@@ -45,6 +57,11 @@ const scoreError = computed(() => {
 
   if ((form.p1Games && !form.p2Games) || (!form.p1Games && form.p2Games)) {
     return 'Enter games for both players, or leave both blank.'
+  }
+
+  const hasGameTotals = form.p1Games !== '' && form.p2Games !== ''
+  if (hasGameTotals && (Number(form.p1Games) < 0 || Number(form.p2Games) < 0)) {
+    return 'Games cannot be negative.'
   }
 
   return ''
@@ -67,6 +84,7 @@ function setDefaults() {
   form.p2Sets = props.match.p2Sets ?? 0
   form.p1Games = props.match.p1Games ?? ''
   form.p2Games = props.match.p2Games ?? ''
+  form.isWalkover = props.match.status === 'walkover'
   form.winnerId = props.match.winnerId || props.match.player1Id
 }
 
@@ -128,7 +146,7 @@ setDefaults()
         <div>
           <span class="t-section-kicker">{{ roundLabel }}</span>
           <h2>{{ match.player1Name }} vs {{ match.player2Name }}</h2>
-          <p>Enter the score, schedule the match, or do both at once.</p>
+          <p>{{ modalInstruction }}</p>
         </div>
         <button type="button" class="tournament-match-modal__close" aria-label="Close" @click="emit('close')">
           x
@@ -172,6 +190,7 @@ setDefaults()
 
         <div class="tournament-match-modal__subsection">
           <span>Games (optional - for standings tiebreakers)</span>
+          <p class="tournament-match-modal__mode-copy">{{ scoreModeCopy }}</p>
           <div class="tournament-match-modal__grid">
             <label>
               <span>{{ match.player1Name }} games</span>
@@ -219,7 +238,7 @@ setDefaults()
           Cancel
         </button>
         <button type="button" :disabled="!canSubmit" class="t-button t-button--primary" @click="submitModal">
-          Save Result
+          {{ submitLabel }}
         </button>
       </footer>
     </div>
@@ -233,6 +252,7 @@ setDefaults()
   z-index: 1000;
   display: grid;
   background: #ffffff;
+  animation: modalBackdropIn 180ms ease both;
 }
 
 .tournament-match-modal__panel {
@@ -242,6 +262,7 @@ setDefaults()
   overflow: auto;
   padding: 20px;
   background: #ffffff;
+  animation: modalPanelIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .tournament-match-modal__header,
@@ -296,6 +317,7 @@ setDefaults()
   border-radius: 14px;
   padding: 16px;
   background: #ffffff;
+  animation: modalSectionIn 260ms ease both;
 }
 
 .tournament-match-modal__section h3 {
@@ -314,6 +336,14 @@ setDefaults()
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.tournament-match-modal__mode-copy {
+  margin: 0;
+  color: var(--tournament-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .tournament-match-modal__grid {
@@ -340,7 +370,10 @@ setDefaults()
   padding: 9px 12px;
   color: var(--tournament-ink);
   font-size: 14px;
-  transition: border-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .tournament-match-modal input:focus,
@@ -348,6 +381,7 @@ setDefaults()
 .tournament-match-modal textarea:focus {
   outline: none;
   border-color: var(--tournament-green);
+  box-shadow: 0 0 0 4px rgba(0, 181, 26, 0.09);
 }
 
 .tournament-match-modal textarea {
@@ -386,6 +420,10 @@ setDefaults()
   font-weight: 800;
 }
 
+.tournament-match-modal__score-player input:focus {
+  transform: translateY(-1px);
+}
+
 .tournament-match-modal__score-player small {
   color: var(--tournament-faint);
   font-size: 11px;
@@ -395,6 +433,7 @@ setDefaults()
 .tournament-match-modal__winner-input {
   border-color: var(--tournament-green) !important;
   background: var(--tournament-green-soft) !important;
+  box-shadow: 0 0 0 4px rgba(0, 181, 26, 0.08);
 }
 
 .tournament-match-modal__score-entry > strong {
@@ -459,6 +498,40 @@ setDefaults()
 @media (max-width: 520px) {
   .tournament-match-modal__footer {
     flex-direction: column;
+  }
+}
+
+@keyframes modalBackdropIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modalSectionIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

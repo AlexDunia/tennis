@@ -7,6 +7,7 @@ import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useNotificationStore } from '../stores/notification'
 import ChallengeCard from '../components/ChallengeCard.vue'
+import { formatAppDateTime } from '../utils/dateFormat'
 
 // 4. ROUTER
 const router = useRouter()
@@ -154,12 +155,7 @@ const getInitials = (name) => {
 }
 
 const formatDate = (iso) => {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
+  return formatAppDateTime(iso)
 }
 
 const modalFormatLabel = computed(() => {

@@ -2,14 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMatchStore } from '../stores/match'
+import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
 import CategoryCard from '../components/tournament/CategoryCard.vue'
 import CategoryStatusBadge from '../components/tournament/CategoryStatusBadge.vue'
 import TournamentEmptyState from '../components/tournament/TournamentEmptyState.vue'
+import { useTournamentLiveRefresh } from '../composables/useTournamentLiveRefresh'
+import { formatAppDateRange } from '../utils/dateFormat'
 
 const route = useRoute()
 const router = useRouter()
 const matchStore = useMatchStore()
+const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
 const hasLoaded = ref(false)
 
@@ -20,10 +24,50 @@ const tournament = computed(() =>
 const tournamentMatches = computed(() =>
   matchStore.matches.filter((match) => match.tournamentId === tournamentId.value),
 )
-const completedCount = computed(
-  () => tournamentMatches.value.filter((match) => ['completed', 'walkover'].includes(match.status)).length,
+const playableTournamentMatches = computed(() =>
+  tournamentMatches.value.filter((match) => !match.isBye),
 )
-const pendingCount = computed(() => tournamentMatches.value.filter((match) => match.status === 'pending').length)
+const completedCount = computed(
+  () => playableTournamentMatches.value.filter((match) => ['completed', 'walkover'].includes(match.status)).length,
+)
+const pendingCount = computed(() => playableTournamentMatches.value.filter((match) => match.status === 'pending').length)
+const liveMatchCount = computed(
+  () => playableTournamentMatches.value.filter((match) => match.liveState?.startedAt && match.status === 'pending').length,
+)
+const currentPlayer = computed(() => playerStore.currentPlayer)
+const currentPlayerId = computed(() => currentPlayer.value?.id || '')
+const currentPlayerFirstName = computed(() => currentPlayer.value?.name?.split(' ')[0] || 'Player')
+const currentPlayerPlacements = computed(() => {
+  if (!tournament.value || !currentPlayerId.value) {
+    return []
+  }
+
+  return tournament.value.categories.flatMap((category) =>
+    category.groups.flatMap((group) => {
+      const player = group.players.find((entry) => entry.playerId === currentPlayerId.value)
+      return player ? [{ category, group, player }] : []
+    }),
+  )
+})
+const overviewPersonalCopy = computed(() => {
+  const name = currentPlayerFirstName.value
+  const completed = completedCount.value
+  const pending = pendingCount.value
+  const live = liveMatchCount.value
+  const placement = currentPlayerPlacements.value[0]
+
+  if (placement) {
+    return `${name}, you are in ${placement.category.name}, ${placement.group.name}, seed #${placement.player.seed}. ${completed} scores are in and ${pending} matches still need attention.`
+  }
+
+  if (live) {
+    return `${name}, ${live} match${live === 1 ? ' is' : 'es are'} live now. ${pending} matches still need scores.`
+  }
+
+  return `${name}, ${completed} scores are in and ${pending} matches still need attention.`
+})
+
+useTournamentLiveRefresh(tournamentId)
 
 function matchesForCategory(categoryId) {
   return tournamentMatches.value.filter((match) => match.categoryId === categoryId)
@@ -31,7 +75,7 @@ function matchesForCategory(categoryId) {
 
 watch(tournamentId, async (nextTournamentId) => {
   hasLoaded.value = false
-  await Promise.all([tournamentStore.fetchTournament(nextTournamentId), matchStore.loadMatches()])
+  await Promise.all([tournamentStore.fetchTournament(nextTournamentId), matchStore.loadMatches(), playerStore.loadPlayers()])
   hasLoaded.value = true
 }, { immediate: true })
 </script>
@@ -69,8 +113,8 @@ watch(tournamentId, async (nextTournamentId) => {
           <span class="t-stat-tile__label">Pending</span>
         </div>
         <div class="t-stat-tile">
-          <span class="t-stat-tile__value">{{ tournament.officials.length }}</span>
-          <span class="t-stat-tile__label">Officials</span>
+          <span class="t-stat-tile__value">{{ liveMatchCount }}</span>
+          <span class="t-stat-tile__label">Live now</span>
         </div>
       </div>
     </header>
@@ -78,16 +122,27 @@ watch(tournamentId, async (nextTournamentId) => {
     <section class="t-shell-card tournament-overview__info">
       <div>
         <span class="t-section-kicker">Group Stage</span>
-        <strong>{{ tournament.roundRobinStart }} - {{ tournament.roundRobinEnd }}</strong>
+        <strong>{{ formatAppDateRange(tournament.roundRobinStart, tournament.roundRobinEnd) }}</strong>
       </div>
       <div>
         <span class="t-section-kicker">Knockout</span>
-        <strong>{{ tournament.knockoutStart }} - {{ tournament.finalDate }}</strong>
+        <strong>{{ formatAppDateRange(tournament.knockoutStart, tournament.finalDate) }}</strong>
       </div>
       <div>
         <span class="t-section-kicker">Managed by</span>
         <strong>{{ tournament.officials.join(', ') }}</strong>
       </div>
+    </section>
+
+    <section class="t-shell-card tournament-overview__pulse">
+      <span class="t-section-kicker">Your tournament view</span>
+      <strong>{{ overviewPersonalCopy }}</strong>
+      <p v-if="currentPlayerPlacements.length > 1">
+        You also appear in {{ currentPlayerPlacements.length - 1 }} other division{{ currentPlayerPlacements.length - 1 === 1 ? '' : 's' }}.
+      </p>
+      <p v-else-if="!currentPlayerPlacements.length">
+        You are not listed in this tournament draw yet.
+      </p>
     </section>
 
     <section class="tournament-overview__categories">
@@ -106,6 +161,7 @@ watch(tournamentId, async (nextTournamentId) => {
           v-for="category in tournament.categories"
           :key="category.id"
           :category="category"
+          :current-player-id="currentPlayerId"
           :matches="matchesForCategory(category.id)"
         />
       </div>
@@ -148,9 +204,30 @@ watch(tournamentId, async (nextTournamentId) => {
 }
 
 .tournament-overview__categories,
+.tournament-overview__pulse,
 .tournament-overview__loading {
   display: grid;
   gap: 16px;
+}
+
+.tournament-overview__pulse {
+  gap: 6px;
+  padding: 16px 18px;
+  border-color: rgba(0, 181, 26, 0.24);
+  background: linear-gradient(180deg, #ffffff 0%, rgba(0, 181, 26, 0.04) 100%);
+}
+
+.tournament-overview__pulse strong {
+  color: var(--tournament-ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.tournament-overview__pulse p {
+  margin: 0;
+  color: var(--tournament-muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .tournament-overview__actions {

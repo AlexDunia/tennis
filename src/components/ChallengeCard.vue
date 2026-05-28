@@ -243,6 +243,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { formatAppDateTime } from '../utils/dateFormat'
 
 const props = defineProps({
   challenge: { type: Object, required: true },
@@ -266,12 +267,7 @@ const getInitials = (name) => {
 }
 
 const formatDate = (iso) => {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
+  return formatAppDateTime(iso)
 }
 
 const timeAgo = (iso) => {

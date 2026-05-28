@@ -1,6 +1,7 @@
 ﻿import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { fakeRequest, createTimestamp } from '../services/api'
+import { buildAccessProfile, hasPermission as checkPermission } from '../utils/auth/accessControl'
 
 const STORAGE_KEY = 'sheltennis-auth'
 
@@ -32,6 +33,9 @@ export const useAuthStore = defineStore('auth', () => {
   const authMessage = ref('')
 
   const isAuthenticated = computed(() => isLoggedIn.value && Boolean(user.value))
+  const accessProfile = computed(() => buildAccessProfile(user.value || {}))
+  const isAdmin = computed(() => accessProfile.value.isAdmin)
+  const hasPermission = computed(() => (permission) => checkPermission(accessProfile.value, permission))
 
   watch([isLoggedIn, user], () => {
     const payload = {
@@ -48,10 +52,12 @@ export const useAuthStore = defineStore('auth', () => {
         name: credentials.username,
         email: `${credentials.username}@shell.com`,
         lastLogin: createTimestamp(),
-        role: 'Shell Tennis Player',
         avatar: createAvatarImage(credentials.username),
       })
-      user.value = response
+      user.value = {
+        ...response,
+        ...buildAccessProfile(response),
+      }
       isLoggedIn.value = true
       authMessage.value = 'Welcome to ShellTennis'
       return response
@@ -75,6 +81,9 @@ export const useAuthStore = defineStore('auth', () => {
     authMessage,
     isAuthLoading,
     isAuthenticated,
+    accessProfile,
+    isAdmin,
+    hasPermission,
     login,
     logout,
   }

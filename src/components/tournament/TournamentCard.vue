@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import CategoryStatusBadge from './CategoryStatusBadge.vue'
+import { formatAppDateRange } from '../../utils/dateFormat'
 
 const props = defineProps({
   tournament: {
@@ -43,7 +44,7 @@ const progress = computed(() =>
       <div>
         <h3 class="tournament-card__name">{{ tournament.name }}</h3>
         <p class="tournament-card__dates">
-          {{ tournament.roundRobinStart }} - {{ tournament.finalDate }}
+          {{ formatAppDateRange(tournament.roundRobinStart, tournament.finalDate) }}
         </p>
       </div>
       <CategoryStatusBadge :status="tournament.status" />

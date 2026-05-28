@@ -1,11 +1,27 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getPlayers } from '../services/PlayerService'
+import { ACCESS_ROLES, buildAccessProfile, hasPermission as checkPermission } from '../utils/auth/accessControl'
+
+const ROLE_STORAGE_KEY = 'tennis.local.playerRoles.v1'
+
+function loadRoleOverrides() {
+  try {
+    return JSON.parse(localStorage.getItem(ROLE_STORAGE_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function saveRoleOverrides(roles) {
+  localStorage.setItem(ROLE_STORAGE_KEY, JSON.stringify(roles))
+}
 
 export const usePlayerStore = defineStore('player', () => {
   // 6. REACTIVE STATE
   const players = ref([])
   const currentPlayerId = ref('player-02')
+  const roleOverrides = ref(loadRoleOverrides())
   const isLoading = ref(false)
   const error = ref('')
 
@@ -25,8 +41,22 @@ export const usePlayerStore = defineStore('player', () => {
     }, {})
   })
 
-  const currentPlayer = computed(
-    () => players.value.find((player) => player.id === currentPlayerId.value) ?? null,
+  const playerAccessProfile = computed(() => (player) =>
+    buildAccessProfile(player || {}, roleOverrides.value[player?.id]),
+  )
+  const currentPlayer = computed(() => {
+    const player = players.value.find((item) => item.id === currentPlayerId.value) ?? null
+
+    return player
+      ? {
+          ...player,
+          ...playerAccessProfile.value(player),
+        }
+      : null
+  })
+  const isCurrentPlayerAdmin = computed(() => Boolean(currentPlayer.value?.isAdmin))
+  const currentPlayerCan = computed(() => (permission) =>
+    checkPermission(currentPlayer.value || {}, permission),
   )
 
   const categoryRoster = computed(() => (categoryId) => {
@@ -133,14 +163,37 @@ export const usePlayerStore = defineStore('player', () => {
     })
   }
 
+  const setPlayerRole = (playerId, roleKey) => {
+    if (!ACCESS_ROLES[roleKey]) {
+      return null
+    }
+
+    roleOverrides.value = {
+      ...roleOverrides.value,
+      [playerId]: roleKey,
+    }
+    saveRoleOverrides(roleOverrides.value)
+    return roleOverrides.value[playerId]
+  }
+
+  const clearPlayerRole = (playerId) => {
+    const nextRoles = { ...roleOverrides.value }
+    delete nextRoles[playerId]
+    roleOverrides.value = nextRoles
+    saveRoleOverrides(roleOverrides.value)
+  }
+
   return {
     players,
     currentPlayerId,
+    roleOverrides,
     isLoading,
     error,
     sortedLadder,
     playersByCategory,
     currentPlayer,
+    isCurrentPlayerAdmin,
+    currentPlayerCan,
     categoryRoster,
     availableOpponents,
     getPlayerZone,
@@ -148,5 +201,7 @@ export const usePlayerStore = defineStore('player', () => {
     assignCategory,
     promotePlayer,
     relegatePlayer,
+    setPlayerRole,
+    clearPlayerRole,
   }
 })

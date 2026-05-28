@@ -12,6 +12,10 @@ defineProps({
     type: Number,
     default: 4,
   },
+  currentPlayerId: {
+    type: String,
+    default: '',
+  },
 })
 </script>
 
@@ -40,11 +44,19 @@ defineProps({
           </tr>
         </thead>
         <tbody>
-          <tr v-for="standing in standings" :key="standing.playerId" :class="{ 'standings-table__qualified': standing.qualified }">
+          <tr
+            v-for="standing in standings"
+            :key="standing.playerId"
+            :class="{
+              'standings-table__qualified': standing.qualified,
+              'standings-table__current-player': currentPlayerId === standing.playerId,
+            }"
+          >
             <td>#{{ standing.rank }}</td>
             <td>
               <strong>{{ standing.name }}</strong>
               <span v-if="standing.qualified">Q</span>
+              <span v-if="currentPlayerId === standing.playerId" class="standings-table__you">You</span>
             </td>
             <td class="standings-table__wide">{{ standing.matchesPlayed }}</td>
             <td class="standings-table__wide">{{ standing.wins }}</td>
@@ -115,6 +127,11 @@ th {
   border-left: 3px solid var(--tournament-green);
 }
 
+.standings-table__current-player {
+  background: rgba(0, 181, 26, 0.055);
+  box-shadow: inset 5px 0 0 var(--tournament-green);
+}
+
 td span {
   margin-left: 0.45rem;
   border-radius: 999px;
@@ -123,6 +140,11 @@ td span {
   color: var(--tournament-green-dark);
   font-size: 0.7rem;
   font-weight: 800;
+}
+
+td span.standings-table__you {
+  background: #ffffff;
+  color: var(--tournament-green-dark);
 }
 
 .standings-table p {

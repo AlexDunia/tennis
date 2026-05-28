@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { playScoreUpdateClick } from '../utils/notificationSound'
 
 function createId() {
   return `notification-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -31,9 +32,13 @@ export const useNotificationStore = defineStore('notification', () => {
     return notification
   }
 
-  const addToast = ({ message, type = 'success', duration = 4000 }) => {
+  const addToast = ({ message, type = 'success', duration = 4000, sound = false }) => {
     const id = createId()
-    toasts.value.push({ id, message, type })
+    toasts.value.push({ id, message, type, duration, sound })
+
+    if (sound) {
+      playScoreUpdateClick().catch(() => {})
+    }
 
     window.setTimeout(() => {
       dismissToast(id)

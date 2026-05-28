@@ -6,6 +6,14 @@ defineProps({
     type: Object,
     required: true,
   },
+  canManage: {
+    type: Boolean,
+    default: false,
+  },
+  currentPlayerId: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits({
@@ -17,15 +25,34 @@ const emit = defineEmits({
   <div class="bracket-tree">
     <section v-if="knockout.quarterFinals?.length">
       <h3>Quarterfinals</h3>
-      <BracketNode v-for="match in knockout.quarterFinals" :key="match.id" :match="match" @score="emit('score', $event)" />
+      <BracketNode
+        v-for="match in knockout.quarterFinals"
+        :key="match.id"
+        :can-manage="canManage"
+        :current-player-id="currentPlayerId"
+        :match="match"
+        @score="emit('score', $event)"
+      />
     </section>
     <section v-if="knockout.semiFinals?.length">
       <h3>Semifinals</h3>
-      <BracketNode v-for="match in knockout.semiFinals" :key="match.id" :match="match" @score="emit('score', $event)" />
+      <BracketNode
+        v-for="match in knockout.semiFinals"
+        :key="match.id"
+        :can-manage="canManage"
+        :current-player-id="currentPlayerId"
+        :match="match"
+        @score="emit('score', $event)"
+      />
     </section>
     <section v-if="knockout.final">
       <h3>Final</h3>
-      <BracketNode :match="knockout.final" @score="emit('score', $event)" />
+      <BracketNode
+        :can-manage="canManage"
+        :current-player-id="currentPlayerId"
+        :match="knockout.final"
+        @score="emit('score', $event)"
+      />
     </section>
   </div>
 </template>

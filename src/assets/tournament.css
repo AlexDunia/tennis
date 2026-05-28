@@ -57,6 +57,15 @@
   border: 1px solid var(--tournament-line);
   border-radius: 14px;
   box-shadow: var(--tournament-card-shadow);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.t-shell-card:hover {
+  border-color: rgba(0, 181, 26, 0.18);
+  box-shadow: var(--tournament-lift-shadow);
 }
 
 .t-button {
@@ -89,6 +98,10 @@
   background: var(--tournament-green-dark);
   border-color: var(--tournament-green-dark);
   transform: translateY(-1px);
+}
+
+.t-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
 }
 
 .t-button--secondary {
@@ -200,6 +213,7 @@
   border-color: var(--tournament-green);
   background: var(--tournament-green-soft);
   color: var(--tournament-green-dark);
+  transform: translateY(-1px);
 }
 
 .t-hero {
@@ -306,7 +320,7 @@
 }
 
 .t-fade-up {
-  animation: tFadeUp 0.32s ease both;
+  animation: tFadeUp 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes tFadeUp {
@@ -324,9 +338,17 @@
 .t-skeleton {
   height: 16px;
   border-radius: 10px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, #f3f4f6 20%, #e5e7eb 42%, #f8fafc 62%, #f3f4f6 84%);
   background-size: 200% 100%;
   animation: tShimmer 1.4s infinite;
+}
+
+.t-skeleton:nth-child(2) {
+  width: 84%;
+}
+
+.t-skeleton:nth-child(3) {
+  width: 62%;
 }
 
 @keyframes tShimmer {
@@ -376,5 +398,17 @@
 
   .t-hero__stats {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-button,
+  .t-filter-pill,
+  .t-fade-up,
+  .t-progress__fill,
+  .t-skeleton,
+  .t-shell-card {
+    animation: none !important;
+    transition: none !important;
   }
 }

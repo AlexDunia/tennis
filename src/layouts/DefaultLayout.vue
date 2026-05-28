@@ -1,6 +1,6 @@
 <template>
   <div class="layout">
-    <aside v-if="!isTournamentCreate" class="sidebar">
+    <aside v-if="showSidebar" class="sidebar">
       <div class="logo">
         <img
           src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776503502/RENAISSANCE-AFRICA-ENERGY-LOGO-update_s4eb9u.png"
@@ -42,11 +42,15 @@
 
     <main
       class="main"
-      :class="{ 'main--wizard': isTournamentCreate }"
+      :class="{
+        'main--wide': isWideWorkspace,
+        'main--fullscreen': isLiveFullscreen,
+      }"
     >
       <div
+        v-if="showHeader"
         class="header"
-        :class="{ 'header--wizard': isTournamentCreate }"
+        :class="{ 'header--wide': isWideWorkspace }"
       >
         <div class="header-main">
           <button
@@ -82,13 +86,29 @@
           </div>
         </div>
 
-        <div class="user" v-if="currentPlayer">
-          <div class="avatar-btn">{{ initials }}</div>
-          <span class="user-name">{{ currentPlayer.name }}</span>
+        <div class="header-actions">
+          <RouterLink
+            v-if="workspaceHomeLink"
+            class="header-home-link"
+            :to="workspaceHomeLink.to"
+          >
+            {{ workspaceHomeLink.label }}
+          </RouterLink>
+          <div class="user" v-if="currentPlayer">
+            <div class="avatar-btn">{{ initials }}</div>
+            <span class="user-name">{{ currentPlayer.name }}</span>
+            <span v-if="currentPlayer.isAdmin" class="user-role">{{ currentPlayer.roleLabel }}</span>
+          </div>
         </div>
       </div>
 
-      <div class="content">
+      <div
+        class="content"
+        :class="{
+          'content--wide': isWideWorkspace,
+          'content--fullscreen': isLiveFullscreen,
+        }"
+      >
         <div class="watch-only">
           <strong>Rank #{{ currentPlayer?.rank || '-' }}</strong>
           <span>{{ currentPlayer?.name || 'Player' }}</span>
@@ -100,7 +120,7 @@
       </div>
     </main>
 
-    <nav v-if="!isTournamentCreate" class="bottom-nav" aria-label="Primary navigation">
+    <nav v-if="showBottomNav" class="bottom-nav" aria-label="Primary navigation">
       <RouterLink
         v-for="item in navigationItems"
         :key="`bottom-${item.to}`"
@@ -136,13 +156,17 @@
 import { computed, onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
+import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
+import { useTournamentStore } from '../stores/tournament'
 import ToastShelf from '../components/ToastShelf.vue'
 
 const route = useRoute()
 const router = useRouter()
 const notificationStore = useNotificationStore()
+const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
+const tournamentStore = useTournamentStore()
 
 onMounted(() => {
   if (!playerStore.players.length) {
@@ -193,6 +217,14 @@ const tournamentCreateSubtitles = {
   review: 'Pick formats, check groups, then generate the tournament.',
 }
 const isTournamentCreate = computed(() => route.name === 'TournamentCreate')
+const isTournamentViewer = computed(
+  () => route.path.startsWith('/tournaments/') && route.name !== 'TournamentCreate',
+)
+const isLiveFullscreen = computed(() => route.name === 'PlayMatch' && route.query.fullscreen === '1')
+const isWideWorkspace = computed(() => isTournamentCreate.value || isTournamentViewer.value)
+const showSidebar = computed(() => !isWideWorkspace.value && !isLiveFullscreen.value)
+const showHeader = computed(() => !isLiveFullscreen.value)
+const showBottomNav = computed(() => !isWideWorkspace.value && !isLiveFullscreen.value)
 const tournamentCreateStep = computed(() => {
   const step = String(route.query.step || 'basics')
   return tournamentCreateSteps.includes(step) ? step : 'basics'
@@ -200,10 +232,45 @@ const tournamentCreateStep = computed(() => {
 const tournamentCreateStepIndex = computed(() =>
   Math.max(0, tournamentCreateSteps.indexOf(tournamentCreateStep.value)),
 )
+const activeTournament = computed(() =>
+  tournamentStore.activeTournament?.id === route.params.tournamentId
+    ? tournamentStore.activeTournament
+    : null,
+)
+const activeCategory = computed(() =>
+  activeTournament.value?.categories.find((category) => category.id === route.params.categoryId) || null,
+)
+const activeMatch = computed(() =>
+  route.params.matchId ? matchStore.matchById(route.params.matchId) : null,
+)
 
 const currentTitle = computed(() => {
   if (isTournamentCreate.value) {
     return tournamentCreateTitles[tournamentCreateStep.value]
+  }
+
+  if (route.name === 'TournamentOverview') {
+    return 'Tournament Overview'
+  }
+
+  if (route.name === 'TournamentCategory') {
+    return activeCategory.value?.name || 'Tournament Division'
+  }
+
+  if (route.name === 'TournamentSchedule') {
+    return 'Tournament Schedule'
+  }
+
+  if (route.name === 'TournamentMatchDetails') {
+    return activeMatch.value
+      ? `${activeMatch.value.player1Name || activeMatch.value.challengerName || 'Player 1'} vs ${
+          activeMatch.value.player2Name || activeMatch.value.defenderName || 'Player 2'
+        }`
+      : 'Tournament Match'
+  }
+
+  if (route.name === 'PlayMatch') {
+    return 'Live Scoreboard'
   }
 
   return route.meta.title || 'Renaissance Africa Tennis Club Port Harcourt'
@@ -213,18 +280,73 @@ const currentSubtitle = computed(() => {
     return tournamentCreateSubtitles[tournamentCreateStep.value]
   }
 
+  if (route.name === 'TournamentOverview') {
+    return activeTournament.value?.name
+      ? `${activeTournament.value.name} progress, divisions, and live status.`
+      : 'See divisions, progress, officials, and match status.'
+  }
+
+  if (route.name === 'TournamentCategory') {
+    return 'Review groups, fixtures, standings, and knockout progress.'
+  }
+
+  if (route.name === 'TournamentSchedule') {
+    return 'All fixtures across divisions, kept current as scores change.'
+  }
+
+  if (route.name === 'TournamentMatchDetails') {
+    return 'Review match status, score, schedule, and tournament context.'
+  }
+
+  if (route.name === 'PlayMatch') {
+    return 'Projector-ready live scoring for the current match.'
+  }
+
   return route.meta.subtitle || 'Manage the ladder from one calm workspace.'
 })
 
 const headerBackLabel = computed(() => {
+  if (isLiveFullscreen.value) {
+    return ''
+  }
+
+  if (isTournamentViewer.value || route.name === 'PlayMatch') {
+    return 'Go back'
+  }
+
   if (!isTournamentCreate.value) {
     return ''
   }
 
   return tournamentCreateStep.value === 'basics' ? 'Back to tournaments' : 'Previous step'
 })
+const workspaceHomeLink = computed(() => {
+  if (isTournamentCreate.value) {
+    return null
+  }
+
+  if (route.name === 'TournamentOverview') {
+    return { to: '/tournaments', label: 'Back to tournaments' }
+  }
+
+  if (isTournamentViewer.value && route.params.tournamentId) {
+    return { to: `/tournaments/${route.params.tournamentId}`, label: 'Tournament overview' }
+  }
+
+  return null
+})
 
 function handleHeaderBack() {
+  if (isTournamentViewer.value || route.name === 'PlayMatch') {
+    if (window.history.length > 1) {
+      router.back()
+      return
+    }
+
+    router.push(route.params.tournamentId ? `/tournaments/${route.params.tournamentId}` : '/tournaments')
+    return
+  }
+
   if (!isTournamentCreate.value) {
     return
   }
@@ -366,8 +488,13 @@ const isNavigationActive = (path) => {
   position: relative;
 }
 
-.main--wizard {
+.main--wide {
   margin-left: 0;
+}
+
+.main--fullscreen {
+  margin-left: 0;
+  padding-top: 0;
 }
 
 /* HEADER (MORE PREMIUM SPACING) */
@@ -393,7 +520,7 @@ const isNavigationActive = (path) => {
   min-width: 0;
 }
 
-.header--wizard {
+.header--wide {
   left: 0;
   min-height: 96px;
 }
@@ -540,6 +667,29 @@ const isNavigationActive = (path) => {
   min-width: 0;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.header-home-link {
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 181, 26, 0.14);
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: rgba(0, 181, 26, 0.08);
+  color: #007a32;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.header-home-link:hover {
+  background: rgba(0, 181, 26, 0.12);
+}
+
 .avatar-btn {
   width: 34px;
   height: 34px;
@@ -563,10 +713,32 @@ const isNavigationActive = (path) => {
   white-space: nowrap;
 }
 
+.user-role {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: rgba(0, 181, 26, 0.1);
+  color: #007a32;
+  font-size: 10px;
+  font-weight: 800;
+}
+
 /* CONTENT */
 .content {
   padding: 32px;
   min-width: 0;
+}
+
+.content--wide {
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.content--fullscreen {
+  width: 100%;
+  min-height: 100vh;
+  padding: 0;
 }
 
 .watch-only,
@@ -614,6 +786,10 @@ const isNavigationActive = (path) => {
     padding-top: 96px;
   }
 
+  .main--wide {
+    margin-left: 0;
+  }
+
   .content {
     padding: 20px;
   }
@@ -625,14 +801,19 @@ const isNavigationActive = (path) => {
   }
 
   .main,
-  .main--wizard {
+  .main--wide {
     margin-left: 0;
     padding-top: 82px;
     padding-bottom: 60px;
   }
 
+  .main--fullscreen {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
   .header,
-  .header--wizard {
+  .header--wide {
     left: 0;
     right: 0;
     width: 100%;
@@ -663,6 +844,15 @@ const isNavigationActive = (path) => {
 
   .content {
     padding: 16px;
+  }
+
+  .content--wide {
+    width: 100%;
+    padding: 16px;
+  }
+
+  .content--fullscreen {
+    padding: 0;
   }
 
   .bottom-nav {
