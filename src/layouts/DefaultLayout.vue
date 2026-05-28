@@ -10,33 +10,40 @@
       </div>
 
       <nav class="nav">
-        <RouterLink
+        <a
           v-for="item in navigationItems"
-          :key="item.to"
-          :to="item.to"
+          :key="item.routeName"
+          :href="getNavigationHref(item.to)"
           class="nav-link"
-          :class="{ active: isNavigationActive(item.to) }"
+          :class="{ active: isNavigationActive(item.routeName) }"
+          @click="handleNavigationClick(item.to, $event)"
         >
           <span class="icon" v-html="item.icon"></span>
           <span class="label">{{ item.label }}</span>
-        </RouterLink>
+        </a>
 
         <!-- PROFILE -->
-        <RouterLink to="/profile" class="nav-link" :class="{ active: route.path === '/profile' }">
+        <a
+          :href="getNavigationHref({ name: 'Profile' })"
+          class="nav-link"
+          :class="{ active: isNavigationActive('Profile') }"
+          @click="handleNavigationClick({ name: 'Profile' }, $event)"
+        >
           <span class="icon" v-html="profileIcon"></span>
           <span class="label">Profile</span>
-        </RouterLink>
+        </a>
 
         <!-- NOTIFICATIONS -->
-        <RouterLink
-          to="/notifications"
+        <a
+          :href="getNavigationHref({ name: 'Notifications' })"
           class="nav-link"
-          :class="{ active: route.path === '/notifications' }"
+          :class="{ active: isNavigationActive('Notifications') }"
+          @click="handleNavigationClick({ name: 'Notifications' }, $event)"
         >
           <span class="icon" v-html="bellIcon"></span>
           <span class="label">Notifications</span>
           <span v-if="unreadCount" class="badge">{{ unreadCount }}</span>
-        </RouterLink>
+        </a>
       </nav>
     </aside>
 
@@ -87,13 +94,14 @@
         </div>
 
         <div class="header-actions">
-          <RouterLink
+          <a
             v-if="workspaceHomeLink"
             class="header-home-link"
-            :to="workspaceHomeLink.to"
+            :href="getNavigationHref(workspaceHomeLink.to)"
+            @click="handleNavigationClick(workspaceHomeLink.to, $event)"
           >
             {{ workspaceHomeLink.label }}
-          </RouterLink>
+          </a>
           <div class="user" v-if="currentPlayer">
             <div class="avatar-btn">{{ initials }}</div>
             <span class="user-name">{{ currentPlayer.name }}</span>
@@ -115,37 +123,44 @@
           <span>{{ unreadCount }} unread</span>
         </div>
         <RouterView v-slot="{ Component }">
-          <component :is="Component" :key="route.path" />
+          <component :is="Component" :key="route.fullPath" />
         </RouterView>
       </div>
     </main>
 
     <nav v-if="showBottomNav" class="bottom-nav" aria-label="Primary navigation">
-      <RouterLink
+      <a
         v-for="item in navigationItems"
-        :key="`bottom-${item.to}`"
-        :to="item.to"
+        :key="`bottom-${item.routeName}`"
+        :href="getNavigationHref(item.to)"
         class="nav-link"
-        :class="{ active: isNavigationActive(item.to) }"
+        :class="{ active: isNavigationActive(item.routeName) }"
+        @click="handleNavigationClick(item.to, $event)"
       >
         <span class="icon" v-html="item.icon"></span>
         <span class="label">{{ item.label }}</span>
-      </RouterLink>
+      </a>
 
-      <RouterLink to="/profile" class="nav-link" :class="{ active: route.path === '/profile' }">
+      <a
+        :href="getNavigationHref({ name: 'Profile' })"
+        class="nav-link"
+        :class="{ active: isNavigationActive('Profile') }"
+        @click="handleNavigationClick({ name: 'Profile' }, $event)"
+      >
         <span class="icon" v-html="profileIcon"></span>
         <span class="label">Profile</span>
-      </RouterLink>
+      </a>
 
-      <RouterLink
-        to="/notifications"
+      <a
+        :href="getNavigationHref({ name: 'Notifications' })"
         class="nav-link"
-        :class="{ active: route.path === '/notifications' }"
+        :class="{ active: isNavigationActive('Notifications') }"
+        @click="handleNavigationClick({ name: 'Notifications' }, $event)"
       >
         <span class="icon" v-html="bellIcon"></span>
         <span class="label">Notifications</span>
         <span v-if="unreadCount" class="badge">{{ unreadCount }}</span>
-      </RouterLink>
+      </a>
     </nav>
   </div>
 
@@ -154,7 +169,7 @@
 
 <script setup>
 import { computed, onMounted } from 'vue'
-import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+import { RouterView, useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
@@ -176,22 +191,26 @@ onMounted(() => {
 
 const navigationItems = [
   {
-    to: '/dashboard',
+    to: { name: 'Dashboard' },
+    routeName: 'Dashboard',
     label: 'Dashboard',
     icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="5" height="5" rx="1.2"/><rect x="9" y="2" width="5" height="5" rx="1.2"/><rect x="2" y="9" width="5" height="5" rx="1.2"/><rect x="9" y="9" width="5" height="5" rx="1.2"/></svg>',
   },
   {
-    to: '/rankings',
+    to: { name: 'Rankings' },
+    routeName: 'Rankings',
     label: 'Rankings',
     icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 13V6M7 13V3M11 13V8" stroke-linecap="round"/></svg>',
   },
   {
-    to: '/tournaments',
+    to: { name: 'Tournaments' },
+    routeName: 'Tournaments',
     label: 'Tournaments',
     icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h6v2a3 3 0 0 1-6 0V3Z"/><path d="M4 3H2v1a2 2 0 0 0 2 2M12 3h2v1a2 2 0 0 1-2 2M8 8v3M6 13h4" stroke-linecap="round"/></svg>',
   },
   {
-    to: '/challenges',
+    to: { name: 'Challenges' },
+    routeName: 'Challenges',
     label: 'Challenges',
     icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8h5M8 5.5v5" stroke-linecap="round"/></svg>',
   },
@@ -222,9 +241,9 @@ const isTournamentViewer = computed(
 )
 const isLiveFullscreen = computed(() => route.name === 'PlayMatch' && route.query.fullscreen === '1')
 const isWideWorkspace = computed(() => isTournamentCreate.value || isTournamentViewer.value)
-const showSidebar = computed(() => !isWideWorkspace.value && !isLiveFullscreen.value)
+const showSidebar = computed(() => !isLiveFullscreen.value)
 const showHeader = computed(() => !isLiveFullscreen.value)
-const showBottomNav = computed(() => !isWideWorkspace.value && !isLiveFullscreen.value)
+const showBottomNav = computed(() => !isLiveFullscreen.value)
 const tournamentCreateStep = computed(() => {
   const step = String(route.query.step || 'basics')
   return tournamentCreateSteps.includes(step) ? step : 'basics'
@@ -336,6 +355,35 @@ const workspaceHomeLink = computed(() => {
   return null
 })
 
+function getNavigationHref(to) {
+  return router.resolve(to).href
+}
+
+function handleNavigationClick(to, event) {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey
+  ) {
+    return
+  }
+
+  event.preventDefault()
+  navigateTo(to)
+}
+
+function navigateTo(to) {
+  const target = router.resolve(to)
+  if (target.fullPath === route.fullPath) {
+    return
+  }
+
+  router.push(to).catch(() => {})
+}
+
 function handleHeaderBack() {
   if (isTournamentViewer.value || route.name === 'PlayMatch') {
     if (window.history.length > 1) {
@@ -378,9 +426,10 @@ const initials = computed(() => {
     .toUpperCase()
 })
 
-const isNavigationActive = (path) => {
-  return path === '/tournaments' ? route.path.startsWith('/tournaments') : route.path === path
+const isNavigationActive = (routeName) => {
+  return routeName === 'Tournaments' ? route.path.startsWith('/tournaments') : route.name === routeName
 }
+
 </script>
 
 <style scoped>
@@ -393,16 +442,16 @@ const isNavigationActive = (path) => {
 /* SIDEBAR */
 .sidebar {
   position: fixed;
-  width: 240px;
+  width: var(--app-sidebar-width);
   top: 0;
   bottom: 0;
   padding: 28px 20px;
-  background: #fff;
-  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--color-sidebar);
+  border-right: 0.5px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   gap: 28px;
-  box-shadow: 4px 0 18px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
   z-index: 30;
 }
 
@@ -430,13 +479,19 @@ const isNavigationActive = (path) => {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   min-width: 0;
+  border: 0;
   padding: 10px 14px;
-  border-radius: 10px;
+  border-radius: 8px;
+  background: transparent;
   font-size: 13.5px;
   font-weight: 500;
-  color: #7b8794;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.62);
   text-decoration: none;
+  text-align: left;
+  cursor: pointer;
 }
 
 .icon {
@@ -458,13 +513,13 @@ const isNavigationActive = (path) => {
 }
 
 .nav-link:hover {
-  background: #f3f6f3;
-  color: #0f1720;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
 }
 
 .nav-link.active {
-  background: rgba(0, 200, 83, 0.05);
-  color: #007a32;
+  background: rgba(0, 181, 26, 0.16);
+  color: #5cff93;
 }
 
 .badge {
@@ -479,7 +534,7 @@ const isNavigationActive = (path) => {
 
 /* MAIN */
 .main {
-  margin-left: 240px;
+  margin-left: var(--app-sidebar-width);
   flex: 1;
   min-width: 0;
   display: flex;
@@ -489,7 +544,7 @@ const isNavigationActive = (path) => {
 }
 
 .main--wide {
-  margin-left: 0;
+  margin-left: var(--app-sidebar-width);
 }
 
 .main--fullscreen {
@@ -501,16 +556,16 @@ const isNavigationActive = (path) => {
 .header {
   position: fixed;
   top: 0;
-  left: 240px;
+  left: var(--app-sidebar-width);
   right: 0;
   background: #fff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
   padding: 24px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   z-index: 40;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 
 .header-main {
@@ -521,7 +576,7 @@ const isNavigationActive = (path) => {
 }
 
 .header--wide {
-  left: 0;
+  left: var(--app-sidebar-width);
   min-height: 96px;
 }
 
@@ -530,9 +585,9 @@ const isNavigationActive = (path) => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  border: 1px solid rgba(29, 111, 181, 0.08);
+  width: 38px;
+  height: 38px;
+  border: 0.5px solid rgba(29, 111, 181, 0.18);
   border-radius: 50%;
   padding: 0;
   margin-right: 2px;
@@ -557,10 +612,10 @@ const isNavigationActive = (path) => {
 }
 
 .header-back:hover {
-  transform: translateY(-1px);
+  transform: none;
   border-color: rgba(29, 111, 181, 0.2);
   background: #dceeff;
-  box-shadow: 0 8px 18px rgba(29, 111, 181, 0.12);
+  box-shadow: none;
 }
 
 .header-left {
@@ -676,8 +731,8 @@ const isNavigationActive = (path) => {
 
 .header-home-link {
   flex-shrink: 0;
-  border: 1px solid rgba(0, 181, 26, 0.14);
-  border-radius: 10px;
+  border: 0.5px solid rgba(0, 181, 26, 0.18);
+  border-radius: 8px;
   padding: 9px 12px;
   background: rgba(0, 181, 26, 0.08);
   color: #007a32;
@@ -694,7 +749,7 @@ const isNavigationActive = (path) => {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #00c853, #4cd964);
+  background: #00b51a;
   color: #fff;
   font-size: 12px;
   font-weight: 600;
@@ -747,8 +802,11 @@ const isNavigationActive = (path) => {
 }
 
 @media (min-width: 768px) and (max-width: 1024px) {
+  .layout {
+    --app-sidebar-width: 68px;
+  }
+
   .sidebar {
-    width: 68px;
     padding: 24px 10px;
     align-items: center;
   }
@@ -782,12 +840,11 @@ const isNavigationActive = (path) => {
   }
 
   .main {
-    margin-left: 68px;
     padding-top: 96px;
   }
 
   .main--wide {
-    margin-left: 0;
+    margin-left: var(--app-sidebar-width);
   }
 
   .content {
@@ -862,11 +919,11 @@ const isNavigationActive = (path) => {
     bottom: 0;
     height: 60px;
     background: #fff;
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    border-top: 0.5px solid rgba(0, 0, 0, 0.08);
     z-index: 40;
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.04);
+    box-shadow: none;
   }
 
   .bottom-nav .nav-link {

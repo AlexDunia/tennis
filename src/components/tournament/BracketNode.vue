@@ -87,7 +87,7 @@ function isCurrentPlayerMatch(match) {
   position: relative;
   min-width: 180px;
   overflow: hidden;
-  border: 1.5px solid var(--tournament-line);
+  border: 0.5px solid var(--tournament-line);
   border-radius: 10px;
   background: #ffffff;
   transition:
@@ -97,7 +97,7 @@ function isCurrentPlayerMatch(match) {
 
 .bracket-node:hover {
   border-color: rgba(0, 181, 26, 0.38);
-  box-shadow: var(--tournament-card-shadow);
+  box-shadow: none;
 }
 
 .bracket-node--done {
@@ -106,7 +106,7 @@ function isCurrentPlayerMatch(match) {
 
 .bracket-node--current-player {
   border-color: rgba(0, 181, 26, 0.45);
-  box-shadow: var(--tournament-card-shadow);
+  box-shadow: none;
 }
 
 .bracket-node__code {

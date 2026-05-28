@@ -313,7 +313,7 @@ setDefaults()
 .tournament-match-modal__subsection {
   display: grid;
   gap: 12px;
-  border: 1px solid var(--tournament-line);
+  border: 0.5px solid var(--tournament-line);
   border-radius: 14px;
   padding: 16px;
   background: #ffffff;
@@ -364,7 +364,7 @@ setDefaults()
 .tournament-match-modal textarea {
   min-height: 40px;
   width: 100%;
-  border: 1.5px solid var(--tournament-line);
+  border: 0.5px solid var(--tournament-line);
   border-radius: 10px;
   background: #ffffff;
   padding: 9px 12px;
@@ -381,7 +381,7 @@ setDefaults()
 .tournament-match-modal textarea:focus {
   outline: none;
   border-color: var(--tournament-green);
-  box-shadow: 0 0 0 4px rgba(0, 181, 26, 0.09);
+  box-shadow: none;
 }
 
 .tournament-match-modal textarea {
@@ -433,7 +433,7 @@ setDefaults()
 .tournament-match-modal__winner-input {
   border-color: var(--tournament-green) !important;
   background: var(--tournament-green-soft) !important;
-  box-shadow: 0 0 0 4px rgba(0, 181, 26, 0.08);
+  box-shadow: none;
 }
 
 .tournament-match-modal__score-entry > strong {
@@ -487,7 +487,7 @@ setDefaults()
     width: min(520px, calc(100vw - 40px));
     max-height: min(90vh, 760px);
     border-radius: 18px;
-    box-shadow: var(--tournament-lift-shadow);
+    box-shadow: none;
   }
 
   .tournament-match-modal__grid {

@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { useNotificationStore } from './notification'
 import { usePlayerStore } from './player'
 import { getMatches, submitMatchResult, updateMatch } from '../services/MatchService'
 
@@ -29,6 +30,9 @@ export const useMatchStore = defineStore('match', () => {
       const response = await getMatches()
       if (response.success) {
         matches.value = response.data
+        const notificationStore = useNotificationStore()
+        const playerStore = usePlayerStore()
+        notificationStore.syncTournamentMatchEvents(response.data, playerStore.currentPlayerId)
         return response.data
       }
 
@@ -85,6 +89,10 @@ export const useMatchStore = defineStore('match', () => {
         if (response.data.type !== 'tournament') {
           const playerStore = usePlayerStore()
           await playerStore.loadPlayers()
+        } else {
+          const notificationStore = useNotificationStore()
+          const playerStore = usePlayerStore()
+          notificationStore.rememberMatchEvent(response.data)
         }
         return response.data
       }

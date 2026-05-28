@@ -37,6 +37,40 @@ const props = defineProps({
 const chartRef = ref(null)
 let chartInstance = null
 
+const isValidDate = (date) => date instanceof Date && !Number.isNaN(date.getTime())
+
+function parseDate(value) {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+  return isValidDate(date) ? date : null
+}
+
+function getMatchChartDate(match) {
+  return parseDate(
+    match?.completedAt ||
+      match?.updatedAt ||
+      match?.scheduledAt ||
+      match?.createdAt ||
+      match?.time ||
+      match?.scheduledDate,
+  )
+}
+
+function normalizeChartMatch(match) {
+  const completedAt = getMatchChartDate(match)
+  if (!completedAt || !match?.winnerId) {
+    return null
+  }
+
+  return {
+    ...match,
+    completedAt,
+  }
+}
+
 // ─── Tooltip state ──────────────────────────────────────────────────────────
 const tooltipData = ref({
   visible: false,
@@ -53,7 +87,12 @@ const tooltipData = ref({
 // ─── Demo data ──────────────────────────────────────────────────────────────
 // Generates realistic multi-match-per-day demo data spread across ~4 weeks
 const safeMatches = computed(() => {
-  if (props.matches?.length) return props.matches
+  if (props.matches?.length) {
+    return props.matches
+      .map(normalizeChartMatch)
+      .filter(Boolean)
+      .sort((a, b) => a.completedAt.getTime() - b.completedAt.getTime())
+  }
 
   const results = []
   const now = Date.now()
@@ -77,7 +116,10 @@ const safeMatches = computed(() => {
 
 // ─── Group matches by ISO week (Mon–Sun) ────────────────────────────────────
 function getISOWeekKey(date) {
-  const d = new Date(date)
+  const d = parseDate(date)
+  if (!d) {
+    return null
+  }
   const day = d.getDay() === 0 ? 7 : d.getDay() // Mon=1 … Sun=7
   d.setDate(d.getDate() - day + 1) // back to Monday
   return d.toISOString().slice(0, 10) // YYYY-MM-DD of that Monday
@@ -99,6 +141,10 @@ const weeklyData = computed(() => {
 
   safeMatches.value.forEach((m) => {
     const key = getISOWeekKey(m.completedAt)
+    if (!key) {
+      return
+    }
+
     const isWin = m.winnerId === props.currentPlayerId
 
     if (!weekMap.has(key)) {
@@ -387,9 +433,10 @@ onMounted(() => {
   width: 100%;
   min-width: 0;
   background: var(--color-surface);
-  border-radius: 16px;
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
   padding: 24px;
-  box-shadow: var(--shadow-strong);
+  box-shadow: none;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
@@ -425,12 +472,15 @@ onMounted(() => {
 .chart-top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 14px;
   margin-top: 16px;
 }
 .legend {
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
+  min-width: 0;
 }
 .legend span {
   font-size: 12px;
@@ -440,11 +490,16 @@ onMounted(() => {
   gap: 5px;
 }
 .filters {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
   background: var(--color-surface-soft);
   padding: 4px;
   border-radius: 999px;
 }
 .filters button {
+  min-width: 0;
+  min-height: 30px;
   border: none;
   background: transparent;
   padding: 5px 12px;
@@ -460,7 +515,7 @@ onMounted(() => {
 .filters button.active {
   background: white;
   color: var(--color-text);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 /* ── Chart wrapper ───────────────────────────────────────────────────────── */
@@ -615,10 +670,12 @@ onMounted(() => {
 /* ── Footer ──────────────────────────────────────────────────────────────── */
 .bottom {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
   margin-top: 16px;
   padding-top: 14px;
-  border-top: 1px solid var(--color-border);
+  border-top: 0.5px solid var(--color-border);
 }
 .bottom .label {
   font-size: 12px;

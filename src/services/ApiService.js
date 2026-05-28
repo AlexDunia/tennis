@@ -10,6 +10,8 @@ import { calculateGroupStandings } from '../composables/useTournamentStandings'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 const defaultDelay = 300
 const TOURNAMENT_STORAGE_KEY = 'tennis.mock.tournamentState.v1'
+const RSP_CATEGORY_A_PARTIAL_SCENARIO_KEY = 'tennis.mock.rspCategoryAPartialScenario.v1'
+let hasAppliedRspCategoryAPartialScenario = false
 
 const profileImageUrls = [
   'https://res.cloudinary.com/dnuhjsckk/image/upload/v1776502607/Foster_Ezenwelu_c1ntjt.jpg',
@@ -111,6 +113,22 @@ function saveTournamentState() {
   )
 }
 
+function hasScenarioFlag(storageKey) {
+  if (!canUseStorage()) {
+    return hasAppliedRspCategoryAPartialScenario
+  }
+
+  return window.localStorage.getItem(storageKey) === '1'
+}
+
+function setScenarioFlag(storageKey) {
+  hasAppliedRspCategoryAPartialScenario = true
+
+  if (canUseStorage()) {
+    window.localStorage.setItem(storageKey, '1')
+  }
+}
+
 const tournamentRules = {
   winPoints: 1,
   lossPoints: 0,
@@ -121,6 +139,32 @@ const tournamentRules = {
   walkovertimeMinutes: 30,
   rescheduleNoticeHours: 24,
 }
+
+const rspCategoryAPartialScenarioResults = [
+  ['A', 'rsp-category-a-01', 'rsp-category-a-04', 2, 0, 12, 7, 'rsp-category-a-01'],
+  ['A', 'rsp-category-a-01', 'rsp-category-a-05', 1, 2, 15, 16, 'rsp-category-a-05'],
+  ['A', 'rsp-category-a-01', 'rsp-category-a-07', 2, 0, 12, 5, 'rsp-category-a-01'],
+  ['A', 'rsp-category-a-01', 'rsp-category-a-10', 2, 0, 12, 4, 'rsp-category-a-01'],
+  ['A', 'rsp-category-a-04', 'rsp-category-a-05', 0, 2, 8, 13, 'rsp-category-a-05'],
+  ['A', 'rsp-category-a-04', 'rsp-category-a-07', 2, 1, 15, 13, 'rsp-category-a-04'],
+  ['A', 'rsp-category-a-04', 'rsp-category-a-10', 2, 0, 12, 6, 'rsp-category-a-04'],
+  ['A', 'rsp-category-a-05', 'rsp-category-a-07', 2, 0, 12, 4, 'rsp-category-a-05'],
+  ['A', 'rsp-category-a-05', 'rsp-category-a-10', 2, 0, 12, 3, 'rsp-category-a-05'],
+  ['B', 'rsp-category-a-02', 'rsp-category-a-03', 2, 1, 16, 14, 'rsp-category-a-02'],
+  ['B', 'rsp-category-a-02', 'rsp-category-a-06', 2, 0, 12, 5, 'rsp-category-a-02'],
+  ['B', 'rsp-category-a-02', 'rsp-category-a-08', 2, 0, 12, 6, 'rsp-category-a-02'],
+  ['B', 'rsp-category-a-02', 'rsp-category-a-09', 2, 0, 12, 3, 'rsp-category-a-02'],
+  ['B', 'rsp-category-a-03', 'rsp-category-a-06', 2, 1, 15, 13, 'rsp-category-a-03'],
+  ['B', 'rsp-category-a-03', 'rsp-category-a-08', 2, 0, 12, 5, 'rsp-category-a-03'],
+  ['B', 'rsp-category-a-03', 'rsp-category-a-09', 2, 0, 12, 6, 'rsp-category-a-03'],
+  ['B', 'rsp-category-a-06', 'rsp-category-a-08', 2, 1, 15, 14, 'rsp-category-a-06'],
+  ['B', 'rsp-category-a-06', 'rsp-category-a-09', 2, 0, 12, 7, 'rsp-category-a-06'],
+]
+
+const rspCategoryAPendingScenarioPairs = [
+  ['A', 'rsp-category-a-07', 'rsp-category-a-10'],
+  ['B', 'rsp-category-a-08', 'rsp-category-a-09'],
+]
 
 const rspCategories = [
   {
@@ -447,6 +491,77 @@ function seedTournamentFixtures(tournament) {
   return fixtures
 }
 
+function findTournamentFixture(tournamentId, categoryId, groupId, playerOneId, playerTwoId) {
+  return mockDatabase.matches.find((match) => {
+    const hasPlayers =
+      (match.player1Id === playerOneId && match.player2Id === playerTwoId) ||
+      (match.player1Id === playerTwoId && match.player2Id === playerOneId)
+
+    return (
+      match.tournamentId === tournamentId &&
+      match.categoryId === categoryId &&
+      match.groupId === groupId &&
+      hasPlayers
+    )
+  })
+}
+
+function applyScenarioResult([groupId, playerOneId, playerTwoId, p1Sets, p2Sets, p1Games, p2Games, winnerId]) {
+  const match = findTournamentFixture('rsp-masters-2026', 'category-a', groupId, playerOneId, playerTwoId)
+  if (!match) {
+    return
+  }
+
+  const isOriginalOrder = match.player1Id === playerOneId
+  match.p1Sets = isOriginalOrder ? p1Sets : p2Sets
+  match.p2Sets = isOriginalOrder ? p2Sets : p1Sets
+  match.p1Games = isOriginalOrder ? p1Games : p2Games
+  match.p2Games = isOriginalOrder ? p2Games : p1Games
+  match.sets = []
+  match.liveState = null
+  match.winnerId = winnerId
+  match.winnerName = winnerId === match.player1Id ? match.player1Name : match.player2Name
+  match.status = 'completed'
+  match.score = formatTournamentMatchScore(match)
+  match.updatedAt = new Date().toISOString()
+}
+
+function clearScenarioResult([groupId, playerOneId, playerTwoId]) {
+  const match = findTournamentFixture('rsp-masters-2026', 'category-a', groupId, playerOneId, playerTwoId)
+  if (!match) {
+    return
+  }
+
+  match.p1Sets = null
+  match.p2Sets = null
+  match.p1Games = null
+  match.p2Games = null
+  match.sets = []
+  match.liveState = null
+  match.winnerId = null
+  match.winnerName = null
+  match.status = 'pending'
+  match.score = null
+  match.updatedAt = new Date().toISOString()
+}
+
+function applyRspCategoryAPartialScenario() {
+  if (hasScenarioFlag(RSP_CATEGORY_A_PARTIAL_SCENARIO_KEY)) {
+    return
+  }
+
+  const tournament = findTournament('rsp-masters-2026')
+  if (!tournament) {
+    return
+  }
+
+  rspCategoryAPartialScenarioResults.forEach(applyScenarioResult)
+  rspCategoryAPendingScenarioPairs.forEach(clearScenarioResult)
+  tournament.updatedAt = new Date().toISOString()
+  saveTournamentState()
+  setScenarioFlag(RSP_CATEGORY_A_PARTIAL_SCENARIO_KEY)
+}
+
 function ensureMatchDefaults(match) {
   return {
     type: 'ladder',
@@ -474,6 +589,7 @@ function ensureTournamentData() {
     mockDatabase.tournaments.forEach((tournament) => {
       tournament.categories?.forEach(syncCategoryKnockout)
     })
+    applyRspCategoryAPartialScenario()
     return
   }
 
@@ -485,6 +601,7 @@ function ensureTournamentData() {
   mockDatabase.tournaments = [tournament]
   mockDatabase.matches.push(...seedTournamentFixtures(tournament))
   tournament.categories.forEach(syncCategoryKnockout)
+  applyRspCategoryAPartialScenario()
   saveTournamentState()
 }
 

@@ -16,8 +16,8 @@
   --tournament-faint: #9ca3af;
   --tournament-line: #e5e7eb;
   --tournament-shell: #f5f6f7;
-  --tournament-card-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
-  --tournament-lift-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --tournament-card-shadow: none;
+  --tournament-lift-shadow: none;
 }
 
 .tournament-hub,
@@ -54,7 +54,7 @@
 
 .t-shell-card {
   background: #ffffff;
-  border: 1px solid var(--tournament-line);
+  border: 0.5px solid var(--tournament-line);
   border-radius: 14px;
   box-shadow: var(--tournament-card-shadow);
   transition:
@@ -64,7 +64,7 @@
 }
 
 .t-shell-card:hover {
-  border-color: rgba(0, 181, 26, 0.18);
+  border-color: rgba(0, 181, 26, 0.22);
   box-shadow: var(--tournament-lift-shadow);
 }
 
@@ -73,9 +73,9 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 36px;
-  border: 1.5px solid transparent;
-  border-radius: 10px;
+  min-height: var(--app-button-height, 38px);
+  border: 0.5px solid transparent;
+  border-radius: 8px;
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 700;
@@ -97,7 +97,7 @@
 .t-button--primary:hover:not(:disabled) {
   background: var(--tournament-green-dark);
   border-color: var(--tournament-green-dark);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .t-button:active:not(:disabled) {
@@ -195,7 +195,7 @@
 .t-filter-pill {
   flex: 0 0 auto;
   min-height: 32px;
-  border: 1.5px solid var(--tournament-line);
+  border: 0.5px solid var(--tournament-line);
   border-radius: 999px;
   padding: 5px 12px;
   background: #ffffff;
@@ -213,7 +213,7 @@
   border-color: var(--tournament-green);
   background: var(--tournament-green-soft);
   color: var(--tournament-green-dark);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .t-hero {
@@ -225,9 +225,11 @@
   padding: 24px;
   color: #ffffff;
   background:
-    radial-gradient(circle at 88% 22%, rgba(255, 255, 255, 0.18), transparent 26%),
-    linear-gradient(135deg, #111827 0%, #13261c 58%, #087524 100%);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12);
+    linear-gradient(135deg, rgba(5, 9, 7, 0.7) 0%, rgba(8, 16, 11, 0.5) 54%, rgba(7, 10, 8, 0.74) 100%),
+    radial-gradient(circle at 86% 18%, rgba(255, 211, 61, 0.32), transparent 25%),
+    radial-gradient(circle at 12% 92%, rgba(255, 127, 50, 0.2), transparent 30%),
+    linear-gradient(135deg, #111827 0%, #13261c 52%, #087524 100%);
+  box-shadow: none;
 }
 
 .t-hero::after {

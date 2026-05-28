@@ -7,7 +7,7 @@ import { useNotificationStore } from '../stores/notification'
 const notificationStore = useNotificationStore()
 
 // 3. SEED DATA (prototype only — remove when backend is live)
-if (notificationStore.notifications.length === 0) {
+if (false && notificationStore.notifications.length === 0) {
   notificationStore.addNotification({
     title: 'New challenge received',
     message: 'Foster Ezenwelu has challenged you to a ladder match. You have 48 hours to respond.',
@@ -353,8 +353,8 @@ const formatTime = (value) => {
   align-items: center;
   justify-content: center;
   padding: 4rem 2rem;
-  border-radius: 18px;
-  border: 1px dashed rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  border: 0.5px dashed rgba(0, 0, 0, 0.08);
   background: var(--color-surface-soft, #f6f7f8);
   text-align: center;
   gap: 0.75rem;
@@ -366,7 +366,7 @@ const formatTime = (value) => {
   border-radius: 16px;
   background: #fff;
   border: 1px solid var(--color-border);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -425,16 +425,16 @@ const formatTime = (value) => {
   padding: 1.1rem 1.25rem;
   border-radius: 16px;
   background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  box-shadow: none;
   transition:
     box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
 .notification-card:hover {
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.07);
-  transform: translateY(-1px);
+  box-shadow: none;
+  transform: none;
 }
 
 .notification-card--unread {

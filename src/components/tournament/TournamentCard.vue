@@ -73,9 +73,13 @@ const progress = computed(() =>
 .tournament-card {
   display: grid;
   gap: 14px;
-  border: 1px solid var(--tournament-line);
+  border: 0.5px solid rgba(255, 255, 255, 0.16);
   border-radius: 14px;
-  background: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(9, 14, 11, 0.76), rgba(10, 20, 13, 0.5)),
+    radial-gradient(circle at 84% 16%, rgba(255, 211, 61, 0.3), transparent 26%),
+    radial-gradient(circle at 16% 100%, rgba(255, 127, 50, 0.2), transparent 32%),
+    linear-gradient(135deg, #102017 0%, #087524 100%);
   padding: 20px;
   box-shadow: var(--tournament-card-shadow);
   cursor: pointer;
@@ -86,7 +90,7 @@ const progress = computed(() =>
 }
 
 .tournament-card:hover {
-  border-color: rgba(0, 181, 26, 0.35);
+  border-color: rgba(255, 211, 61, 0.34);
   box-shadow: var(--tournament-lift-shadow);
   transform: translateY(-2px);
 }
@@ -103,12 +107,12 @@ const progress = computed(() =>
 .tournament-card__stats {
   justify-content: flex-start;
   flex-wrap: wrap;
-  color: var(--tournament-muted);
+  color: rgba(255, 255, 255, 0.68);
   font-size: 12px;
 }
 
 .tournament-card__stats strong {
-  color: var(--tournament-ink);
+  color: #ffffff;
 }
 
 .tournament-card__name,
@@ -117,7 +121,7 @@ const progress = computed(() =>
 }
 
 .tournament-card__name {
-  color: var(--tournament-ink);
+  color: #ffffff;
   font-size: 16px;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -125,7 +129,7 @@ const progress = computed(() =>
 
 .tournament-card__dates {
   margin-top: 4px;
-  color: var(--tournament-muted);
+  color: rgba(255, 255, 255, 0.68);
   font-size: 12px;
   font-weight: 600;
 }
@@ -135,7 +139,7 @@ const progress = computed(() =>
 }
 
 .tournament-card__footer span {
-  color: var(--tournament-muted);
+  color: rgba(255, 255, 255, 0.72);
   font-size: 12px;
   font-weight: 700;
 }

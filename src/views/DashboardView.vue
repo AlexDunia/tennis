@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChallengeStore } from '../stores/challenge'
 import { useMatchStore } from '../stores/match'
+import { useNotificationStore } from '../stores/notification'
 import { usePlayerStore } from '../stores/player'
 import { useBookingStore } from '../stores/booking'
 import { useTournamentStore } from '../stores/tournament'
@@ -14,6 +15,7 @@ const router = useRouter()
 const playerStore = usePlayerStore()
 const challengeStore = useChallengeStore()
 const matchStore = useMatchStore()
+const notificationStore = useNotificationStore()
 const bookingStore = useBookingStore()
 const tournamentStore = useTournamentStore()
 const hasLoaded = ref(false)
@@ -156,24 +158,95 @@ const urgentActions = computed(() => [
   { label: 'Matches to play', value: upcomingMatches.value },
   { label: 'Awaiting review', value: challengeSummary.value.pendingReview },
 ])
+const dashboardUnreadCount = computed(() => notificationStore.unreadCount)
 
-const activityFeed = computed(() => {
-  const matches = matchStore.matches.map((m) => ({
-    title: `${m.challengerName} vs ${m.defenderName}`,
-    meta: m.statusLabel,
-    id: m.id,
-    type: 'match',
+const isCurrentPlayerMatch = (match) =>
+  Boolean(
+    playerStore.currentPlayerId &&
+      (match.player1Id === playerStore.currentPlayerId ||
+        match.player2Id === playerStore.currentPlayerId ||
+        match.challengerId === playerStore.currentPlayerId ||
+        match.defenderId === playerStore.currentPlayerId),
+  )
+
+const getEventTime = (item) =>
+  item.updatedAt || item.completedAt || item.scheduledAt || item.createdAt || item.time || new Date(0).toISOString()
+
+const dashboardNotifications = computed(() => {
+  const storedNotifications = notificationStore.recentNotifications.map((notification) => ({
+    id: notification.id,
+    title: notification.title,
+    message: notification.message,
+    type: notification.type,
+    time: notification.time,
+    read: notification.read,
+    meta: notification.meta || {},
   }))
-  const challenges = challengeStore.challenges.map((c) => ({
-    title: `${c.challengerName} vs ${c.defenderName}`,
-    meta: c.statusLabel,
-    id: c.id,
-    type: 'challenge',
-  }))
-  return [...matches, ...challenges].slice(0, 6)
+
+  const matchEvents = matchStore.matches
+    .filter((match) => !match.isBye)
+    .filter((match) => {
+      if (isCurrentPlayerMatch(match)) {
+        return ['scheduled', 'pending_review', 'completed', 'walkover'].includes(match.status)
+      }
+
+      return match.type === 'tournament' && ['completed', 'walkover'].includes(match.status)
+    })
+    .map((match) => {
+      const personal = isCurrentPlayerMatch(match)
+      const winnerName =
+        match.winnerName || (match.winnerId === match.player1Id ? match.player1Name : match.player2Name)
+      const categoryLabel = match.categoryName || match.categoryId || 'Tournament'
+
+      return {
+        id: `match-${match.id}-${match.status}`,
+        title: personal ? 'Your match updated' : `${categoryLabel} score update`,
+        message: personal
+          ? `${match.player1Name || match.challengerName} vs ${match.player2Name || match.defenderName} is ${match.statusLabel || match.status}.`
+          : `${winnerName || 'A player'} won ${match.score || 'the match'}.`,
+        type: personal ? 'success' : 'info',
+        time: getEventTime(match),
+        read: true,
+        meta: {
+          matchId: match.id,
+          tournamentId: match.tournamentId,
+          categoryId: match.categoryId,
+        },
+      }
+    })
+
+  const challengeEvents = challengeStore.challenges
+    .filter(
+      (challenge) =>
+        challenge.challengerId === playerStore.currentPlayerId ||
+        challenge.defenderId === playerStore.currentPlayerId,
+    )
+    .map((challenge) => ({
+      id: `challenge-${challenge.id}-${challenge.status}`,
+      title: 'Challenge update',
+      message: `${challenge.challengerName} vs ${challenge.defenderName} is ${challenge.statusLabel || challenge.status}.`,
+      type: challenge.status === 'pending' ? 'warning' : 'info',
+      time: getEventTime(challenge),
+      read: true,
+      meta: {
+        challengeId: challenge.id,
+      },
+    }))
+
+  const seen = new Set()
+  return [...storedNotifications, ...matchEvents, ...challengeEvents]
+    .filter((item) => {
+      const key = item.meta?.matchId ? `match:${item.meta.matchId}:${item.title}` : item.id
+      if (seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+      return true
+    })
+    .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+    .slice(0, 6)
 })
 
-const openMatch = (id) => router.push({ name: 'MatchDetails', params: { matchId: id } })
 const openCreate = () => router.push({ name: 'CreateChallenge' })
 const openTournament = () => {
   if (activeTournament.value) {
@@ -195,6 +268,26 @@ const openTournamentCategory = () => {
 const openTournamentMatch = (match) => {
   if (match?.id && match?.tournamentId) {
     router.push(`/tournaments/${match.tournamentId}/match/${match.id}`)
+  }
+}
+const openDashboardNotification = (notification) => {
+  if (notification?.meta?.tournamentId && notification?.meta?.matchId) {
+    router.push(`/tournaments/${notification.meta.tournamentId}/match/${notification.meta.matchId}`)
+    return
+  }
+
+  if (notification?.meta?.matchId) {
+    router.push({ name: 'MatchDetails', params: { matchId: notification.meta.matchId } })
+    return
+  }
+
+  if (notification?.meta?.tournamentId) {
+    router.push(`/tournaments/${notification.meta.tournamentId}`)
+    return
+  }
+
+  if (notification?.meta?.challengeId) {
+    router.push('/challenges')
   }
 }
 const getTournamentCategoryName = (categoryId) =>
@@ -240,7 +333,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <button class="cta" @click="openCreate">
+        <button class="cta button-primary" @click="openCreate">
           <span class="cta-icon">⚡</span> Start Challenge
         </button>
       </div>
@@ -268,6 +361,27 @@ onMounted(async () => {
           <strong class="kpi-number">{{ winRate }}%</strong>
         </div>
       </div>
+    </section>
+
+    <section class="stats-source-panel">
+      <article>
+        <span>Ladder profile</span>
+        <strong>Rank #{{ currentPlayer?.rank || '-' }} · {{ winRate }}% win rate</strong>
+        <small>Source: player profile and ladder match history.</small>
+      </article>
+      <article>
+        <span>Tournament draw</span>
+        <strong>
+          {{
+            currentPlayerTournamentEntry
+              ? `${currentPlayerTournamentEntry.category.name}, seed #${currentPlayerTournamentEntry.player.seed}`
+              : playerStore.isCurrentPlayerAdmin
+                ? 'Admin control view'
+                : 'Not listed in active draw'
+          }}
+        </strong>
+        <small>Source: tournament groups, fixtures, and standings.</small>
+      </article>
     </section>
 
     <!-- ── OVERVIEW SECTION ────────────────────────────
@@ -351,16 +465,16 @@ onMounted(async () => {
           </button>
 
           <div class="tournament-action-card__actions">
-            <button type="button" @click="openTournamentCategory">
+            <button type="button" class="button-primary" @click="openTournamentCategory">
               {{ currentPlayerTournamentEntry ? 'Open my division' : 'Open tournament' }}
             </button>
-            <button type="button" class="tournament-action-card__ghost" @click="openTournament">
+            <button type="button" class="button-secondary tournament-action-card__ghost" @click="openTournament">
               Overview
             </button>
           </div>
         </section>
 
-        <section class="card">
+        <section class="card dashboard-performance-card">
           <PerformanceChart
             :matches="matchStore.matches"
             :currentPlayerId="playerStore.currentPlayerId"
@@ -373,40 +487,35 @@ onMounted(async () => {
       </section>
     </div>
 
-    <!-- ── ACTIVITY SECTION ────────────────────────────
-         Card already has its own title — no outer label needed.
-         This pattern is standard (Stripe, Linear, Vercel).
-    ──────────────────────────────────────────────────── -->
-    <section v-if="isDashboardLoading" class="card dashboard-skeleton-card dashboard-skeleton-card--wide">
-      <span class="dashboard-skeleton-line"></span>
-      <span class="dashboard-skeleton-line"></span>
-      <span class="dashboard-skeleton-line"></span>
-      <span class="dashboard-skeleton-line"></span>
-    </section>
-
-    <section v-else class="card">
+    <section v-if="!isDashboardLoading" class="card dashboard-alerts">
       <div class="activity-header">
-        <h3 class="section-title">Recent Activity</h3>
-        <span class="activity-count">{{ activityFeed.length }} events</span>
+        <div>
+          <span class="dashboard-alerts__kicker">Notifications</span>
+          <h3 class="section-title">Recent activity</h3>
+        </div>
+        <span class="activity-count">{{ dashboardUnreadCount }} unread</span>
       </div>
       <div class="divider"></div>
 
-      <div class="activity">
-        <div
-          v-for="item in activityFeed"
-          :key="item.id"
-          class="activity-item"
-          @click="openMatch(item.id)"
+      <div v-if="dashboardNotifications.length" class="dashboard-alerts__list">
+        <article
+          v-for="notification in dashboardNotifications"
+          :key="notification.id"
+          :class="['dashboard-alerts__item', { 'dashboard-alerts__item--unread': !notification.read }]"
+          @click="openDashboardNotification(notification)"
         >
-          <span class="activity-icon">{{ item.type === 'match' ? '🎾' : '⚔️' }}</span>
-          <div class="activity-text">
-            <strong>{{ item.title }}</strong>
-            <span class="muted">{{ item.meta }}</span>
+          <span>{{ notification.type === 'success' ? 'Score' : notification.type }}</span>
+          <div>
+            <strong>{{ notification.title }}</strong>
+            <small>{{ notification.message }}</small>
           </div>
-          <span class="activity-arrow">›</span>
-        </div>
+        </article>
       </div>
+      <p v-else class="dashboard-alerts__empty">
+        Score updates, ranking changes, and tournament notices will appear here.
+      </p>
     </section>
+
   </section>
 </template>
 
@@ -431,9 +540,9 @@ onMounted(async () => {
 
 .dashboard {
   display: grid;
-  gap: 28px;
+  gap: 32px;
   width: 100%;
-  max-width: 1100px;
+  max-width: 1140px;
   margin: 0 auto;
   padding: 8px 0 40px;
 }
@@ -447,10 +556,10 @@ onMounted(async () => {
   min-height: clamp(180px, 34vw, 300px);
   /* tighter bottom padding for a sharper hero layout */
   padding: 10px 28px 2px 28px;
-  border-radius: 20px;
+  border-radius: 16px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.18);
+  border: 0.5px solid rgba(255, 255, 255, 0.16);
+  box-shadow: none;
   color: #fff;
 }
 
@@ -471,7 +580,7 @@ onMounted(async () => {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(0, 184, 74, 0.04) 0%, rgba(76, 217, 100, 0.04) 100%);
+  background: rgba(0, 184, 74, 0.04);
   z-index: 0;
 }
 
@@ -479,12 +588,7 @@ onMounted(async () => {
 .hero .hero-scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(0, 0, 0, 0.45) 0%,
-    rgba(0, 0, 0, 0.15) 60%,
-    rgba(0, 0, 0, 0.05) 100%
-  );
+  background: rgba(0, 0, 0, 0.34);
   z-index: 0;
 }
 
@@ -527,7 +631,7 @@ onMounted(async () => {
   line-height: 1.15;
   letter-spacing: -0.02em;
   margin: 0;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+  text-shadow: none;
 }
 
 /* Subtitle — mid-tier, one step below title */
@@ -537,13 +641,13 @@ onMounted(async () => {
   color: rgba(255, 255, 255, 0.88);
   margin: 2px 0 0;
   line-height: 1.5;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+  text-shadow: none;
 }
 
 .rank-badge {
   color: #4ade80;
   font-weight: 700;
-  text-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
+  text-shadow: none;
 }
 
 .hero__stats {
@@ -570,14 +674,14 @@ onMounted(async () => {
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.58);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  text-shadow: none;
 }
 
 .stat-pill strong {
   font-size: 13.5px;
   font-weight: 700;
   color: #ffffff;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  text-shadow: none;
   margin-top: 1px;
 }
 
@@ -590,30 +694,20 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 7px;
-  height: 44px;
+  height: 38px;
   padding: 0 20px;
-  border-radius: 12px;
-  /* same brand greens as requested */
-  background: #00c853;
-  color: #fff;
-  border: none;
+  border-radius: 8px;
   font-family: 'Poppins', sans-serif;
   font-weight: 600;
   font-size: 13px;
   letter-spacing: 0.01em;
-  /* box-shadow:
-    0 8px 20px rgba(0, 184, 74, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18); */
-  transition: all 0.22s ease;
   cursor: pointer;
   white-space: nowrap;
-  /* align with hero-top top */
   margin-top: 18px;
 }
 
 .cta:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(0, 184, 74, 0.42);
+  box-shadow: none;
 }
 
 .cta-icon {
@@ -638,13 +732,13 @@ onMounted(async () => {
   background: rgba(0, 184, 74, 0.04);
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(2.5px);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 0.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 12px;
   padding: 8px 14px 10px; /* asymmetric: less top, slightly more bottom */
   display: flex;
   flex-direction: column;
   gap: 1px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
 }
 
 /* KPI label — ghost, lowest tier */
@@ -654,7 +748,7 @@ onMounted(async () => {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.65);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  text-shadow: none;
 }
 
 /* KPI number — all white, bold */
@@ -664,7 +758,7 @@ onMounted(async () => {
   color: #ffffff;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  text-shadow: none;
 }
 
 /* KPI trend — faintest */
@@ -672,7 +766,7 @@ onMounted(async () => {
   font-size: 10px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.52);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  text-shadow: none;
   margin-top: 1px;
 }
 
@@ -681,9 +775,9 @@ onMounted(async () => {
   min-width: 0;
   background: #ffffff;
   padding: 22px;
-  border-radius: 16px;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  box-shadow: none;
   animation: dashboardCardIn 260ms ease both;
   transition:
     transform 0.18s ease,
@@ -692,9 +786,9 @@ onMounted(async () => {
 }
 
 .card:hover {
-  border-color: rgba(0, 200, 83, 0.14);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
+  border-color: rgba(0, 200, 83, 0.22);
+  box-shadow: none;
+  transform: none;
 }
 
 /* ─── SECTION GROUP (Overview label row) ───────────────
@@ -734,8 +828,44 @@ onMounted(async () => {
 /* ─── GRID ──────────────────────────────────────────── */
 .grid {
   display: grid;
-  grid-template-columns: minmax(220px, 0.85fr) minmax(260px, 1fr) minmax(320px, 1.2fr);
+  grid-template-columns: minmax(240px, 0.9fr) minmax(320px, 1fr) minmax(360px, 1.25fr);
   gap: 24px;
+  align-items: start;
+}
+
+.stats-source-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.stats-source-panel article {
+  display: grid;
+  gap: 0.35rem;
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  padding: 1.25rem;
+  background: #ffffff;
+}
+
+.stats-source-panel span,
+.dashboard-alerts__kicker {
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stats-source-panel strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.stats-source-panel small {
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 /* ─── SECTION TITLES (inside white cards) ───────────── */
@@ -806,11 +936,13 @@ onMounted(async () => {
   margin-top: 14px;
   padding: 10px 12px;
   background: #f9fafb;
-  border-radius: 10px;
+  border: 0.5px solid rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
   font-size: 11.5px;
   font-weight: 500;
   color: #9ca3af;
   text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .tournament-action-card {
@@ -826,7 +958,7 @@ onMounted(async () => {
   position: absolute;
   inset: 0 0 auto;
   height: 3px;
-  background: linear-gradient(90deg, #00c853, #1d6fb5);
+  background: #00c853;
 }
 
 .tournament-action-card__top {
@@ -842,6 +974,7 @@ onMounted(async () => {
   background: rgba(0, 200, 83, 0.08);
   color: #087524;
   font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .tournament-action-card__kicker {
@@ -875,9 +1008,12 @@ onMounted(async () => {
 .tournament-action-card__stats div {
   display: grid;
   gap: 0.2rem;
-  border-radius: 0.75rem;
+  min-width: 0;
+  border: 0.5px solid rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
   padding: 0.7rem;
   background: #f8fafc;
+  overflow: hidden;
 }
 
 .tournament-action-card__stats small {
@@ -885,6 +1021,7 @@ onMounted(async () => {
   font-size: 0.67rem;
   font-weight: 800;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .tournament-action-card__stats b {
@@ -896,12 +1033,13 @@ onMounted(async () => {
   display: grid;
   justify-items: start;
   width: 100%;
-  border: 1px solid rgba(29, 111, 181, 0.16) !important;
-  border-radius: 0.85rem !important;
+  border: 0.5px solid rgba(29, 111, 181, 0.16) !important;
+  border-radius: 8px !important;
   padding: 0.75rem !important;
   background: #e8f0fb !important;
   color: #1d6fb5 !important;
   text-align: left;
+  overflow: hidden;
 }
 
 .tournament-action-card__next span {
@@ -924,22 +1062,17 @@ onMounted(async () => {
 
 .tournament-action-card button {
   justify-self: start;
-  border: 0;
-  border-radius: 0.55rem;
+  min-width: 0;
+  flex: 1 1 136px;
   padding: 0.65rem 0.85rem;
-  background: #00c853;
-  color: #fff;
   font-weight: 800;
   transition:
-    transform 0.16s ease,
-    box-shadow 0.16s ease,
     background 0.16s ease;
 }
 
 .tournament-action-card button:hover {
-  background: #087524;
-  box-shadow: 0 10px 22px rgba(0, 200, 83, 0.22);
-  transform: translateY(-1px);
+  box-shadow: none;
+  transform: none;
 }
 
 .tournament-action-card__ghost {
@@ -981,6 +1114,81 @@ onMounted(async () => {
   width: 56%;
 }
 
+.dashboard-alerts {
+  display: grid;
+}
+
+.dashboard-alerts__list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.dashboard-alerts__item {
+  display: grid;
+  grid-template-columns: minmax(54px, auto) 1fr;
+  gap: 0.8rem;
+  align-items: start;
+  border: 0.5px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  padding: 0.8rem 0.9rem;
+  background: #f8faf8;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.dashboard-alerts__item:hover {
+  border-color: rgba(0, 200, 83, 0.2);
+  background: #f3fbf3;
+}
+
+.dashboard-alerts__item > span {
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 0.22rem 0.5rem;
+  background: rgba(0, 200, 83, 0.1);
+  color: #087524;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.dashboard-alerts__item strong,
+.dashboard-alerts__item small {
+  display: block;
+}
+
+.dashboard-alerts__item strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.dashboard-alerts__item small {
+  margin-top: 0.15rem;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-alerts__item--unread {
+  border-color: rgba(0, 200, 83, 0.28);
+  background: #f3fbf3;
+}
+
+.dashboard-alerts__empty {
+  margin: 0;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #f8faf8;
+  color: #6b7280;
+  font-size: 13px;
+}
+
 /* ─── INSIGHTS ──────────────────────────────────────── */
 .insights {
   display: flex;
@@ -1001,69 +1209,16 @@ onMounted(async () => {
 }
 
 .activity-count {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   font-weight: 600;
   color: #9ca3af;
   background: #f3f4f6;
   padding: 3px 10px;
   border-radius: 99px;
-}
-
-.activity {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.activity-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.activity-item:hover {
-  background: #f9fafb;
-  transform: translateX(2px);
-}
-
-.activity-icon {
-  font-size: 17px;
-  flex-shrink: 0;
-}
-
-.activity-text {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.activity-text strong {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #111827;
-  letter-spacing: -0.01em;
-}
-
-.muted {
-  font-size: 11.5px;
-  font-weight: 400;
-  color: #9ca3af;
-  margin-top: 2px;
-}
-
-.activity-arrow {
-  color: #d1d5db;
-  font-size: 20px;
-  font-weight: 300;
-  transition: color 0.18s ease;
-}
-
-.activity-item:hover .activity-arrow {
-  color: #6b7280;
 }
 
 /* ─── RESPONSIVE ────────────────────────────────────── */
@@ -1089,9 +1244,22 @@ onMounted(async () => {
   }
 }
 
+@media (max-width: 1120px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid > .card:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 768px) {
   .dashboard {
     padding: 0 16px 32px;
+  }
+  .stats-source-panel {
+    grid-template-columns: 1fr;
   }
   .kpi.inside {
     grid-template-columns: repeat(2, 1fr);

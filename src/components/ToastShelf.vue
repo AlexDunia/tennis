@@ -47,13 +47,11 @@ const dismiss = (id) => notificationStore.dismissToast(id)
   align-items: center;
   overflow: hidden;
   padding: 0.95rem 1rem;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 0.5px solid rgba(15, 23, 42, 0.08);
   border-radius: 0.85rem;
   background: #f8fafc;
   color: #0f172a;
-  box-shadow:
-    0 24px 70px rgba(15, 23, 42, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  box-shadow: none;
   transform-origin: top right;
   animation: toastPop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }

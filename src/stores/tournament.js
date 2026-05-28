@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { calculateGroupStandings } from '../composables/useTournamentStandings'
 import { useNotificationStore } from './notification'
 import { useMatchStore } from './match'
+import { usePlayerStore } from './player'
 import {
   closeRoundRobinRequest,
   createTournamentRequest,
@@ -189,11 +190,7 @@ export const useTournamentStore = defineStore('tournament', () => {
         type: 'success',
         sound: true,
       })
-      notificationStore.addNotification({
-        title: isResultEdit ? 'Tournament score updated' : 'Tournament score recorded',
-        message: `${result.challengerName} vs ${result.defenderName} is now ${result.score}.`,
-        type: 'success',
-      })
+      notificationStore.addTournamentScoreNotification(result, usePlayerStore().currentPlayerId)
     }
 
     return result

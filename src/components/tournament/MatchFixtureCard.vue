@@ -128,7 +128,7 @@ function isCurrentPlayerMatch(match) {
 .match-fixture-card {
   display: grid;
   gap: 12px;
-  border: 1px solid var(--tournament-line);
+  border: 0.5px solid var(--tournament-line);
   border-radius: 10px;
   background: #ffffff;
   padding: 14px 16px;
@@ -139,7 +139,7 @@ function isCurrentPlayerMatch(match) {
 
 .match-fixture-card:hover {
   border-color: rgba(0, 181, 26, 0.28);
-  box-shadow: var(--tournament-card-shadow);
+  box-shadow: none;
 }
 
 .match-fixture-card--bye {

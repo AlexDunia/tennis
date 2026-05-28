@@ -260,6 +260,7 @@ async function submitFinalScore() {
 
     if (result) {
       notificationStore.addToast({ message: 'Live score saved.', type: 'success', sound: true })
+      notificationStore.addTournamentScoreNotification(result, playerStore.currentPlayerId)
     }
     return
   }
