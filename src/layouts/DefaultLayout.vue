@@ -54,11 +54,7 @@
         'main--fullscreen': isLiveFullscreen,
       }"
     >
-      <div
-        v-if="showHeader"
-        class="header"
-        :class="{ 'header--wide': isWideWorkspace }"
-      >
+      <div v-if="showHeader" class="header" :class="{ 'header--wide': isWideWorkspace }">
         <div class="header-main">
           <button
             v-if="headerBackLabel"
@@ -73,7 +69,11 @@
             </svg>
           </button>
           <div class="header-left" :class="{ 'header-left--wizard': isTournamentCreate }">
-            <ol v-if="isTournamentCreate" class="header-steps" aria-label="Tournament creation progress">
+            <ol
+              v-if="isTournamentCreate"
+              class="header-steps"
+              aria-label="Tournament creation progress"
+            >
               <li
                 v-for="(step, index) in tournamentCreateSteps"
                 :key="step"
@@ -105,7 +105,9 @@
           <div class="user" v-if="currentPlayer">
             <div class="avatar-btn">{{ initials }}</div>
             <span class="user-name">{{ currentPlayer.name }}</span>
-            <span v-if="currentPlayer.isAdmin" class="user-role">{{ currentPlayer.roleLabel }}</span>
+            <span v-if="currentPlayer.isAdmin" class="user-role">{{
+              currentPlayer.roleLabel
+            }}</span>
           </div>
         </div>
       </div>
@@ -115,6 +117,7 @@
         :class="{
           'content--wide': isWideWorkspace,
           'content--fullscreen': isLiveFullscreen,
+          'content--tournament-rail': usesTournamentCreateRail,
         }"
       >
         <div class="watch-only">
@@ -123,7 +126,9 @@
           <span>{{ unreadCount }} unread</span>
         </div>
         <RouterView v-slot="{ Component }">
-          <component :is="Component" :key="route.fullPath" />
+          <Transition name="page" mode="out-in" appear>
+            <component :is="Component" :key="route.fullPath" />
+          </Transition>
         </RouterView>
       </div>
     </main>
@@ -237,12 +242,16 @@ const tournamentCreateSubtitles = {
 }
 const isTournamentCreate = computed(() => route.name === 'TournamentCreate')
 const usesTournamentCreateRail = computed(
-  () => isTournamentCreate.value && ['players', 'review'].includes(String(route.query.step || 'basics')),
+  () =>
+    isTournamentCreate.value &&
+    ['players', 'review'].includes(String(route.query.step || 'basics')),
 )
 const isTournamentViewer = computed(
   () => route.path.startsWith('/tournaments/') && route.name !== 'TournamentCreate',
 )
-const isLiveFullscreen = computed(() => route.name === 'PlayMatch' && route.query.fullscreen === '1')
+const isLiveFullscreen = computed(
+  () => route.name === 'PlayMatch' && route.query.fullscreen === '1',
+)
 const isWideWorkspace = computed(() => isTournamentCreate.value || isTournamentViewer.value)
 const showSidebar = computed(() => !isLiveFullscreen.value && !usesTournamentCreateRail.value)
 const showHeader = computed(() => !isLiveFullscreen.value)
@@ -259,8 +268,11 @@ const activeTournament = computed(() =>
     ? tournamentStore.activeTournament
     : null,
 )
-const activeCategory = computed(() =>
-  activeTournament.value?.categories.find((category) => category.id === route.params.categoryId) || null,
+const activeCategory = computed(
+  () =>
+    activeTournament.value?.categories.find(
+      (category) => category.id === route.params.categoryId,
+    ) || null,
 )
 const activeMatch = computed(() =>
   route.params.matchId ? matchStore.matchById(route.params.matchId) : null,
@@ -394,7 +406,9 @@ function handleHeaderBack() {
       return
     }
 
-    router.push(route.params.tournamentId ? `/tournaments/${route.params.tournamentId}` : '/tournaments')
+    router.push(
+      route.params.tournamentId ? `/tournaments/${route.params.tournamentId}` : '/tournaments',
+    )
     return
   }
 
@@ -430,9 +444,10 @@ const initials = computed(() => {
 })
 
 const isNavigationActive = (routeName) => {
-  return routeName === 'Tournaments' ? route.path.startsWith('/tournaments') : route.name === routeName
+  return routeName === 'Tournaments'
+    ? route.path.startsWith('/tournaments')
+    : route.name === routeName
 }
-
 </script>
 
 <style scoped>
@@ -440,6 +455,7 @@ const isNavigationActive = (routeName) => {
   font-family: 'Poppins', sans-serif;
   display: flex;
   min-height: 100vh;
+  background: var(--color-bg);
 }
 
 /* SIDEBAR */
@@ -448,13 +464,13 @@ const isNavigationActive = (routeName) => {
   width: var(--app-sidebar-width);
   top: 0;
   bottom: 0;
-  padding: 28px 20px;
+  padding: 32px 22px;
   background: var(--color-sidebar);
   border-right: 0.5px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   gap: 28px;
-  box-shadow: none;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.08);
   z-index: 30;
 }
 
@@ -486,15 +502,28 @@ const isNavigationActive = (routeName) => {
   min-width: 0;
   border: 0;
   padding: 10px 14px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   font-size: 13.5px;
   font-weight: 500;
   font-family: inherit;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(255, 255, 255, 0.72);
   text-decoration: none;
   text-align: left;
   cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.nav-link:hover {
+  transform: translateY(-1px);
+}
+
+.nav-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 181, 26, 0.18);
 }
 
 .icon {
@@ -521,7 +550,7 @@ const isNavigationActive = (routeName) => {
 }
 
 .nav-link.active {
-  background: rgba(0, 181, 26, 0.16);
+  background: rgba(0, 181, 26, 0.18);
   color: #5cff93;
 }
 
@@ -561,14 +590,19 @@ const isNavigationActive = (routeName) => {
   top: 0;
   left: var(--app-sidebar-width);
   right: 0;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.96);
   border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(18px);
   padding: 24px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   z-index: 40;
-  box-shadow: none;
+  box-shadow: 0 18px 48px rgba(15, 34, 24, 0.06);
+  transition:
+    padding 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .header-main {
@@ -920,13 +954,26 @@ const isNavigationActive = (routeName) => {
     left: 0;
     right: 0;
     bottom: 0;
-    height: 60px;
-    background: #fff;
+    height: 62px;
+    background: rgba(255, 255, 255, 0.98);
     border-top: 0.5px solid rgba(0, 0, 0, 0.08);
     z-index: 40;
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
-    box-shadow: none;
+    box-shadow: 0 14px 32px rgba(15, 34, 24, 0.08);
+    border-radius: 16px 16px 0 0;
+  }
+
+  .bottom-nav .nav-link {
+    transition:
+      background 0.16s ease,
+      color 0.16s ease,
+      transform 0.16s ease;
+  }
+
+  .bottom-nav .nav-link:hover {
+    transform: translateY(-1px);
+    background: rgba(0, 181, 26, 0.06);
   }
 
   .bottom-nav .nav-link {

@@ -1,10 +1,17 @@
 <script setup>
 // 1. IMPORTS
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useNotificationStore } from '../stores/notification'
 
 // 2. STORE
 const notificationStore = useNotificationStore()
+const hasLoaded = ref(false)
+
+onMounted(() => {
+  window.setTimeout(() => {
+    hasLoaded.value = true
+  }, 160)
+})
 
 // 3. SEED DATA (prototype only — remove when backend is live)
 if (false && notificationStore.notifications.length === 0) {
@@ -92,7 +99,7 @@ const formatTime = (value) => {
 <template>
   <section class="notifications-page">
     <!-- ── Page header ── -->
-    <div class="page-header">
+    <div v-if="hasLoaded" class="page-header">
       <div class="page-header__text">
         <p class="page-header__kicker">Activity</p>
         <h1 class="page-header__title">Notifications</h1>
@@ -115,8 +122,39 @@ const formatTime = (value) => {
       </div>
     </div>
 
+    <div v-else class="page-header skeleton-header">
+      <span class="skeleton skeleton-line" style="width: 42%; min-height: 18px;"></span>
+      <span class="skeleton skeleton-line" style="width: 68%; min-height: 34px; border-radius: 16px;"></span>
+      <span class="skeleton skeleton-line" style="width: 54%; min-height: 16px;"></span>
+      <div class="skeleton-header__actions">
+        <span class="skeleton skeleton-line" style="width: 108px; min-height: 36px;"></span>
+        <span class="skeleton skeleton-line" style="width: 94px; min-height: 36px;"></span>
+      </div>
+    </div>
+
+    <div v-if="!hasLoaded" class="notifications-loading">
+      <div class="notifications-loading__list">
+        <section class="notification-card notifications-loading__card">
+          <span class="skeleton skeleton-shape" style="width: 40px; height: 40px;"></span>
+          <div class="notifications-loading__content">
+            <span class="skeleton skeleton-line" style="width: 50%;"></span>
+            <span class="skeleton skeleton-line" style="width: 72%;"></span>
+            <span class="skeleton skeleton-line" style="width: 84%;"></span>
+          </div>
+        </section>
+        <section class="notification-card notifications-loading__card">
+          <span class="skeleton skeleton-shape" style="width: 40px; height: 40px;"></span>
+          <div class="notifications-loading__content">
+            <span class="skeleton skeleton-line" style="width: 42%;"></span>
+            <span class="skeleton skeleton-line" style="width: 64%;"></span>
+            <span class="skeleton skeleton-line" style="width: 82%;"></span>
+          </div>
+        </section>
+      </div>
+    </div>
+
     <!-- ── Empty state ── -->
-    <div v-if="notifications.length === 0" class="empty-state">
+    <div v-if="hasLoaded && notifications.length === 0" class="empty-state">
       <div class="empty-state__icon">
         <!-- Bell icon -->
         <svg
@@ -140,7 +178,7 @@ const formatTime = (value) => {
     </div>
 
     <!-- ── Notification groups ── -->
-    <div v-else class="feed">
+    <div v-if="hasLoaded && notifications.length > 0" class="feed">
       <div v-for="group in groupedNotifications" :key="group.label" class="feed-group">
         <!-- Group label -->
         <p class="feed-group__label">{{ group.label }}</p>
@@ -358,6 +396,17 @@ const formatTime = (value) => {
   background: var(--color-surface-soft, #f6f7f8);
   text-align: center;
   gap: 0.75rem;
+  box-shadow: 0 14px 38px rgba(15, 34, 24, 0.05);
+  animation: pulseGlow 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes pulseGlow {
+  from {
+    box-shadow: 0 14px 38px rgba(15, 34, 24, 0.04);
+  }
+  to {
+    box-shadow: 0 20px 48px rgba(15, 34, 24, 0.08);
+  }
 }
 
 .empty-state__icon {
@@ -430,11 +479,54 @@ const formatTime = (value) => {
   transition:
     box-shadow 0.2s ease,
     transform 0.2s ease;
+  animation: fadeInUp 0.24s var(--motion-curve) both;
+  will-change: transform, opacity;
 }
 
 .notification-card:hover {
-  box-shadow: none;
-  transform: none;
+  box-shadow: 0 18px 42px rgba(15, 34, 24, 0.06);
+  transform: translateY(-1px);
+}
+
+.skeleton-header {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem 0 0;
+}
+
+.skeleton-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.notifications-loading {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.notifications-loading__list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.notifications-loading__card {
+  padding: 1rem;
+  border-radius: 18px;
+  background: var(--color-surface);
+  border: var(--app-hairline);
+  box-shadow: 0 18px 44px rgba(15, 34, 24, 0.05);
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+
+.notifications-loading__content {
+  display: grid;
+  gap: 0.65rem;
 }
 
 .notification-card--unread {

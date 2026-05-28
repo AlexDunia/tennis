@@ -307,18 +307,23 @@ const modalSetLabel = computed(() => {
     </div>
 
     <!-- ── Loading ── -->
-    <div v-if="challengeStore.isLoading" class="ch-loading">
-      <svg
-        width="28"
-        height="28"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="#7b8794"
-        stroke-width="1.5"
-        class="ch-loading__spinner"
-      >
-        <circle cx="8" cy="8" r="6" stroke-dasharray="28" stroke-dashoffset="10" />
-      </svg>
+    <div v-if="challengeStore.isLoading" class="ch-loading ch-loading--skeleton">
+      <div class="ch-loading__grid">
+        <section class="skeleton-card ch-loading__card">
+          <span class="skeleton skeleton-shape" style="width: 46px; height: 46px;"></span>
+          <div class="ch-loading__content">
+            <span class="skeleton skeleton-line" style="width: 54%; min-height: 14px;"></span>
+            <span class="skeleton skeleton-line" style="width: 68%; min-height: 14px;"></span>
+          </div>
+        </section>
+        <section class="skeleton-card ch-loading__card">
+          <span class="skeleton skeleton-shape" style="width: 46px; height: 46px;"></span>
+          <div class="ch-loading__content">
+            <span class="skeleton skeleton-line" style="width: 60%; min-height: 14px;"></span>
+            <span class="skeleton skeleton-line" style="width: 76%; min-height: 14px;"></span>
+          </div>
+        </section>
+      </div>
       <p>Loading challenges…</p>
     </div>
 
@@ -811,6 +816,36 @@ const modalSetLabel = computed(() => {
   to {
     transform: rotate(360deg);
   }
+}
+
+.ch-loading--skeleton {
+  padding: 1rem;
+  background: var(--color-surface);
+  border: var(--app-hairline);
+  box-shadow: 0 18px 44px rgba(15, 34, 24, 0.06);
+  border-radius: 20px;
+}
+
+.ch-loading__grid {
+  display: grid;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.ch-loading__card {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem;
+  background: #fff;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.ch-loading__content {
+  display: grid;
+  gap: 0.55rem;
 }
 
 /* ── CARDS LIST ── */

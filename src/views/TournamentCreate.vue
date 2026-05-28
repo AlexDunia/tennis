@@ -1750,6 +1750,19 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.tournament-create {
+  display: grid;
+  gap: 24px;
+  width: 100%;
+  color: var(--tournament-ink);
+  font-family: 'DM Sans', 'Poppins', sans-serif;
+}
+
+.tournament-create--with-side-rail {
+  margin: 0 -28px;
+  width: calc(100% + 56px);
+}
+
 .tournament-create__workspace {
   display: grid;
   gap: 18px;
@@ -1761,11 +1774,12 @@ onMounted(async () => {
   padding: 24px;
   background: #ffffff;
   box-shadow: var(--tournament-card-shadow);
+  box-sizing: border-box;
 }
 
 .tournament-create--with-side-rail .tournament-create__workspace {
-  width: calc(100% - 250px);
-  margin-left: 250px;
+  width: calc(100% - 232px);
+  margin-left: 232px;
 }
 
 .tournament-create__side-rail {

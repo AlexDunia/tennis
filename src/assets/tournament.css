@@ -56,16 +56,17 @@
   background: #ffffff;
   border: 0.5px solid var(--tournament-line);
   border-radius: 14px;
-  box-shadow: var(--tournament-card-shadow);
+  box-shadow: 0 14px 36px rgba(15, 34, 24, 0.04);
   transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease,
-    transform 0.16s ease;
+    border-color 0.24s var(--motion-curve),
+    box-shadow 0.24s var(--motion-curve),
+    transform 0.24s var(--motion-curve);
 }
 
 .t-shell-card:hover {
   border-color: rgba(0, 181, 26, 0.22);
-  box-shadow: var(--tournament-lift-shadow);
+  box-shadow: 0 20px 48px rgba(15, 34, 24, 0.06);
+  transform: translateY(-2px);
 }
 
 .t-button {
@@ -73,19 +74,24 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: var(--app-button-height, 38px);
+  min-height: min(48px, var(--app-button-height, 44px));
   border: 0.5px solid transparent;
-  border-radius: 8px;
-  padding: 8px 16px;
+  border-radius: 10px;
+  padding: 0.85rem 1.1rem;
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
   transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    transform 0.15s ease,
-    box-shadow 0.15s ease;
+    background 0.16s var(--motion-curve),
+    border-color 0.16s var(--motion-curve),
+    color 0.16s var(--motion-curve),
+    transform 0.16s var(--motion-curve),
+    box-shadow 0.16s var(--motion-curve);
+  will-change: transform, opacity;
+}
+
+.t-button:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .t-button--primary {
@@ -97,11 +103,10 @@
 .t-button--primary:hover:not(:disabled) {
   background: var(--tournament-green-dark);
   border-color: var(--tournament-green-dark);
-  transform: none;
 }
 
 .t-button:active:not(:disabled) {
-  transform: translateY(0) scale(0.99);
+  transform: translateY(0) scale(0.97);
 }
 
 .t-button--secondary {
@@ -182,7 +187,8 @@
   height: 100%;
   border-radius: inherit;
   background: var(--tournament-green);
-  transition: width 0.4s ease;
+  transition: width 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: width;
 }
 
 .t-filter-bar {
@@ -225,7 +231,12 @@
   padding: 24px;
   color: #ffffff;
   background:
-    linear-gradient(135deg, rgba(5, 9, 7, 0.7) 0%, rgba(8, 16, 11, 0.5) 54%, rgba(7, 10, 8, 0.74) 100%),
+    linear-gradient(
+      135deg,
+      rgba(5, 9, 7, 0.7) 0%,
+      rgba(8, 16, 11, 0.5) 54%,
+      rgba(7, 10, 8, 0.74) 100%
+    ),
     radial-gradient(circle at 86% 18%, rgba(255, 211, 61, 0.32), transparent 25%),
     radial-gradient(circle at 12% 92%, rgba(255, 127, 50, 0.2), transparent 30%),
     linear-gradient(135deg, #111827 0%, #13261c 52%, #087524 100%);
@@ -323,12 +334,13 @@
 
 .t-fade-up {
   animation: tFadeUp 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
 }
 
 @keyframes tFadeUp {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(12px);
   }
 
   to {
@@ -339,10 +351,19 @@
 
 .t-skeleton {
   height: 16px;
-  border-radius: 10px;
-  background: linear-gradient(90deg, #f3f4f6 20%, #e5e7eb 42%, #f8fafc 62%, #f3f4f6 84%);
-  background-size: 200% 100%;
-  animation: tShimmer 1.4s infinite;
+  border-radius: 14px;
+  background: var(--color-surface-soft);
+  background-image: linear-gradient(
+    90deg,
+    rgba(243, 244, 246, 0.95) 0%,
+    rgba(229, 231, 235, 1) 40%,
+    rgba(248, 250, 252, 1) 55%,
+    rgba(243, 244, 246, 0.95) 100%
+  );
+  background-size: 220% 100%;
+  position: relative;
+  overflow: hidden;
+  animation: tShimmer 1.6s ease-in-out infinite;
 }
 
 .t-skeleton:nth-child(2) {
@@ -380,7 +401,7 @@
   .tournament-create,
   .tournament-category,
   .tournament-schedule {
-    gap: 18px;
+    gap: 16px;
   }
 
   .t-page-actions,
@@ -392,6 +413,8 @@
 
   .t-button {
     width: 100%;
+    min-height: 48px;
+    padding: 0.95rem 1.1rem;
   }
 
   .t-hero {
@@ -400,6 +423,12 @@
 
   .t-hero__stats {
     grid-template-columns: 1fr;
+  }
+
+  .t-filter-pill {
+    white-space: nowrap;
+    padding: 8px 14px;
+    font-size: clamp(11px, 2.2vw, 12px);
   }
 }
 
