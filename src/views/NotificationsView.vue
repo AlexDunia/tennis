@@ -123,31 +123,34 @@ const formatTime = (value) => {
     </div>
 
     <div v-else class="page-header skeleton-header">
-      <span class="skeleton skeleton-line" style="width: 42%; min-height: 18px;"></span>
-      <span class="skeleton skeleton-line" style="width: 68%; min-height: 34px; border-radius: 16px;"></span>
-      <span class="skeleton skeleton-line" style="width: 54%; min-height: 16px;"></span>
+      <span class="skeleton skeleton-line" style="width: 42%; min-height: 18px"></span>
+      <span
+        class="skeleton skeleton-line"
+        style="width: 68%; min-height: 34px; border-radius: 16px"
+      ></span>
+      <span class="skeleton skeleton-line" style="width: 54%; min-height: 16px"></span>
       <div class="skeleton-header__actions">
-        <span class="skeleton skeleton-line" style="width: 108px; min-height: 36px;"></span>
-        <span class="skeleton skeleton-line" style="width: 94px; min-height: 36px;"></span>
+        <span class="skeleton skeleton-line" style="width: 108px; min-height: 36px"></span>
+        <span class="skeleton skeleton-line" style="width: 94px; min-height: 36px"></span>
       </div>
     </div>
 
     <div v-if="!hasLoaded" class="notifications-loading">
       <div class="notifications-loading__list">
         <section class="notification-card notifications-loading__card">
-          <span class="skeleton skeleton-shape" style="width: 40px; height: 40px;"></span>
+          <span class="skeleton skeleton-shape" style="width: 40px; height: 40px"></span>
           <div class="notifications-loading__content">
-            <span class="skeleton skeleton-line" style="width: 50%;"></span>
-            <span class="skeleton skeleton-line" style="width: 72%;"></span>
-            <span class="skeleton skeleton-line" style="width: 84%;"></span>
+            <span class="skeleton skeleton-line" style="width: 50%"></span>
+            <span class="skeleton skeleton-line" style="width: 72%"></span>
+            <span class="skeleton skeleton-line" style="width: 84%"></span>
           </div>
         </section>
         <section class="notification-card notifications-loading__card">
-          <span class="skeleton skeleton-shape" style="width: 40px; height: 40px;"></span>
+          <span class="skeleton skeleton-shape" style="width: 40px; height: 40px"></span>
           <div class="notifications-loading__content">
-            <span class="skeleton skeleton-line" style="width: 42%;"></span>
-            <span class="skeleton skeleton-line" style="width: 64%;"></span>
-            <span class="skeleton skeleton-line" style="width: 82%;"></span>
+            <span class="skeleton skeleton-line" style="width: 42%"></span>
+            <span class="skeleton skeleton-line" style="width: 64%"></span>
+            <span class="skeleton skeleton-line" style="width: 82%"></span>
           </div>
         </section>
       </div>

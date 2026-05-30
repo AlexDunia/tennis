@@ -125,11 +125,35 @@
           <span>{{ currentPlayer?.name || 'Player' }}</span>
           <span>{{ unreadCount }} unread</span>
         </div>
-        <RouterView v-slot="{ Component }">
-          <Transition name="page" mode="out-in" appear>
-            <component :is="Component" :key="route.fullPath" />
-          </Transition>
-        </RouterView>
+        <div class="page-shell">
+          <div v-if="pageSkeletonActive" class="page-skeleton-overlay" aria-hidden="true">
+            <div class="page-skeleton-stack">
+              <div class="page-skeleton-row">
+                <span class="skeleton skeleton-line" style="width: 52%; height: 18px"></span>
+                <span class="skeleton skeleton-line" style="width: 22%; height: 18px"></span>
+              </div>
+              <div
+                class="skeleton skeleton-card"
+                style="min-height: 220px; padding: 1rem; gap: 0.9rem; display: grid"
+              >
+                <span class="skeleton skeleton-line" style="width: 38%; height: 16px"></span>
+                <span class="skeleton skeleton-line" style="width: 72%; height: 16px"></span>
+                <span class="skeleton skeleton-line" style="width: 44%; height: 16px"></span>
+              </div>
+              <div class="page-skeleton-grid">
+                <span class="skeleton skeleton-card" style="min-height: 120px"></span>
+                <span class="skeleton skeleton-card" style="min-height: 120px"></span>
+                <span class="skeleton skeleton-card" style="min-height: 120px"></span>
+              </div>
+            </div>
+          </div>
+
+          <RouterView v-slot="{ Component }">
+            <Transition name="page" mode="out-in" appear>
+              <component :is="Component" :key="route.fullPath" />
+            </Transition>
+          </RouterView>
+        </div>
       </div>
     </main>
 
@@ -173,7 +197,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
 import { useMatchStore } from '../stores/match'
@@ -188,9 +212,39 @@ const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
 
+const pageSkeletonActive = ref(true)
+let pageSkeletonTimer = null
+const PAGE_SKELETON_DURATION = 2000
+
+const schedulePageSkeleton = () => {
+  pageSkeletonActive.value = true
+  if (pageSkeletonTimer) {
+    window.clearTimeout(pageSkeletonTimer)
+  }
+  pageSkeletonTimer = window.setTimeout(() => {
+    pageSkeletonActive.value = false
+    pageSkeletonTimer = null
+  }, PAGE_SKELETON_DURATION)
+}
+
 onMounted(() => {
   if (!playerStore.players.length) {
     playerStore.loadPlayers()
+  }
+
+  schedulePageSkeleton()
+})
+
+const removeRouteAfterEach = router.afterEach(() => {
+  schedulePageSkeleton()
+})
+
+onUnmounted(() => {
+  if (pageSkeletonTimer) {
+    window.clearTimeout(pageSkeletonTimer)
+  }
+  if (typeof removeRouteAfterEach === 'function') {
+    removeRouteAfterEach()
   }
 })
 
@@ -817,6 +871,7 @@ const isNavigationActive = (routeName) => {
 
 /* CONTENT */
 .content {
+  position: relative;
   padding: 32px;
   min-width: 0;
 }
@@ -831,6 +886,74 @@ const isNavigationActive = (routeName) => {
   width: 100%;
   min-height: 100vh;
   padding: 0;
+}
+
+.page-shell {
+  position: relative;
+  min-height: 100%;
+}
+
+.page-skeleton-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: radial-gradient(
+    circle at top left,
+    rgba(249, 251, 253, 0.98),
+    rgba(229, 236, 245, 0.98)
+  );
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  gap: 1.2rem;
+  animation: pageSkeletonFade 180ms ease both;
+}
+
+@keyframes pageSkeletonFade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-skeleton-stack {
+  width: min(100%, 1080px);
+  display: grid;
+  gap: 1rem;
+}
+
+.page-skeleton-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.page-skeleton-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.page-skeleton-overlay .skeleton {
+  background: rgba(218, 228, 239, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.page-skeleton-overlay .skeleton::before {
+  opacity: 0.28;
+}
+
+.page-skeleton-overlay .page-skeleton-row .skeleton {
+  animation-delay: 80ms;
+}
+
+.page-skeleton-overlay .page-skeleton-grid .skeleton {
+  animation-delay: 120ms;
 }
 
 .watch-only,
@@ -955,12 +1078,12 @@ const isNavigationActive = (routeName) => {
     right: 0;
     bottom: 0;
     height: 62px;
-    background: rgba(255, 255, 255, 0.98);
-    border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+    background: rgba(11, 13, 12, 0.98);
+    border-top: 0.5px solid rgba(255, 255, 255, 0.08);
     z-index: 40;
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
-    box-shadow: 0 14px 32px rgba(15, 34, 24, 0.08);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
     border-radius: 16px 16px 0 0;
   }
 
@@ -969,11 +1092,12 @@ const isNavigationActive = (routeName) => {
       background 0.16s ease,
       color 0.16s ease,
       transform 0.16s ease;
+    color: rgba(255, 255, 255, 0.82);
   }
 
   .bottom-nav .nav-link:hover {
     transform: translateY(-1px);
-    background: rgba(0, 181, 26, 0.06);
+    background: rgba(255, 255, 255, 0.08);
   }
 
   .bottom-nav .nav-link {
@@ -989,6 +1113,7 @@ const isNavigationActive = (routeName) => {
     font-size: 10px;
     line-height: 1.1;
     text-align: center;
+    background: transparent;
   }
 
   .bottom-nav .icon {

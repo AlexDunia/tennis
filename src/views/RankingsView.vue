@@ -184,14 +184,14 @@ const shareLinks = [
     <!-- Loading -->
     <div v-if="playerStore.isLoading" class="rankings__loading rankings__skeleton-state">
       <div class="skeleton-card rankings__skeleton-card">
-        <span class="skeleton skeleton-line" style="width: 48%; min-height: 18px;"></span>
-        <span class="skeleton skeleton-line" style="width: 60%; min-height: 18px;"></span>
-        <span class="skeleton skeleton-line" style="width: 82%; min-height: 14px;"></span>
+        <span class="skeleton skeleton-line" style="width: 48%; min-height: 18px"></span>
+        <span class="skeleton skeleton-line" style="width: 60%; min-height: 18px"></span>
+        <span class="skeleton skeleton-line" style="width: 82%; min-height: 14px"></span>
       </div>
       <div class="skeleton-card rankings__skeleton-card">
-        <span class="skeleton skeleton-line" style="width: 34%; min-height: 18px;"></span>
-        <span class="skeleton skeleton-line" style="width: 72%; min-height: 14px;"></span>
-        <span class="skeleton skeleton-line" style="width: 88%; min-height: 14px;"></span>
+        <span class="skeleton skeleton-line" style="width: 34%; min-height: 18px"></span>
+        <span class="skeleton skeleton-line" style="width: 72%; min-height: 14px"></span>
+        <span class="skeleton skeleton-line" style="width: 88%; min-height: 14px"></span>
       </div>
     </div>
 

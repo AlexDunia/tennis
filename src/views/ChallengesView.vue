@@ -310,17 +310,17 @@ const modalSetLabel = computed(() => {
     <div v-if="challengeStore.isLoading" class="ch-loading ch-loading--skeleton">
       <div class="ch-loading__grid">
         <section class="skeleton-card ch-loading__card">
-          <span class="skeleton skeleton-shape" style="width: 46px; height: 46px;"></span>
+          <span class="skeleton skeleton-shape" style="width: 46px; height: 46px"></span>
           <div class="ch-loading__content">
-            <span class="skeleton skeleton-line" style="width: 54%; min-height: 14px;"></span>
-            <span class="skeleton skeleton-line" style="width: 68%; min-height: 14px;"></span>
+            <span class="skeleton skeleton-line" style="width: 54%; min-height: 14px"></span>
+            <span class="skeleton skeleton-line" style="width: 68%; min-height: 14px"></span>
           </div>
         </section>
         <section class="skeleton-card ch-loading__card">
-          <span class="skeleton skeleton-shape" style="width: 46px; height: 46px;"></span>
+          <span class="skeleton skeleton-shape" style="width: 46px; height: 46px"></span>
           <div class="ch-loading__content">
-            <span class="skeleton skeleton-line" style="width: 60%; min-height: 14px;"></span>
-            <span class="skeleton skeleton-line" style="width: 76%; min-height: 14px;"></span>
+            <span class="skeleton skeleton-line" style="width: 60%; min-height: 14px"></span>
+            <span class="skeleton skeleton-line" style="width: 76%; min-height: 14px"></span>
           </div>
         </section>
       </div>
