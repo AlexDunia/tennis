@@ -75,7 +75,7 @@ defineProps({
 .standings-table {
   min-width: 0;
   border: 1px solid var(--tournament-line);
-  border-radius: 14px;
+  border-radius: var(--app-card-radius);
   background: #fff;
   padding: 18px;
   box-shadow: var(--tournament-card-shadow);

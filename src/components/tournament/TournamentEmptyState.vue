@@ -37,7 +37,7 @@ const emit = defineEmits({
   gap: 0.6rem;
   padding: 28px 20px;
   border: 1px dashed var(--tournament-line);
-  border-radius: 14px;
+  border-radius: var(--app-card-radius);
   background: #fff;
   box-shadow: none !important;
   text-align: center;
@@ -49,7 +49,7 @@ const emit = defineEmits({
   justify-content: center;
   width: 52px;
   height: 52px;
-  border-radius: 16px;
+  border-radius: var(--app-card-radius);
   background: var(--tournament-shell);
   color: var(--tournament-faint);
   font-size: 12px;

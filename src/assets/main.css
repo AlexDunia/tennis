@@ -26,11 +26,11 @@
   --color-accent-support: #ffd33d;
   --shadow-soft: 0 8px 28px rgba(15, 34, 24, 0.06);
   --shadow-strong: 0 18px 48px rgba(15, 34, 24, 0.08);
-  --radius: 0.5rem;
-  --radius-lg: 0.75rem;
+  --radius: 0.4375rem;
+  --radius-lg: 0.625rem;
   --app-sidebar-width: 220px;
-  --app-card-radius: 14px;
-  --app-inner-radius: 8px;
+  --app-card-radius: 10px;
+  --app-inner-radius: 7px;
   --app-button-height: 44px;
   --app-hairline: 0.5px solid var(--color-border);
   --button-primary-bg: var(--color-primary);
@@ -87,6 +87,27 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+a,
+button,
+[role='button'],
+label[for],
+select,
+input[type='button'],
+input[type='submit'],
+input[type='reset'],
+input[type='checkbox'],
+input[type='radio'] {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
 }
 
 button,
@@ -182,8 +203,7 @@ a[role='button'],
   border-color: var(--button-primary-bg-hover);
   background: var(--button-primary-bg-hover);
 }
-
-.button-secondary {
+le .button-secondary {
   border-color: var(--button-secondary-border);
   background: var(--button-secondary-bg);
   color: var(--button-secondary-color);
@@ -346,7 +366,7 @@ img {
 .ch-loading,
 .play__fallback {
   padding: 2rem;
-  border-radius: 18px;
+  border-radius: var(--app-card-radius);
   background: var(--color-surface);
   border: var(--app-hairline);
   box-shadow: 0 16px 42px rgba(15, 34, 24, 0.06);

@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
+import { hardenFormSubmissions } from './utils/formSafety'
 import './assets/main.css'
 import './assets/tournament.css'
 
@@ -30,6 +31,7 @@ const syncRouterWithHash = () => {
 }
 
 if (typeof window !== 'undefined') {
+  hardenFormSubmissions(document)
   window.addEventListener('hashchange', () => {
     window.setTimeout(syncRouterWithHash, 0)
   })

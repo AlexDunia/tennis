@@ -18,6 +18,7 @@ export const ACCESS_ROLES = {
       'tournaments.score.update',
       'tournaments.fixtures.manage',
       'tournaments.knockout.manage',
+      'tournaments.images.manage',
       'matches.view',
       'matches.live_score',
       'rankings.view',

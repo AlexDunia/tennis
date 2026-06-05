@@ -74,7 +74,7 @@ const progress = computed(() =>
   display: grid;
   gap: 14px;
   border: 0.5px solid rgba(255, 255, 255, 0.16);
-  border-radius: 14px;
+  border-radius: var(--app-card-radius);
   background:
     linear-gradient(135deg, rgba(9, 14, 11, 0.76), rgba(10, 20, 13, 0.5)),
     radial-gradient(circle at 84% 16%, rgba(255, 211, 61, 0.3), transparent 26%),

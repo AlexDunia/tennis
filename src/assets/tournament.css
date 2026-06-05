@@ -24,7 +24,8 @@
 .tournament-overview,
 .tournament-create,
 .tournament-category,
-.tournament-schedule {
+.tournament-schedule,
+.tournament-gallery {
   display: grid;
   gap: 24px;
   width: 100%;
@@ -37,6 +38,7 @@
 .tournament-create *,
 .tournament-category *,
 .tournament-schedule *,
+.tournament-gallery *,
 .tournament-card *,
 .category-card *,
 .category-status-badge,
@@ -55,8 +57,8 @@
 .t-shell-card {
   background: #ffffff;
   border: 0.5px solid var(--tournament-line);
-  border-radius: 14px;
-  box-shadow: 0 14px 36px rgba(15, 34, 24, 0.04);
+  border-radius: var(--app-card-radius);
+  box-shadow: 0 8px 24px rgba(15, 34, 24, 0.045);
   transition:
     border-color 0.24s var(--motion-curve),
     box-shadow 0.24s var(--motion-curve),
@@ -65,7 +67,7 @@
 
 .t-shell-card:hover {
   border-color: rgba(0, 181, 26, 0.22);
-  box-shadow: 0 20px 48px rgba(15, 34, 24, 0.06);
+  box-shadow: 0 12px 28px rgba(15, 34, 24, 0.06);
   transform: translateY(-2px);
 }
 
@@ -76,7 +78,7 @@
   gap: 7px;
   min-height: min(48px, var(--app-button-height, 44px));
   border: 0.5px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--app-inner-radius);
   padding: 0.85rem 1.1rem;
   font-size: 13px;
   font-weight: 700;
@@ -227,7 +229,7 @@
   overflow: hidden;
   display: grid;
   gap: 18px;
-  border-radius: 18px;
+  border-radius: var(--app-card-radius);
   padding: 24px;
   color: #ffffff;
   background:
@@ -295,7 +297,7 @@
 .t-stat-tile {
   min-width: 0;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 12px;
+  border-radius: var(--app-inner-radius);
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
@@ -351,7 +353,7 @@
 
 .t-skeleton {
   height: 16px;
-  border-radius: 14px;
+  border-radius: var(--app-inner-radius);
   background: rgba(243, 244, 246, 0.95);
   background-image: linear-gradient(
     90deg,
@@ -400,7 +402,8 @@
   .tournament-overview,
   .tournament-create,
   .tournament-category,
-  .tournament-schedule {
+  .tournament-schedule,
+  .tournament-gallery {
     gap: 16px;
   }
 

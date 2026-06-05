@@ -12,6 +12,7 @@ import TournamentCreateView from '../views/TournamentCreate.vue'
 import TournamentHubView from '../views/TournamentHub.vue'
 import TournamentOverviewView from '../views/TournamentOverview.vue'
 import TournamentScheduleView from '../views/TournamentSchedule.vue'
+import TournamentGalleryView from '../views/TournamentGallery.vue'
 
 const routes = [
   {
@@ -79,6 +80,15 @@ const routes = [
     meta: {
       title: 'Tournament Schedule',
       subtitle: 'All tournament matches grouped by date and filterable by category.',
+    },
+  },
+  {
+    path: '/tournaments/:tournamentId/gallery',
+    name: 'TournamentGallery',
+    component: TournamentGalleryView,
+    meta: {
+      title: 'Tournament Gallery',
+      subtitle: 'Browse and share moments from this tournament edition.',
     },
   },
   {

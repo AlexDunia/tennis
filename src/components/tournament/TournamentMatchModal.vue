@@ -314,7 +314,7 @@ setDefaults()
   display: grid;
   gap: 12px;
   border: 0.5px solid var(--tournament-line);
-  border-radius: 14px;
+  border-radius: var(--app-card-radius);
   padding: 16px;
   background: #ffffff;
   animation: modalSectionIn 260ms ease both;

@@ -136,7 +136,7 @@ const knockoutSummary = computed(() => {
   display: grid;
   gap: 12px;
   border: 1px solid var(--tournament-line);
-  border-radius: 14px;
+  border-radius: var(--app-card-radius);
   background: #ffffff;
   padding: 18px;
   color: inherit;

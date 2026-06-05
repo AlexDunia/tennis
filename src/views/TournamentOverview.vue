@@ -93,6 +93,9 @@ watch(tournamentId, async (nextTournamentId) => {
           <RouterLink class="t-button t-button--secondary" to="/tournaments">
             Back to Tournaments
           </RouterLink>
+          <RouterLink class="t-button t-button--secondary" :to="`/tournaments/${tournament.id}/gallery`">
+            View Gallery
+          </RouterLink>
           <RouterLink class="t-button t-button--primary" :to="`/tournaments/${tournament.id}/schedule`">
             View Schedule
           </RouterLink>

@@ -6,6 +6,7 @@ import {
 } from '../composables/useBracketBuilder'
 import { generateRoundRobinFixtures } from '../composables/useTournamentFixtures'
 import { calculateGroupStandings } from '../composables/useTournamentStandings'
+import { isSafeImageSource, sanitizePlainText, sanitizeSlugList } from '../utils/formSafety'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 const defaultDelay = 300
@@ -435,6 +436,89 @@ function mapTournamentPlayer([playerId, name, seed, isBye = false]) {
   return { playerId, name, seed, isBye }
 }
 
+function createRspTournamentImages(tournamentId) {
+  return [
+    {
+      id: 'rsp-gallery-01',
+      tournamentId,
+      url: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?auto=format&fit=crop&w=1800&q=85',
+      thumbnailUrl:
+        'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?auto=format&fit=crop&w=900&q=80',
+      caption: 'Opening day on centre court',
+      categoryId: 'premier',
+      tags: ['opening-day', 'centre-court', 'players'],
+      uploadedBy: 'player-02',
+      uploadedByName: 'Chima Adamu',
+      uploadedAt: '2026-03-14T09:00:00.000Z',
+    },
+    {
+      id: 'rsp-gallery-02',
+      tournamentId,
+      url: 'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?auto=format&fit=crop&w=1800&q=85',
+      thumbnailUrl:
+        'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?auto=format&fit=crop&w=900&q=80',
+      caption: 'Match point under the afternoon sun',
+      categoryId: 'category-a',
+      tags: ['match-day', 'action', 'centre-court'],
+      uploadedBy: 'player-02',
+      uploadedByName: 'Chima Adamu',
+      uploadedAt: '2026-03-19T15:30:00.000Z',
+    },
+    {
+      id: 'rsp-gallery-03',
+      tournamentId,
+      url: 'https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?auto=format&fit=crop&w=1800&q=85',
+      thumbnailUrl:
+        'https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?auto=format&fit=crop&w=900&q=80',
+      caption: 'Ready for the next round',
+      categoryId: 'category-b',
+      tags: ['players', 'practice', 'behind-the-scenes'],
+      uploadedBy: 'player-02',
+      uploadedByName: 'Chima Adamu',
+      uploadedAt: '2026-03-24T11:20:00.000Z',
+    },
+    {
+      id: 'rsp-gallery-04',
+      tournamentId,
+      url: 'https://images.unsplash.com/photo-1531315396756-905d68d21b56?auto=format&fit=crop&w=1800&q=85',
+      thumbnailUrl:
+        'https://images.unsplash.com/photo-1531315396756-905d68d21b56?auto=format&fit=crop&w=900&q=80',
+      caption: 'Finals weekend atmosphere',
+      categoryId: 'ladies',
+      tags: ['finals', 'supporters', 'celebration'],
+      uploadedBy: 'player-02',
+      uploadedByName: 'Chima Adamu',
+      uploadedAt: '2026-04-04T17:45:00.000Z',
+    },
+    {
+      id: 'rsp-gallery-05',
+      tournamentId,
+      url: 'https://images.unsplash.com/photo-1599474924187-334a4ae5bd3c?auto=format&fit=crop&w=1800&q=85',
+      thumbnailUrl:
+        'https://images.unsplash.com/photo-1599474924187-334a4ae5bd3c?auto=format&fit=crop&w=900&q=80',
+      caption: 'A quiet court before play begins',
+      categoryId: 'veterans',
+      tags: ['court', 'opening-day', 'behind-the-scenes'],
+      uploadedBy: 'player-02',
+      uploadedByName: 'Chima Adamu',
+      uploadedAt: '2026-03-14T07:15:00.000Z',
+    },
+    {
+      id: 'rsp-gallery-06',
+      tournamentId,
+      url: 'https://images.unsplash.com/photo-1599586120429-48281b6f0ece?auto=format&fit=crop&w=1800&q=85',
+      thumbnailUrl:
+        'https://images.unsplash.com/photo-1599586120429-48281b6f0ece?auto=format&fit=crop&w=900&q=80',
+      caption: 'Championship focus',
+      categoryId: 'premier',
+      tags: ['finals', 'action', 'players'],
+      uploadedBy: 'player-02',
+      uploadedByName: 'Chima Adamu',
+      uploadedAt: '2026-04-04T14:10:00.000Z',
+    },
+  ]
+}
+
 function createRspTournament() {
   const tournamentId = 'rsp-masters-2026'
   const categories = rspCategories.map((category) => {
@@ -470,6 +554,9 @@ function createRspTournament() {
     categories,
     officials: ['Igo', 'Harcourt', 'Zino', 'Dogiye', 'David'],
     rules: tournamentRules,
+    images: createRspTournamentImages(tournamentId),
+    gallerySeeded: true,
+    gallerySchemaVersion: 2,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
@@ -604,6 +691,21 @@ function ensureTournamentData() {
 
   if (savedState?.tournaments?.length) {
     mockDatabase.tournaments = savedState.tournaments
+    mockDatabase.tournaments.forEach((tournament) => {
+      if (!tournament.gallerySeeded) {
+        tournament.images =
+          tournament.id === 'rsp-masters-2026' ? createRspTournamentImages(tournament.id) : []
+        tournament.gallerySeeded = true
+      }
+      if (tournament.id === 'rsp-masters-2026' && Number(tournament.gallerySchemaVersion || 0) < 2) {
+        const categoryIds = ['premier', 'category-a', 'category-b', 'ladies', 'veterans', 'premier']
+        tournament.images = (tournament.images || []).map((image, index) => ({
+          ...image,
+          categoryId: image.categoryId || categoryIds[index % categoryIds.length],
+        }))
+        tournament.gallerySchemaVersion = 2
+      }
+    })
     const savedMatches = (savedState.matches || []).map(ensureMatchDefaults)
     const savedMatchIds = new Set(savedMatches.map((match) => match.id))
     mockDatabase.matches = [
@@ -991,6 +1093,130 @@ const mockAdapter = async (config) => {
     }
   }
 
+  if (method === 'get' && path.match(/^\/tournaments\/[^/]+\/images$/)) {
+    const tournament = findTournament(path.split('/')[2])
+    return {
+      data: tournament
+        ? buildResponse([...(tournament.images || [])].sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)))
+        : { success: false, data: null, message: 'Tournament not found' },
+      status: tournament ? 200 : 404,
+      statusText: tournament ? 'OK' : 'Not Found',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  if (method === 'get' && path.match(/^\/tournaments\/[^/]+\/images\/[^/]+$/)) {
+    const [, , tournamentId, , imageId] = path.split('/')
+    const tournament = findTournament(tournamentId)
+    const image = tournament?.images?.find((item) => item.id === imageId)
+    return {
+      data: image
+        ? buildResponse(image)
+        : { success: false, data: null, message: 'Tournament image not found' },
+      status: image ? 200 : 404,
+      statusText: image ? 'OK' : 'Not Found',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  if (method === 'post' && path.match(/^\/tournaments\/[^/]+\/images$/)) {
+    const tournamentId = path.split('/')[2]
+    const tournament = findTournament(tournamentId)
+
+    if (!tournament) {
+      return {
+        data: { success: false, data: null, message: 'Tournament not found' },
+        status: 404,
+        statusText: 'Not Found',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    const categoryExists =
+      !body?.categoryId || tournament.categories?.some((category) => category.id === body.categoryId)
+    const safeCaption = sanitizePlainText(body?.caption, 120)
+
+    if (!isSafeImageSource(body?.url) || !safeCaption || !categoryExists) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: categoryExists
+            ? 'A valid image source and caption are required.'
+            : 'Choose a category from this tournament.',
+        },
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    const image = {
+      id: `tournament-image-${Date.now()}`,
+      tournamentId,
+      url: body.url,
+      thumbnailUrl: body.thumbnailUrl || body.url,
+      caption: safeCaption,
+      categoryId: body.categoryId || null,
+      tags: sanitizeSlugList(body.tags),
+      sourceType: body.sourceType === 'upload' ? 'upload' : 'link',
+      originalFileName: sanitizePlainText(body.originalFileName, 120),
+      mimeType: sanitizePlainText(body.mimeType, 80),
+      fileSize: Math.max(0, Number(body.fileSize || 0)),
+      uploadedBy: body.uploadedBy || null,
+      uploadedByName: body.uploadedByName || 'Tournament admin',
+      uploadedAt: new Date().toISOString(),
+    }
+    tournament.images = [image, ...(tournament.images || [])]
+    tournament.gallerySeeded = true
+    saveTournamentState()
+
+    return {
+      data: buildResponse(image),
+      status: 201,
+      statusText: 'Created',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  if (method === 'delete' && path.match(/^\/tournaments\/[^/]+\/images\/[^/]+$/)) {
+    const [, , tournamentId, , imageId] = path.split('/')
+    const tournament = findTournament(tournamentId)
+    const imageIndex = tournament?.images?.findIndex((image) => image.id === imageId) ?? -1
+
+    if (!tournament || imageIndex === -1) {
+      return {
+        data: { success: false, data: null, message: 'Tournament image not found' },
+        status: 404,
+        statusText: 'Not Found',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    tournament.images.splice(imageIndex, 1)
+    saveTournamentState()
+    return {
+      data: buildResponse({ id: imageId }),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
   if (method === 'post' && path === '/tournaments') {
     if (!Array.isArray(body.categories) || body.categories.length === 0) {
       return {
@@ -1011,6 +1237,9 @@ const mockAdapter = async (config) => {
       ...body,
       id: body.id || `tournament-${Date.now()}`,
       status: body.status || 'upcoming',
+      images: [],
+      gallerySeeded: true,
+      gallerySchemaVersion: 2,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }

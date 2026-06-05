@@ -29,7 +29,7 @@ defineProps({
   gap: 6px;
   padding: 28px;
   border: none;
-  border-radius: 18px;
+  border-radius: var(--app-card-radius);
   background: linear-gradient(135deg, #087524, #00b51a);
   color: #ffffff;
   text-align: center;

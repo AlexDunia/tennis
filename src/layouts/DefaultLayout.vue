@@ -94,20 +94,9 @@
         </div>
 
         <div class="header-actions">
-          <a
-            v-if="workspaceHomeLink"
-            class="header-home-link"
-            :href="getNavigationHref(workspaceHomeLink.to)"
-            @click="handleNavigationClick(workspaceHomeLink.to, $event)"
-          >
-            {{ workspaceHomeLink.label }}
-          </a>
           <div class="user" v-if="currentPlayer">
-            <div class="avatar-btn">{{ initials }}</div>
             <span class="user-name">{{ currentPlayer.name }}</span>
-            <span v-if="currentPlayer.isAdmin" class="user-role">{{
-              currentPlayer.roleLabel
-            }}</span>
+            <span v-if="currentPlayer.isAdmin" class="user-role">Admin</span>
           </div>
         </div>
       </div>
@@ -349,6 +338,10 @@ const currentTitle = computed(() => {
     return 'Tournament Schedule'
   }
 
+  if (route.name === 'TournamentGallery') {
+    return 'Tournament Gallery'
+  }
+
   if (route.name === 'TournamentMatchDetails') {
     return activeMatch.value
       ? `${activeMatch.value.player1Name || activeMatch.value.challengerName || 'Player 1'} vs ${
@@ -382,6 +375,12 @@ const currentSubtitle = computed(() => {
     return 'All fixtures across divisions, kept current as scores change.'
   }
 
+  if (route.name === 'TournamentGallery') {
+    return activeTournament.value?.name
+      ? `Photos and memorable moments from ${activeTournament.value.name}.`
+      : 'Browse and share moments from this tournament edition.'
+  }
+
   if (route.name === 'TournamentMatchDetails') {
     return 'Review match status, score, schedule, and tournament context.'
   }
@@ -408,22 +407,6 @@ const headerBackLabel = computed(() => {
 
   return tournamentCreateStep.value === 'basics' ? 'Back to tournaments' : 'Previous step'
 })
-const workspaceHomeLink = computed(() => {
-  if (isTournamentCreate.value) {
-    return null
-  }
-
-  if (route.name === 'TournamentOverview') {
-    return { to: '/tournaments', label: 'Back to tournaments' }
-  }
-
-  if (isTournamentViewer.value && route.params.tournamentId) {
-    return { to: `/tournaments/${route.params.tournamentId}`, label: 'Tournament overview' }
-  }
-
-  return null
-})
-
 function getNavigationHref(to) {
   return router.resolve(to).href
 }
@@ -487,15 +470,6 @@ function handleHeaderBack() {
 
 const unreadCount = computed(() => notificationStore.unreadCount)
 const currentPlayer = computed(() => playerStore.currentPlayer)
-
-const initials = computed(() => {
-  if (!currentPlayer.value?.name) return ''
-  return currentPlayer.value.name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-})
 
 const isNavigationActive = (routeName) => {
   return routeName === 'Tournaments'
@@ -660,6 +634,7 @@ const isNavigationActive = (routeName) => {
 }
 
 .header-main {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 28px;
@@ -675,13 +650,19 @@ const isNavigationActive = (routeName) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  flex: 0 0 38px;
   width: 38px;
+  min-width: 38px;
+  max-width: 38px;
   height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  aspect-ratio: 1;
   border: 0.5px solid rgba(29, 111, 181, 0.18);
   border-radius: 50%;
   padding: 0;
   margin-right: 2px;
+  overflow: visible;
   background: #e8f4ff;
   color: #1d6fb5;
   cursor: pointer;
@@ -693,8 +674,12 @@ const isNavigationActive = (routeName) => {
 }
 
 .header-back svg {
+  flex: 0 0 19px;
+  display: block;
   width: 19px;
+  min-width: 19px;
   height: 19px;
+  min-height: 19px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2.4;
@@ -710,6 +695,7 @@ const isNavigationActive = (routeName) => {
 }
 
 .header-left {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -814,39 +800,11 @@ const isNavigationActive = (routeName) => {
 }
 
 .header-actions {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 12px;
   min-width: 0;
-}
-
-.header-home-link {
-  flex-shrink: 0;
-  border: 0.5px solid rgba(0, 181, 26, 0.18);
-  border-radius: 8px;
-  padding: 9px 12px;
-  background: rgba(0, 181, 26, 0.08);
-  color: #007a32;
-  font-size: 12px;
-  font-weight: 800;
-  text-decoration: none;
-}
-
-.header-home-link:hover {
-  background: rgba(0, 181, 26, 0.12);
-}
-
-.avatar-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #00b51a;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .user-name {
@@ -1143,8 +1101,13 @@ const isNavigationActive = (routeName) => {
   }
 
   .header-back {
+    flex-basis: 36px;
     width: 36px;
+    min-width: 36px;
+    max-width: 36px;
     height: 36px;
+    min-height: 36px;
+    max-height: 36px;
   }
 
   .header-left h1 {
@@ -1167,9 +1130,17 @@ const isNavigationActive = (routeName) => {
 
 @media (max-width: 162px) {
   .sidebar,
-  .header,
   .bottom-nav,
   .content > *:not(.watch-only) {
+    display: none;
+  }
+
+  .header {
+    display: flex;
+    padding: 8px;
+  }
+
+  .header-actions {
     display: none;
   }
 
