@@ -13,11 +13,28 @@ import TournamentHubView from '../views/TournamentHub.vue'
 import TournamentOverviewView from '../views/TournamentOverview.vue'
 import TournamentScheduleView from '../views/TournamentSchedule.vue'
 import TournamentGalleryView from '../views/TournamentGallery.vue'
+import LandingView from '../views/LandingView.vue'
+import LoginView from '../views/LoginView.vue'
 
 const routes = [
   {
     path: '/',
-    redirect: '/dashboard',
+    name: 'Home',
+    component: LandingView,
+    meta: { title: 'Gorra — The operating system for club tennis', public: true },
+  },
+  {
+    path: '/signin',
+    alias: '/login',
+    name: 'SignIn',
+    component: LoginView,
+    meta: { title: 'Sign in to Gorra', public: true, authPage: true, authMode: 'signin' },
+  },
+  {
+    path: '/signup',
+    name: 'SignUp',
+    component: LoginView,
+    meta: { title: 'Join Gorra', public: true, authPage: true, authMode: 'signup' },
   },
   {
     path: '/dashboard',

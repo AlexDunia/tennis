@@ -52,6 +52,7 @@
       :class="{
         'main--wide': isWideWorkspace,
         'main--fullscreen': isLiveFullscreen,
+        'main--public': isPublicRoute,
       }"
     >
       <div v-if="showHeader" class="header" :class="{ 'header--wide': isWideWorkspace }">
@@ -106,6 +107,7 @@
         :class="{
           'content--wide': isWideWorkspace,
           'content--fullscreen': isLiveFullscreen,
+          'content--public': isPublicRoute,
           'content--tournament-rail': usesTournamentCreateRail,
         }"
       >
@@ -114,7 +116,7 @@
           <span>{{ currentPlayer?.name || 'Player' }}</span>
           <span>{{ unreadCount }} unread</span>
         </div>
-        <div class="page-shell">
+        <div class="page-shell" :class="{ 'page-shell--public': isPublicRoute }">
           <div v-if="pageSkeletonActive" class="page-skeleton-overlay" aria-hidden="true">
             <div class="page-skeleton-stack">
               <div class="page-skeleton-row">
@@ -217,15 +219,17 @@ const schedulePageSkeleton = () => {
 }
 
 onMounted(() => {
-  if (!playerStore.players.length) {
+  if (!isPublicRoute.value && !playerStore.players.length) {
     playerStore.loadPlayers()
   }
 
-  schedulePageSkeleton()
+  if (isPublicRoute.value) pageSkeletonActive.value = false
+  else schedulePageSkeleton()
 })
 
 const removeRouteAfterEach = router.afterEach(() => {
-  schedulePageSkeleton()
+  if (isPublicRoute.value) pageSkeletonActive.value = false
+  else schedulePageSkeleton()
 })
 
 onUnmounted(() => {
@@ -295,10 +299,11 @@ const isTournamentViewer = computed(
 const isLiveFullscreen = computed(
   () => route.name === 'PlayMatch' && route.query.fullscreen === '1',
 )
+const isPublicRoute = computed(() => route.meta.public === true)
 const isWideWorkspace = computed(() => isTournamentCreate.value || isTournamentViewer.value)
-const showSidebar = computed(() => !isLiveFullscreen.value && !usesTournamentCreateRail.value)
-const showHeader = computed(() => !isLiveFullscreen.value)
-const showBottomNav = computed(() => !isLiveFullscreen.value)
+const showSidebar = computed(() => !isPublicRoute.value && !isLiveFullscreen.value && !usesTournamentCreateRail.value)
+const showHeader = computed(() => !isPublicRoute.value && !isLiveFullscreen.value)
+const showBottomNav = computed(() => !isPublicRoute.value && !isLiveFullscreen.value)
 const tournamentCreateStep = computed(() => {
   const step = String(route.query.step || 'basics')
   return tournamentCreateSteps.includes(step) ? step : 'basics'
@@ -612,6 +617,11 @@ const isNavigationActive = (routeName) => {
   padding-top: 0;
 }
 
+.main.main--public {
+  margin-left: 0;
+  padding: 0;
+}
+
 /* HEADER (MORE PREMIUM SPACING) */
 .header {
   position: fixed;
@@ -844,6 +854,16 @@ const isNavigationActive = (routeName) => {
   width: 100%;
   min-height: 100vh;
   padding: 0;
+}
+
+.content.content--public {
+  width: 100%;
+  min-height: 100vh;
+  padding: 0;
+}
+
+.page-shell--public {
+  min-height: 100vh;
 }
 
 .page-shell {

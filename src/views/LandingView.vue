@@ -1,203 +1,54 @@
-﻿<script setup>
-// IMPORTS
+<script setup>
+import { onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import TennisScoreboard from '../components/TennisScoreboard.vue'
-import { createScoreboard } from '../utils/tennisScoring'
+import '../assets/landing.css'
 
-// PROPS
-// none
-
-// EMITS
-// none
-
-// ROUTER / ROUTE
-// none
-
-// STORES
-// none
-
-// REACTIVE STATE
-const heroStats = [
-  { label: 'Bookings per week', value: '24' },
-  { label: 'Court availability', value: '06:00 - 20:00' },
-  { label: 'Members', value: '2,400' },
+const problems = [
+  ['The score exists. Somewhere.', 'It was posted in a chat on Tuesday. The ladder still says otherwise on Sunday.'],
+  ['The fixture was announced.', 'Then forty-seven messages arrived, and the one that mattered disappeared.'],
+  ['Everybody knows the ranking.', 'Until two people remember it differently and the administrator becomes the court of appeal.'],
+  ['The challenge was accepted.', 'But who is confirming the date, recording the result, and moving the ladder?'],
 ]
-const featureBlocks = [
-  {
-    title: 'Single court control',
-    detail: 'Always see the booked timeframe for the Port Harcourt court.',
-  },
-  { title: 'Partner finder', detail: 'Create open matches and invite colleagues by skill level.' },
-  {
-    title: 'Live pro scoreboard',
-    detail: 'Track each rally with professional rules that know deuce, advantage, and tie-breaks.',
-  },
-]
-const landingScoreboard = createScoreboard('Shell Signal', 'Harbor Academy')
-
-// COMPUTED PROPERTIES
-// none
-
-// METHODS
-function handlePlaceholderPoint() {
-  // scoreboard preview is static
-}
-
-// WATCHERS
-// none
-
-// LIFECYCLE HOOKS
-// none
+const steps = ['See your rank', 'Choose an eligible player', 'Send the challenge', 'Play and record', 'Watch the ladder update']
+onMounted(() => {
+  document.title = 'Gorra | Tennis club management, without the chasing'
+  const description = document.querySelector('meta[name="description"]') || document.head.appendChild(document.createElement('meta'))
+  description.setAttribute('name', 'description')
+  description.setAttribute('content', 'Run your tennis ladder, challenges, tournaments, fixtures and match scores from one clear club operating system.')
+})
 </script>
 
 <template>
-  <section class="landing">
-    <div class="landing__grid">
-      <div class="landing__content">
-        <p class="landing__eyebrow">ShellTennis · Port Harcourt</p>
-        <h1 class="landing__title">
-          Book the single fixed court, connect with teammates, and stream live scoring.
-        </h1>
-        <p class="landing__lead">
-          One court, one community, one app tailored for Shell employees. Reserve slots, join
-          friendly matches, and watch a professional scoreboard stay in sync with every rally.
-        </p>
-        <div class="landing__actions">
-          <RouterLink class="landing__cta" to="/login">Access the court</RouterLink>
-          <RouterLink class="landing__secondary" to="/matches">Browse matches</RouterLink>
-        </div>
-        <div class="landing__stats">
-          <div class="landing__stat" v-for="stat in heroStats" :key="stat.label">
-            <p class="landing__stat-value">{{ stat.value }}</p>
-            <p class="landing__stat-label">{{ stat.label }}</p>
-          </div>
-        </div>
-      </div>
-      <div class="landing__scoreboard">
-        <TennisScoreboard :scoreboard="landingScoreboard" @point="handlePlaceholderPoint" />
-      </div>
-    </div>
-    <div class="landing__features">
-      <article class="landing__feature" v-for="feature in featureBlocks" :key="feature.title">
-        <h3 class="landing__feature-title">{{ feature.title }}</h3>
-        <p class="landing__feature-detail">{{ feature.detail }}</p>
-      </article>
-    </div>
-  </section>
-</template>
+  <div class="marketing-home">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="public-nav">
+      <RouterLink class="brand" to="/" aria-label="Gorra home"><i>G</i><span>GORRA</span></RouterLink>
+      <nav aria-label="Public navigation"><a href="#players">For players</a><a href="#tournaments">Tournaments</a><a href="#why-gorra">Why Gorra</a></nav>
+      <RouterLink class="member-link" to="/signin" data-track="start_sign_in">Member sign in ↗</RouterLink>
+    </header>
 
-<style scoped>
-.landing {
-  padding: 2.5rem 1.5rem 3rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(236, 249, 255, 1) 100%);
-}
-.landing__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 2rem;
-}
-.landing__content {
-  display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
-}
-.landing__eyebrow {
-  font-weight: 700;
-  color: var(--color-primary);
-  margin: 0;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-.landing__title {
-  margin: 0;
-  font-size: clamp(2.4rem, 4vw, 3.6rem);
-  line-height: 1.05;
-  color: var(--color-text);
-}
-.landing__lead {
-  margin: 0;
-  color: var(--color-muted);
-  max-width: 720px;
-}
-.landing__actions {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-.landing__cta {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-  color: #ffffff;
-  padding: 0.9rem 1.75rem;
-  border-radius: 1rem;
-  font-weight: 700;
-  text-decoration: none;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-}
-.landing__cta:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
-}
-.landing__secondary {
-  border-radius: 1rem;
-  border: 2px solid var(--color-primary);
-  padding: 0.9rem 1.75rem;
-  color: var(--color-primary);
-  text-decoration: none;
-  font-weight: 700;
-}
-.landing__stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-}
-.landing__stat {
-  background: linear-gradient(135deg, #ffffff, #eff6ff);
-  color: var(--color-text);
-  border-radius: 1.2rem;
-  padding: 1rem 1.15rem;
-  flex: 1;
-  min-width: 140px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-}
-.landing__stat-value {
-  margin: 0;
-  font-size: 1.45rem;
-  font-weight: 800;
-  color: var(--color-primary);
-}
-.landing__stat-label {
-  margin: 0.35rem 0 0;
-  font-size: 0.9rem;
-  color: var(--color-muted);
-}
-.landing__scoreboard {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 360px;
-}
-.landing__features {
-  margin-top: 3rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
-}
-.landing__feature {
-  background: var(--color-surface);
-  border-radius: 1.4rem;
-  padding: 1.5rem;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
-  border: 1px solid rgba(15, 23, 42, 0.05);
-}
-.landing__feature-title {
-  margin: 0 0 0.5rem;
-  color: var(--color-text);
-}
-.landing__feature-detail {
-  margin: 0;
-  color: var(--color-muted);
-  line-height: 1.8;
-}
-</style>
+    <main id="main-content">
+      <section class="mk-hero">
+        <div><p class="eyebrow">Built for clubs that take the game seriously</p><h1>Your tennis club is not disorganized. <em>It is just running on messages.</em></h1><p class="lead">Rankings in one spreadsheet. Fixtures in a group chat. Results in somebody’s memory. Gorra puts the whole club in one clear place—so players know what to do and administrators can finally stop chasing.</p><div class="actions"><a class="primary" href="mailto:hello@gorra.club?subject=Show%20me%20Gorra" data-track="request_demo">Show me how Gorra works →</a><a href="#product">See the club flow ↓</a></div><small>✓ One shared record for the ladder, challenges, fixtures, scores and tournaments.</small></div>
+        <div class="dashboard" aria-label="Gorra member dashboard preview"><header><div><small>GOOD MORNING, AMARA</small><strong>Here’s what needs your attention.</strong></div><b>●</b></header><div class="stats"><article><small>LADDER RANK</small><b>#8</b><em>↑ 2 places</em></article><article><small>SEASON RECORD</small><b>12–4</b><em>75% win rate</em></article><article><small>NEXT MATCH</small><b>Sat · 4:30</b><em>Court 2</em></article></div><section class="attention"><small>YOUR NEXT ACTION</small><h3>Challenge waiting for your response</h3><div class="match"><i>TA</i><p><b>Tunde Akinyemi</b><small>Rank #6</small></p><span>VS</span><i>AO</i><p><b>Amara Okafor</b><small>Rank #8 · You</small></p></div><button>Accept challenge</button><button class="ghost">View details</button></section><section class="movement"><header><b>Recent movement</b><small>View ladder</small></header><p><b>7</b><span>Nneka Eze</span><em>—</em></p><p class="you"><b>8</b><span>You</span><em>↑ 2</em></p><p><b>9</b><span>Bola Idris</span><em>↓ 1</em></p></section></div>
+      </section>
+
+      <section id="why-gorra" class="mk-section friction"><div class="intro"><p class="eyebrow">Let’s call it what it is</p><h2>The club is being held together by one very patient person.</h2><p>And everybody knows who that person is. The one updating the sheet, sending the reminders, finding the score, and answering “who do I play next?” for the fourth time today.</p></div><div class="problems"><article v-for="(problem, index) in problems" :key="problem[0]"><small>0{{ index + 1 }}</small><h3>{{ problem[0] }}</h3><p>{{ problem[1] }}</p></article></div><div class="truth"><b>Gorra does not ask your club to become more organized.</b><span>It gives the club somewhere for the organization to live.</span></div></section>
+
+      <section id="product" class="mk-section record"><div><p class="eyebrow">One version of the truth</p><h2>If it happened at the club, Gorra remembers it.</h2><p>Who challenged whom. Who accepted. When the match is due. What the final score was. Who moved up. What is still waiting. One visible record means fewer explanations—and fewer arguments.</p><ul><li>✓ Rules stay visible, not assumed</li><li>✓ Results become official, not anecdotal</li><li>✓ The next action has a name and an owner</li></ul></div><article class="official"><header><div><small>OFFICIAL MATCH RECORD</small><b>Saturday Ladder Challenge</b></div><span>Completed</span></header><div class="score"><p><i>TA</i><b>Tunde Akinyemi</b><small>Rank #6</small></p><strong>4 : 6</strong><p><i>AO</i><b>Amara Okafor</b><small>Rank #8 · Winner</small></p></div><div class="sets"><small>SET 1</small><b>4–6</b><small>SET 2</small><b>6–7</b></div><footer>✓ Result confirmed by both players <span>22 June · Court 2</span></footer></article></section>
+
+      <section id="players" class="mk-section players"><div class="intro centered"><p class="eyebrow">The player’s whole job</p><h2>Open Gorra. See what is next. Go play tennis.</h2><p>A member does not need to understand the whole system. They only need one clear route through it.</p></div><ol><li v-for="(step, index) in steps" :key="step"><span>{{ index + 1 }}</span><b>{{ step }}</b></li></ol><div class="ladder-box"><div><small>YOUR CHALLENGE RANGE</small><h3>Fair competition does not need a committee meeting.</h3><p>Every player can see their position, the people within reach, and the rules that apply before they send a challenge.</p></div><section><header><b>Club ladder</b><small>Updated after every confirmed result</small></header><p class="disabled"><b>5</b><span>Chidi Obi <small>Outside range</small></span><em>12–3</em><button disabled>Unavailable</button></p><p class="eligible"><b>6</b><span>Tunde Akinyemi <small>Eligible opponent</small></span><em>9–5</em><button>Challenge</button></p><p class="eligible"><b>7</b><span>Nneka Eze <small>Eligible opponent</small></span><em>11–6</em><button>Challenge</button></p><p class="you"><b>8</b><span>Amara Okafor <small>Your position</small></span><em>12–4</em><i>You</i></p></section></div></section>
+
+      <section id="tournaments" class="mk-section tournament"><div class="tournament-copy"><div><p class="eyebrow">Tournament control</p><h2>Four steps in. A whole tournament out.</h2></div><p>Categories, players, formats, group stages, knockout paths and scores—organized from one control area, even when tournament day gets busy.</p></div><div class="wizard"><aside><small>NEW TOURNAMENT</small><h3>Renaissance Club Championship</h3><p>✓ <b>Basics</b></p><p>✓ <b>Categories</b></p><p class="active">03 <b>Players</b></p><p>04 <b>Review</b></p></aside><section><header><div><small>STEP 3 OF 4</small><h3>Place your players</h3></div><span>24 selected</span></header><div class="tabs"><b>Men’s A · 8</b><span>Men’s B · 8</span><span>Women’s Open · 8</span></div><p><b>Chidi Obi</b><span>#2</span><span>Men’s A</span><em>Placed</em></p><p><b>Tunde Akinyemi</b><span>#6</span><span>Men’s A</span><em>Placed</em></p><p><b>Amara Okafor</b><span>#8</span><span>Men’s A</span><em>Placed</em></p><button>Continue to review →</button></section></div></section>
+
+      <section class="mk-section scoring"><div class="scoreboard"><header><b>● LIVE · COURT 1</b><small>MEN’S A · SEMI-FINAL</small></header><p><span>Chidi Obi</span><b>1</b><b>5</b><em>AD</em></p><p><span>Tunde Akinyemi</span><b>0</b><b>4</b><em>40</em></p></div><div><p class="eyebrow">It knows tennis</p><h2>Love. Deuce. Advantage. And the record after match point.</h2><p>A focused live scoreboard handles real tennis scoring, while match details keep the players, schedule, score, winner and tournament context together.</p><ul><li><b>LIVE</b> Follow the match as it happens</li><li><b>FINAL</b> Keep the official result after it ends</li></ul></div></section>
+
+      <section class="mk-section notifications"><div><p class="eyebrow">Less chasing, naturally</p><h2>The reminder has already been sent. You can put your phone down.</h2><p>Gorra keeps members aware of challenges, result reviews, schedule changes and tournament activity—without turning the administrator into the club’s full-time notification service.</p></div><article class="notice-card"><header><b>Notifications</b><span>3 unread</span></header><p><i>↗</i><span><b>Challenge received</b><small>Tunde Akinyemi has challenged you</small></span><em>Now</em></p><p><i>✓</i><span><b>Result ready for review</b><small>Confirm the score from Court 2</small></span><em>12m</em></p><p><i>◷</i><span><b>Tournament fixture updated</b><small>Quarter-final moved to 4:30 PM</small></span><em>1h</em></p></article></section>
+
+      <section class="mk-section trust"><p class="eyebrow">What you are really buying</p><h2>Not software. <em>Peace at the club.</em></h2><div><article><small>01</small><h3>Fairness people can see</h3><p>Clear eligibility, visible rankings, and official results make decisions easier to understand.</p></article><article><small>02</small><h3>Time returned to the organizer</h3><p>Less collecting, reminding, checking and explaining. More room to run the club properly.</p></article><article><small>03</small><h3>A record that outlives the chat</h3><p>Club history stays with the club—not on one phone, in one spreadsheet, or in one person’s head.</p></article></div><blockquote>“Good clubs run on trust. Trust runs on everyone seeing the same thing.”</blockquote></section>
+
+      <section class="final"><p class="eyebrow">Your members came to play tennis</p><h2>Let Gorra handle the part before the serve.</h2><p>One place where players know what to do, administrators know what is happening, and the game keeps moving.</p><div class="actions"><a class="primary" href="mailto:hello@gorra.club?subject=Gorra%20club%20demonstration" data-track="request_demo_final">Show me Gorra →</a><RouterLink to="/dashboard" data-track="explore_demo">Explore the product ↗</RouterLink></div></section>
+    </main>
+    <footer class="public-footer"><RouterLink class="brand" to="/"><i>G</i><span>GORRA</span></RouterLink><p>The operating system for club tennis.</p><nav><a href="#players">Players</a><a href="#tournaments">Tournaments</a><a href="mailto:hello@gorra.club">Contact</a></nav><small>© {{ new Date().getFullYear() }} Gorra. Built for the good of the game.</small></footer>
+  </div>
+</template>
