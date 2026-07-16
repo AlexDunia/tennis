@@ -7,6 +7,7 @@ import {
 import { generateRoundRobinFixtures } from '../composables/useTournamentFixtures'
 import { calculateGroupStandings } from '../composables/useTournamentStandings'
 import { isSafeImageSource, sanitizePlainText, sanitizeSlugList } from '../utils/formSafety'
+import { APP_DATA_MODES, getAppDataMode } from '../dataMode'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 const defaultDelay = 300
@@ -1000,6 +1001,35 @@ const mockAdapter = async (config) => {
   const method = config.method.toLowerCase()
   const path = getRequestPath(config.url)
   const body = config.data ? JSON.parse(config.data) : null
+
+  const isFreshAccount = getAppDataMode() === APP_DATA_MODES.EMPTY
+  const isEmptyCollection = ['/players', '/challenges', '/matches', '/tournaments'].includes(path)
+
+  if (isFreshAccount && method === 'get' && isEmptyCollection) {
+    return {
+      data: buildResponse([]),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  if (
+    isFreshAccount &&
+    method === 'get' &&
+    (path.startsWith('/matches/') || path.startsWith('/tournaments/'))
+  ) {
+    return {
+      data: { success: false, data: null, message: 'No data exists for this fresh account yet.' },
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
 
   if (method === 'get' && path === '/players') {
     return {

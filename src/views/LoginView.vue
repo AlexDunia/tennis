@@ -1,52 +1,47 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { APP_DATA_MODES } from '../dataMode'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
-const email = ref('')
-const password = ref('')
-const fullName = ref('')
-const step = ref('email')
+const selectedRole = ref('player')
 const errorMessage = ref('')
-const passwordInput = ref(null)
+const useDemoData = ref(false)
+const roleOptions = [
+  {
+    key: 'player',
+    label: 'User',
+    description: 'Rankings, challenges, matches and tournament viewing.',
+  },
+  {
+    key: 'super_admin',
+    label: 'Admin',
+    description: 'Player tools plus tournament, fixture and score management.',
+  },
+]
 
 const isSignUp = computed(() => route.meta.authMode === 'signup')
-const heading = computed(() =>
-  isSignUp.value ? 'Join Gorra.\nWhat\'s your email?' : 'Welcome back!\nWhat\'s your email?',
-)
 
-async function continueWithEmail() {
-  errorMessage.value = ''
-  step.value = 'credentials'
-  await nextTick()
-  passwordInput.value?.focus()
-}
+async function enterWorkspace(roleKey) {
+  if (authStore.isAuthLoading) return
 
-async function handleAuth() {
   try {
+    selectedRole.value = roleKey
     errorMessage.value = ''
-    const fallbackName = email.value.split('@')[0] || 'Gorra member'
+    const isAdmin = roleKey === 'super_admin'
     await authStore.login({
-      username: isSignUp.value ? fullName.value || fallbackName : fallbackName,
-      password: password.value,
+      username: isAdmin ? 'Heredina' : 'Club Player',
+      email: isAdmin ? 'admin@gorra.demo' : 'player@gorra.demo',
+      roleKey,
+      dataMode: isAdmin || useDemoData.value ? APP_DATA_MODES.DEMO : APP_DATA_MODES.EMPTY,
     })
-    router.push('/dashboard')
+    await router.push({ name: 'Dashboard' })
   } catch (error) {
-    errorMessage.value = error.message ?? 'We could not continue. Please try again.'
+    errorMessage.value = error?.message || 'We could not open the workspace. Please try again.'
   }
-}
-
-function editEmail() {
-  step.value = 'email'
-  password.value = ''
-  errorMessage.value = ''
-}
-
-function continueWithProvider(provider) {
-  errorMessage.value = `${provider} sign in will be available soon. Please continue with email.`
 }
 </script>
 
@@ -61,73 +56,44 @@ function continueWithProvider(provider) {
       </RouterLink>
 
       <div class="auth-panel__content">
-        <template v-if="step === 'email'">
-          <h1>{{ heading }}</h1>
+        <p class="auth-access-kicker">{{ isSignUp ? 'Create fresh access' : 'One-click access' }}</p>
+        <h1>{{ isSignUp ? 'Choose your Gorra workspace' : 'How would you like to enter?' }}</h1>
+        <p class="auth-access-intro">
+          Pick a role to open the application immediately. No email or password is required.
+        </p>
 
-          <form class="auth-form" @submit.prevent="continueWithEmail">
-            <div class="auth-field">
-              <label for="email">Email</label>
-              <input
-                id="email"
-                v-model.trim="email"
-                name="email"
-                type="email"
-                autocomplete="email"
-                required
-                autofocus
-              />
-            </div>
-            <button class="auth-submit" type="submit">Continue</button>
-          </form>
-
-          <div class="auth-divider"><span>Or continue with</span></div>
-
-          <button class="auth-google" type="button" @click="continueWithProvider('Google')">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285f4" d="M21.6 12.2c0-.7-.1-1.5-.2-2.2H12v4.2h5.4a4.6 4.6 0 0 1-2 3v2.7h3.4c2-1.8 2.8-4.5 2.8-7.7Z"/><path fill="#34a853" d="M12 22c2.8 0 5.2-.9 6.9-2.5l-3.4-2.7c-.9.6-2.1 1-3.5 1-2.7 0-5-1.8-5.8-4.3H2.7v2.8A10.4 10.4 0 0 0 12 22Z"/><path fill="#fbbc05" d="M6.2 13.5a6.2 6.2 0 0 1 0-3.9V6.8H2.7a10.1 10.1 0 0 0 0 9.5l3.5-2.8Z"/><path fill="#ea4335" d="M12 5.3c1.5 0 2.9.5 4 1.6l3-3A10 10 0 0 0 2.7 6.8l3.5 2.8C7 7.1 9.3 5.3 12 5.3Z"/></svg>
-            <span>Continue with Google</span>
+        <div class="auth-role-picker" role="group" aria-label="Choose account type" :aria-busy="authStore.isAuthLoading">
+          <button
+            v-for="option in roleOptions"
+            :key="option.key"
+            type="button"
+            class="auth-role-option"
+            :class="{ 'auth-role-option--active': selectedRole === option.key }"
+            :aria-pressed="selectedRole === option.key"
+            :disabled="authStore.isAuthLoading"
+            @click="enterWorkspace(option.key)"
+          >
+            <span class="auth-role-option__icon" aria-hidden="true">
+              <svg v-if="option.key === 'super_admin'" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.2c0 4.6 3.2 8.1 7.5 9.8 4.3-1.7 7.5-5.2 7.5-9.8V6L12 3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
+              <svg v-else viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.8-4.2 3.4-6.5 7.5-6.5s6.7 2.3 7.5 6.5"/></svg>
+            </span>
+            <span>
+              <strong>{{ authStore.isAuthLoading && selectedRole === option.key ? 'Opening…' : option.label }}</strong>
+              <small>{{ option.description }}</small>
+            </span>
           </button>
+        </div>
 
-          <p v-if="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</p>
-          <p class="auth-switch">
-            {{ isSignUp ? 'Already a member?' : 'New to Gorra?' }}
-            <RouterLink :to="isSignUp ? '/signin' : '/signup'">
-              {{ isSignUp ? 'Sign in' : 'Create an account' }}
-            </RouterLink>
-          </p>
-        </template>
+        <label class="auth-data-option">
+          <input v-model="useDemoData" type="checkbox" />
+          <span>
+            <strong>Use sample club data for User</strong>
+            <small>Leave this off to open the true fresh-account experience.</small>
+          </span>
+        </label>
 
-        <template v-else>
-          <button class="auth-email" type="button" @click="editEmail">
-            <span>{{ email }}</span><strong>Change</strong>
-          </button>
-          <h1>{{ isSignUp ? 'Create your Gorra account' : 'Enter your password' }}</h1>
-          <p class="auth-intro">
-            {{ isSignUp ? 'One account for your ladder, matches, and tournaments.' : 'Good to see you again. Let’s get you back to the club.' }}
-          </p>
-
-          <form class="auth-form" @submit.prevent="handleAuth">
-            <div v-if="isSignUp" class="auth-field">
-              <label for="full-name">Full name</label>
-              <input id="full-name" v-model.trim="fullName" type="text" autocomplete="name" required />
-            </div>
-            <div class="auth-field">
-              <label for="password">Password</label>
-              <input
-                id="password"
-                ref="passwordInput"
-                v-model="password"
-                type="password"
-                :autocomplete="isSignUp ? 'new-password' : 'current-password'"
-                minlength="6"
-                required
-              />
-            </div>
-            <p v-if="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</p>
-            <button class="auth-submit" type="submit" :disabled="authStore.isAuthLoading">
-              {{ authStore.isAuthLoading ? 'Please wait…' : isSignUp ? 'Create account' : 'Sign in' }}
-            </button>
-          </form>
-        </template>
+        <p v-if="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</p>
+        <p class="auth-quick-note">User opens the fresh match dashboard. Admin always keeps the original populated club data.</p>
       </div>
 
     </main>
@@ -224,6 +190,96 @@ h1 {
   font-size: 14px;
   line-height: 1.55;
 }
+
+.auth-access-kicker {
+  margin: 0 0 8px;
+  color: var(--color-primary-strong);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-access-intro {
+  margin: -24px 0 32px;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.auth-data-option {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+  padding: 13px 14px;
+  border: var(--app-hairline);
+  border-radius: var(--app-inner-radius);
+  background: var(--color-surface-soft);
+}
+
+.auth-data-option input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--color-primary);
+}
+
+.auth-data-option strong,
+.auth-data-option small { display: block; }
+.auth-data-option strong { color: var(--color-text); font-size: 12px; line-height: 1.4; }
+.auth-data-option small { margin-top: 2px; color: var(--color-muted); font-size: 11px; line-height: 1.45; }
+
+.auth-quick-note {
+  margin: 22px 0 0;
+  color: #68746b;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.auth-role-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: -18px 0 24px;
+}
+
+.auth-role-option {
+  min-height: 88px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 11px;
+  padding: 13px;
+  border: 1px solid #d5ddd7;
+  border-radius: 9px;
+  background: #fff;
+  color: #172319;
+  text-align: left;
+  white-space: normal;
+}
+
+.auth-role-option--active {
+  border-color: var(--color-primary-strong);
+  background: #f2fbf3;
+  box-shadow: 0 0 0 2px rgba(0, 181, 26, 0.1);
+}
+
+.auth-role-option__icon {
+  display: grid;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: #edf5ef;
+  color: #087524;
+}
+
+.auth-role-option__icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.auth-role-option strong, .auth-role-option small { display: block; }
+.auth-role-option strong { font-size: 14px; }
+.auth-role-option small { margin-top: 3px; color: #69776c; font-size: 10px; font-weight: 600; line-height: 1.35; }
 
 .auth-form {
   display: grid;
@@ -388,6 +444,8 @@ h1 {
   .auth-panel__content {
     padding-top: 48px;
   }
+
+  .auth-role-picker { grid-template-columns: 1fr; }
 
   h1 {
     margin-bottom: 30px;

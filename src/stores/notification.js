@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { playScoreUpdateClick } from '../utils/notificationSound'
+import { APP_DATA_MODES, appDataMode } from '../dataMode'
 
 const NOTIFICATION_STORAGE_KEY = 'tennis.local.notifications.v1'
 const MATCH_EVENT_STORAGE_KEY = 'tennis.local.matchEventSignatures.v1'
@@ -13,13 +14,17 @@ function canUseStorage() {
   return typeof window !== 'undefined' && Boolean(window.localStorage)
 }
 
+function getModeStorageKey(key) {
+  return appDataMode.value === APP_DATA_MODES.DEMO ? key : `${key}.empty`
+}
+
 function loadStoredJson(key, fallback) {
   if (!canUseStorage()) {
     return fallback
   }
 
   try {
-    return JSON.parse(window.localStorage.getItem(key) || JSON.stringify(fallback))
+    return JSON.parse(window.localStorage.getItem(getModeStorageKey(key)) || JSON.stringify(fallback))
   } catch {
     return fallback
   }
@@ -27,7 +32,7 @@ function loadStoredJson(key, fallback) {
 
 function saveStoredJson(key, value) {
   if (canUseStorage()) {
-    window.localStorage.setItem(key, JSON.stringify(value))
+    window.localStorage.setItem(getModeStorageKey(key), JSON.stringify(value))
   }
 }
 
@@ -78,6 +83,11 @@ export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref(loadStoredJson(NOTIFICATION_STORAGE_KEY, []))
   const toasts = ref([])
   const matchEventSignatures = ref(loadStoredJson(MATCH_EVENT_STORAGE_KEY, {}))
+
+  watch(appDataMode, () => {
+    notifications.value = loadStoredJson(NOTIFICATION_STORAGE_KEY, [])
+    matchEventSignatures.value = loadStoredJson(MATCH_EVENT_STORAGE_KEY, {})
+  })
 
   const unreadCount = computed(() => notifications.value.filter((item) => !item.read).length)
   const recentNotifications = computed(() =>

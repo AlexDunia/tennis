@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { usePlayerStore } from '../stores/player'
 import { useChallengeStore } from '../stores/challenge'
+import EmptyState from '../components/EmptyState.vue'
 
 const playerStore = usePlayerStore()
 const challengeStore = useChallengeStore()
@@ -11,6 +12,7 @@ onMounted(async () => {
 })
 
 const player = computed(() => playerStore.currentPlayer)
+const isProfileLoading = computed(() => playerStore.isLoading || challengeStore.isLoading)
 
 const initials = computed(() => {
   if (!player.value?.name) return '??'
@@ -72,6 +74,15 @@ const completedChallenges = computed(
         <span class="profile__stat-label">Completed</span>
       </div>
     </div>
+
+    <EmptyState
+      v-if="player.matchesPlayed === 0"
+      compact
+      variant="data-dependent"
+      illustration="chart"
+      title="No performance data yet"
+      description="Statistics will appear after this player records more matches."
+    />
 
     <!-- Details card -->
     <div class="profile__card">
@@ -156,6 +167,14 @@ const completedChallenges = computed(
       </div>
     </div>
   </div>
+
+  <EmptyState
+    v-else-if="!isProfileLoading"
+    variant="data-dependent"
+    illustration="profile"
+    title="Your player profile is waiting for your club"
+    description="Your account is ready. Your ladder position and match statistics will appear after the club adds its members."
+  />
 
   <!-- Loading -->
   <div v-else class="profile__loading">

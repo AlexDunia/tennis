@@ -1,10 +1,11 @@
 ﻿<script setup>
 // IMPORTS
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMatchStore } from '../stores/match'
 import { useAuthStore } from '../stores/auth'
 import MatchCard from '../components/MatchCard.vue'
+import EmptyState from '../components/EmptyState.vue'
 
 // PROPS
 // none
@@ -20,6 +21,7 @@ const matchStore = useMatchStore()
 const authStore = useAuthStore()
 
 // REACTIVE STATE
+const hasLoaded = ref(false)
 const matchForm = reactive({
   title: 'Corporate Rally',
   type: 'Singles',
@@ -40,6 +42,8 @@ async function loadMatches() {
     await matchStore.loadMatches()
   } catch (_) {
     // error handled in store
+  } finally {
+    hasLoaded.value = true
   }
 }
 
@@ -90,10 +94,10 @@ onMounted(() => {
     <div class="matches__grid">
       <div class="matches__list">
         <h2 class="matches__subtitle">Live right now</h2>
-        <div class="matches__row" v-if="liveMatches.length === 0">No ongoing matches yet.</div>
+        <EmptyState v-if="hasLoaded && liveMatches.length === 0" compact variant="quiet" illustration="scoreboard" title="No live matches" description="Matches currently being scored will appear here." />
         <MatchCard v-for="match in liveMatches" :key="match.id" :match="match" @join="handleJoin" />
         <h2 class="matches__subtitle">Upcoming</h2>
-        <div class="matches__row" v-if="upcomingMatches.length === 0">No upcoming invitations.</div>
+        <EmptyState v-if="hasLoaded && upcomingMatches.length === 0" compact variant="quiet" illustration="fixtures" title="No upcoming matches" description="Accepted invitations and scheduled matches will appear here." />
         <MatchCard v-for="match in upcomingMatches" :key="`upcoming-${match.id}`" :match="match" @join="handleJoin" />
       </div>
       <div class="matches__form">

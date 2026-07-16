@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
+import EmptyState from '../components/EmptyState.vue'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
 import { assignPlayersToCategories } from '../utils/tournament/assignPlayersToCategories'
@@ -1508,16 +1509,13 @@ onMounted(async () => {
                 </article>
               </div>
 
-              <article v-else class="tournament-create__empty-results">
-                <strong>No {{ form.activePlayerView }} players here yet</strong>
-                <span>
-                  {{
-                    form.activePlayerView === 'removed'
-                      ? 'Removed players will appear here so you can restore them.'
-                      : 'Search below to add players, or use easy auto fill.'
-                  }}
-                </span>
-              </article>
+              <EmptyState
+                v-else
+                compact
+                illustration="players"
+                :title="`No ${form.activePlayerView} players here yet`"
+                :description="form.activePlayerView === 'removed' ? 'Removed players will appear here so you can restore them.' : 'Search below to add players, or use easy auto fill.'"
+              />
             </section>
 
             <section class="tournament-create__add-panel">
@@ -1570,10 +1568,16 @@ onMounted(async () => {
                 </article>
               </div>
 
-              <article v-else class="tournament-create__empty-results">
-                <strong>No available players found</strong>
-                <span>Clear the search or pick another category.</span>
-              </article>
+              <EmptyState
+                v-else
+                compact
+                :variant="form.playerSearch ? 'no-results' : 'data-dependent'"
+                :illustration="form.playerSearch ? 'search' : 'players'"
+                title="No available players found"
+                :description="form.playerSearch ? 'Try a broader search or clear the current term.' : 'Every eligible member is already assigned to this category.'"
+                :primary-action-label="form.playerSearch ? 'Clear search' : ''"
+                @primary-action="form.playerSearch = ''"
+              />
             </section>
           </article>
         </section>

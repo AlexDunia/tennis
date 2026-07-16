@@ -159,7 +159,7 @@ watch(tournamentId, async (nextTournamentId) => {
         </RouterLink>
       </div>
 
-      <div class="t-card-grid t-card-grid--two">
+      <div v-if="tournament.categories.length" class="t-card-grid t-card-grid--two">
         <CategoryCard
           v-for="category in tournament.categories"
           :key="category.id"
@@ -168,6 +168,12 @@ watch(tournamentId, async (nextTournamentId) => {
           :matches="matchesForCategory(category.id)"
         />
       </div>
+      <TournamentEmptyState
+        v-else
+        icon="Fixtures"
+        title="No categories added"
+        message="Divisions will appear here after the tournament structure has been confirmed."
+      />
     </section>
   </section>
   <section v-else-if="!hasLoaded || tournamentStore.loading" class="tournament-overview">

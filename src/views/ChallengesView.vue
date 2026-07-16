@@ -7,6 +7,9 @@ import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useNotificationStore } from '../stores/notification'
 import ChallengeCard from '../components/ChallengeCard.vue'
+import EmptyState from '../components/EmptyState.vue'
+import ChallengeEmptyState from '../components/challenges/ChallengeEmptyState.vue'
+import ChallengeSkeleton from '../components/challenges/ChallengeSkeleton.vue'
 import { formatAppDateTime } from '../utils/dateFormat'
 
 // 4. ROUTER
@@ -52,6 +55,19 @@ const heroInitials = computed(() => {
 const pendingChallenge = computed(
   () => challengeStore.challenges.find((c) => c.status === 'awaiting') ?? null,
 )
+
+const isViewLoading = computed(
+  () => challengeStore.isLoading || matchStore.isLoading || playerStore.isLoading,
+)
+const viewError = computed(
+  () => challengeStore.error || matchStore.error || playerStore.error,
+)
+const challengeState = computed(() => {
+  if (challengeStore.challenges.length > 0) return 'active'
+  if (!playerStore.players.length || !currentPlayer.value?.rank) return 'no-club'
+  if (!playerStore.availableOpponents.length) return 'no-opponents'
+  return 'ready'
+})
 
 // 8. METHODS
 
@@ -140,7 +156,25 @@ const handleDetails = (challengeId) => {
 }
 
 const loadChallengesView = async () => {
-  await Promise.all([challengeStore.loadChallenges(), matchStore.loadMatches()])
+  await Promise.all([
+    playerStore.loadPlayers(),
+    challengeStore.loadChallenges(),
+    matchStore.loadMatches(),
+  ])
+}
+
+const handleFreshAccountAction = () => {
+  if (challengeState.value === 'ready') {
+    router.push({ name: 'CreateChallenge' })
+    return
+  }
+
+  if (challengeState.value === 'no-opponents') {
+    router.push({ name: 'Dashboard' })
+    return
+  }
+
+  router.push({ name: 'Profile' })
 }
 
 // 10. LIFECYCLE
@@ -185,7 +219,7 @@ const modalSetLabel = computed(() => {
 <template>
   <section class="challenges">
     <!-- ── Summary row ── -->
-    <div class="summary-row">
+    <div v-if="!isViewLoading && !viewError && challengeState === 'active'" class="summary-row">
       <!-- Hero card -->
       <div v-if="currentPlayer" class="hero-card">
         <div class="hero-label">Your Position</div>
@@ -234,7 +268,7 @@ const modalSetLabel = computed(() => {
     </div>
 
     <!-- ── Tabs ── -->
-    <div class="tabs-wrap">
+    <div v-if="!isViewLoading && !viewError && challengeState === 'active'" class="tabs-wrap">
       <div class="tabs-row" role="tablist">
         <button
           v-for="tab in tabs"
@@ -307,51 +341,32 @@ const modalSetLabel = computed(() => {
     </div>
 
     <!-- ── Loading ── -->
-    <div v-if="challengeStore.isLoading" class="ch-loading ch-loading--skeleton">
-      <div class="ch-loading__grid">
-        <section class="skeleton-card ch-loading__card">
-          <span class="skeleton skeleton-shape" style="width: 46px; height: 46px"></span>
-          <div class="ch-loading__content">
-            <span class="skeleton skeleton-line" style="width: 54%; min-height: 14px"></span>
-            <span class="skeleton skeleton-line" style="width: 68%; min-height: 14px"></span>
-          </div>
-        </section>
-        <section class="skeleton-card ch-loading__card">
-          <span class="skeleton skeleton-shape" style="width: 46px; height: 46px"></span>
-          <div class="ch-loading__content">
-            <span class="skeleton skeleton-line" style="width: 60%; min-height: 14px"></span>
-            <span class="skeleton skeleton-line" style="width: 76%; min-height: 14px"></span>
-          </div>
-        </section>
-      </div>
-      <p>Loading challenges…</p>
-    </div>
+    <ChallengeSkeleton v-if="isViewLoading" />
+
+    <section v-else-if="viewError" class="challenge-error" role="alert">
+      <h2>We could not load challenges</h2>
+      <p>{{ viewError }}</p>
+      <button type="button" class="button-primary" @click="loadChallengesView">Try again</button>
+    </section>
+
+    <ChallengeEmptyState
+      v-else-if="challengeState !== 'active'"
+      :state="challengeState"
+      @primary-action="handleFreshAccountAction"
+    />
 
     <!-- ── Challenge list ── -->
     <div v-else class="cards-list">
-      <div v-if="visibleChallenges.length === 0" class="ch-empty">
-        <div class="ch-empty__icon-wrap">
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#a8b3bc"
-            stroke-width="1.4"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <path d="M8 12h8M12 8v8" stroke-linecap="round" />
-          </svg>
-        </div>
-        <p class="ch-empty__title">No challenges here</p>
-        <p class="ch-empty__copy">
-          {{
-            challengeStore.filterStatus === 'all'
-              ? 'No challenges yet. Head to Rankings to issue one.'
-              : `No challenges with status "${challengeStore.filterStatus}".`
-          }}
-        </p>
-      </div>
+      <EmptyState
+        v-if="visibleChallenges.length === 0"
+        compact
+        illustration="challenge"
+        variant="no-results"
+        title="No challenges match this view"
+        description="Try changing the selected status."
+        primary-action-label="Clear filters"
+        @primary-action="challengeStore.setFilter('all')"
+      />
 
       <div
         v-for="(challenge, index) in visibleChallenges"
@@ -794,59 +809,23 @@ const modalSetLabel = computed(() => {
   color: #007a32;
 }
 
-/* ── LOADING ── */
-.ch-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 3rem;
-  color: #7b8794;
-  font-size: 13px;
-}
-
-.ch-loading__spinner {
-  animation: spin 1.2s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.ch-loading--skeleton {
-  padding: 1rem;
-  background: var(--color-surface);
+/* ── ERROR STATE ── */
+.challenge-error {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: clamp(32px, 7vw, 64px);
   border: var(--app-hairline);
-  box-shadow: 0 18px 44px rgba(15, 34, 24, 0.06);
-  border-radius: 20px;
+  border-radius: var(--app-card-radius);
+  background: var(--color-surface);
+  text-align: center;
 }
 
-.ch-loading__grid {
-  display: grid;
-  gap: 0.9rem;
-  margin-bottom: 1rem;
-}
-
-.ch-loading__card {
-  display: grid;
-  grid-template-columns: 46px 1fr;
-  align-items: center;
-  gap: 0.85rem;
-  padding: 1rem;
-  background: #fff;
-  border-radius: 18px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.ch-loading__content {
-  display: grid;
-  gap: 0.55rem;
-}
+.challenge-error h2,
+.challenge-error p { margin: 0; }
+.challenge-error h2 { color: var(--color-text); font-size: 20px; }
+.challenge-error p { max-width: 520px; color: var(--color-muted); }
+.challenge-error button { margin-top: 8px; }
 
 /* ── CARDS LIST ── */
 .cards-list {

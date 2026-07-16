@@ -1,4 +1,5 @@
 ﻿import { fakeRequest, createId, createTimestamp } from './api'
+import { isEmptyDataMode } from '../dataMode'
 
 const COURT_START_HOUR = 6
 const COURT_END_HOUR = 20
@@ -38,7 +39,7 @@ function isOverlapping(startHour, duration, existingStart, existingDuration) {
 }
 
 async function fetchSampleBookings() {
-  return fakeRequest(sampleBookings)
+  return fakeRequest(isEmptyDataMode() ? [] : sampleBookings)
 }
 
 async function createBooking(payload, existingBookings) {

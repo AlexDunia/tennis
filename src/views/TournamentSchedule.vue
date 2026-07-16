@@ -72,6 +72,12 @@ async function saveSchedule(payload) {
   await tournamentStore.updateMatchSchedule(selectedMatch.value.id, payload)
 }
 
+function clearScheduleFilters() {
+  categoryFilter.value = 'all'
+  statusFilter.value = 'all'
+  courtFilter.value = 'all'
+}
+
 function handleMatchOpen(match) {
   if (canManageTournament.value) {
     selectedMatch.value = match
@@ -149,6 +155,17 @@ watch(tournamentId, async (nextTournamentId) => {
       </div>
     </section>
 
+    <TournamentEmptyState
+      v-if="!filteredMatches.length"
+      :icon="matches.length ? 'Search' : 'Fixtures'"
+      :title="matches.length ? 'No fixtures match this view' : 'Fixtures have not been generated'"
+      :message="matches.length ? 'Try changing the category, status or court filter.' : 'Confirm the players and competition format before generating fixtures.'"
+      @action="clearScheduleFilters"
+    >
+      <template v-if="matches.length" #action>Clear filters</template>
+    </TournamentEmptyState>
+
+    <template v-else>
     <section
       v-for="(dayMatches, day) in scheduledGroups"
       :key="day"
@@ -190,6 +207,7 @@ watch(tournamentId, async (nextTournamentId) => {
         message="No unscheduled matches match the current filters."
       />
     </section>
+    </template>
 
     <TournamentMatchModal
       v-if="selectedMatch && canManageTournament"

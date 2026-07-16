@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia'
 import { fakeRequest, createTimestamp } from '../services/api'
 import { buildAccessProfile, hasPermission as checkPermission } from '../utils/auth/accessControl'
+import { APP_DATA_MODES, setAppDataMode } from '../dataMode'
 
 const STORAGE_KEY = 'sheltennis-auth'
 
@@ -48,19 +49,28 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(credentials) {
     try {
       isAuthLoading.value = true
+      const roleKey = credentials.roleKey === 'super_admin' ? 'super_admin' : 'player'
+      const playerId = roleKey === 'super_admin' ? 'player-02' : 'player-05'
+      const requestedMode =
+        roleKey === 'super_admin' || credentials.dataMode === APP_DATA_MODES.DEMO
+          ? APP_DATA_MODES.DEMO
+          : APP_DATA_MODES.EMPTY
+      setAppDataMode(requestedMode)
       const response = await fakeRequest({
         name: credentials.username,
-        email: `${credentials.username}@shell.com`,
+        email: credentials.email || `${credentials.username}@shell.com`,
+        playerId,
+        roleKey,
         lastLogin: createTimestamp(),
         avatar: createAvatarImage(credentials.username),
       })
       user.value = {
         ...response,
-        ...buildAccessProfile(response),
+        ...buildAccessProfile(response, roleKey),
       }
       isLoggedIn.value = true
       authMessage.value = 'Welcome to ShellTennis'
-      return response
+      return user.value
     } catch (error) {
       authMessage.value = 'Unable to log in right now'
       throw error

@@ -1,8 +1,9 @@
 ﻿<script setup>
 // IMPORTS
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useBookingStore } from '../stores/booking'
 import { useMatchStore } from '../stores/match'
+import EmptyState from '../components/EmptyState.vue'
 
 // PROPS
 // none
@@ -16,6 +17,7 @@ import { useMatchStore } from '../stores/match'
 // STORES
 const bookingStore = useBookingStore()
 const matchStore = useMatchStore()
+const hasLoaded = ref(false)
 
 // REACTIVE STATE
 // none
@@ -31,6 +33,8 @@ async function loadHistory() {
     await matchStore.loadMatches()
   } catch (_) {
     // handled
+  } finally {
+    hasLoaded.value = true
   }
 }
 
@@ -52,21 +56,23 @@ onMounted(() => {
     <div class="history__grid">
       <article class="history__card">
         <h2>Bookings</h2>
-        <ul class="history__list">
+        <ul v-if="bookingHistory.length" class="history__list">
           <li v-for="entry in bookingHistory" :key="entry.id" class="history__item">
             <p class="history__item-title">{{ entry.playerName }} · {{ entry.date }}</p>
             <p class="history__item-meta">{{ entry.startHour }}:00 · {{ entry.duration }} hr(s)</p>
           </li>
         </ul>
+        <EmptyState v-else-if="hasLoaded" compact variant="first-use" illustration="fixtures" title="No bookings recorded" description="Completed court bookings will appear here." />
       </article>
       <article class="history__card">
         <h2>Matches</h2>
-        <ul class="history__list">
+        <ul v-if="completedMatches.length" class="history__list">
           <li v-for="match in completedMatches" :key="match.id" class="history__item">
             <p class="history__item-title">{{ match.title }}</p>
             <p class="history__item-meta">Final: {{ match.scoreboard?.completedSets?.length }} sets</p>
           </li>
         </ul>
+        <EmptyState v-else-if="hasLoaded" compact variant="first-use" illustration="matches" title="No matches recorded" description="Completed ladder, challenge and tournament matches will appear here." />
       </article>
     </div>
   </section>

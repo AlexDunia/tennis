@@ -2,6 +2,7 @@
 // 1. IMPORTS
 import { computed, onMounted, ref } from 'vue'
 import { useNotificationStore } from '../stores/notification'
+import EmptyState from '../components/EmptyState.vue'
 
 // 2. STORE
 const notificationStore = useNotificationStore()
@@ -157,28 +158,13 @@ const formatTime = (value) => {
     </div>
 
     <!-- ── Empty state ── -->
-    <div v-if="hasLoaded && notifications.length === 0" class="empty-state">
-      <div class="empty-state__icon">
-        <!-- Bell icon -->
-        <svg
-          width="28"
-          height="28"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
-      </div>
-      <p class="empty-state__title">You're all caught up</p>
-      <p class="empty-state__desc">
-        Challenge invites, score updates, and match reviews will appear here.
-      </p>
-    </div>
+    <EmptyState
+      v-if="hasLoaded && notifications.length === 0"
+      variant="quiet"
+      illustration="notifications"
+      title="You are all caught up"
+      description="New challenge, match and tournament updates will appear here."
+    />
 
     <!-- ── Notification groups ── -->
     <div v-if="hasLoaded && notifications.length > 0" class="feed">

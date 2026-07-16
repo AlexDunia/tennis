@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePlayerStore } from '../stores/player'
+import EmptyState from '../components/EmptyState.vue'
 
 const router = useRouter()
 const playerStore = usePlayerStore()
@@ -420,25 +421,31 @@ const shareLinks = [
           </template>
 
           <!-- No results -->
-          <div
+          <EmptyState
             v-if="
               searchQuery.trim() &&
               filteredPlayers(challengeablePlayers).length === 0 &&
               filteredPlayers(selfPlayer).length === 0 &&
               filteredPlayers(outOfRangePlayers).length === 0
             "
-            class="no-search-results"
-          >
-            No players found for "{{ searchQuery }}"
-          </div>
+            compact
+            variant="no-results"
+            illustration="search"
+            title="No players found"
+            description="Try another name or clear the current search."
+            primary-action-label="Clear search"
+            @primary-action="searchQuery = ''"
+          />
         </div>
       </div>
 
       <!-- Empty state -->
-      <div v-else class="rankings__empty">
-        <p class="rankings__empty-title">No players on the ladder yet.</p>
-        <p class="rankings__empty-copy">Check back once players have been added.</p>
-      </div>
+      <EmptyState
+        v-else
+        illustration="ladder"
+        title="The ladder is waiting for players"
+        description="Club members will appear here once they have been added to the active rankings."
+      />
     </template>
 
     <!-- Backdrop to close share dropdown -->

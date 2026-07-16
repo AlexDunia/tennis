@@ -1,11 +1,16 @@
 ﻿import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { fetchDailySlots, fetchSampleBookings, createBooking as serviceCreateBooking } from '../services/BookingService'
+import { APP_DATA_MODES, appDataMode } from '../dataMode'
 
 const STORAGE_KEY = 'sheltennis-bookings'
 
+function getBookingStorageKey() {
+  return appDataMode.value === APP_DATA_MODES.DEMO ? STORAGE_KEY : `${STORAGE_KEY}.empty`
+}
+
 function readStoredBookings() {
-  const stored = localStorage.getItem(STORAGE_KEY)
+  const stored = localStorage.getItem(getBookingStorageKey())
   if (!stored) {
     return []
   }
@@ -25,7 +30,11 @@ export const useBookingStore = defineStore('booking', () => {
   const upcomingCount = computed(() => bookings.value.length)
 
   watch(bookings, () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings.value))
+    localStorage.setItem(getBookingStorageKey(), JSON.stringify(bookings.value))
+  })
+
+  watch(appDataMode, () => {
+    bookings.value = readStoredBookings()
   })
 
   async function loadBookings() {

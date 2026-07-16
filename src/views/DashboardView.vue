@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useChallengeStore } from '../stores/challenge'
 import { useMatchStore } from '../stores/match'
 import { useNotificationStore } from '../stores/notification'
@@ -9,8 +9,14 @@ import { useBookingStore } from '../stores/booking'
 import { useTournamentStore } from '../stores/tournament'
 import { formatAppDateWithTime } from '../utils/dateFormat'
 import PerformanceChart from '@/components/charts/PerformanceChart.vue'
+import EmptyState from '../components/EmptyState.vue'
+import FriendlyMatchHome from '../components/friendly/FriendlyMatchHome.vue'
+import { useAuthStore } from '../stores/auth'
+import { APP_DATA_MODES, appDataMode } from '../dataMode'
 
+const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const playerStore = usePlayerStore()
 const challengeStore = useChallengeStore()
@@ -22,6 +28,10 @@ const hasLoaded = ref(false)
 
 const currentPlayer = computed(() => playerStore.currentPlayer)
 const isDashboardLoading = computed(() => !hasLoaded.value)
+const showEmptyPreview = computed(() => route.query.preview === 'empty')
+const isFreshMemberDashboard = computed(
+  () => appDataMode.value === APP_DATA_MODES.EMPTY && !authStore.isAdmin,
+)
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -311,7 +321,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="dashboard">
+  <section class="dashboard" :class="{ 'dashboard--fresh': isFreshMemberDashboard }">
+    <FriendlyMatchHome v-if="isFreshMemberDashboard" />
+    <template v-if="!isFreshMemberDashboard">
+    <aside v-if="showEmptyPreview" class="empty-preview-bar" aria-label="Empty-state preview">
+      <div><strong>Empty-state preview</strong><span>You are seeing the application before club activity exists.</span></div>
+      <button type="button" class="button-secondary" @click="router.replace({ name: 'Dashboard' })">Show club data</button>
+    </aside>
     <!-- ── HERO SECTION ─────────────────────────────────
          No section label here — the greeting IS the header.
          World-class pattern: hero speaks for itself.
@@ -388,6 +404,8 @@ onMounted(async () => {
          Section label added: groups Action Required +
          Performance chart under one named category.
     ──────────────────────────────────────────────────── -->
+    </template>
+
     <div class="section-group">
       <div class="section-group__header">
         <span class="section-group__label">Overview</span>
@@ -476,8 +494,17 @@ onMounted(async () => {
 
         <section class="card dashboard-performance-card">
           <PerformanceChart
+            v-if="!showEmptyPreview && matchStore.matches.length >= 2"
             :matches="matchStore.matches"
             :currentPlayerId="playerStore.currentPlayerId"
+          />
+          <EmptyState
+            v-else
+            compact
+            variant="data-dependent"
+            illustration="chart"
+            title="Not enough match data yet"
+            description="Your performance trend will appear after more results are recorded."
           />
           <div class="insights">
             <span>📊 {{ matchStore.matches.length }} total matches</span>
@@ -497,7 +524,7 @@ onMounted(async () => {
       </div>
       <div class="divider"></div>
 
-      <div v-if="dashboardNotifications.length" class="dashboard-alerts__list">
+      <div v-if="!showEmptyPreview && dashboardNotifications.length" class="dashboard-alerts__list">
         <article
           v-for="notification in dashboardNotifications"
           :key="notification.id"
@@ -511,9 +538,14 @@ onMounted(async () => {
           </div>
         </article>
       </div>
-      <p v-else class="dashboard-alerts__empty">
-        Score updates, ranking changes, and tournament notices will appear here.
-      </p>
+      <EmptyState
+        v-else
+        compact
+        variant="quiet"
+        illustration="notifications"
+        title="No recent club activity"
+        description="Challenges, scores and tournament updates will appear here."
+      />
     </section>
 
   </section>
@@ -545,6 +577,34 @@ onMounted(async () => {
   max-width: 1140px;
   margin: 0 auto;
   padding: 8px 0 40px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dashboard--fresh {
+  gap: 26px;
+}
+
+.empty-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: var(--app-hairline);
+  border-radius: var(--app-card-radius);
+  background: var(--color-surface-soft);
+}
+
+.empty-preview-bar div { display: grid; gap: 2px; }
+.empty-preview-bar strong { color: var(--color-text); font-size: 13px; }
+.empty-preview-bar span { color: var(--color-muted); font-size: 12px; }
+
+@media (max-width: 620px) {
+  .empty-preview-bar { align-items: stretch; flex-direction: column; }
+  .empty-preview-bar button { width: 100%; }
 }
 
 /* ─── HERO ──────────────────────────────────────────── */

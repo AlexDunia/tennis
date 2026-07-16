@@ -1,12 +1,15 @@
 <script setup>
 import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useMatchStore } from '../stores/match'
 import { useTournamentStore } from '../stores/tournament'
 import TournamentCard from '../components/tournament/TournamentCard.vue'
 import TournamentEmptyState from '../components/tournament/TournamentEmptyState.vue'
+import { useAuthStore } from '../stores/auth'
 
+const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const matchStore = useMatchStore()
 const tournamentStore = useTournamentStore()
 
@@ -50,13 +53,13 @@ onMounted(async () => {
     <header class="t-hero">
       <div class="t-hero__top">
         <div>
-          <span class="t-section-kicker">Tournament Control</span>
+          <span class="t-section-kicker">{{ authStore.isAdmin ? 'Tournament Control' : 'Club Tournaments' }}</span>
           <h2 class="t-hero__title">Tournaments</h2>
           <p class="t-hero__copy">
-            Create events, enter scores, watch standings move, then generate the knockout.
+            {{ authStore.isAdmin ? 'Create events, enter scores, watch standings move, then generate the knockout.' : 'Follow your divisions, fixtures, standings and completed results.' }}
           </p>
         </div>
-        <button class="t-button t-button--primary" type="button" @click="router.push('/tournaments/create')">
+        <button v-if="authStore.isAdmin" class="t-button t-button--primary" type="button" @click="router.push('/tournaments/create')">
           Create Tournament
         </button>
       </div>
@@ -80,6 +83,13 @@ onMounted(async () => {
         </div>
       </div>
     </header>
+
+    <TournamentEmptyState
+      v-if="route.query.access === 'admin'"
+      icon="Lock"
+      title="Admin access required"
+      message="Tournament setup and live score management are available to club administrators."
+    />
 
     <section v-if="tournamentStore.loading" class="t-card-grid t-card-grid--two">
       <div class="t-shell-card tournament-hub__skeleton">
@@ -121,9 +131,12 @@ onMounted(async () => {
         </div>
         <TournamentEmptyState
           v-else
-          title="No active tournaments"
-          message="Create one when the club is ready to play."
-        />
+          title="No tournament is currently active"
+          message="Live fixtures, standings and results will appear when a tournament begins."
+          @action="router.push('/tournaments/create')"
+        >
+          <template v-if="authStore.isAdmin && !tournamentStore.tournaments.length" #action>Create tournament</template>
+        </TournamentEmptyState>
       </section>
 
       <section class="tournament-hub__section">
@@ -134,7 +147,7 @@ onMounted(async () => {
           v-if="!upcomingTournaments.length"
           icon="Calendar"
           title="No upcoming tournaments"
-          message="Future tournaments will appear here after they are created."
+          message="New club tournaments will appear here once they are scheduled."
         />
       </section>
 
@@ -145,8 +158,8 @@ onMounted(async () => {
         <TournamentEmptyState
           v-if="!completedTournaments.length"
           icon="Trophy"
-          title="No completed tournaments yet"
-          message="Finished tournaments and champions will appear here."
+          title="No completed tournaments"
+          message="Past tournament results will be stored here."
         />
       </section>
     </template>

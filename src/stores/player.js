@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getPlayers } from '../services/PlayerService'
 import { ACCESS_ROLES, buildAccessProfile, hasPermission as checkPermission } from '../utils/auth/accessControl'
+import { useAuthStore } from './auth'
 
 const ROLE_STORAGE_KEY = 'tennis.local.playerRoles.v1'
 
@@ -18,9 +19,10 @@ function saveRoleOverrides(roles) {
 }
 
 export const usePlayerStore = defineStore('player', () => {
+  const authStore = useAuthStore()
   // 6. REACTIVE STATE
   const players = ref([])
-  const currentPlayerId = ref('player-02')
+  const currentPlayerId = computed(() => authStore.user?.playerId || 'player-02')
   const roleOverrides = ref(loadRoleOverrides())
   const isLoading = ref(false)
   const error = ref('')
@@ -42,15 +44,23 @@ export const usePlayerStore = defineStore('player', () => {
   })
 
   const playerAccessProfile = computed(() => (player) =>
-    buildAccessProfile(player || {}, roleOverrides.value[player?.id]),
+    buildAccessProfile(
+      player || {},
+      player?.id === currentPlayerId.value && authStore.user?.roleKey
+        ? authStore.user.roleKey
+        : roleOverrides.value[player?.id],
+    ),
   )
   const currentPlayer = computed(() => {
     const player = players.value.find((item) => item.id === currentPlayerId.value) ?? null
 
+    const access = player ? playerAccessProfile.value(player) : null
+
     return player
       ? {
           ...player,
-          ...playerAccessProfile.value(player),
+          ...access,
+          name: access?.isAdmin && authStore.user?.name ? authStore.user.name : player.name,
         }
       : null
   })

@@ -495,8 +495,8 @@ watch(categoryId, () => {
       />
       <TournamentEmptyState
         v-if="!filteredMatches.length"
-        title="No matches found"
-        message="Try another group or status filter."
+        :title="groupMatches.length ? 'No fixtures match this view' : 'Fixtures have not been generated'"
+        :message="groupMatches.length ? 'Try changing the group or status filter.' : 'Confirm the players and competition format before generating fixtures.'"
       />
     </section>
 
@@ -511,8 +511,8 @@ watch(categoryId, () => {
       />
       <TournamentEmptyState
         v-if="!groupStandings.length"
-        title="No table"
-        message="This category goes straight to knockout, so there is no group table."
+        title="Standings are not applicable"
+        message="This category goes straight to knockout, so a group standings table is not used."
       />
     </section>
 
@@ -525,7 +525,7 @@ watch(categoryId, () => {
       />
       <TournamentEmptyState
         v-if="category.status === 'round-robin'"
-        title="Complete the group stage first"
+        title="The bracket has not been created"
         :message="`${pendingGroupMatchCount} group match${
           pendingGroupMatchCount === 1 ? ' is' : 'es are'
         } still pending. Finish those matches, then generate the knockout.`"

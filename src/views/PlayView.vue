@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TennisScoreboard from '../components/TennisScoreboard.vue'
+import EmptyState from '../components/EmptyState.vue'
 import { useMatchStore } from '../stores/match'
 import { useNotificationStore } from '../stores/notification'
 import { usePlayerStore } from '../stores/player'
@@ -17,6 +18,8 @@ const playerStore = usePlayerStore()
 const scoreboardState = ref(createScoreboard('Court A', 'Court B'))
 const now = ref(Date.now())
 const scoreboardTheme = ref('dark')
+const hasLoaded = ref(false)
+const loadError = ref('')
 let clockInterval = null
 let dataRefreshInterval = null
 let isPersistingScoreboard = false
@@ -281,6 +284,7 @@ async function refreshMatchData() {
 
 async function loadPlayView() {
   try {
+    loadError.value = ''
     await Promise.all([playerStore.loadPlayers(), matchStore.loadMatches()])
     const hadLiveState = Boolean(currentMatch.value?.liveState?.sets && currentMatch.value?.liveState?.currentGame)
     syncScoreboard()
@@ -288,7 +292,10 @@ async function loadPlayView() {
       await persistScoreboard()
     }
   } catch (error) {
+    loadError.value = error?.message || 'Unable to load this match.'
     console.error('Play view load failed:', error)
+  } finally {
+    hasLoaded.value = true
   }
 }
 
@@ -330,7 +337,7 @@ onUnmounted(() => {
         <p class="play__subtitle">{{ formatDateTime(currentMatch?.scheduledAt) }}</p>
       </div>
 
-      <div class="play__actions">
+      <div v-if="currentMatch" class="play__actions">
         <button class="play__details" type="button" @click="openMatchDetails">
           Match details
         </button>
@@ -373,7 +380,23 @@ onUnmounted(() => {
         :theme="scoreboardTheme"
         @point="handlePoint"
       />
-      <div v-else class="play__fallback section-card">Match data is loading...</div>
+      <div v-else-if="!hasLoaded || matchStore.isLoading" class="play__fallback section-card">
+        <span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span>
+      </div>
+      <div v-else-if="loadError" class="play__fallback section-card" role="alert">
+        <strong>Unable to load match data</strong>
+        <span>{{ loadError }}</span>
+        <button class="play__details" type="button" @click="loadPlayView">Retry</button>
+      </div>
+      <EmptyState
+        v-else
+        variant="data-dependent"
+        illustration="scoreboard"
+        title="No matches ready for live scoring"
+        description="Scheduled and accepted matches will appear here when they are ready to play."
+        primary-action-label="View challenges"
+        @primary-action="router.push('/challenges')"
+      />
     </div>
 
     <div v-if="currentMatch && !isFullscreen" class="play__controls section-card">
@@ -557,6 +580,8 @@ onUnmounted(() => {
 }
 
 .play__fallback {
+  display: grid;
+  gap: 10px;
   border-radius: 0.75rem;
   padding: 1.25rem;
   background: var(--color-surface-muted);

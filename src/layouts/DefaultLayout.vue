@@ -51,7 +51,7 @@
       class="main"
       :class="{
         'main--wide': isWideWorkspace,
-        'main--fullscreen': isLiveFullscreen,
+        'main--fullscreen': isLiveFullscreen || isFriendlyFlow,
         'main--public': isPublicRoute,
       }"
     >
@@ -97,7 +97,7 @@
         <div class="header-actions">
           <div class="user" v-if="currentPlayer">
             <span class="user-name">{{ currentPlayer.name }}</span>
-            <span v-if="currentPlayer.isAdmin" class="user-role">Admin</span>
+            <span class="user-role" :class="{ 'user-role--admin': authStore.isAdmin }">{{ authStore.isAdmin ? 'Admin' : 'User' }}</span>
           </div>
         </div>
       </div>
@@ -106,7 +106,7 @@
         class="content"
         :class="{
           'content--wide': isWideWorkspace,
-          'content--fullscreen': isLiveFullscreen,
+          'content--fullscreen': isLiveFullscreen || isFriendlyFlow,
           'content--public': isPublicRoute,
           'content--tournament-rail': usesTournamentCreateRail,
         }"
@@ -116,7 +116,13 @@
           <span>{{ currentPlayer?.name || 'Player' }}</span>
           <span>{{ unreadCount }} unread</span>
         </div>
-        <div class="page-shell" :class="{ 'page-shell--public': isPublicRoute }">
+        <div
+          class="page-shell"
+          :class="{
+            'page-shell--public': isPublicRoute,
+            'page-shell--ready': !pageSkeletonActive,
+          }"
+        >
           <div v-if="pageSkeletonActive" class="page-skeleton-overlay" aria-hidden="true">
             <div class="page-skeleton-stack">
               <div class="page-skeleton-row">
@@ -194,6 +200,7 @@ import { useNotificationStore } from '../stores/notification'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
+import { useAuthStore } from '../stores/auth'
 import ToastShelf from '../components/ToastShelf.vue'
 
 const route = useRoute()
@@ -202,6 +209,7 @@ const notificationStore = useNotificationStore()
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
+const authStore = useAuthStore()
 
 const pageSkeletonActive = ref(true)
 let pageSkeletonTimer = null
@@ -300,10 +308,13 @@ const isLiveFullscreen = computed(
   () => route.name === 'PlayMatch' && route.query.fullscreen === '1',
 )
 const isPublicRoute = computed(() => route.meta.public === true)
+const isFriendlyFlow = computed(() => route.meta.friendlyFlow === true)
 const isWideWorkspace = computed(() => isTournamentCreate.value || isTournamentViewer.value)
-const showSidebar = computed(() => !isPublicRoute.value && !isLiveFullscreen.value && !usesTournamentCreateRail.value)
-const showHeader = computed(() => !isPublicRoute.value && !isLiveFullscreen.value)
-const showBottomNav = computed(() => !isPublicRoute.value && !isLiveFullscreen.value)
+const showSidebar = computed(
+  () => !isPublicRoute.value && !isLiveFullscreen.value && !isFriendlyFlow.value && !usesTournamentCreateRail.value,
+)
+const showHeader = computed(() => !isPublicRoute.value && !isLiveFullscreen.value && !isFriendlyFlow.value)
+const showBottomNav = computed(() => !isPublicRoute.value && !isLiveFullscreen.value && !isFriendlyFlow.value)
 const tournamentCreateStep = computed(() => {
   const step = String(route.query.step || 'basics')
   return tournamentCreateSteps.includes(step) ? step : 'basics'
@@ -889,15 +900,45 @@ const isNavigationActive = (routeName) => {
 }
 
 @keyframes pageSkeletonFade {
-  from {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes contentSettleIn {
+  0% {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translate3d(0, 7px, 0) scale(0.992);
   }
-  to {
+  68% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0) scale(1.002);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
+
+.page-shell--ready :deep(.dashboard > *),
+.page-shell--ready :deep(.friendly-home > *),
+.page-shell--ready :deep(.section-group .grid > *),
+.page-shell--ready :deep(.dashboard-alerts__list > *),
+.page-shell--ready :deep(.friendly-flow__screen > *),
+.page-shell--ready :deep(.friendly-flow__choices > *),
+.page-shell--ready :deep(.opponent-list > *),
+.page-shell--ready :deep(.friendly-live > *),
+.page-shell--ready :deep(.friendly-live__players > *) {
+  animation: contentSettleIn 440ms var(--motion-curve) both;
+  animation-delay: calc(var(--reveal-order, 0) * 55ms);
+  transform-origin: center;
+}
+
+.page-shell--ready :deep(* > :nth-child(1)) { --reveal-order: 0; }
+.page-shell--ready :deep(* > :nth-child(2)) { --reveal-order: 1; }
+.page-shell--ready :deep(* > :nth-child(3)) { --reveal-order: 2; }
+.page-shell--ready :deep(* > :nth-child(4)) { --reveal-order: 3; }
+.page-shell--ready :deep(* > :nth-child(5)) { --reveal-order: 4; }
+.page-shell--ready :deep(* > :nth-child(6)) { --reveal-order: 5; }
 
 .page-skeleton-stack {
   width: min(100%, 1080px);
@@ -932,6 +973,20 @@ const isNavigationActive = (routeName) => {
 
 .page-skeleton-overlay .page-skeleton-grid .skeleton {
   animation-delay: 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-shell--ready :deep(.dashboard > *),
+  .page-shell--ready :deep(.friendly-home > *),
+  .page-shell--ready :deep(.section-group .grid > *),
+  .page-shell--ready :deep(.dashboard-alerts__list > *),
+  .page-shell--ready :deep(.friendly-flow__screen > *),
+  .page-shell--ready :deep(.friendly-flow__choices > *),
+  .page-shell--ready :deep(.opponent-list > *),
+  .page-shell--ready :deep(.friendly-live > *),
+  .page-shell--ready :deep(.friendly-live__players > *) {
+    animation: none !important;
+  }
 }
 
 .watch-only,

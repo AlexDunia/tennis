@@ -7,6 +7,7 @@ import { usePlayerStore } from '../stores/player'
 import { useNotificationStore } from '../stores/notification'
 import BaseButton from '../components/BaseButton.vue'
 import PersonAvatar from '../components/PersonAvatar.vue'
+import EmptyState from '../components/EmptyState.vue'
 
 // 2. ROUTER / ROUTE
 const route = useRoute()
@@ -58,6 +59,7 @@ const note = ref('')
 
 // -- Submit state
 const isSubmitting = ref(false)
+const hasLoaded = ref(false)
 
 // 5. COMPUTED PROPERTIES
 
@@ -168,7 +170,11 @@ const handleSubmit = async () => {
 
 // 7. LIFECYCLE
 onMounted(async () => {
-  await playerStore.loadPlayers()
+  try {
+    await playerStore.loadPlayers()
+  } finally {
+    hasLoaded.value = true
+  }
 })
 </script>
 
@@ -180,7 +186,26 @@ onMounted(async () => {
       <p class="intro__sub">Pick your opponent, set your terms, and let the ladder decide.</p>
     </div>
 
-    <div class="layout">
+    <div v-if="!hasLoaded || playerStore.isLoading" class="section-card create-challenge__loading">
+      <span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span>
+    </div>
+    <EmptyState
+      v-else-if="!currentPlayer?.rank"
+      variant="data-dependent"
+      illustration="ladder"
+      title="A ladder position is required"
+      description="You must be placed on the active ladder before creating a challenge."
+    />
+    <EmptyState
+      v-else-if="!playerStore.availableOpponents.length"
+      variant="quiet"
+      illustration="challenge"
+      title="No opponent is currently available"
+      description="Challenge eligibility is based on your ladder position and the club rules."
+      secondary-action-label="Back to rankings"
+      @secondary-action="router.push('/rankings')"
+    />
+    <div v-else class="layout">
       <!-- ══════════════════════════
            LEFT — Identity card
            ══════════════════════════ -->

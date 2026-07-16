@@ -15,6 +15,8 @@ import TournamentScheduleView from '../views/TournamentSchedule.vue'
 import TournamentGalleryView from '../views/TournamentGallery.vue'
 import LandingView from '../views/LandingView.vue'
 import LoginView from '../views/LoginView.vue'
+import FriendlyMatchFlowView from '../views/FriendlyMatchFlowView.vue'
+import { useAuthStore } from '../stores/auth'
 
 const routes = [
   {
@@ -70,6 +72,7 @@ const routes = [
     meta: {
       title: 'Create Tournament',
       subtitle: 'Build a tournament with categories, groups, and rules.',
+      permission: 'tournaments.manage',
     },
   },
   {
@@ -119,6 +122,30 @@ const routes = [
     },
   },
   {
+    path: '/friendly-match/type',
+    name: 'FriendlyMatchType',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'New match', friendlyFlow: true, friendlyStep: 'type' },
+  },
+  {
+    path: '/friendly-match/opponent',
+    name: 'FriendlyMatchOpponent',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'Choose opponent', friendlyFlow: true, friendlyStep: 'opponent' },
+  },
+  {
+    path: '/friendly-match/format',
+    name: 'FriendlyMatchFormat',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'Scoring format', friendlyFlow: true, friendlyStep: 'format' },
+  },
+  {
+    path: '/friendly-match/live',
+    name: 'FriendlyMatchLive',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'Live friendly match', friendlyFlow: true, friendlyStep: 'live' },
+  },
+  {
     path: '/challenges',
     name: 'Challenges',
     component: ChallengesView,
@@ -151,6 +178,7 @@ const routes = [
     meta: {
       title: 'Play',
       subtitle: 'Run the live scoreboard in a focused full-screen match environment.',
+      permission: 'matches.live_score',
     },
   },
   {
@@ -185,7 +213,19 @@ const router = createRouter({
   },
 })
 
-router.afterEach(() => {
+router.beforeEach((to) => {
+  const authStore = useAuthStore()
+  if (!to.meta.public && !authStore.isAuthenticated) {
+    return { name: 'SignIn', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.permission && !authStore.hasPermission(to.meta.permission)) {
+    return { name: 'Tournaments', query: { access: 'admin' } }
+  }
+  return true
+})
+
+router.afterEach((to) => {
+  document.title = to.meta.title ? `${to.meta.title} | Gorra` : 'Gorra'
   window.setTimeout(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, 0)

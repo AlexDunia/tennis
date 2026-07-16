@@ -8,6 +8,7 @@ import { useTournamentStore } from '../stores/tournament'
 import { useTournamentLiveRefresh } from '../composables/useTournamentLiveRefresh'
 import { formatAppDateTime } from '../utils/dateFormat'
 import TournamentMatchModal from '../components/tournament/TournamentMatchModal.vue'
+import EmptyState from '../components/EmptyState.vue'
 
 // 2. PROPS
 // none
@@ -28,6 +29,7 @@ const matchId = computed(() => route.params.matchId)
 const form = reactive({ winnerId: '', score: '' })
 const hasSubmitted = reactive({ value: false })
 const selectedTournamentMatch = ref(null)
+const hasLoaded = ref(false)
 
 // 7. COMPUTED PROPERTIES
 const match = computed(() => matchStore.matchById(matchId.value))
@@ -134,11 +136,15 @@ const saveTournamentSchedule = async (payload) => {
 }
 
 const loadMatchDetails = async () => {
-  await Promise.all([playerStore.loadPlayers(), matchStore.loadMatches()])
-  if (match.value?.type === 'tournament') {
-    await tournamentStore.fetchTournament(match.value.tournamentId)
+  try {
+    await Promise.all([playerStore.loadPlayers(), matchStore.loadMatches()])
+    if (match.value?.type === 'tournament') {
+      await tournamentStore.fetchTournament(match.value.tournamentId)
+    }
+    initializeForm()
+  } finally {
+    hasLoaded.value = true
   }
-  initializeForm()
 }
 
 useTournamentLiveRefresh(tournamentId)
@@ -154,7 +160,19 @@ onMounted(() => {
 
 <template>
   <section class="match-details">
-    <div v-if="!match" class="empty-state section-card">Match not found.</div>
+    <div v-if="!hasLoaded || matchStore.isLoading" class="section-card match-details__loading">
+      <span class="skeleton skeleton-line"></span>
+      <span class="skeleton skeleton-line"></span>
+      <span class="skeleton skeleton-line"></span>
+    </div>
+    <EmptyState
+      v-else-if="!match"
+      illustration="matches"
+      title="Match not found"
+      description="This match is no longer available. Return to challenges and choose an active match."
+      primary-action-label="View challenges"
+      @primary-action="$router.push('/challenges')"
+    />
 
     <div v-else class="match-grid">
       <div v-if="match.type === 'tournament'" class="tournament-context section-card">
@@ -202,28 +220,38 @@ onMounted(() => {
       </div>
 
       <div v-else-if="canManageTournament" class="result-panel section-card">
-        <h3>Tournament controls</h3>
-        <p class="panel-copy">Use the live board or the category fixture tools to keep this match accurate.</p>
-        <button
-          v-if="canEditTournamentResult"
-          class="submit-button"
-          type="button"
-          @click="openTournamentScoreModal"
-        >
-          {{ tournamentScoreActionLabel }}
-        </button>
-        <RouterLink
-          v-if="canOpenLiveBoard"
-          class="submit-button submit-button--link"
-          :to="`/play/${match.id}`"
-        >
-          Open live board
-        </RouterLink>
+        <EmptyState
+          v-if="!match.score"
+          compact
+          variant="data-dependent"
+          illustration="scoreboard"
+          title="Score not recorded"
+          description="The final result will appear after the match score has been submitted."
+          :primary-action-label="canEditTournamentResult ? 'Enter score' : ''"
+          :secondary-action-label="canOpenLiveBoard ? 'Open live board' : ''"
+          @primary-action="openTournamentScoreModal"
+          @secondary-action="$router.push(`/play/${match.id}`)"
+        />
+        <template v-else>
+          <h3>Tournament controls</h3>
+          <p class="panel-copy">Use the category fixture tools to keep this completed result accurate.</p>
+          <button v-if="canEditTournamentResult" class="submit-button" type="button" @click="openTournamentScoreModal">{{ tournamentScoreActionLabel }}</button>
+        </template>
       </div>
 
       <div v-else class="result-panel section-card">
-        <h3>Score updates</h3>
-        <p class="panel-copy">Players can follow this match here. Tournament admins handle score updates.</p>
+        <EmptyState
+          v-if="!match.score"
+          compact
+          variant="data-dependent"
+          illustration="scoreboard"
+          title="Score not recorded"
+          description="The final result will appear after a tournament administrator submits the score."
+        />
+        <template v-else>
+          <h3>Score updates</h3>
+          <p class="panel-copy">The official tournament result is shown in the match summary.</p>
+        </template>
       </div>
     </div>
 
@@ -241,6 +269,8 @@ onMounted(() => {
 .match-details {
   display: grid;
 }
+
+.match-details__loading { display: grid; gap: 10px; padding: 1.25rem; }
 
 .match-grid {
   display: grid;
