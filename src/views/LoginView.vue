@@ -38,7 +38,9 @@ async function enterWorkspace(roleKey) {
       roleKey,
       dataMode: isAdmin || useDemoData.value ? APP_DATA_MODES.DEMO : APP_DATA_MODES.EMPTY,
     })
-    await router.push({ name: 'Dashboard' })
+    const redirect = String(route.query.redirect || '')
+    const safeRedirect = redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : ''
+    await router.push(safeRedirect || { name: 'Dashboard' })
   } catch (error) {
     errorMessage.value = error?.message || 'We could not open the workspace. Please try again.'
   }
@@ -56,13 +58,20 @@ async function enterWorkspace(roleKey) {
       </RouterLink>
 
       <div class="auth-panel__content">
-        <p class="auth-access-kicker">{{ isSignUp ? 'Create fresh access' : 'One-click access' }}</p>
+        <p class="auth-access-kicker">
+          {{ isSignUp ? 'Create fresh access' : 'One-click access' }}
+        </p>
         <h1>{{ isSignUp ? 'Choose your Gorra workspace' : 'How would you like to enter?' }}</h1>
         <p class="auth-access-intro">
           Pick a role to open the application immediately. No email or password is required.
         </p>
 
-        <div class="auth-role-picker" role="group" aria-label="Choose account type" :aria-busy="authStore.isAuthLoading">
+        <div
+          class="auth-role-picker"
+          role="group"
+          aria-label="Choose account type"
+          :aria-busy="authStore.isAuthLoading"
+        >
           <button
             v-for="option in roleOptions"
             :key="option.key"
@@ -74,11 +83,19 @@ async function enterWorkspace(roleKey) {
             @click="enterWorkspace(option.key)"
           >
             <span class="auth-role-option__icon" aria-hidden="true">
-              <svg v-if="option.key === 'super_admin'" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.2c0 4.6 3.2 8.1 7.5 9.8 4.3-1.7 7.5-5.2 7.5-9.8V6L12 3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
-              <svg v-else viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.8-4.2 3.4-6.5 7.5-6.5s6.7 2.3 7.5 6.5"/></svg>
+              <svg v-if="option.key === 'super_admin'" viewBox="0 0 24 24">
+                <path d="M12 3 4.5 6v5.2c0 4.6 3.2 8.1 7.5 9.8 4.3-1.7 7.5-5.2 7.5-9.8V6L12 3Z" />
+                <path d="m8.5 12 2.2 2.2 4.8-5" />
+              </svg>
+              <svg v-else viewBox="0 0 24 24">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4.5 21c.8-4.2 3.4-6.5 7.5-6.5s6.7 2.3 7.5 6.5" />
+              </svg>
             </span>
             <span>
-              <strong>{{ authStore.isAuthLoading && selectedRole === option.key ? 'Opening…' : option.label }}</strong>
+              <strong>{{
+                authStore.isAuthLoading && selectedRole === option.key ? 'Opening…' : option.label
+              }}</strong>
               <small>{{ option.description }}</small>
             </span>
           </button>
@@ -93,9 +110,10 @@ async function enterWorkspace(roleKey) {
         </label>
 
         <p v-if="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</p>
-        <p class="auth-quick-note">User opens the fresh match dashboard. Admin always keeps the original populated club data.</p>
+        <p class="auth-quick-note">
+          User opens the fresh match dashboard. Admin always keeps the original populated club data.
+        </p>
       </div>
-
     </main>
   </section>
 </template>
@@ -119,8 +137,15 @@ async function enterWorkspace(roleKey) {
   filter: brightness(1.03);
   background:
     linear-gradient(rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0.24)),
-    linear-gradient(90deg, rgba(4, 14, 8, 0.16), transparent 32%, transparent 68%, rgba(4, 14, 8, 0.12)),
-    url('https://res.cloudinary.com/dnuhjsckk/image/upload/v1783930854/647a6b7b-826f-456f-97f9-781bc4d49870_1_gftdpv.png') center / cover no-repeat;
+    linear-gradient(
+      90deg,
+      rgba(4, 14, 8, 0.16),
+      transparent 32%,
+      transparent 68%,
+      rgba(4, 14, 8, 0.12)
+    ),
+    url('https://res.cloudinary.com/dnuhjsckk/image/upload/v1783930854/647a6b7b-826f-456f-97f9-781bc4d49870_1_gftdpv.png')
+      center / cover no-repeat;
 }
 
 .auth-panel {
@@ -226,9 +251,20 @@ h1 {
 }
 
 .auth-data-option strong,
-.auth-data-option small { display: block; }
-.auth-data-option strong { color: var(--color-text); font-size: 12px; line-height: 1.4; }
-.auth-data-option small { margin-top: 2px; color: var(--color-muted); font-size: 11px; line-height: 1.45; }
+.auth-data-option small {
+  display: block;
+}
+.auth-data-option strong {
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.auth-data-option small {
+  margin-top: 2px;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
 
 .auth-quick-note {
   margin: 22px 0 0;
@@ -276,10 +312,29 @@ h1 {
   color: #087524;
 }
 
-.auth-role-option__icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.auth-role-option strong, .auth-role-option small { display: block; }
-.auth-role-option strong { font-size: 14px; }
-.auth-role-option small { margin-top: 3px; color: #69776c; font-size: 10px; font-weight: 600; line-height: 1.35; }
+.auth-role-option__icon svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.auth-role-option strong,
+.auth-role-option small {
+  display: block;
+}
+.auth-role-option strong {
+  font-size: 14px;
+}
+.auth-role-option small {
+  margin-top: 3px;
+  color: #69776c;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.35;
+}
 
 .auth-form {
   display: grid;
@@ -445,7 +500,9 @@ h1 {
     padding-top: 48px;
   }
 
-  .auth-role-picker { grid-template-columns: 1fr; }
+  .auth-role-picker {
+    grid-template-columns: 1fr;
+  }
 
   h1 {
     margin-bottom: 30px;

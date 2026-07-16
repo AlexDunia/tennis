@@ -97,7 +97,9 @@
         <div class="header-actions">
           <div class="user" v-if="currentPlayer">
             <span class="user-name">{{ currentPlayer.name }}</span>
-            <span class="user-role" :class="{ 'user-role--admin': authStore.isAdmin }">{{ authStore.isAdmin ? 'Admin' : 'User' }}</span>
+            <span class="user-role" :class="{ 'user-role--admin': authStore.isAdmin }">{{
+              authStore.isAdmin ? 'Admin' : 'User'
+            }}</span>
           </div>
         </div>
       </div>
@@ -127,6 +129,8 @@
             <RoutePageSkeleton
               :route-name="String(route.name || '')"
               :friendly-step="String(route.meta.friendlyStep || '')"
+              :friendly-match-type="friendlyMatchStore.draft.matchType"
+              :friendly-timing="friendlyMatchStore.draft.timing"
               :fresh-dashboard="isFreshDashboardSkeleton"
               :opponent-count="
                 friendlyMatchStore.draft.matchType === 'ladder'
@@ -206,7 +210,8 @@ const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
 const authStore = useAuthStore()
 const isFreshDashboardSkeleton = computed(
-  () => route.name === 'Dashboard' && appDataMode.value === APP_DATA_MODES.EMPTY && !authStore.isAdmin,
+  () =>
+    route.name === 'Dashboard' && appDataMode.value === APP_DATA_MODES.EMPTY && !authStore.isAdmin,
 )
 
 const pageSkeletonActive = ref(true)
@@ -309,10 +314,18 @@ const isPublicRoute = computed(() => route.meta.public === true)
 const isFriendlyFlow = computed(() => route.meta.friendlyFlow === true)
 const isWideWorkspace = computed(() => isTournamentCreate.value || isTournamentViewer.value)
 const showSidebar = computed(
-  () => !isPublicRoute.value && !isLiveFullscreen.value && !isFriendlyFlow.value && !usesTournamentCreateRail.value,
+  () =>
+    !isPublicRoute.value &&
+    !isLiveFullscreen.value &&
+    !isFriendlyFlow.value &&
+    !usesTournamentCreateRail.value,
 )
-const showHeader = computed(() => !isPublicRoute.value && !isLiveFullscreen.value && !isFriendlyFlow.value)
-const showBottomNav = computed(() => !isPublicRoute.value && !isLiveFullscreen.value && !isFriendlyFlow.value)
+const showHeader = computed(
+  () => !isPublicRoute.value && !isLiveFullscreen.value && !isFriendlyFlow.value,
+)
+const showBottomNav = computed(
+  () => !isPublicRoute.value && !isLiveFullscreen.value && !isFriendlyFlow.value,
+)
 const tournamentCreateStep = computed(() => {
   const step = String(route.query.step || 'basics')
   return tournamentCreateSteps.includes(step) ? step : 'basics'
@@ -893,8 +906,12 @@ const isNavigationActive = (routeName) => {
 }
 
 @keyframes pageSkeletonFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes contentSettleIn {
@@ -926,12 +943,24 @@ const isNavigationActive = (routeName) => {
   transform-origin: center;
 }
 
-.page-shell--ready :deep(* > :nth-child(1)) { --reveal-order: 0; }
-.page-shell--ready :deep(* > :nth-child(2)) { --reveal-order: 1; }
-.page-shell--ready :deep(* > :nth-child(3)) { --reveal-order: 2; }
-.page-shell--ready :deep(* > :nth-child(4)) { --reveal-order: 3; }
-.page-shell--ready :deep(* > :nth-child(5)) { --reveal-order: 4; }
-.page-shell--ready :deep(* > :nth-child(6)) { --reveal-order: 5; }
+.page-shell--ready :deep(* > :nth-child(1)) {
+  --reveal-order: 0;
+}
+.page-shell--ready :deep(* > :nth-child(2)) {
+  --reveal-order: 1;
+}
+.page-shell--ready :deep(* > :nth-child(3)) {
+  --reveal-order: 2;
+}
+.page-shell--ready :deep(* > :nth-child(4)) {
+  --reveal-order: 3;
+}
+.page-shell--ready :deep(* > :nth-child(5)) {
+  --reveal-order: 4;
+}
+.page-shell--ready :deep(* > :nth-child(6)) {
+  --reveal-order: 5;
+}
 
 .page-skeleton-stack {
   width: min(100%, 1080px);

@@ -128,6 +128,18 @@ const routes = [
     meta: { title: 'New match', friendlyFlow: true, friendlyStep: 'type' },
   },
   {
+    path: '/friendly-match/timing',
+    name: 'FriendlyMatchTiming',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'When are you playing?', friendlyFlow: true, friendlyStep: 'timing' },
+  },
+  {
+    path: '/friendly-match/join',
+    name: 'FriendlyMatchJoin',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'Let your opponent join', friendlyFlow: true, friendlyStep: 'join' },
+  },
+  {
     path: '/friendly-match/opponent',
     name: 'FriendlyMatchOpponent',
     component: FriendlyMatchFlowView,
@@ -138,6 +150,18 @@ const routes = [
     name: 'FriendlyMatchFormat',
     component: FriendlyMatchFlowView,
     meta: { title: 'Scoring format', friendlyFlow: true, friendlyStep: 'format' },
+  },
+  {
+    path: '/friendly-match/scheduled',
+    name: 'FriendlyMatchScheduled',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'Invitation sent', friendlyFlow: true, friendlyStep: 'scheduled' },
+  },
+  {
+    path: '/friendly-match/join/:token',
+    name: 'FriendlyMatchJoinInvitation',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'Join friendly match', friendlyFlow: true, friendlyStep: 'externalJoin' },
   },
   {
     path: '/friendly-match/live',
