@@ -124,25 +124,16 @@
           }"
         >
           <div v-if="pageSkeletonActive" class="page-skeleton-overlay" aria-hidden="true">
-            <div class="page-skeleton-stack">
-              <div class="page-skeleton-row">
-                <span class="skeleton skeleton-line" style="width: 52%; height: 18px"></span>
-                <span class="skeleton skeleton-line" style="width: 22%; height: 18px"></span>
-              </div>
-              <div
-                class="skeleton skeleton-card"
-                style="min-height: 220px; padding: 1rem; gap: 0.9rem; display: grid"
-              >
-                <span class="skeleton skeleton-line" style="width: 38%; height: 16px"></span>
-                <span class="skeleton skeleton-line" style="width: 72%; height: 16px"></span>
-                <span class="skeleton skeleton-line" style="width: 44%; height: 16px"></span>
-              </div>
-              <div class="page-skeleton-grid">
-                <span class="skeleton skeleton-card" style="min-height: 120px"></span>
-                <span class="skeleton skeleton-card" style="min-height: 120px"></span>
-                <span class="skeleton skeleton-card" style="min-height: 120px"></span>
-              </div>
-            </div>
+            <RoutePageSkeleton
+              :route-name="String(route.name || '')"
+              :friendly-step="String(route.meta.friendlyStep || '')"
+              :fresh-dashboard="isFreshDashboardSkeleton"
+              :opponent-count="
+                friendlyMatchStore.draft.matchType === 'ladder'
+                  ? friendlyMatchStore.ladderOpponents.length
+                  : friendlyMatchStore.opponents.length
+              "
+            />
           </div>
 
           <RouterView v-slot="{ Component }">
@@ -198,18 +189,25 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
 import { useMatchStore } from '../stores/match'
+import { useFriendlyMatchStore } from '../stores/friendlyMatch'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
 import { useAuthStore } from '../stores/auth'
 import ToastShelf from '../components/ToastShelf.vue'
+import RoutePageSkeleton from '../components/RoutePageSkeleton.vue'
+import { APP_DATA_MODES, appDataMode } from '../dataMode'
 
 const route = useRoute()
 const router = useRouter()
 const notificationStore = useNotificationStore()
 const matchStore = useMatchStore()
+const friendlyMatchStore = useFriendlyMatchStore()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
 const authStore = useAuthStore()
+const isFreshDashboardSkeleton = computed(
+  () => route.name === 'Dashboard' && appDataMode.value === APP_DATA_MODES.EMPTY && !authStore.isAdmin,
+)
 
 const pageSkeletonActive = ref(true)
 let pageSkeletonTimer = null
@@ -886,16 +884,11 @@ const isNavigationActive = (routeName) => {
   position: absolute;
   inset: 0;
   z-index: 20;
-  background: radial-gradient(
-    circle at top left,
-    rgba(249, 251, 253, 0.98),
-    rgba(229, 236, 245, 0.98)
-  );
-  backdrop-filter: blur(10px);
-  display: grid;
-  place-items: center;
-  padding: 2rem;
-  gap: 1.2rem;
+  min-height: 100%;
+  overflow: hidden;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.985);
+  backdrop-filter: blur(5px);
   animation: pageSkeletonFade 180ms ease both;
 }
 
