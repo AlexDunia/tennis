@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useFriendlyMatchStore } from '../../stores/friendlyMatch'
 import EmptyState from '../EmptyState.vue'
+import FlowIcon from './FlowIcon.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -32,11 +33,18 @@ function startMatch() {
       :class="{ 'friendly-home__feed--empty': !friendlyMatchStore.results.length }"
     >
       <div v-if="friendlyMatchStore.results.length" class="friendly-home__results">
-        <article v-for="result in friendlyMatchStore.results" :key="result.id" class="friendly-home__result">
+        <article
+          v-for="result in friendlyMatchStore.results"
+          :key="result.id"
+          class="friendly-home__result"
+        >
           <span class="friendly-home__result-mark" aria-hidden="true"></span>
           <div>
             <strong>{{ result.summary }}</strong>
-            <small>{{ result.format }} · {{ result.matchTypeLabel || 'Friendly match' }}</small>
+            <small
+              >{{ result.matchFormatLabel ? `${result.matchFormatLabel} · ` : ''
+              }}{{ result.format }} · {{ result.matchTypeLabel || 'Friendly match' }}</small
+            >
           </div>
         </article>
       </div>
@@ -51,7 +59,7 @@ function startMatch() {
       />
 
       <button type="button" class="button-primary friendly-home__create" @click="startMatch">
-        + Create Match
+        <FlowIcon name="plus" /><span>Create Match</span>
       </button>
     </div>
   </section>
@@ -164,9 +172,25 @@ function startMatch() {
   background: var(--color-primary-strong);
 }
 
-.friendly-home__empty-mark::before { width: 8px; height: 8px; opacity: 0.42; }
-.friendly-home__empty-mark::after { position: absolute; width: 3px; height: 3px; transform: translate(11px, -9px); opacity: 0.28; }
-.friendly-home__empty-mark i { position: absolute; width: 4px; height: 4px; transform: translate(-10px, 10px); opacity: 0.24; }
+.friendly-home__empty-mark::before {
+  width: 8px;
+  height: 8px;
+  opacity: 0.42;
+}
+.friendly-home__empty-mark::after {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  transform: translate(11px, -9px);
+  opacity: 0.28;
+}
+.friendly-home__empty-mark i {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  transform: translate(-10px, 10px);
+  opacity: 0.24;
+}
 
 .friendly-home__empty p {
   margin: 0;

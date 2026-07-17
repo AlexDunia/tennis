@@ -140,16 +140,40 @@ const routes = [
     meta: { title: 'Let your opponent join', friendlyFlow: true, friendlyStep: 'join' },
   },
   {
+    path: '/friendly-match/club-opponent',
+    name: 'FriendlyMatchClubOpponent',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'Choose opponent from club', friendlyFlow: true, friendlyStep: 'clubOpponent' },
+  },
+  {
+    path: '/friendly-match/schedule',
+    name: 'FriendlyMatchSchedule',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'Optional match timing', friendlyFlow: true, friendlyStep: 'schedule' },
+  },
+  {
     path: '/friendly-match/opponent',
     name: 'FriendlyMatchOpponent',
     component: FriendlyMatchFlowView,
     meta: { title: 'Choose opponent', friendlyFlow: true, friendlyStep: 'opponent' },
   },
   {
+    path: '/friendly-match/scoring',
+    name: 'FriendlyMatchScoring',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'Scoring', friendlyFlow: true, friendlyStep: 'scoring' },
+  },
+  {
     path: '/friendly-match/format',
     name: 'FriendlyMatchFormat',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Scoring format', friendlyFlow: true, friendlyStep: 'format' },
+    meta: { title: 'Match format', friendlyFlow: true, friendlyStep: 'format' },
+  },
+  {
+    path: '/friendly-match/custom-format',
+    name: 'FriendlyMatchCustomFormat',
+    component: FriendlyMatchFlowView,
+    meta: { title: 'Custom format', friendlyFlow: true, friendlyStep: 'customFormat' },
   },
   {
     path: '/friendly-match/scheduled',

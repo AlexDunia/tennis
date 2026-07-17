@@ -142,7 +142,10 @@
 
           <RouterView v-slot="{ Component }">
             <Transition name="page" mode="out-in" appear>
-              <component :is="Component" :key="route.fullPath" />
+              <component
+                :is="Component"
+                :key="route.meta.friendlyFlow ? 'friendly-match-flow' : route.fullPath"
+              />
             </Transition>
           </RouterView>
         </div>
@@ -216,17 +219,21 @@ const isFreshDashboardSkeleton = computed(
 
 const pageSkeletonActive = ref(true)
 let pageSkeletonTimer = null
-const PAGE_SKELETON_DURATION = 2000
+const PAGE_SKELETON_DURATION = 900
+const FRIENDLY_FLOW_SKELETON_DURATION = 650
 
-const schedulePageSkeleton = () => {
+const schedulePageSkeleton = (targetRoute = route) => {
   pageSkeletonActive.value = true
   if (pageSkeletonTimer) {
     window.clearTimeout(pageSkeletonTimer)
   }
+  const duration = targetRoute.meta?.friendlyFlow
+    ? FRIENDLY_FLOW_SKELETON_DURATION
+    : PAGE_SKELETON_DURATION
   pageSkeletonTimer = window.setTimeout(() => {
     pageSkeletonActive.value = false
     pageSkeletonTimer = null
-  }, PAGE_SKELETON_DURATION)
+  }, duration)
 }
 
 onMounted(() => {
@@ -235,12 +242,12 @@ onMounted(() => {
   }
 
   if (isPublicRoute.value) pageSkeletonActive.value = false
-  else schedulePageSkeleton()
+  else schedulePageSkeleton(route)
 })
 
-const removeRouteAfterEach = router.afterEach(() => {
-  if (isPublicRoute.value) pageSkeletonActive.value = false
-  else schedulePageSkeleton()
+const removeRouteAfterEach = router.afterEach((to) => {
+  if (to.meta.public === true) pageSkeletonActive.value = false
+  else schedulePageSkeleton(to)
 })
 
 onUnmounted(() => {

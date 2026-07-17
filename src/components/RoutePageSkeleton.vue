@@ -12,7 +12,11 @@ const props = defineProps({
 
 const variant = computed(() => {
   if (props.friendlyStep === 'format' && props.friendlyMatchType === 'friendly')
-    return 'friendly-review'
+    return 'friendly-match-format'
+  if (props.friendlyStep === 'customFormat' && props.friendlyMatchType === 'friendly')
+    return 'friendly-custom-format'
+  if (props.friendlyStep === 'scoring' && props.friendlyMatchType === 'friendly')
+    return 'friendly-format'
   if (
     props.friendlyStep === 'opponent' &&
     props.friendlyMatchType === 'friendly' &&
@@ -85,7 +89,13 @@ const opponentRows = computed(() =>
       </div>
     </template>
 
-    <template v-else-if="variant === 'friendly-opponent' || variant === 'friendly-opponent-later'">
+    <template
+      v-else-if="
+        variant === 'friendly-opponent' ||
+        variant === 'friendly-opponent-later' ||
+        variant === 'friendly-clubOpponent'
+      "
+    >
       <div class="flow-head">
         <span class="sk sk-square"></span><span class="sk sk-line w-24"></span
         ><span class="sk sk-line w-8 push"></span>
@@ -113,13 +123,29 @@ const opponentRows = computed(() =>
         <span class="sk sk-square"></span><span class="sk sk-line w-22"></span
         ><span class="sk sk-line w-8 push"></span>
       </div>
-      <div class="flow-body">
+      <div class="flow-body narrow-flow">
         <div class="intro-block">
           <span class="sk sk-line w-14 thin"></span><span class="sk sk-line w-42 title"></span
           ><span class="sk sk-line w-62"></span>
         </div>
-        <div class="join-grid">
-          <span class="sk sk-qr"></span><span class="sk sk-join-status"></span>
+        <span class="sk sk-notice"></span><span class="sk sk-qr sk-qr--single center"></span
+        ><span class="sk sk-button center"></span>
+      </div>
+    </template>
+
+    <template v-else-if="variant === 'friendly-schedule'">
+      <div class="flow-head">
+        <span class="sk sk-square"></span><span class="sk sk-line w-22"></span
+        ><span class="sk sk-line w-8 push"></span>
+      </div>
+      <div class="flow-body">
+        <div class="intro-block">
+          <span class="sk sk-line w-14 thin"></span><span class="sk sk-line w-42 title"></span
+          ><span class="sk sk-line w-58"></span>
+        </div>
+        <div class="three-grid fields">
+          <span class="sk sk-field"></span><span class="sk sk-field"></span
+          ><span class="sk sk-field"></span>
         </div>
         <span class="sk sk-button push"></span>
       </div>
@@ -136,8 +162,50 @@ const opponentRows = computed(() =>
           ><span class="sk sk-line w-62"></span>
         </div>
         <div class="stack gap-0 review-skeleton">
-          <span v-for="row in [1, 2, 3, 4, 5]" :key="row" class="sk sk-review-row"></span>
+          <span
+            v-for="row in friendlyTiming === 'later' ? [1, 2, 3, 4] : [1, 2, 3]"
+            :key="row"
+            class="sk sk-review-row"
+          ></span>
         </div>
+        <span class="sk sk-button push"></span>
+      </div>
+    </template>
+
+    <template v-else-if="variant === 'friendly-match-format'">
+      <div class="flow-head">
+        <span class="sk sk-square"></span><span class="sk sk-line w-22"></span
+        ><span class="sk sk-line w-8 push"></span>
+      </div>
+      <div class="flow-body">
+        <div class="intro-block">
+          <span class="sk sk-line w-14 thin"></span><span class="sk sk-line w-40 title"></span
+          ><span class="sk sk-line w-58"></span>
+        </div>
+        <div class="stack gap-12">
+          <span v-for="row in [1, 2, 3, 4]" :key="row" class="sk sk-choice"></span>
+        </div>
+        <span class="sk sk-button push"></span>
+      </div>
+    </template>
+
+    <template v-else-if="variant === 'friendly-custom-format'">
+      <div class="flow-head">
+        <span class="sk sk-square"></span><span class="sk sk-line w-22"></span
+        ><span class="sk sk-line w-8 push"></span>
+      </div>
+      <div class="flow-body">
+        <div class="intro-block">
+          <span class="sk sk-line w-14 thin"></span><span class="sk sk-line w-40 title"></span
+          ><span class="sk sk-line w-58"></span>
+        </div>
+        <span class="sk sk-custom-summary"></span>
+        <div class="three-grid custom-format-chip-skeletons">
+          <span v-for="choice in [1, 2, 3]" :key="choice" class="sk sk-custom-chip"></span>
+        </div>
+        <span class="sk sk-custom-setting"></span>
+        <span class="sk sk-custom-setting"></span>
+        <span class="sk sk-custom-setting short"></span>
         <span class="sk sk-button push"></span>
       </div>
     </template>
@@ -399,8 +467,12 @@ const opponentRows = computed(() =>
 .route-skeleton--friendly-timing,
 .route-skeleton--friendly-opponent,
 .route-skeleton--friendly-opponent-later,
+.route-skeleton--friendly-clubOpponent,
+.route-skeleton--friendly-schedule,
 .route-skeleton--friendly-join,
 .route-skeleton--friendly-review,
+.route-skeleton--friendly-match-format,
+.route-skeleton--friendly-custom-format,
 .route-skeleton--friendly-scheduled,
 .route-skeleton--friendly-externalJoin,
 .route-skeleton--friendly-format,
@@ -408,6 +480,23 @@ const opponentRows = computed(() =>
   width: min(1140px, 100%);
   min-height: 100svh;
   padding: clamp(18px, 3vw, 34px) clamp(20px, 3.5vw, 40px) 44px;
+}
+.sk-custom-summary {
+  width: 100%;
+  height: 67px;
+}
+.custom-format-chip-skeletons {
+  width: 100%;
+}
+.sk-custom-chip {
+  height: 76px;
+}
+.sk-custom-setting {
+  width: 100%;
+  height: 68px;
+}
+.sk-custom-setting.short {
+  height: 64px;
 }
 
 .sk {
@@ -565,6 +654,9 @@ const opponentRows = computed(() =>
 .sk-qr {
   width: 100%;
   min-height: 360px;
+}
+.sk-qr--single {
+  width: min(100%, 480px);
 }
 .sk-join-status {
   min-height: 360px;
@@ -782,8 +874,12 @@ const opponentRows = computed(() =>
   .route-skeleton--friendly-timing,
   .route-skeleton--friendly-opponent,
   .route-skeleton--friendly-opponent-later,
+  .route-skeleton--friendly-clubOpponent,
+  .route-skeleton--friendly-schedule,
   .route-skeleton--friendly-join,
   .route-skeleton--friendly-review,
+  .route-skeleton--friendly-match-format,
+  .route-skeleton--friendly-custom-format,
   .route-skeleton--friendly-scheduled,
   .route-skeleton--friendly-externalJoin,
   .route-skeleton--friendly-format,
@@ -799,6 +895,12 @@ const opponentRows = computed(() =>
   }
   .four-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .custom-format-chip-skeletons {
+    grid-template-columns: 1fr;
+  }
+  .sk-custom-chip {
+    height: 62px;
   }
   .tournament-grid,
   .gallery-grid {
