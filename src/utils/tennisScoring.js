@@ -30,7 +30,6 @@ function calculateSetWins(scoreboard, playerKey) {
 }
 
 function finalizeSet(scoreboard, playerKey) {
-  const opponentKey = getOpponent(playerKey)
   const set = scoreboard.sets[scoreboard.currentSetIndex]
   if (!set) {
     return scoreboard
@@ -41,11 +40,16 @@ function finalizeSet(scoreboard, playerKey) {
     games: { ...set.games },
     tieBreak: set.tieBreak,
   })
-  scoreboard.currentGame = createGameState()
-  scoreboard.currentSetIndex = Math.min(scoreboard.currentSetIndex + 1, scoreboard.bestOfSets - 1)
+
   if (calculateSetWins(scoreboard, playerKey) >= Math.ceil(scoreboard.bestOfSets / 2)) {
     scoreboard.matchWinner = playerKey
+    scoreboard.status = 'finished'
+    return scoreboard
   }
+
+  scoreboard.currentSetIndex = Math.min(scoreboard.currentSetIndex + 1, scoreboard.bestOfSets - 1)
+  scoreboard.currentGame = createGameState()
+  return scoreboard
 }
 
 function startTieBreak(scoreboard) {
@@ -68,6 +72,7 @@ export function createScoreboard(playerA = 'Server', playerB = 'Returner', bestO
     currentGame: createGameState(),
     completedSets: [],
     matchWinner: null,
+    status: 'live',
     bestOfSets,
   }
 }
@@ -77,7 +82,7 @@ export function recordPoint(originalScoreboard, playerKey) {
     return null
   }
   const scoreboard = clone(originalScoreboard)
-  if (scoreboard.matchWinner) {
+  if (scoreboard.matchWinner || scoreboard.status === 'finished') {
     return scoreboard
   }
   const opponentKey = getOpponent(playerKey)

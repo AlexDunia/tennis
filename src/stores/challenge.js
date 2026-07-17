@@ -76,12 +76,12 @@ export const useChallengeStore = defineStore('challenge', () => {
     return null
   }
 
-  const acceptChallenge = async (challengeId, scheduledAt) => {
+  const acceptChallenge = async (challengeId, scheduledAt, actorId) => {
     error.value = ''
     isLoading.value = true
 
     try {
-      const response = await acceptChallengeRequest(challengeId, scheduledAt)
+      const response = await acceptChallengeRequest(challengeId, scheduledAt, actorId)
       if (response.success) {
         const challengeIndex = challenges.value.findIndex((item) => item.id === challengeId)
         if (challengeIndex !== -1) {
@@ -101,13 +101,13 @@ export const useChallengeStore = defineStore('challenge', () => {
     return null
   }
 
-  const reviewChallenge = async (challengeId) => {
+  const reviewChallenge = async (challengeId, actorId) => {
     error.value = ''
     isLoading.value = true
     const playerStore = usePlayerStore()
 
     try {
-      const response = await reviewChallengeRequest(challengeId)
+      const response = await reviewChallengeRequest(challengeId, actorId)
       if (response.success) {
         const challengeIndex = challenges.value.findIndex((item) => item.id === challengeId)
         if (challengeIndex !== -1) {
@@ -133,16 +133,16 @@ export const useChallengeStore = defineStore('challenge', () => {
     return null
   }
 
-  const declineChallenge = async (challengeId) => {
+  const declineChallenge = async (challengeId, actorId) => {
     error.value = ''
     isLoading.value = true
 
     try {
-      const response = await declineChallengeRequest(challengeId)
+      const response = await declineChallengeRequest(challengeId, actorId)
       if (response.success) {
         const challengeIndex = challenges.value.findIndex((item) => item.id === challengeId)
-        if (challengeIndex !== -1) {
-          challenges.value.splice(challengeIndex, 1)
+        if (challengeIndex !== -1 && response.data?.id) {
+          challenges.value[challengeIndex] = response.data
         }
 
         return response.data
@@ -158,12 +158,12 @@ export const useChallengeStore = defineStore('challenge', () => {
     return null
   }
 
-  const withdrawChallenge = async (challengeId) => {
+  const withdrawChallenge = async (challengeId, actorId) => {
     error.value = ''
     isLoading.value = true
 
     try {
-      const response = await withdrawChallengeRequest(challengeId)
+      const response = await withdrawChallengeRequest(challengeId, actorId)
       if (response.success) {
         const challengeIndex = challenges.value.findIndex((item) => item.id === challengeId)
         if (challengeIndex !== -1) {
@@ -197,6 +197,7 @@ export const useChallengeStore = defineStore('challenge', () => {
     createChallenge,
     acceptChallenge,
     declineChallenge,
+    withdrawChallenge,
     reviewChallenge,
     setFilter,
   }

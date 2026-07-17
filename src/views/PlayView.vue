@@ -86,14 +86,19 @@ const scoreboardStatus = computed(() => {
   }
 
   if (scoreboard.value.matchWinner) {
-    return 'Match complete'
+    return 'Finished'
   }
 
   return ['pending', 'scheduled'].includes(currentMatch.value.status)
     ? 'Live scoreboard ready'
     : 'Score review'
 })
-const canSubmitFinal = computed(() => Boolean(currentMatch.value && scoreboard.value.matchWinner))
+const finalScoreSubmitted = computed(() =>
+  ['completed', 'walkover'].includes(currentMatch.value?.status),
+)
+const canSubmitFinal = computed(
+  () => Boolean(currentMatch.value && scoreboard.value.matchWinner && !finalScoreSubmitted.value),
+)
 
 function formatDateTime(value) {
   return formatAppDateTime(value, { fallback: 'Schedule pending' })
@@ -102,6 +107,7 @@ function formatDateTime(value) {
 function ensureScoreboardMetadata(scoreboard) {
   return {
     ...scoreboard,
+    status: scoreboard.matchWinner ? 'finished' : scoreboard.status || 'live',
     players: {
       playerA: scoreboard.players?.playerA || playerOneName.value,
       playerB: scoreboard.players?.playerB || playerTwoName.value,
@@ -243,6 +249,10 @@ async function toggleServer() {
 }
 
 async function submitFinalScore() {
+  if (finalScoreSubmitted.value) {
+    openMatchDetails()
+    return
+  }
   if (!canSubmitFinal.value) {
     return
   }
@@ -364,7 +374,7 @@ onUnmounted(() => {
       <button class="play__details" type="button" @click="toggleTheme">
         {{ scoreboardTheme === 'dark' ? 'Light mode' : 'Dark mode' }}
       </button>
-      <button class="play__details" type="button" @click="toggleServer">
+      <button v-if="!scoreboard.matchWinner" class="play__details" type="button" @click="toggleServer">
         Switch server
       </button>
     </div>
@@ -379,6 +389,7 @@ onUnmounted(() => {
         :server-key="serverKey"
         :theme="scoreboardTheme"
         @point="handlePoint"
+        @view-summary="openMatchDetails"
       />
       <div v-else-if="!hasLoaded || matchStore.isLoading" class="play__fallback section-card">
         <span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span>
@@ -400,16 +411,16 @@ onUnmounted(() => {
     </div>
 
     <div v-if="currentMatch && !isFullscreen" class="play__controls section-card">
-      <button class="play__details" type="button" @click="toggleServer">
+      <button v-if="!scoreboard.matchWinner" class="play__details" type="button" @click="toggleServer">
         Switch server
       </button>
       <button
         class="play__details play__details--primary"
         type="button"
-        :disabled="!canSubmitFinal"
+        :disabled="!canSubmitFinal && !finalScoreSubmitted"
         @click="submitFinalScore"
       >
-        Submit final score
+        {{ finalScoreSubmitted ? 'View match summary' : 'Submit final score' }}
       </button>
     </div>
   </section>

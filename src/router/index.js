@@ -3,7 +3,6 @@ import DashboardView from '../views/DashboardView.vue'
 import RankingsView from '../views/RankingsView.vue'
 import ChallengesView from '../views/ChallengesView.vue'
 import MatchDetailsView from '../views/MatchDetailsView.vue'
-import CreateChallengeView from '../views/CreateChallengeView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
 import ProfileView from '../views/ProfileView.vue'
@@ -123,30 +122,35 @@ const routes = [
   },
   {
     path: '/friendly-match/type',
+    alias: '/ladder-match/type',
     name: 'FriendlyMatchType',
     component: FriendlyMatchFlowView,
     meta: { title: 'New match', friendlyFlow: true, friendlyStep: 'type' },
   },
   {
     path: '/friendly-match/timing',
+    alias: '/ladder-match/timing',
     name: 'FriendlyMatchTiming',
     component: FriendlyMatchFlowView,
     meta: { title: 'When are you playing?', friendlyFlow: true, friendlyStep: 'timing' },
   },
   {
     path: '/friendly-match/join',
+    alias: '/ladder-match/join',
     name: 'FriendlyMatchJoin',
     component: FriendlyMatchFlowView,
     meta: { title: 'Let your opponent join', friendlyFlow: true, friendlyStep: 'join' },
   },
   {
     path: '/friendly-match/club-opponent',
+    alias: '/ladder-match/opponent',
     name: 'FriendlyMatchClubOpponent',
     component: FriendlyMatchFlowView,
     meta: { title: 'Choose opponent from club', friendlyFlow: true, friendlyStep: 'clubOpponent' },
   },
   {
     path: '/friendly-match/schedule',
+    alias: '/ladder-match/schedule',
     name: 'FriendlyMatchSchedule',
     component: FriendlyMatchFlowView,
     meta: { title: 'Optional match timing', friendlyFlow: true, friendlyStep: 'schedule' },
@@ -159,12 +163,14 @@ const routes = [
   },
   {
     path: '/friendly-match/scoring',
+    alias: '/ladder-match/scoring',
     name: 'FriendlyMatchScoring',
     component: FriendlyMatchFlowView,
     meta: { title: 'Scoring', friendlyFlow: true, friendlyStep: 'scoring' },
   },
   {
     path: '/friendly-match/format',
+    alias: '/ladder-match/format',
     name: 'FriendlyMatchFormat',
     component: FriendlyMatchFlowView,
     meta: { title: 'Match format', friendlyFlow: true, friendlyStep: 'format' },
@@ -177,18 +183,21 @@ const routes = [
   },
   {
     path: '/friendly-match/scheduled',
+    alias: '/ladder-match/sent',
     name: 'FriendlyMatchScheduled',
     component: FriendlyMatchFlowView,
     meta: { title: 'Invitation sent', friendlyFlow: true, friendlyStep: 'scheduled' },
   },
   {
     path: '/friendly-match/join/:token',
+    alias: '/ladder-match/join/:token',
     name: 'FriendlyMatchJoinInvitation',
     component: FriendlyMatchFlowView,
     meta: { title: 'Join friendly match', friendlyFlow: true, friendlyStep: 'externalJoin' },
   },
   {
     path: '/friendly-match/live',
+    alias: '/ladder-match/live',
     name: 'FriendlyMatchLive',
     component: FriendlyMatchFlowView,
     meta: { title: 'Live friendly match', friendlyFlow: true, friendlyStep: 'live' },
@@ -232,11 +241,10 @@ const routes = [
   {
     path: '/create-challenge',
     name: 'CreateChallenge',
-    component: CreateChallengeView,
-    meta: {
-      title: 'Create Challenge',
-      subtitle: 'Set up a new ladder challenge against an eligible higher-ranked opponent.',
-    },
+    redirect: (to) => ({
+      path: '/ladder-match/type',
+      query: { ...to.query, mode: 'ladder' },
+    }),
   },
   {
     path: '/notifications',

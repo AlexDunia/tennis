@@ -8,10 +8,22 @@ import { generateRoundRobinFixtures } from '../composables/useTournamentFixtures
 import { calculateGroupStandings } from '../composables/useTournamentStandings'
 import { isSafeImageSource, sanitizePlainText, sanitizeSlugList } from '../utils/formSafety'
 import { APP_DATA_MODES, getAppDataMode } from '../dataMode'
+import {
+  FRESH_ACCOUNT_LADDER_SCOPE,
+  buildFreshAccountLadderRoster,
+} from '../data/freshAccountLadder'
+import {
+  ACTIVE_LADDER_CHALLENGE_STATUSES,
+  LADDER_CONFIG,
+  deadlineFromNow,
+  isEligibleLadderOpponent,
+  ladderMatchConfig,
+} from '../config/ladder'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 const defaultDelay = 300
 const TOURNAMENT_STORAGE_KEY = 'tennis.mock.tournamentState.v1'
+const LADDER_STORAGE_KEY = 'tennis.mock.ladderState.v1'
 const RSP_CATEGORY_A_PARTIAL_SCENARIO_KEY = 'tennis.mock.rspCategoryAPartialScenario.v1'
 let hasAppliedRspCategoryAPartialScenario = false
 
@@ -83,6 +95,28 @@ const mockDatabase = {
 
 function canUseStorage() {
   return typeof window !== 'undefined' && Boolean(window.localStorage)
+}
+
+function loadLadderState() {
+  if (!canUseStorage()) return null
+  try {
+    const stored = window.localStorage.getItem(LADDER_STORAGE_KEY)
+    return stored ? JSON.parse(stored) : null
+  } catch {
+    return null
+  }
+}
+
+function saveLadderState() {
+  if (!canUseStorage()) return
+  window.localStorage.setItem(
+    LADDER_STORAGE_KEY,
+    JSON.stringify({
+      players: mockDatabase.players,
+      challenges: mockDatabase.challenges,
+      matches: mockDatabase.matches.filter((match) => match.type !== 'tournament'),
+    }),
+  )
 }
 
 function loadTournamentState() {
@@ -742,12 +776,31 @@ function getStatusLabel(status) {
       return 'Pending Review'
     case 'completed':
       return 'Completed'
+    case 'declined':
+      return 'Declined'
+    case 'cancelled':
+      return 'Cancelled'
+    case 'expired':
+      return 'Expired'
     default:
       return 'Unknown'
   }
 }
 
 function ensureData() {
+  if (mockDatabase.players.length === 0) {
+    const savedLadderState = loadLadderState()
+    if (savedLadderState?.players?.length) {
+      mockDatabase.players = savedLadderState.players
+      mockDatabase.challenges = Array.isArray(savedLadderState.challenges)
+        ? savedLadderState.challenges
+        : []
+      mockDatabase.matches = Array.isArray(savedLadderState.matches)
+        ? savedLadderState.matches.map(ensureMatchDefaults)
+        : []
+    }
+  }
+
   if (mockDatabase.players.length === 0) {
     mockDatabase.players = createPlayers()
     mockDatabase.challenges = [
@@ -1003,9 +1056,47 @@ const mockAdapter = async (config) => {
   const body = config.data ? JSON.parse(config.data) : null
 
   const isFreshAccount = getAppDataMode() === APP_DATA_MODES.EMPTY
-  const isEmptyCollection = ['/players', '/challenges', '/matches', '/tournaments'].includes(path)
 
-  if (isFreshAccount && method === 'get' && isEmptyCollection) {
+  if (isFreshAccount && method === 'get' && path === '/players') {
+    return {
+      data: buildResponse(buildFreshAccountLadderRoster(mockDatabase.players)),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  if (isFreshAccount && method === 'get' && path === '/challenges') {
+    const challenges = mockDatabase.challenges
+      .filter((challenge) => challenge.accountScope === FRESH_ACCOUNT_LADDER_SCOPE)
+      .map(buildChallengeResponse)
+    return {
+      data: buildResponse(challenges),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  if (isFreshAccount && method === 'get' && path === '/matches') {
+    const matches = mockDatabase.matches
+      .filter((match) => match.accountScope === FRESH_ACCOUNT_LADDER_SCOPE)
+      .map(buildMatchResponse)
+    return {
+      data: buildResponse(matches),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  if (isFreshAccount && method === 'get' && path === '/tournaments') {
     return {
       data: buildResponse([]),
       status: 200,
@@ -1016,13 +1107,9 @@ const mockAdapter = async (config) => {
     }
   }
 
-  if (
-    isFreshAccount &&
-    method === 'get' &&
-    (path.startsWith('/matches/') || path.startsWith('/tournaments/'))
-  ) {
+  if (isFreshAccount && method === 'get' && path.startsWith('/tournaments/')) {
     return {
-      data: { success: false, data: null, message: 'No data exists for this fresh account yet.' },
+      data: { success: false, data: null, message: 'No tournament data exists for this account yet.' },
       status: 404,
       statusText: 'Not Found',
       headers: {},
@@ -1066,7 +1153,11 @@ const mockAdapter = async (config) => {
 
   if (method === 'get' && path.match(/^\/matches\/[^/]+$/)) {
     const matchId = path.split('/')[2]
-    const match = mockDatabase.matches.find((item) => item.id === matchId)
+    const candidate = mockDatabase.matches.find((item) => item.id === matchId)
+    const match =
+      isFreshAccount && candidate?.accountScope !== FRESH_ACCOUNT_LADDER_SCOPE
+        ? null
+        : candidate
 
     return {
       data: match
@@ -1511,17 +1602,60 @@ const mockAdapter = async (config) => {
   }
 
   if (method === 'post' && path === '/challenges') {
-    const id = `challenge-${String(mockDatabase.challenges.length + 1).padStart(2, '0')}`
+    const challenger = getPlayerById(body.challengerId)
+    const defender = getPlayerById(body.defenderId)
+    const activeCount = mockDatabase.challenges.filter(
+      (challenge) =>
+        ACTIVE_LADDER_CHALLENGE_STATUSES.includes(challenge.status) &&
+        [challenge.challengerId, challenge.defenderId].includes(body.challengerId),
+    ).length
+    const invalidMessage =
+      LADDER_CONFIG.seasonStatus !== 'active'
+        ? 'The Ladder is not accepting challenges right now.'
+        : !challenger?.rank
+          ? 'A current Ladder position is required.'
+          : !defender?.rank
+            ? 'The selected opponent is not on the active Ladder.'
+            : !isEligibleLadderOpponent(challenger, defender)
+              ? 'The selected opponent is outside your eligible challenge window.'
+              : activeCount >= LADDER_CONFIG.maxActiveChallenges
+                ? 'Finish your active challenge before creating another one.'
+                : ''
+    if (invalidMessage) {
+      return {
+        data: { success: false, data: null, message: invalidMessage },
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+    const now = new Date().toISOString()
+    const id = `challenge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const challenge = {
+      ...body,
       id,
-      challengerId: body.challengerId,
-      defenderId: body.defenderId,
+      challengerId: challenger.id,
+      defenderId: defender.id,
       scorerId: body.scorerId || null,
+      type: 'ladder',
+      accountScope: isFreshAccount ? FRESH_ACCOUNT_LADDER_SCOPE : 'demo',
       status: 'awaiting',
-      requestedAt: new Date().toISOString(),
+      requestedAt: now,
+      createdAt: now,
+      responseDeadline: body.responseDeadline || deadlineFromNow(LADDER_CONFIG.responseHours),
+      playDeadline: body.playDeadline || deadlineFromNow(LADDER_CONFIG.completionDays, 'days'),
+      preMatchPositions: body.preMatchPositions || {
+        challenger: challenger.rank,
+        defender: defender.rank,
+      },
+      ladderConfigSnapshot: body.ladderConfigSnapshot || { ...LADDER_CONFIG },
+      matchConfig: { ...ladderMatchConfig(), ...(body.matchConfig || {}), locked: true },
       note: body.note || '',
     }
     mockDatabase.challenges.push(challenge)
+    saveLadderState()
     return {
       data: buildResponse(buildChallengeResponse(challenge)),
       status: 201,
@@ -1545,20 +1679,49 @@ const mockAdapter = async (config) => {
         request: {},
       }
     }
+    if (body?.actorId !== challenge.defenderId) {
+      return {
+        data: { success: false, data: null, message: 'Only the challenged player can accept this challenge.' },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+    if (challenge.status !== 'awaiting') {
+      return {
+        data: { success: false, data: null, message: 'This challenge has already been answered.' },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
     challenge.status = 'scheduled'
-    challenge.scheduledAt = body?.scheduledAt || new Date(Date.now() + 3 * 86400000).toISOString()
-    const matchId = `match-${String(mockDatabase.matches.length + 1).padStart(2, '0')}`
-    const match = ensureMatchDefaults({
+    challenge.acceptedAt = new Date().toISOString()
+    challenge.scheduledAt = body?.scheduledAt || challenge.scheduledAt || new Date().toISOString()
+    const existingMatch = mockDatabase.matches.find((item) => item.challengeId === challenge.id)
+    const matchId = existingMatch?.id || `match-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const match = existingMatch || ensureMatchDefaults({
       id: matchId,
       challengeId: challenge.id,
+      accountScope: challenge.accountScope || 'demo',
       challengerId: challenge.challengerId,
       defenderId: challenge.defenderId,
       status: 'scheduled',
       scheduledAt: challenge.scheduledAt,
       score: null,
       winnerId: null,
+      matchConfig: challenge.matchConfig,
+      ladderConfigSnapshot: challenge.ladderConfigSnapshot,
+      preMatchPositions: challenge.preMatchPositions,
+      playDeadline: challenge.playDeadline,
+      court: challenge.court || '',
     })
-    mockDatabase.matches.push(match)
+    if (!existingMatch) mockDatabase.matches.push(match)
+    saveLadderState()
     return {
       data: buildResponse({
         challenge: buildChallengeResponse(challenge),
@@ -1616,13 +1779,39 @@ const mockAdapter = async (config) => {
       }
     }
 
+    if (![match.challengerId, match.defenderId].includes(body?.submittedBy)) {
+      return {
+        data: { success: false, data: null, message: 'Only a match player can submit this result.' },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+    if (![match.challengerId, match.defenderId].includes(body?.winnerId)) {
+      return {
+        data: { success: false, data: null, message: 'The winner must be one of the challenge players.' },
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
     match.score = body?.score || '6-4, 6-4'
+    match.sets = Array.isArray(body?.sets) ? body.sets : []
     match.winnerId = body?.winnerId
+    match.resultSubmittedBy = body?.submittedBy || match.challengerId
+    match.resultSubmittedAt = new Date().toISOString()
     match.status = 'pending_review'
     const challenge = mockDatabase.challenges.find((item) => item.id === match.challengeId)
     if (challenge) {
       challenge.status = 'pending_review'
+      challenge.resultSubmittedBy = match.resultSubmittedBy
+      challenge.resultSubmittedAt = match.resultSubmittedAt
     }
+    saveLadderState()
     return {
       data: buildResponse(buildMatchResponse(match)),
       status: 200,
@@ -1657,9 +1846,37 @@ const mockAdapter = async (config) => {
         request: {},
       }
     }
+    const reviewActor = body?.actorId
+    const isParticipant = [match.challengerId, match.defenderId].includes(reviewActor)
+    const canConfirm = match.resultSubmittedBy
+      ? isParticipant && reviewActor !== match.resultSubmittedBy
+      : reviewActor === challenge.defenderId
+    if (!canConfirm) {
+      return {
+        data: { success: false, data: null, message: 'The other match player must confirm this result.' },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+    if (challenge.status !== 'pending_review' || match.status !== 'pending_review') {
+      return {
+        data: { success: false, data: null, message: 'This result is not waiting for confirmation.' },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
     challenge.status = 'completed'
+    challenge.confirmedAt = new Date().toISOString()
     match.status = 'completed'
+    match.confirmedAt = challenge.confirmedAt
     updateRankingsForResult(match)
+    saveLadderState()
     return {
       data: buildResponse({
         challenge: buildChallengeResponse(challenge),
@@ -1687,9 +1904,78 @@ const mockAdapter = async (config) => {
         request: {},
       }
     }
-    mockDatabase.challenges.splice(challengeIndex, 1)
+    const challenge = mockDatabase.challenges[challengeIndex]
+    if (body?.actorId !== challenge.defenderId) {
+      return {
+        data: { success: false, data: null, message: 'Only the challenged player can decline this challenge.' },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+    if (challenge.status !== 'awaiting') {
+      return {
+        data: { success: false, data: null, message: 'Only an unanswered challenge can be declined.' },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+    challenge.status = 'declined'
+    challenge.declinedAt = new Date().toISOString()
+    saveLadderState()
     return {
-      data: buildResponse({}),
+      data: buildResponse(buildChallengeResponse(challenge)),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  if (method === 'post' && path.match(/^\/challenges\/[^/]+\/withdraw$/)) {
+    const challengeId = path.split('/')[2]
+    const challenge = mockDatabase.challenges.find((item) => item.id === challengeId)
+    if (!challenge) {
+      return {
+        data: { success: false, data: null, message: 'Challenge not found' },
+        status: 404,
+        statusText: 'Not Found',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+    if (body?.actorId !== challenge.challengerId) {
+      return {
+        data: { success: false, data: null, message: 'Only the challenger can withdraw this challenge.' },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+    if (!['awaiting', 'scheduled'].includes(challenge.status)) {
+      return {
+        data: { success: false, data: null, message: 'This challenge can no longer be withdrawn.' },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+    challenge.status = 'cancelled'
+    challenge.cancelledAt = new Date().toISOString()
+    saveLadderState()
+    return {
+      data: buildResponse(buildChallengeResponse(challenge)),
       status: 200,
       statusText: 'OK',
       headers: {},

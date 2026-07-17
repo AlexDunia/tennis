@@ -95,6 +95,13 @@
         <span>{{ formatDate(challenge.scheduledAt) }}</span>
       </div>
 
+      <div v-if="challenge.responseDeadline && challenge.status === 'awaiting'" class="cc__info-item">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <circle cx="8" cy="8" r="6" /><path d="M8 4v4l2.5 1.5" stroke-linecap="round" />
+        </svg>
+        <span>Respond by {{ formatDate(challenge.responseDeadline) }}</span>
+      </div>
+
       <!-- Set format -->
       <div v-if="challenge.matchConfig" class="cc__info-item">
         <svg
@@ -320,6 +327,9 @@ const statusMeta = computed(() => {
     scheduled: { label: 'Scheduled' },
     pending_review: { label: 'Pending review' },
     completed: { label: 'Completed' },
+    declined: { label: 'Declined' },
+    cancelled: { label: 'Cancelled' },
+    expired: { label: 'Expired' },
   }
   return map[props.challenge.status] ?? { label: props.challenge.status }
 })
@@ -328,7 +338,9 @@ const pillClass = computed(() => ({
   'cc__pill--amber': props.challenge.status === 'awaiting',
   'cc__pill--green': props.challenge.status === 'scheduled',
   'cc__pill--blue': props.challenge.status === 'pending_review',
-  'cc__pill--gray': props.challenge.status === 'completed',
+  'cc__pill--gray': ['completed', 'declined', 'cancelled', 'expired'].includes(
+    props.challenge.status,
+  ),
 }))
 </script>
 

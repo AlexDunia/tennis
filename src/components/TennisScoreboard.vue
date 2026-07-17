@@ -32,16 +32,26 @@ const props = defineProps({
 
 const emit = defineEmits({
   point: (playerKey) => ['playerA', 'playerB'].includes(playerKey),
+  'view-summary': () => true,
 })
 
 const playerKeys = ['playerA', 'playerB']
+const matchWinner = computed(() => props.scoreboard.matchWinner)
 const setSummary = computed(() => formatSetSummary(props.scoreboard))
 const scoreboardPlayers = computed(() => ({
   playerA: props.scoreboard.players?.playerA ?? 'Player 1',
   playerB: props.scoreboard.players?.playerB ?? 'Player 2',
 }))
 const isTieBreakActive = computed(() => props.scoreboard.currentGame?.inTieBreak)
-const matchWinner = computed(() => props.scoreboard.matchWinner)
+const setsWon = computed(() => ({
+  playerA: props.scoreboard.completedSets.filter((set) => set.winner === 'playerA').length,
+  playerB: props.scoreboard.completedSets.filter((set) => set.winner === 'playerB').length,
+}))
+const finalScore = computed(() =>
+  props.scoreboard.completedSets
+    .map((set) => `${set.games.playerA}–${set.games.playerB}`)
+    .join(', '),
+)
 const pointColumnLabel = computed(() => (isTieBreakActive.value ? 'Tie-break' : 'Game'))
 const pointClockRemaining = computed(() => Math.max(0, 25 - Number(props.pointClockSeconds || 0)))
 const pointClockState = computed(() => {
@@ -57,7 +67,7 @@ const pointClockState = computed(() => {
 })
 const statusLabel = computed(() => {
   if (matchWinner.value) {
-    return `${getPlayerName(matchWinner.value)} wins the match`
+    return 'Finished'
   }
 
   if (isTieBreakActive.value) {
@@ -117,6 +127,7 @@ function handlePointAward(playerKey) {
       'tennis-scoreboard--projector': projector,
       'tennis-scoreboard--dark': theme === 'dark',
       'tennis-scoreboard--light': theme === 'light',
+      'tennis-scoreboard--finished': matchWinner,
     }"
   >
     <header class="tennis-scoreboard__header">
@@ -129,81 +140,90 @@ function handlePointAward(playerKey) {
           <small>Match time</small>
           <strong>{{ formatDuration(elapsedSeconds) }}</strong>
         </span>
-        <span :class="`tennis-scoreboard__shot-clock--${pointClockState}`">
+        <span v-if="!matchWinner" :class="`tennis-scoreboard__shot-clock--${pointClockState}`">
           <small>Point clock</small>
           <strong>{{ pointClockRemaining }}</strong>
         </span>
       </div>
     </header>
 
-    <div class="tennis-scoreboard__table">
-      <div class="tennis-scoreboard__table-head">
-        <span>Player</span>
-        <span
-          v-for="set in setSummary"
-          :key="set.label"
+    <template v-if="!matchWinner">
+      <div class="tennis-scoreboard__table">
+        <div class="tennis-scoreboard__table-head">
+          <span>Player</span>
+          <span v-for="set in setSummary" :key="set.label">
+            {{ set.label.replace('Set ', 'S') }}
+          </span>
+          <span>{{ pointColumnLabel }}</span>
+        </div>
+
+        <article
+          v-for="key in playerKeys"
+          :key="key"
+          class="tennis-scoreboard__player-row"
+          :class="{ 'tennis-scoreboard__player-row--serving': serverKey === key }"
         >
-          {{ set.label.replace('Set ', 'S') }}
-        </span>
-        <span>{{ pointColumnLabel }}</span>
+          <div class="tennis-scoreboard__player-name">
+            <span v-if="serverKey === key" aria-label="Serving">S</span>
+            <strong>{{ getPlayerName(key) }}</strong>
+          </div>
+          <span
+            v-for="set in setSummary"
+            :key="`${key}-${set.label}`"
+            class="tennis-scoreboard__set-score"
+          >
+            <strong>{{ key === 'playerA' ? set.playerAGames : set.playerBGames }}</strong>
+            <small v-if="set.tieBreak">
+              TB {{ key === 'playerA' ? set.tieBreak.score.playerA : set.tieBreak.score.playerB }}
+            </small>
+          </span>
+          <span
+            :key="`${key}-${describePoint(scoreboard, key)}-${scoreboard.currentGame?.tieBreakPoints?.[key]}`"
+            class="tennis-scoreboard__point-score"
+          >
+            {{ describePoint(scoreboard, key) }}
+          </span>
+        </article>
       </div>
 
-      <article
-        v-for="key in playerKeys"
-        :key="key"
-        class="tennis-scoreboard__player-row"
-        :class="{
-          'tennis-scoreboard__player-row--serving': serverKey === key,
-          'tennis-scoreboard__player-row--winner': matchWinner === key,
-        }"
-      >
-        <div class="tennis-scoreboard__player-name">
-          <span v-if="serverKey === key" aria-label="Serving">S</span>
-          <strong>{{ getPlayerName(key) }}</strong>
-        </div>
-        <span
-          v-for="set in setSummary"
-          :key="`${key}-${set.label}`"
-          class="tennis-scoreboard__set-score"
+      <p class="tennis-scoreboard__state-copy">{{ liveStateCopy }}</p>
+
+      <div class="tennis-scoreboard__controls">
+        <button
+          class="tennis-scoreboard__button tennis-scoreboard__button--left"
+          type="button"
+          @click="handlePointAward('playerA')"
         >
-          <strong>{{ key === 'playerA' ? set.playerAGames : set.playerBGames }}</strong>
-          <small v-if="set.tieBreak">
-            TB {{ key === 'playerA' ? set.tieBreak.score.playerA : set.tieBreak.score.playerB }}
-          </small>
-        </span>
-        <span
-          :key="`${key}-${describePoint(scoreboard, key)}-${scoreboard.currentGame?.tieBreakPoints?.[key]}`"
-          class="tennis-scoreboard__point-score"
+          Point for {{ scoreboardPlayers.playerA }}
+        </button>
+        <button
+          class="tennis-scoreboard__button tennis-scoreboard__button--right"
+          type="button"
+          @click="handlePointAward('playerB')"
         >
-          {{ describePoint(scoreboard, key) }}
-        </span>
-      </article>
-    </div>
+          Point for {{ scoreboardPlayers.playerB }}
+        </button>
+      </div>
+    </template>
 
-    <p class="tennis-scoreboard__state-copy">{{ liveStateCopy }}</p>
-
-    <div v-if="matchWinner" class="tennis-scoreboard__winner">
-      Winner: {{ getPlayerName(matchWinner) }}
-    </div>
-
-    <div class="tennis-scoreboard__controls">
+    <template v-else>
+      <div class="tennis-scoreboard__final-summary" aria-label="Final match score">
+        <span><small>Sets won</small><strong>{{ setsWon.playerA }}–{{ setsWon.playerB }}</strong></span>
+        <span><small>Final score</small><strong>{{ finalScore }}</strong></span>
+      </div>
+      <div class="tennis-scoreboard__winner" aria-live="polite">
+        <small>Match result</small>
+        <strong>{{ getPlayerName(matchWinner) }} won the match</strong>
+        <span>{{ scoreboardPlayers.playerA }} vs {{ scoreboardPlayers.playerB }}</span>
+      </div>
       <button
-        class="tennis-scoreboard__button tennis-scoreboard__button--left"
+        class="tennis-scoreboard__summary-action"
         type="button"
-        :disabled="matchWinner"
-        @click="handlePointAward('playerA')"
+        @click="emit('view-summary')"
       >
-        Point for {{ scoreboardPlayers.playerA }}
+        View match summary
       </button>
-      <button
-        class="tennis-scoreboard__button tennis-scoreboard__button--right"
-        type="button"
-        :disabled="matchWinner"
-        @click="handlePointAward('playerB')"
-      >
-        Point for {{ scoreboardPlayers.playerB }}
-      </button>
-    </div>
+    </template>
   </section>
 </template>
 
@@ -503,15 +523,66 @@ function handlePointAward(playerKey) {
   color: #5cff93;
 }
 
-.tennis-scoreboard__winner {
+.tennis-scoreboard__final-summary {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.55fr) minmax(220px, 1fr);
+  gap: 10px;
+}
+
+.tennis-scoreboard__final-summary > span {
+  display: grid;
+  gap: 4px;
   border-radius: 12px;
-  padding: 12px;
+  padding: 14px 16px;
+  background: var(--color-surface-muted);
+}
+
+.tennis-scoreboard__final-summary small,
+.tennis-scoreboard__winner small {
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tennis-scoreboard__final-summary strong {
+  color: var(--color-text);
+  font-size: clamp(20px, 4vw, 34px);
+}
+
+.tennis-scoreboard__winner {
+  display: grid;
+  gap: 5px;
+  border-radius: 12px;
+  padding: 18px;
   background: rgba(0, 181, 26, 0.1);
   color: var(--color-primary-strong);
-  font-size: clamp(18px, 4vw, 34px);
-  font-weight: 900;
   text-align: center;
   animation: scoreboardSlideIn 240ms ease both;
+}
+
+.tennis-scoreboard__winner strong {
+  font-size: clamp(18px, 4vw, 34px);
+  font-weight: 900;
+}
+
+.tennis-scoreboard__winner span {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tennis-scoreboard__summary-action {
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 18px;
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .tennis-scoreboard__state-copy {
@@ -584,7 +655,8 @@ function handlePointAward(playerKey) {
     flex-direction: column;
   }
 
-  .tennis-scoreboard__controls {
+  .tennis-scoreboard__controls,
+  .tennis-scoreboard__final-summary {
     grid-template-columns: 1fr;
   }
 

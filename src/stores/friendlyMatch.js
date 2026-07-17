@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { LADDER_CONFIG, isEligibleLadderOpponent, ladderMatchConfig } from '../config/ladder'
 
 const RESULT_STORAGE_KEY = 'gorra.friendlyMatchResults.v1'
 const DRAFT_STORAGE_KEY = 'gorra.friendlyMatchDraft.v3'
@@ -48,6 +49,10 @@ function createDraft() {
     tieBreak: '6-6',
     schedule: { date: '', time: '', court: '' },
     matchId: '',
+    challengeId: '',
+    ladderMatchId: '',
+    ladderConfigSnapshot: null,
+    preMatchPositions: null,
     joinToken: '',
     ownerId: '',
     status: 'draft',
@@ -234,7 +239,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (currentRules.value.mode === 'tiebreak')
       return `${draft.value.pointsA}–${draft.value.pointsB}`
     const completed = draft.value.setScores.map((set) => `${set.a}–${set.b}`)
-    if (!draft.value.over || draft.value.gamesA || draft.value.gamesB)
+    if (!draft.value.over)
       completed.push(`${draft.value.gamesA}–${draft.value.gamesB}`)
     return completed.join(', ') || '0–0'
   })
@@ -242,7 +247,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   const statusText = computed(() => {
     const { pointsA, pointsB, format, over, winner, isTiebreak } = draft.value
     const opponentName = draft.value.opponent?.name || 'Opponent'
-    if (over) return winner === 'you' ? 'You win the match' : `${opponentName} wins the match`
+    if (over) return winner === 'you' ? 'You won the match' : `${opponentName} won the match`
     if (currentRules.value.mode === 'tiebreak') return `Match tie-break · ${pointsA}–${pointsB}`
     if (isTiebreak) return `Tie-break · ${pointsA}–${pointsB}`
     if (pointsA >= 3 && pointsB >= 3) {
@@ -252,6 +257,20 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
         return `Advantage — ${pointsA > pointsB ? 'You' : opponentName}`
     }
     return `${pointLabel('you')} – ${pointLabel('opponent')}`
+  })
+
+  const currentPointScore = computed(() => {
+    const { pointsA, pointsB, format, isTiebreak, over } = draft.value
+    if (over) return ''
+    if (currentRules.value.mode === 'tiebreak' || isTiebreak) return `${pointsA}–${pointsB}`
+    if (pointsA >= 3 && pointsB >= 3) {
+      if (format === 'noad' && pointsA === pointsB) return 'Deciding point'
+      if (format === 'ad' && pointsA === pointsB) return 'Deuce'
+      if (format === 'ad' && Math.abs(pointsA - pointsB) === 1)
+        return `Advantage · ${pointsA > pointsB ? 'You' : draft.value.opponent?.name || 'Opponent'}`
+    }
+    const labels = ['0', '15', '30', '40']
+    return `${labels[Math.min(pointsA, 3)]}–${labels[Math.min(pointsB, 3)]}`
   })
 
   watch(draft, (value) => persist(DRAFT_STORAGE_KEY, value), { deep: true })
@@ -274,6 +293,17 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (!['friendly', 'ladder'].includes(matchType)) return
     if (draft.value.matchType !== matchType) draft.value = { ...createDraft(), matchType }
     else draft.value.matchType = matchType
+    if (matchType === 'ladder') applyLadderRules()
+  }
+
+  function applyLadderRules() {
+    draft.value.format = LADDER_CONFIG.scoring === 'noad' ? 'noad' : 'ad'
+    draft.value.matchFormat = 'best-of-3'
+    draft.value.customFormat = null
+    draft.value.tieBreak = '6-6'
+    draft.value.ladderConfigSnapshot = { ...LADDER_CONFIG }
+    resetScore()
+    return ladderMatchConfig()
   }
 
   function chooseTiming(timing, creator) {
@@ -299,9 +329,9 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     const now = Date.now()
     const token = createToken()
     const invitation = {
-      id: `friendly-${now}-${token.slice(0, 6)}`,
+      id: `${draft.value.matchType || 'friendly'}-${now}-${token.slice(0, 6)}`,
       token,
-      type: 'friendly',
+      type: draft.value.matchType || 'friendly',
       timing: 'now',
       status: 'waiting_for_opponent',
       creator: normalizeIdentity(creator),
@@ -325,6 +355,8 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (!invitation || !['waiting_for_opponent', 'ready'].includes(invitation.status)) return null
     const identity = normalizeIdentity(opponent)
     if (!identity.id || identity.id === invitation.creator?.id) return null
+    if (invitation.type === 'ladder' && !isEligibleLadderOpponent(invitation.creator, identity))
+      return null
     invitation.opponent = identity
     invitation.status = 'ready'
     invitation.joinedAt = new Date().toISOString()
@@ -416,6 +448,11 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     }
     if (invitation.status !== 'waiting_for_opponent')
       return { ok: false, message: 'This match is not accepting another player.' }
+    if (invitation.type === 'ladder' && !isEligibleLadderOpponent(invitation.creator, actor))
+      return {
+        ok: false,
+        message: 'You are outside this player’s eligible Ladder challenge window.',
+      }
     invitation.opponent = actor
     invitation.status = 'ready'
     invitation.joinedAt = new Date().toISOString()
@@ -440,7 +477,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     const invitation = {
       id: draft.value.matchId || `friendly-scheduled-${now}-${createToken().slice(0, 6)}`,
       token: draft.value.joinToken || createToken(),
-      type: 'friendly',
+      type: draft.value.matchType || 'friendly',
       timing: 'later',
       status: 'waiting_for_acceptance',
       creator: creatorIdentity,
@@ -467,7 +504,6 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (draft.value.ownerId && actorId !== draft.value.ownerId) return false
     if (!draft.value.opponent || !draft.value.format) return false
     if (
-      draft.value.matchType === 'friendly' &&
       draft.value.timing === 'now' &&
       (!activeInvitation.value || !['ready', 'live'].includes(activeInvitation.value.status))
     )
@@ -478,6 +514,16 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       activeInvitation.value.startedAt = new Date().toISOString()
     }
     return true
+  }
+
+  function linkLadderRecords(challenge, match = null) {
+    draft.value.challengeId = challenge?.id || draft.value.challengeId
+    draft.value.ladderMatchId = match?.id || draft.value.ladderMatchId
+    draft.value.preMatchPositions = challenge?.preMatchPositions || {
+      challenger: Number(challenge?.challengerRank || 0) || null,
+      defender: Number(challenge?.defenderRank || 0) || null,
+    }
+    if (challenge?.status) draft.value.status = challenge.status
   }
 
   function pointLabel(side) {
@@ -505,6 +551,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       isTiebreak: draft.value.isTiebreak,
       over: draft.value.over,
       winner: draft.value.winner,
+      status: draft.value.status,
     }
   }
 
@@ -512,16 +559,23 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     draft.value.setScores.push({ a, b })
     if (side === 'you') draft.value.setsA += 1
     else draft.value.setsB += 1
+
+    draft.value.gamesA = a
+    draft.value.gamesB = b
+    const targetSets = currentRules.value.setsToWin
+    const winnerSets = side === 'you' ? draft.value.setsA : draft.value.setsB
+    if (winnerSets >= targetSets) {
+      draft.value.over = true
+      draft.value.winner = side
+      draft.value.status = 'finished'
+      return
+    }
+
     draft.value.gamesA = 0
     draft.value.gamesB = 0
     draft.value.pointsA = 0
     draft.value.pointsB = 0
     draft.value.isTiebreak = false
-    const targetSets = currentRules.value.setsToWin
-    if ((side === 'you' ? draft.value.setsA : draft.value.setsB) >= targetSets) {
-      draft.value.over = true
-      draft.value.winner = side
-    }
   }
 
   function recordPoint(side, actorId = '') {
@@ -537,9 +591,12 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     const rules = currentRules.value
     if (rules.mode === 'tiebreak') {
       if (own >= rules.tieBreakPoints && own - other >= 2) {
+        draft.value.setScores = [{ a: draft.value.pointsA, b: draft.value.pointsB }]
+        draft.value.setsA = side === 'you' ? 1 : 0
+        draft.value.setsB = side === 'opponent' ? 1 : 0
         draft.value.over = true
         draft.value.winner = side
-        draft.value.setScores = [{ a: draft.value.pointsA, b: draft.value.pointsB }]
+        draft.value.status = 'finished'
       }
       return true
     }
@@ -581,6 +638,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     const previous = draft.value.pointHistory.pop()
     if (!previous) return false
     Object.assign(draft.value, previous)
+    draft.value.status = previous.status || (previous.over ? 'finished' : 'live')
     return true
   }
 
@@ -648,6 +706,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     matchTypeLabel,
     matchFormatLabel,
     statusText,
+    currentPointScore,
     scoreSummary,
     canUndo,
     activeInvitation,
@@ -655,6 +714,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     scheduleComplete,
     beginMatch,
     chooseMatchType,
+    applyLadderRules,
     chooseTiming,
     createPlayNowInvitation,
     chooseOpponent,
@@ -668,6 +728,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     invitationByToken,
     joinInvitation,
     createScheduledInvitation,
+    linkLadderRecords,
     startLiveMatch,
     pointLabel,
     recordPoint,

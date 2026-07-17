@@ -99,7 +99,7 @@ const closeModal = () => {
 }
 
 const handleAccept = (challengeId) => {
-  challengeStore.acceptChallenge(challengeId).then((data) => {
+  challengeStore.acceptChallenge(challengeId, null, playerStore.currentPlayer?.id).then((data) => {
     if (data) {
       closeModal()
       matchStore.loadMatches()
@@ -117,7 +117,7 @@ const handleAccept = (challengeId) => {
 }
 
 const handleDecline = (challengeId) => {
-  challengeStore.declineChallenge(challengeId).then((data) => {
+  challengeStore.declineChallenge(challengeId, playerStore.currentPlayer?.id).then((data) => {
     if (data) {
       closeModal()
       notificationStore.addToast({ message: 'Challenge declined.', type: 'warning' })
@@ -131,7 +131,7 @@ const handleDecline = (challengeId) => {
 }
 
 const handleReview = (challengeId) => {
-  challengeStore.reviewChallenge(challengeId).then((data) => {
+  challengeStore.reviewChallenge(challengeId, playerStore.currentPlayer?.id).then((data) => {
     if (data) {
       closeModal()
       matchStore.loadMatches()
@@ -385,13 +385,22 @@ const modalSetLabel = computed(() => {
           :defenderName="challenge.defenderName"
           :challengerImage="challenge.challengerImage"
           :defenderImage="challenge.defenderImage"
-          :showAccept="challenge.status === 'awaiting'"
+          :showAccept="
+            challenge.status === 'awaiting' &&
+            challenge.defenderId === playerStore.currentPlayer?.id
+          "
           :showDecline="
             challenge.status === 'awaiting' &&
             challenge.defenderId === playerStore.currentPlayer?.id
           "
-          :showReview="challenge.status === 'pending_review'"
-          :showDetails="challenge.status !== 'awaiting'"
+          :showReview="
+            challenge.status === 'pending_review' &&
+            [challenge.challengerId, challenge.defenderId].includes(playerStore.currentPlayer?.id) &&
+            (challenge.resultSubmittedBy
+              ? challenge.resultSubmittedBy !== playerStore.currentPlayer?.id
+              : challenge.defenderId === playerStore.currentPlayer?.id)
+          "
+          :showDetails="['scheduled', 'pending_review', 'completed'].includes(challenge.status)"
           @accept="handleAccept"
           @decline="handleDecline"
           @review="handleReview"

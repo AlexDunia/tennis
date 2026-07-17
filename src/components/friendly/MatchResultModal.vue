@@ -11,6 +11,7 @@ const props = defineProps({
   setScores: { type: Array, default: () => [] },
   matchFormat: { type: String, default: 'Friendly match' },
   scoringFormat: { type: String, default: 'Advantage' },
+  primaryActionLabel: { type: String, default: 'Save result and return to dashboard' },
 })
 
 const emit = defineEmits(['close', 'finish'])
@@ -383,7 +384,7 @@ function shareTo(network) {
 
           <p v-if="shareStatus" class="result-modal__status" role="status">{{ shareStatus }}</p>
           <button type="button" class="result-modal__finish" @click="emit('finish')">
-            Save result and return to dashboard
+            {{ primaryActionLabel }}
           </button>
         </section>
       </div>

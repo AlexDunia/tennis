@@ -10,22 +10,22 @@ export async function createChallenge(payload) {
   return response.data
 }
 
-export async function acceptChallenge(challengeId, scheduledAt) {
-  const response = await ApiService.post(`/challenges/${challengeId}/accept`, { scheduledAt })
+export async function acceptChallenge(challengeId, scheduledAt, actorId) {
+  const response = await ApiService.post(`/challenges/${challengeId}/accept`, { scheduledAt, actorId })
   return response.data
 }
 
-export async function reviewChallenge(challengeId) {
-  const response = await ApiService.post(`/challenges/${challengeId}/review`, {})
+export async function reviewChallenge(challengeId, actorId) {
+  const response = await ApiService.post(`/challenges/${challengeId}/review`, { actorId })
   return response.data
 }
 
-export async function declineChallenge(challengeId) {
-  const response = await ApiService.post(`/challenges/${challengeId}/decline`, {})
+export async function declineChallenge(challengeId, actorId) {
+  const response = await ApiService.post(`/challenges/${challengeId}/decline`, { actorId })
   return response.data
 }
 
-export async function withdrawChallenge(challengeId) {
-  const response = await ApiService.post(`/challenges/${challengeId}/withdraw`, {})
+export async function withdrawChallenge(challengeId, actorId) {
+  const response = await ApiService.post(`/challenges/${challengeId}/withdraw`, { actorId })
   return response.data
 }
