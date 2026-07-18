@@ -45,7 +45,7 @@ span {
 p {
   color: rgba(255, 255, 255, 0.72);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -53,13 +53,13 @@ p {
 h2 {
   color: #ffffff;
   font-size: 28px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.04em;
 }
 
 span {
   color: rgba(255, 255, 255, 0.72);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 </style>

@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 // IMPORTS
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -167,7 +167,7 @@ onMounted(() => {
   gap: 0.45rem;
 }
 .matches__label {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .matches__input {
   border-radius: 0.85rem;
@@ -182,7 +182,7 @@ onMounted(() => {
   padding: 0.8rem;
   background: #bf0a30;
   color: #fff;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
 }
 </style>

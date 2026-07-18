@@ -447,7 +447,7 @@ function shareTo(network) {
   border-bottom: 1px solid rgba(255, 255, 255, 0.09);
   color: rgba(255, 255, 255, 0.62);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -489,7 +489,7 @@ function shareTo(network) {
   margin: 20px 0 0;
   color: #d7b66c;
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -536,14 +536,14 @@ function shareTo(network) {
 .result-scoreboard__players span {
   overflow: hidden;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .result-scoreboard__players small {
   color: #7de39a;
   font-size: 9px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -564,7 +564,7 @@ function shareTo(network) {
 .result-scoreboard__final span {
   color: rgba(255, 255, 255, 0.48);
   font-size: 9px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -590,7 +590,7 @@ function shareTo(network) {
 .result-scoreboard__sets small {
   color: rgba(255, 255, 255, 0.42);
   font-size: 8px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
 }
 .result-scoreboard__sets strong {
@@ -600,7 +600,7 @@ function shareTo(network) {
   margin: 0;
   color: rgba(255, 255, 255, 0.48);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   text-align: center;
 }
 .result-modal__actions {
@@ -620,7 +620,7 @@ function shareTo(network) {
   background: rgba(255, 255, 255, 0.07);
   color: #fff;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: var(--font-weight-semibold);
 }
 .result-action--primary {
   border-color: #41cf6d;
@@ -676,13 +676,13 @@ function shareTo(network) {
   background: rgba(125, 227, 154, 0.12);
   color: #7de39a;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 .result-modal__status {
   margin: 12px 24px 0;
   color: #b9eac5;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   text-align: center;
 }
 .result-modal__finish {
@@ -692,7 +692,7 @@ function shareTo(network) {
   background: transparent;
   color: rgba(255, 255, 255, 0.56);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-decoration: underline;
   text-underline-offset: 4px;
 }

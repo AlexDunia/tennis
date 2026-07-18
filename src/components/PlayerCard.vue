@@ -143,7 +143,7 @@ const isChallengeable = computed(() => props.zone === 'challengeable')
   background: rgba(0, 181, 26, 0.1);
   color: var(--color-primary-strong);
   font-size: 0.88rem;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
 }
 
@@ -166,7 +166,7 @@ const isChallengeable = computed(() => props.zone === 'challengeable')
 .player-card__name {
   margin: 0;
   font-size: 0.97rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -178,7 +178,7 @@ const isChallengeable = computed(() => props.zone === 'challengeable')
   background: rgba(255, 211, 61, 0.22);
   color: #845f00;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   flex-shrink: 0;
@@ -216,13 +216,13 @@ const isChallengeable = computed(() => props.zone === 'challengeable')
   border: 1px solid var(--color-border);
   color: var(--color-text-soft);
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   white-space: nowrap;
 }
 
 .player-card__self-label {
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-muted);
   white-space: nowrap;
 }

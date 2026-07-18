@@ -1811,7 +1811,7 @@ onMounted(async () => {
   background: #e8f4ff;
   color: #123f66;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1.2;
   text-align: left;
   cursor: pointer;
@@ -1864,7 +1864,7 @@ onMounted(async () => {
   gap: 6px;
   color: var(--tournament-muted);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1884,7 +1884,7 @@ onMounted(async () => {
 .tournament-create small {
   color: var(--tournament-faint);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -1952,7 +1952,7 @@ onMounted(async () => {
   display: block;
   color: var(--tournament-ink);
   font-size: 28px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   line-height: 1;
 }
 
@@ -1965,14 +1965,14 @@ onMounted(async () => {
   margin-top: 4px;
   color: var(--tournament-faint);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__section-label {
   margin-top: 4px;
   color: var(--tournament-faint);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2053,7 +2053,7 @@ onMounted(async () => {
   margin: 0;
   color: var(--tournament-ink);
   font-size: 16px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   line-height: 1.2;
 }
 
@@ -2081,7 +2081,7 @@ onMounted(async () => {
   background: var(--tournament-blue-soft);
   color: var(--tournament-blue);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__toggle-pill {
@@ -2141,7 +2141,7 @@ onMounted(async () => {
 .tournament-create__category-footer strong {
   color: var(--tournament-ink);
   font-size: 22px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   line-height: 1;
 }
 
@@ -2152,7 +2152,7 @@ onMounted(async () => {
 .tournament-create__category-footer span {
   color: var(--tournament-faint);
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__category-footer em {
@@ -2162,7 +2162,7 @@ onMounted(async () => {
   color: var(--tournament-green-dark);
   font-size: 11.5px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__category-card--off .tournament-create__category-footer em {
@@ -2182,7 +2182,7 @@ onMounted(async () => {
   border-radius: 6px;
   padding: 6px 9px;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
 }
 
@@ -2257,7 +2257,7 @@ onMounted(async () => {
   color: #ffffff;
   font-size: 12px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   box-shadow: 0 10px 18px rgba(29, 111, 181, 0.18);
 }
 
@@ -2401,7 +2401,7 @@ onMounted(async () => {
   overflow: hidden;
   color: var(--tournament-ink);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2409,7 +2409,7 @@ onMounted(async () => {
 .tournament-create__assignment-tab span small {
   color: var(--tournament-faint);
   font-size: 10.5px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-create__assignment-tab em {
@@ -2423,7 +2423,7 @@ onMounted(async () => {
   color: var(--tournament-muted);
   font-size: 12px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__assignment-tab i {
@@ -2435,7 +2435,7 @@ onMounted(async () => {
   color: #92400e;
   font-size: 10px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__assignment-tab--active {
@@ -2471,7 +2471,7 @@ onMounted(async () => {
 .tournament-create__category-editor-head span {
   color: var(--tournament-faint);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -2488,7 +2488,7 @@ onMounted(async () => {
 .tournament-create__category-editor-head h4 {
   color: var(--tournament-ink);
   font-size: 21px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__category-editor-head p,
@@ -2515,7 +2515,7 @@ onMounted(async () => {
   background: #ffffff;
   color: var(--tournament-muted);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0;
   text-align: center;
   text-transform: none;
@@ -2546,7 +2546,7 @@ onMounted(async () => {
   background: #ffffff;
   color: var(--tournament-muted);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
 }
 
@@ -2595,7 +2595,7 @@ onMounted(async () => {
 .tournament-create__add-panel h5 {
   color: var(--tournament-ink);
   font-size: 15px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__member-list,
@@ -2640,7 +2640,7 @@ onMounted(async () => {
   background: #f1f3ef;
   color: var(--tournament-muted);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__member-person {
@@ -2668,7 +2668,7 @@ onMounted(async () => {
   overflow: hidden;
   color: var(--tournament-ink);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2677,7 +2677,7 @@ onMounted(async () => {
 .tournament-create__member-note {
   color: var(--tournament-muted);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__member-tags {
@@ -2694,7 +2694,7 @@ onMounted(async () => {
   padding: 4px 7px;
   font-size: 10px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__member-tags em {
@@ -2725,7 +2725,7 @@ onMounted(async () => {
   background: rgba(220, 53, 69, 0.06);
   color: #991b1b;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   white-space: nowrap;
   cursor: pointer;
   transition:
@@ -2774,13 +2774,13 @@ onMounted(async () => {
 .tournament-create__player-board-top span {
   color: var(--tournament-muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-create__player-board-top strong {
   color: var(--tournament-ink);
   font-size: 15px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-create__player-controlbar {
@@ -2814,7 +2814,7 @@ onMounted(async () => {
   background: #ffffff;
   color: var(--tournament-muted);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
   transition:
     background 0.16s ease,
@@ -2876,7 +2876,7 @@ onMounted(async () => {
   background: #f8faf8;
   color: var(--tournament-faint);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -2941,7 +2941,7 @@ onMounted(async () => {
   background: var(--tournament-blue-soft);
   color: var(--tournament-blue);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__player-person div {
@@ -2960,7 +2960,7 @@ onMounted(async () => {
 .tournament-create__player-person strong {
   color: var(--tournament-ink);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-create__player-person small {
@@ -2975,7 +2975,7 @@ onMounted(async () => {
   background: var(--tournament-green-soft);
   color: var(--tournament-green-dark);
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__status-pill--muted {
@@ -2990,7 +2990,7 @@ onMounted(async () => {
   min-width: 0;
   color: var(--tournament-green-dark);
   font-size: 11.5px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-create__assigned button {
@@ -3003,7 +3003,7 @@ onMounted(async () => {
   background: var(--tournament-green-soft);
   color: var(--tournament-green-dark);
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
   transition:
     background 0.16s ease,
@@ -3131,7 +3131,7 @@ onMounted(async () => {
 .tournament-create__player-count-badge small {
   color: var(--tournament-green-dark);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -3141,7 +3141,7 @@ onMounted(async () => {
   background: var(--tournament-shell);
   color: var(--tournament-muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-create__format-pills .tournament-create__pill--play {
@@ -3254,7 +3254,7 @@ onMounted(async () => {
 .tournament-create__category-tab span {
   color: var(--tournament-ink);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__category-tab strong {
@@ -3264,7 +3264,7 @@ onMounted(async () => {
   background: var(--tournament-shell);
   color: var(--tournament-muted);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__category-tab--active {
@@ -3334,7 +3334,7 @@ onMounted(async () => {
   border-radius: 999px;
   padding: 3px 7px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0;
 }
 
@@ -3380,7 +3380,7 @@ onMounted(async () => {
   background: var(--tournament-green);
   color: #ffffff;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-create__format-option em {
@@ -3390,7 +3390,7 @@ onMounted(async () => {
   color: var(--tournament-green-dark);
   font-size: 9px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -3453,7 +3453,7 @@ onMounted(async () => {
 .tournament-create__rules span {
   color: var(--tournament-muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-create__rules strong {
@@ -3473,7 +3473,7 @@ onMounted(async () => {
   background: var(--tournament-green-soft);
   color: var(--tournament-green-dark);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   cursor: help;
 }
 
@@ -3488,7 +3488,7 @@ onMounted(async () => {
   background: #111827;
   color: #ffffff;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   line-height: 1.4;
   opacity: 0;
   pointer-events: none;

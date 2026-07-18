@@ -151,7 +151,7 @@ const isOut = computed(() => props.zone === 'out-of-range')
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   flex-shrink: 0;
   letter-spacing: 0.02em;
 }
@@ -172,7 +172,7 @@ const isOut = computed(() => props.zone === 'out-of-range')
 /* ── Rank ── */
 .rrow__rank {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: var(--color-muted);
   font-variant-numeric: tabular-nums;
   font-family: 'DM Mono', ui-monospace, monospace;
@@ -192,7 +192,7 @@ const isOut = computed(() => props.zone === 'out-of-range')
 
 .rrow__name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
@@ -201,7 +201,7 @@ const isOut = computed(() => props.zone === 'out-of-range')
 
 .rrow__you {
   font-size: 9px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   background: rgba(255, 211, 61, 0.22);
   color: #845f00;
   padding: 1px 6px;
@@ -214,7 +214,7 @@ const isOut = computed(() => props.zone === 'out-of-range')
 /* ── Record ── */
 .rrow__record {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--color-text-soft);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -225,7 +225,7 @@ const isOut = computed(() => props.zone === 'out-of-range')
 /* ── Win rate pill ── */
 .rrow__wr-pill {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   padding: 3px 8px;
   border-radius: 5px;
   text-align: center;
@@ -256,7 +256,7 @@ const isOut = computed(() => props.zone === 'out-of-range')
 
 .rrow__btn {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   padding: 5px 13px;
   border-radius: 6px;
   border: 1px solid rgba(0, 181, 26, 0.35);
@@ -279,7 +279,7 @@ const isOut = computed(() => props.zone === 'out-of-range')
 
 .rrow__self-label {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--color-muted);
   white-space: nowrap;
 }

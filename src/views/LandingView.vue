@@ -2,6 +2,8 @@
 import { onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import '../assets/landing.css'
+import scanToJoinImage from '../assets/landing/scan-to-join.jpg'
+import playTheMatchImage from '../assets/landing/play-the-match.jpg'
 
 const problems = [
   ['The score exists. Somewhere.', 'It was posted in a chat on Tuesday. The ladder still says otherwise on Sunday.'],
@@ -9,7 +11,6 @@ const problems = [
   ['Everybody knows the ranking.', 'Until two people remember it differently and the administrator becomes the court of appeal.'],
   ['The challenge was accepted.', 'But who is confirming the date, recording the result, and moving the ladder?'],
 ]
-const steps = ['See your rank', 'Choose an eligible player', 'Send the challenge', 'Play and record', 'Watch the ladder update']
 onMounted(() => {
   document.title = 'Gorra | Tennis club management, without the chasing'
   const description = document.querySelector('meta[name="description"]') || document.head.appendChild(document.createElement('meta'))
@@ -23,7 +24,7 @@ onMounted(() => {
     <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="public-nav">
       <RouterLink class="brand" to="/" aria-label="Gorra home"><i>G</i><span>GORRA</span></RouterLink>
-      <nav aria-label="Public navigation"><a href="#players">For players</a><a href="#tournaments">Tournaments</a><a href="#why-gorra">Why Gorra</a></nav>
+      <nav aria-label="Public navigation"><a href="#players">How it works</a><a href="#tournaments">Tournaments</a><a href="#why-gorra">Why Gorra</a></nav>
       <RouterLink class="member-link" to="/signin" data-track="start_sign_in">Member sign in ↗</RouterLink>
     </header>
 
@@ -37,7 +38,7 @@ onMounted(() => {
 
       <section id="product" class="mk-section record"><div><p class="eyebrow">One version of the truth</p><h2>If it happened at the club, Gorra remembers it.</h2><p>Who challenged whom. Who accepted. When the match is due. What the final score was. Who moved up. What is still waiting. One visible record means fewer explanations—and fewer arguments.</p><ul><li>✓ Rules stay visible, not assumed</li><li>✓ Results become official, not anecdotal</li><li>✓ The next action has a name and an owner</li></ul></div><article class="official"><header><div><small>OFFICIAL MATCH RECORD</small><b>Saturday Ladder Challenge</b></div><span>Completed</span></header><div class="score"><p><i>TA</i><b>Tunde Akinyemi</b><small>Rank #6</small></p><strong>4 : 6</strong><p><i>AO</i><b>Amara Okafor</b><small>Rank #8 · Winner</small></p></div><div class="sets"><small>SET 1</small><b>4–6</b><small>SET 2</small><b>6–7</b></div><footer>✓ Result confirmed by both players <span>22 June · Court 2</span></footer></article></section>
 
-      <section id="players" class="mk-section players"><div class="intro centered"><p class="eyebrow">The player’s whole job</p><h2>Open Gorra. See what is next. Go play tennis.</h2><p>A member does not need to understand the whole system. They only need one clear route through it.</p></div><ol><li v-for="(step, index) in steps" :key="step"><span>{{ index + 1 }}</span><b>{{ step }}</b></li></ol><div class="ladder-box"><div><small>YOUR CHALLENGE RANGE</small><h3>Fair competition does not need a committee meeting.</h3><p>Every player can see their position, the people within reach, and the rules that apply before they send a challenge.</p></div><section><header><b>Club ladder</b><small>Updated after every confirmed result</small></header><p class="disabled"><b>5</b><span>Chidi Obi <small>Outside range</small></span><em>12–3</em><button disabled>Unavailable</button></p><p class="eligible"><b>6</b><span>Tunde Akinyemi <small>Eligible opponent</small></span><em>9–5</em><button>Challenge</button></p><p class="eligible"><b>7</b><span>Nneka Eze <small>Eligible opponent</small></span><em>11–6</em><button>Challenge</button></p><p class="you"><b>8</b><span>Amara Okafor <small>Your position</small></span><em>12–4</em><i>You</i></p></section></div></section>
+      <section id="players" class="mk-section players player-flow"><div class="intro centered"><p class="eyebrow">Three simple steps</p><h2>Scan. Play. Done.</h2><p>One player opens the match. The other scans the code. Then you play. Gorra saves the result.</p></div><div class="simple-flow-grid" aria-label="Three simple steps to play a match"><article class="simple-flow-card"><header><span>01</span><small>JOIN THE MATCH</small></header><figure><img :src="scanToJoinImage" alt="One tennis player scanning another player’s match code" loading="lazy"><i>Scan</i></figure><div><h3>Scan and accept</h3><p>Point your phone at the code. Check the match. Tap <b>Accept</b>.</p></div></article><article class="simple-flow-card"><header><span>02</span><small>GO PLAY</small></header><figure><img :src="playTheMatchImage" alt="Two club players playing tennis" loading="lazy"><div class="simple-live-score"><small>● LIVE</small><b>3–2</b></div><i>Play</i></figure><div><h3>Play your match</h3><p>Play tennis. Keep score as you go, or add the score when you finish.</p></div></article><article class="simple-flow-card"><header><span>03</span><small>GORRA REMEMBERS</small></header><figure class="saved-visual"><img :src="playTheMatchImage" alt="" loading="lazy"><div class="simple-result"><small>FINAL SCORE</small><b>Amara won</b><strong>6–4 · 7–5</strong><em>✓ Saved</em></div><i>Done</i></figure><div><h3>Save and share</h3><p>Tap <b>Save</b>. Gorra keeps the score, updates the table, and makes a card you can share.</p></div></article></div><p class="simple-flow-note">The same three steps work for friendly matches, ladders, and tournaments.</p></section>
 
       <section id="tournaments" class="mk-section tournament"><div class="tournament-copy"><div><p class="eyebrow">Tournament control</p><h2>Four steps in. A whole tournament out.</h2></div><p>Categories, players, formats, group stages, knockout paths and scores—organized from one control area, even when tournament day gets busy.</p></div><div class="wizard"><aside><small>NEW TOURNAMENT</small><h3>Renaissance Club Championship</h3><p>✓ <b>Basics</b></p><p>✓ <b>Categories</b></p><p class="active">03 <b>Players</b></p><p>04 <b>Review</b></p></aside><section><header><div><small>STEP 3 OF 4</small><h3>Place your players</h3></div><span>24 selected</span></header><div class="tabs"><b>Men’s A · 8</b><span>Men’s B · 8</span><span>Women’s Open · 8</span></div><p><b>Chidi Obi</b><span>#2</span><span>Men’s A</span><em>Placed</em></p><p><b>Tunde Akinyemi</b><span>#6</span><span>Men’s A</span><em>Placed</em></p><p><b>Amara Okafor</b><span>#8</span><span>Men’s A</span><em>Placed</em></p><button>Continue to review →</button></section></div></section>
 
@@ -49,6 +50,6 @@ onMounted(() => {
 
       <section class="final"><p class="eyebrow">Your members came to play tennis</p><h2>Let Gorra handle the part before the serve.</h2><p>One place where players know what to do, administrators know what is happening, and the game keeps moving.</p><div class="actions"><a class="primary" href="mailto:hello@gorra.club?subject=Gorra%20club%20demonstration" data-track="request_demo_final">Show me Gorra →</a><RouterLink to="/dashboard" data-track="explore_demo">Explore the product ↗</RouterLink></div></section>
     </main>
-    <footer class="public-footer"><RouterLink class="brand" to="/"><i>G</i><span>GORRA</span></RouterLink><p>The operating system for club tennis.</p><nav><a href="#players">Players</a><a href="#tournaments">Tournaments</a><a href="mailto:hello@gorra.club">Contact</a></nav><small>© {{ new Date().getFullYear() }} Gorra. Built for the good of the game.</small></footer>
+    <footer class="public-footer"><RouterLink class="brand" to="/"><i>G</i><span>GORRA</span></RouterLink><p>The operating system for club tennis.</p><nav><a href="#players">How it works</a><a href="#tournaments">Tournaments</a><a href="mailto:hello@gorra.club">Contact</a></nav><small>© {{ new Date().getFullYear() }} Gorra. Built for the good of the game.</small></footer>
   </div>
 </template>

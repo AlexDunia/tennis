@@ -71,7 +71,7 @@ const emit = defineEmits({
   background: rgba(5, 12, 8, 0.28);
   color: rgba(255, 255, 255, 0.76);
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   backdrop-filter: blur(5px);
 }
 

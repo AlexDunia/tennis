@@ -33,7 +33,7 @@ const labels = {
   border-radius: 999px;
   padding: 3px 9px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.03em;
   white-space: nowrap;
 }

@@ -93,7 +93,7 @@ function startMatch() {
 .friendly-home__header p {
   color: var(--color-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .friendly-home__header h1 {
@@ -110,7 +110,7 @@ function startMatch() {
   background: var(--color-surface-soft);
   color: var(--color-text-soft);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   white-space: nowrap;
 }
 
@@ -196,7 +196,7 @@ function startMatch() {
   margin: 0;
   color: var(--color-muted);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .friendly-home__results {

@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 // IMPORTS
 import { computed } from 'vue'
 import { RouterLink, useRouter, useRoute } from 'vue-router'
@@ -118,7 +118,7 @@ function handleAuthAction() {
   flex-wrap: wrap;
 }
 .navbar__link {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: rgba(255, 255, 255, 0.92);
   text-decoration: none;
   padding: 0.45rem 0.85rem;
@@ -141,7 +141,7 @@ function handleAuthAction() {
   color: #0f172a;
   border: none;
   padding: 0.55rem 1rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
   border-radius: 999px;
   transition:

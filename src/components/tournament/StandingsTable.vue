@@ -94,7 +94,7 @@ defineProps({
 
 .standings-table h3 {
   font-size: 16px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .standings-table__scroll {
@@ -119,7 +119,7 @@ td {
 th {
   color: var(--tournament-faint);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
 }
 
@@ -139,7 +139,7 @@ td span {
   background: var(--tournament-green-soft);
   color: var(--tournament-green-dark);
   font-size: 0.7rem;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 td span.standings-table__you {

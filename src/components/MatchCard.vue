@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 // IMPORTS
 import { computed } from 'vue'
 import { formatSetSummary } from '../utils/tennisScoring'
@@ -133,7 +133,7 @@ function handleJoin() {
 }
 .match-card__set-score {
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .match-card__footer {
   display: flex;
@@ -146,7 +146,7 @@ function handleJoin() {
   padding: 0.55rem 1.25rem;
   background: #bf0a30;
   color: #fff;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
 .match-card__court {

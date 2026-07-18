@@ -42,6 +42,8 @@ const variant = computed(() => {
       Notifications: 'notifications',
       Profile: 'profile',
       PlayMatch: 'live-scoreboard',
+      AdminSetup: 'onboarding-admin',
+      PlayerClubJoin: 'onboarding-join',
     }[props.routeName] || 'list'
   )
 })
@@ -58,7 +60,42 @@ const opponentRows = computed(() =>
     :class="`route-skeleton--${variant}`"
     :aria-label="`${routeName || 'Page'} loading`"
   >
-    <template v-if="variant === 'friendly-type'">
+    <template v-if="variant === 'onboarding-admin'">
+      <div class="onboarding-progress">
+        <span class="sk sk-line w-18 thin"></span>
+        <span class="sk sk-line progress-line"></span>
+      </div>
+      <div class="flow-body onboarding-body">
+        <div class="intro-block">
+          <span class="sk sk-line w-14 thin"></span>
+          <span class="sk sk-line w-58 title"></span>
+          <span class="sk sk-line w-62"></span>
+        </div>
+        <span class="sk sk-field onboarding-field"></span>
+        <div class="onboarding-actions">
+          <span class="sk sk-button"></span><span class="sk sk-button"></span>
+        </div>
+      </div>
+    </template>
+
+    <template v-else-if="variant === 'onboarding-join'">
+      <div class="flow-head">
+        <span class="sk sk-square"></span><span class="sk sk-line w-22"></span>
+      </div>
+      <div class="flow-body onboarding-body">
+        <div class="intro-block">
+          <span class="sk sk-line w-14 thin"></span>
+          <span class="sk sk-line w-58 title"></span>
+          <span class="sk sk-line w-62"></span>
+        </div>
+        <div class="stack gap-12">
+          <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-choice"></span>
+        </div>
+        <span class="sk sk-button push"></span>
+      </div>
+    </template>
+
+    <template v-else-if="variant === 'friendly-type'">
       <div class="flow-head">
         <span class="sk sk-square"></span><span class="sk sk-line w-22"></span
         ><span class="sk sk-line w-8 push"></span>
@@ -463,6 +500,8 @@ const opponentRows = computed(() =>
   gap: 22px;
 }
 
+.route-skeleton--onboarding-admin,
+.route-skeleton--onboarding-join,
 .route-skeleton--friendly-type,
 .route-skeleton--friendly-timing,
 .route-skeleton--friendly-opponent,
@@ -480,6 +519,30 @@ const opponentRows = computed(() =>
   width: min(1140px, 100%);
   min-height: 100svh;
   padding: clamp(18px, 3vw, 34px) clamp(20px, 3.5vw, 40px) 44px;
+}
+.onboarding-progress {
+  display: grid;
+  gap: 12px;
+}
+.progress-line {
+  width: 100%;
+  height: 4px;
+}
+.onboarding-body {
+  width: min(100%, 860px);
+  margin-inline: auto;
+}
+.onboarding-field {
+  width: 100%;
+  height: 58px;
+}
+.onboarding-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: var(--app-hairline);
 }
 .sk-custom-summary {
   width: 100%;
@@ -870,6 +933,8 @@ const opponentRows = computed(() =>
   .route-skeleton {
     gap: 16px;
   }
+  .route-skeleton--onboarding-admin,
+  .route-skeleton--onboarding-join,
   .route-skeleton--friendly-type,
   .route-skeleton--friendly-timing,
   .route-skeleton--friendly-opponent,

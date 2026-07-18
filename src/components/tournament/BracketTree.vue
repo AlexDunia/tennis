@@ -76,7 +76,7 @@ h3 {
   margin: 0;
   color: var(--tournament-faint);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.07em;
   text-align: center;
   text-transform: uppercase;

@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, onMounted } from 'vue'
 import { usePlayerStore } from '../stores/player'
 import { useChallengeStore } from '../stores/challenge'
@@ -222,7 +222,7 @@ const completedChallenges = computed(
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
 }
 
@@ -234,7 +234,7 @@ const completedChallenges = computed(
 
 .profile__name {
   font-size: 22px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: -0.3px;
   margin: 0;
   color: #0f1720;
@@ -244,7 +244,7 @@ const completedChallenges = computed(
   display: inline-flex;
   align-items: center;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #007a32;
   background: rgba(0, 200, 83, 0.1);
   padding: 3px 10px;
@@ -284,14 +284,14 @@ const completedChallenges = computed(
 
 .profile__stat-value {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #0f1720;
   letter-spacing: -0.3px;
 }
 
 .profile__stat-label {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: #a8b3bc;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -312,7 +312,7 @@ const completedChallenges = computed(
 
 .profile__card-title {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #a8b3bc;
@@ -345,14 +345,14 @@ const completedChallenges = computed(
   display: block;
   font-size: 11.5px;
   color: #7b8794;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   margin-bottom: 2px;
 }
 
 .profile__row-value {
   display: block;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #0f1720;
 }
 

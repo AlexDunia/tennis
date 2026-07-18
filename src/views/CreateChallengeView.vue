@@ -590,7 +590,7 @@ onMounted(async () => {
 .intro__heading {
   margin: 0;
   font-size: 1.4rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   letter-spacing: -0.3px;
 }
@@ -626,7 +626,7 @@ onMounted(async () => {
 .kicker {
   margin: 0;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-muted);
@@ -646,7 +646,7 @@ onMounted(async () => {
 .player-row__name {
   margin: 0;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
@@ -689,14 +689,14 @@ onMounted(async () => {
 
 .stat__value {
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   line-height: 1;
 }
 
 .stat__label {
   font-size: 0.65rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--color-muted);
@@ -713,7 +713,7 @@ onMounted(async () => {
 .opponent-preview__vs-badge {
   margin: 0 auto;
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.12em;
   color: var(--color-muted);
   background: var(--color-surface-soft, #f6f7f8);
@@ -728,7 +728,7 @@ onMounted(async () => {
   align-items: center;
   gap: 0.4rem;
   font-size: 0.77rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #007a32;
   background: rgba(0, 200, 83, 0.09);
   border: 1px solid rgba(0, 200, 83, 0.18);
@@ -757,7 +757,7 @@ onMounted(async () => {
 .form-heading {
   margin: 0;
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
@@ -773,7 +773,7 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 0.4rem;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   margin: 0;
 }
@@ -784,7 +784,7 @@ onMounted(async () => {
 
 .form-field__hint {
   font-size: 0.74rem;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--color-muted);
 }
 
@@ -806,7 +806,7 @@ onMounted(async () => {
   border: 1px dashed rgba(0, 0, 0, 0.1);
   background: var(--color-surface-soft, #f6f7f8);
   font-size: 0.88rem;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--color-muted);
   font-family: inherit;
   cursor: pointer;
@@ -858,7 +858,7 @@ onMounted(async () => {
 
 .selected-strip__name {
   font-size: 0.88rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
@@ -869,7 +869,7 @@ onMounted(async () => {
 
 .selected-strip__change {
   font-size: 0.76rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #007a32;
 }
 
@@ -964,7 +964,7 @@ onMounted(async () => {
 
 .picker-option__name {
   font-size: 0.88rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
@@ -975,7 +975,7 @@ onMounted(async () => {
 
 .picker-option__check {
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: #007a32;
   width: 20px;
   height: 20px;
@@ -1011,7 +1011,7 @@ onMounted(async () => {
   padding: 0.48rem 0.75rem;
   border-radius: 8px;
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-family: inherit;
   color: var(--color-muted);
   background: transparent;
@@ -1048,7 +1048,7 @@ onMounted(async () => {
 .inset-block__label {
   margin: 0;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--color-muted);
@@ -1077,7 +1077,7 @@ onMounted(async () => {
   border: none;
   background: transparent;
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   cursor: pointer;
   font-family: inherit;
@@ -1103,7 +1103,7 @@ onMounted(async () => {
   width: 44px;
   text-align: center;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   border-left: 1px solid var(--color-border);
   border-right: 1px solid var(--color-border);

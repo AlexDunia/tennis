@@ -28,7 +28,7 @@ defineProps({
   min-height: 38px;
   padding: 0 14px;
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   display: inline-flex;
   align-items: center;
   justify-content: center;

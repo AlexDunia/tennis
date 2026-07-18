@@ -7,26 +7,36 @@ import { APP_DATA_MODES } from '../dataMode'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
-const selectedRole = ref('player')
+const selectedRole = ref('')
 const errorMessage = ref('')
 const useDemoData = ref(false)
 const roleOptions = [
   {
     key: 'player',
-    label: 'User',
-    description: 'Rankings, challenges, matches and tournament viewing.',
+    label: 'I am a player',
+    description: 'Join your club and start playing.',
   },
   {
     key: 'super_admin',
-    label: 'Admin',
-    description: 'Player tools plus tournament, fixture and score management.',
+    label: 'I manage a club',
+    description: 'Set up your club and invite members.',
   },
 ]
 
 const isSignUp = computed(() => route.meta.authMode === 'signup')
 
-async function enterWorkspace(roleKey) {
+function chooseRole(roleKey) {
+  selectedRole.value = roleKey
+  errorMessage.value = ''
+  if (!isSignUp.value) enterWorkspace(roleKey)
+}
+
+async function enterWorkspace(roleKey = selectedRole.value) {
   if (authStore.isAuthLoading) return
+  if (!roleKey) {
+    errorMessage.value = 'Choose the option that sounds like you.'
+    return
+  }
 
   try {
     selectedRole.value = roleKey
@@ -38,6 +48,17 @@ async function enterWorkspace(roleKey) {
       roleKey,
       dataMode: isAdmin || useDemoData.value ? APP_DATA_MODES.DEMO : APP_DATA_MODES.EMPTY,
     })
+    if (isSignUp.value) {
+      const destination =
+        roleKey === 'super_admin'
+          ? { name: 'AdminSetup', query: { step: 'name' } }
+          : {
+              name: 'PlayerClubJoin',
+              query: { club: route.query.club, invite: route.query.invite },
+            }
+      await router.push(destination)
+      return
+    }
     const redirect = String(route.query.redirect || '')
     const safeRedirect = redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : ''
     await router.push(safeRedirect || { name: 'Dashboard' })
@@ -59,11 +80,15 @@ async function enterWorkspace(roleKey) {
 
       <div class="auth-panel__content">
         <p class="auth-access-kicker">
-          {{ isSignUp ? 'Create fresh access' : 'One-click access' }}
+          {{ isSignUp ? 'First, tell us about you' : 'One-click access' }}
         </p>
-        <h1>{{ isSignUp ? 'Choose your Gorra workspace' : 'How would you like to enter?' }}</h1>
+        <h1>{{ isSignUp ? 'Which sounds like you?' : 'How would you like to enter?' }}</h1>
         <p class="auth-access-intro">
-          Pick a role to open the application immediately. No email or password is required.
+          {{
+            isSignUp
+              ? 'Choose one. We will show only the steps you need.'
+              : 'Choose a role to open the application.'
+          }}
         </p>
 
         <div
@@ -80,7 +105,7 @@ async function enterWorkspace(roleKey) {
             :class="{ 'auth-role-option--active': selectedRole === option.key }"
             :aria-pressed="selectedRole === option.key"
             :disabled="authStore.isAuthLoading"
-            @click="enterWorkspace(option.key)"
+            @click="chooseRole(option.key)"
           >
             <span class="auth-role-option__icon" aria-hidden="true">
               <svg v-if="option.key === 'super_admin'" viewBox="0 0 24 24">
@@ -101,7 +126,17 @@ async function enterWorkspace(roleKey) {
           </button>
         </div>
 
-        <label class="auth-data-option">
+        <button
+          v-if="isSignUp"
+          class="auth-submit auth-continue"
+          type="button"
+          :disabled="!selectedRole || authStore.isAuthLoading"
+          @click="enterWorkspace()"
+        >
+          {{ authStore.isAuthLoading ? 'Opening…' : 'Continue' }}
+        </button>
+
+        <label v-else class="auth-data-option">
           <input v-model="useDemoData" type="checkbox" />
           <span>
             <strong>Use sample club data for User</strong>
@@ -110,7 +145,7 @@ async function enterWorkspace(roleKey) {
         </label>
 
         <p v-if="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</p>
-        <p class="auth-quick-note">
+        <p v-if="!isSignUp" class="auth-quick-note">
           User opens the fresh match dashboard. Admin always keeps the original populated club data.
         </p>
       </div>
@@ -120,7 +155,7 @@ async function enterWorkspace(roleKey) {
 
 <style scoped>
 .auth-page {
-  --auth-panel: 470px;
+  --auth-panel: 520px;
   position: relative;
   min-height: 100svh;
   overflow: hidden;
@@ -171,7 +206,7 @@ async function enterWorkspace(roleKey) {
   gap: 9px;
   color: #101713;
   font-size: 18px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   line-height: 1;
   text-decoration: none;
@@ -203,7 +238,7 @@ h1 {
   margin: 0 0 36px;
   color: #172319;
   font-size: clamp(34px, 3vw, 43px);
-  font-weight: 800;
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.045em;
   line-height: 1.08;
   white-space: pre-line;
@@ -220,7 +255,7 @@ h1 {
   margin: 0 0 8px;
   color: var(--color-primary-strong);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -282,11 +317,11 @@ h1 {
 }
 
 .auth-role-option {
-  min-height: 88px;
+  min-height: 112px;
   align-items: flex-start;
   justify-content: flex-start;
   gap: 11px;
-  padding: 13px;
+  padding: 18px;
   border: 1px solid #d5ddd7;
   border-radius: 9px;
   background: #fff;
@@ -326,14 +361,18 @@ h1 {
   display: block;
 }
 .auth-role-option strong {
-  font-size: 14px;
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
 }
 .auth-role-option small {
-  margin-top: 3px;
+  margin-top: 5px;
   color: #69776c;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.35;
+  font-size: 13px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+}
+.auth-continue {
+  margin-bottom: 18px;
 }
 
 .auth-form {
@@ -352,7 +391,7 @@ h1 {
   left: 15px;
   color: #55705d;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1;
 }
 
@@ -380,7 +419,7 @@ h1 {
   background: var(--color-primary);
   color: #fff;
   font-size: 15px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .auth-submit:hover:not(:disabled) {
@@ -395,7 +434,7 @@ h1 {
   margin: 31px 0 24px;
   color: #67736a;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .auth-divider::before,
@@ -417,7 +456,7 @@ h1 {
   background: #fff;
   color: #172319;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .auth-google:hover {
@@ -442,7 +481,7 @@ h1 {
   color: #56635a;
   justify-content: space-between;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .auth-email strong {
@@ -457,7 +496,7 @@ h1 {
   margin: 18px 0 0;
   color: #a32020;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1.45;
   text-align: center;
 }
@@ -475,7 +514,7 @@ h1 {
 
 .auth-switch a {
   color: #007a32;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 @media (max-width: 700px) {

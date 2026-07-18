@@ -51,7 +51,7 @@
       class="main"
       :class="{
         'main--wide': isWideWorkspace,
-        'main--fullscreen': isLiveFullscreen || isFriendlyFlow,
+        'main--fullscreen': isLiveFullscreen || isFocusedFlow,
         'main--public': isPublicRoute,
       }"
     >
@@ -108,7 +108,7 @@
         class="content"
         :class="{
           'content--wide': isWideWorkspace,
-          'content--fullscreen': isLiveFullscreen || isFriendlyFlow,
+          'content--fullscreen': isLiveFullscreen || isFocusedFlow,
           'content--public': isPublicRoute,
           'content--tournament-rail': usesTournamentCreateRail,
         }"
@@ -144,7 +144,13 @@
             <Transition name="page" mode="out-in" appear>
               <component
                 :is="Component"
-                :key="route.meta.friendlyFlow ? 'friendly-match-flow' : route.fullPath"
+                :key="
+                  route.meta.onboardingFlow
+                    ? 'onboarding-flow'
+                    : route.meta.friendlyFlow
+                      ? 'friendly-match-flow'
+                      : route.fullPath
+                "
               />
             </Transition>
           </RouterView>
@@ -227,9 +233,10 @@ const schedulePageSkeleton = (targetRoute = route) => {
   if (pageSkeletonTimer) {
     window.clearTimeout(pageSkeletonTimer)
   }
-  const duration = targetRoute.meta?.friendlyFlow
-    ? FRIENDLY_FLOW_SKELETON_DURATION
-    : PAGE_SKELETON_DURATION
+  const duration =
+    targetRoute.meta?.friendlyFlow || targetRoute.meta?.onboardingFlow
+      ? FRIENDLY_FLOW_SKELETON_DURATION
+      : PAGE_SKELETON_DURATION
   pageSkeletonTimer = window.setTimeout(() => {
     pageSkeletonActive.value = false
     pageSkeletonTimer = null
@@ -259,7 +266,7 @@ onUnmounted(() => {
   }
 })
 
-const navigationItems = [
+const baseNavigationItems = [
   {
     to: { name: 'Dashboard' },
     routeName: 'Dashboard',
@@ -285,6 +292,19 @@ const navigationItems = [
     icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8h5M8 5.5v5" stroke-linecap="round"/></svg>',
   },
 ]
+
+const adminNavigationItem = {
+  to: { name: 'AdminSetup' },
+  routeName: 'AdminSetup',
+  label: 'Club Admin',
+  icon: `<svg width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.6'><path d='M8 2.2 13 4.3v3.6c0 3-1.9 5.1-5 6.1-3.1-1-5-3.1-5-6.1V4.3L8 2.2Z'/><path d='M6 8h4M8 6v4' stroke-linecap='round'/></svg>`,
+}
+
+const navigationItems = computed(() =>
+  authStore.hasPermission('club.manage')
+    ? [...baseNavigationItems, adminNavigationItem]
+    : baseNavigationItems,
+)
 
 const profileIcon =
   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 20c1.5-3.5 5-5 8-5s6.5 1.5 8 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
@@ -319,19 +339,21 @@ const isLiveFullscreen = computed(
 )
 const isPublicRoute = computed(() => route.meta.public === true)
 const isFriendlyFlow = computed(() => route.meta.friendlyFlow === true)
+const isOnboardingFlow = computed(() => route.meta.onboardingFlow === true)
+const isFocusedFlow = computed(() => isFriendlyFlow.value || isOnboardingFlow.value)
 const isWideWorkspace = computed(() => isTournamentCreate.value || isTournamentViewer.value)
 const showSidebar = computed(
   () =>
     !isPublicRoute.value &&
     !isLiveFullscreen.value &&
-    !isFriendlyFlow.value &&
+    !isFocusedFlow.value &&
     !usesTournamentCreateRail.value,
 )
 const showHeader = computed(
-  () => !isPublicRoute.value && !isLiveFullscreen.value && !isFriendlyFlow.value,
+  () => !isPublicRoute.value && !isLiveFullscreen.value && !isFocusedFlow.value,
 )
 const showBottomNav = computed(
-  () => !isPublicRoute.value && !isLiveFullscreen.value && !isFriendlyFlow.value,
+  () => !isPublicRoute.value && !isLiveFullscreen.value && !isFocusedFlow.value,
 )
 const tournamentCreateStep = computed(() => {
   const step = String(route.query.step || 'basics')
@@ -567,7 +589,7 @@ const isNavigationActive = (routeName) => {
   border-radius: 10px;
   background: transparent;
   font-size: 13.5px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   font-family: inherit;
   color: rgba(255, 255, 255, 0.72);
   text-decoration: none;
@@ -619,7 +641,7 @@ const isNavigationActive = (routeName) => {
 .badge {
   margin-left: auto;
   font-size: 10.5px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   padding: 2px 6px;
   border-radius: 20px;
   background: rgba(0, 200, 83, 0.12);
@@ -743,7 +765,7 @@ const isNavigationActive = (routeName) => {
 
 .header-left h1 {
   font-size: 20px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: rgba(0, 0, 0, 0.8);
   margin: 0;
   line-height: 1.25;
@@ -775,7 +797,7 @@ const isNavigationActive = (routeName) => {
   min-width: 0;
   color: #8a96a5;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .header-steps li::after {
@@ -848,7 +870,7 @@ const isNavigationActive = (routeName) => {
 
 .user-name {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: #0f1720;
   min-width: 0;
   overflow: hidden;
@@ -863,7 +885,7 @@ const isNavigationActive = (routeName) => {
   background: rgba(0, 181, 26, 0.1);
   color: #007a32;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* CONTENT */

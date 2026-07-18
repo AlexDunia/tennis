@@ -277,7 +277,7 @@ function handlePointAward(playerKey) {
 .tennis-scoreboard__status {
   color: var(--color-primary-strong);
   font-size: clamp(14px, 2vw, 18px);
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -293,7 +293,7 @@ function handlePointAward(playerKey) {
 .tennis-scoreboard__mode {
   color: var(--color-muted);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tennis-scoreboard--projector .tennis-scoreboard__mode {
@@ -324,7 +324,7 @@ function handlePointAward(playerKey) {
 .tennis-scoreboard__clocks small {
   color: var(--color-muted);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -389,7 +389,7 @@ function handlePointAward(playerKey) {
   background: var(--color-surface-muted);
   color: var(--color-muted);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -447,14 +447,14 @@ function handlePointAward(playerKey) {
   background: var(--color-accent-bright);
   color: #ffffff;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tennis-scoreboard__player-name strong {
   overflow: hidden;
   color: var(--color-text);
   font-size: clamp(17px, 3vw, 32px);
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -470,7 +470,7 @@ function handlePointAward(playerKey) {
 .tennis-scoreboard__set-score,
 .tennis-scoreboard__point-score {
   color: var(--color-text);
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   line-height: 1;
   text-align: center;
 }
@@ -492,7 +492,7 @@ function handlePointAward(playerKey) {
   background: rgba(0, 181, 26, 0.1);
   color: var(--color-primary-strong);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   line-height: 1;
 }
 
@@ -541,7 +541,7 @@ function handlePointAward(playerKey) {
 .tennis-scoreboard__winner small {
   color: var(--color-muted);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -564,13 +564,13 @@ function handlePointAward(playerKey) {
 
 .tennis-scoreboard__winner strong {
   font-size: clamp(18px, 4vw, 34px);
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tennis-scoreboard__winner span {
   color: var(--color-muted);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tennis-scoreboard__summary-action {
@@ -581,7 +581,7 @@ function handlePointAward(playerKey) {
   background: var(--color-primary);
   color: #ffffff;
   font-size: 14px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
 }
 
@@ -591,7 +591,7 @@ function handlePointAward(playerKey) {
   background: rgba(0, 181, 26, 0.07);
   color: var(--color-muted);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-align: center;
 }
 
@@ -616,7 +616,7 @@ function handlePointAward(playerKey) {
   border-radius: 12px;
   padding: 12px 14px;
   font-size: clamp(13px, 2vw, 16px);
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
   transition:
     transform 120ms ease,

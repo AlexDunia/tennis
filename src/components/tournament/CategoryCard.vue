@@ -177,7 +177,7 @@ const knockoutSummary = computed(() => {
 
 .category-card__name {
   font-size: 15px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
 }
 
@@ -186,7 +186,7 @@ const knockoutSummary = computed(() => {
 .category-card__footer {
   color: var(--tournament-muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .category-card__meta {
@@ -204,13 +204,13 @@ const knockoutSummary = computed(() => {
   background: var(--tournament-green-soft);
   color: var(--tournament-green-dark);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .category-card__player-note {
   color: var(--tournament-green-dark);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .category-card__meta span + span::before {

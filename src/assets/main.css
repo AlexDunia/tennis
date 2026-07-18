@@ -24,6 +24,14 @@
   --color-light: #ffffff;
   --color-accent-bright: #00b51a;
   --color-accent-support: #ffd33d;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --type-line-heading: 1.2;
+  --type-line-body: 1.65;
+  --type-tracking-heading: -0.025em;
+  --type-tracking-eyebrow: 0.1em;
   --shadow-soft: 0 8px 28px rgba(15, 34, 24, 0.06);
   --shadow-strong: 0 18px 48px rgba(15, 34, 24, 0.08);
   --radius: 0.4375rem;
@@ -72,6 +80,7 @@ body {
   color: var(--color-text);
   font-family: Inter, 'Avenir Next', 'Segoe UI', sans-serif;
   font-size: clamp(14px, 1.02vw, 15px);
+  font-weight: var(--font-weight-regular);
   line-height: 1.75;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -87,6 +96,49 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+h1,
+h2 {
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--type-tracking-heading);
+  line-height: var(--type-line-heading);
+}
+
+h3,
+h4,
+h5,
+h6,
+strong,
+b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.type-display,
+.type-heading {
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--type-tracking-heading);
+  line-height: var(--type-line-heading);
+}
+
+.type-subheading,
+.type-label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.type-body,
+.type-meta {
+  font-weight: var(--font-weight-regular);
+}
+
+.type-body {
+  line-height: var(--type-line-body);
+}
+
+.type-eyebrow {
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--type-tracking-eyebrow);
+  text-transform: uppercase;
 }
 
 a,
@@ -187,7 +239,7 @@ a[role='button'],
   border: var(--app-hairline);
   padding: 0.65rem 1rem;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   line-height: 1;
   text-decoration: none;
   white-space: nowrap;
@@ -203,7 +255,7 @@ a[role='button'],
   border-color: var(--button-primary-bg-hover);
   background: var(--button-primary-bg-hover);
 }
-le .button-secondary {
+.button-secondary {
   border-color: var(--button-secondary-border);
   background: var(--button-secondary-bg);
   color: var(--button-secondary-color);
@@ -377,7 +429,7 @@ img {
 .ch-loading p,
 .play__fallback {
   color: var(--color-muted);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 @keyframes fadeInUp {

@@ -285,7 +285,7 @@ setDefaults()
   margin-top: 4px;
   color: var(--tournament-ink);
   font-size: 18px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
 }
 
@@ -306,7 +306,7 @@ setDefaults()
   background: var(--tournament-shell);
   color: var(--tournament-muted);
   font-size: 14px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-match-modal__section,
@@ -322,7 +322,7 @@ setDefaults()
 
 .tournament-match-modal__section h3 {
   font-size: 15px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-match-modal__subsection {
@@ -333,7 +333,7 @@ setDefaults()
 .tournament-match-modal__subsection > span {
   color: var(--tournament-muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -342,7 +342,7 @@ setDefaults()
   margin: 0;
   color: var(--tournament-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1.45;
 }
 
@@ -356,7 +356,7 @@ setDefaults()
   gap: 6px;
   color: var(--tournament-muted);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-match-modal input,
@@ -406,7 +406,7 @@ setDefaults()
   overflow: hidden;
   color: var(--tournament-ink);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -417,7 +417,7 @@ setDefaults()
   border-width: 2px;
   text-align: center;
   font-size: 24px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-match-modal__score-player input:focus {
@@ -427,7 +427,7 @@ setDefaults()
 .tournament-match-modal__score-player small {
   color: var(--tournament-faint);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-match-modal__winner-input {
@@ -439,21 +439,21 @@ setDefaults()
 .tournament-match-modal__score-entry > strong {
   color: var(--tournament-faint);
   font-size: 20px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
 }
 
 .tournament-match-modal__winner {
   color: var(--tournament-green-dark);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-align: center;
 }
 
 .tournament-match-modal__error {
   color: var(--tournament-red);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-align: center;
 }
 

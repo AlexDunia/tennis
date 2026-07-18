@@ -675,7 +675,7 @@ onMounted(async () => {
 /* Eyebrow — supporting, clearly secondary */
 .hero__eyebrow {
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.72);
@@ -686,7 +686,7 @@ onMounted(async () => {
 /* Title — primary, strongest element on page */
 .hero__title {
   font-size: clamp(18px, 5vw, 32px);
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   color: #ffffff;
   line-height: 1.15;
   letter-spacing: -0.02em;
@@ -697,7 +697,7 @@ onMounted(async () => {
 /* Subtitle — mid-tier, one step below title */
 .hero__subtitle {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: rgba(255, 255, 255, 0.88);
   margin: 2px 0 0;
   line-height: 1.5;
@@ -706,7 +706,7 @@ onMounted(async () => {
 
 .rank-badge {
   color: #4ade80;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   text-shadow: none;
 }
 
@@ -730,7 +730,7 @@ onMounted(async () => {
 
 .stat-pill span {
   font-size: 9.5px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.58);
@@ -739,7 +739,7 @@ onMounted(async () => {
 
 .stat-pill strong {
   font-size: 13.5px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: #ffffff;
   text-shadow: none;
   margin-top: 1px;
@@ -758,7 +758,7 @@ onMounted(async () => {
   padding: 0 20px;
   border-radius: 8px;
   font-family: 'Poppins', sans-serif;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-size: 13px;
   letter-spacing: 0.01em;
   cursor: pointer;
@@ -804,7 +804,7 @@ onMounted(async () => {
 /* KPI label — ghost, lowest tier */
 .kpi-label {
   font-size: 9.5px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.65);
@@ -814,7 +814,7 @@ onMounted(async () => {
 /* KPI number — all white, bold */
 .kpi-number {
   font-size: 22px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   color: #ffffff;
   line-height: 1.2;
   letter-spacing: -0.02em;
@@ -824,7 +824,7 @@ onMounted(async () => {
 /* KPI trend — faintest */
 .kpi-trend {
   font-size: 10px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: rgba(255, 255, 255, 0.52);
   text-shadow: none;
   margin-top: 1px;
@@ -872,7 +872,7 @@ onMounted(async () => {
   margin-top: 27px;
   margin-bottom: 20px;
   font-size: 17px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #b8b1b1;
@@ -912,7 +912,7 @@ onMounted(async () => {
 .dashboard-alerts__kicker {
   color: #9ca3af;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -931,7 +931,7 @@ onMounted(async () => {
 /* ─── SECTION TITLES (inside white cards) ───────────── */
 .section-title {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #111827;
   letter-spacing: -0.01em;
   margin: 0;
@@ -951,7 +951,7 @@ onMounted(async () => {
   padding: 9px 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: #374151;
 }
 
@@ -963,7 +963,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .dot {
@@ -984,12 +984,12 @@ onMounted(async () => {
 .val-danger {
   color: #ef4444;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 .val-muted {
   color: #9ca3af;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .action-footer {
@@ -999,7 +999,7 @@ onMounted(async () => {
   border: 0.5px solid rgba(0, 0, 0, 0.04);
   border-radius: 8px;
   font-size: 11.5px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: #9ca3af;
   text-align: center;
   overflow-wrap: anywhere;
@@ -1042,7 +1042,7 @@ onMounted(async () => {
   margin-bottom: 0.25rem;
   color: #9ca3af;
   font-size: 0.66rem;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1055,7 +1055,7 @@ onMounted(async () => {
 .tournament-action-card > span {
   color: #6b7280;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   line-height: 1.45;
 }
 
@@ -1079,7 +1079,7 @@ onMounted(async () => {
 .tournament-action-card__stats small {
   color: #9ca3af;
   font-size: 0.67rem;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   overflow-wrap: anywhere;
 }
@@ -1105,7 +1105,7 @@ onMounted(async () => {
 .tournament-action-card__next span {
   color: #1d6fb5;
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-action-card__next strong {
@@ -1125,7 +1125,7 @@ onMounted(async () => {
   min-width: 0;
   flex: 1 1 136px;
   padding: 0.65rem 0.85rem;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   transition:
     background 0.16s ease;
 }
@@ -1213,7 +1213,7 @@ onMounted(async () => {
   background: rgba(0, 200, 83, 0.1);
   color: #087524;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-transform: capitalize;
 }
 
@@ -1254,7 +1254,7 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   font-size: 11.5px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: #9ca3af;
   margin-top: 12px;
   padding-top: 12px;
@@ -1274,7 +1274,7 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #9ca3af;
   background: #f3f4f6;
   padding: 3px 10px;

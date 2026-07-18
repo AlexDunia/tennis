@@ -1,6 +1,10 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { LADDER_CONFIG, isEligibleLadderOpponent, ladderMatchConfig } from '../config/ladder'
+import {
+  getActiveLadderConfig,
+  isEligibleLadderOpponent,
+  ladderMatchConfig,
+} from '../config/ladder'
 
 const RESULT_STORAGE_KEY = 'gorra.friendlyMatchResults.v1'
 const DRAFT_STORAGE_KEY = 'gorra.friendlyMatchDraft.v3'
@@ -31,13 +35,6 @@ export const CLUB_OPPONENTS = Object.freeze([
 ])
 
 export const CURRENT_LADDER_RANK = 6
-export const LADDER_ELIGIBLE_OPPONENTS = Object.freeze(
-  CLUB_OPPONENTS.filter(
-    (player) =>
-      player.rank && player.rank < CURRENT_LADDER_RANK && CURRENT_LADDER_RANK - player.rank <= 3,
-  ),
-)
-
 function createDraft() {
   return {
     matchType: '',
@@ -64,6 +61,7 @@ function createDraft() {
     setsB: 0,
     setScores: [],
     isTiebreak: false,
+    isMatchTiebreak: false,
     pointHistory: [],
     over: false,
     winner: '',
@@ -209,6 +207,13 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   const results = ref(readArray(RESULT_STORAGE_KEY))
   const invitations = ref(readArray(INVITATION_STORAGE_KEY))
   const savedFormats = ref(readArray(CUSTOM_FORMAT_STORAGE_KEY).map(normalizeCustomFormat))
+  const ladderOpponents = computed(() => {
+    const config = getActiveLadderConfig()
+    const currentPlayer = { id: 'current-player', rank: CURRENT_LADDER_RANK, status: 'active' }
+    return CLUB_OPPONENTS.filter((player) =>
+      isEligibleLadderOpponent(currentPlayer, player, config),
+    )
+  })
 
   const formatLabel = computed(() => (draft.value.format === 'noad' ? 'No-Ad' : 'Advantage'))
   const matchTypeLabel = computed(() =>
@@ -216,6 +221,12 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   )
   const currentRules = computed(() => rulesForDraft(draft.value))
   const matchFormatLabel = computed(() => {
+    if (
+      draft.value.matchType === 'ladder' &&
+      draft.value.ladderConfigSnapshot?.matchPreset === 'time-smart'
+    ) {
+      return 'Two sets and a 10-point deciding match tie-break'
+    }
     if (draft.value.matchFormat === 'custom')
       return draft.value.customFormat?.name || 'Custom format'
     return (
@@ -239,8 +250,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (currentRules.value.mode === 'tiebreak')
       return `${draft.value.pointsA}–${draft.value.pointsB}`
     const completed = draft.value.setScores.map((set) => `${set.a}–${set.b}`)
-    if (!draft.value.over)
-      completed.push(`${draft.value.gamesA}–${draft.value.gamesB}`)
+    if (!draft.value.over) completed.push(`${draft.value.gamesA}–${draft.value.gamesB}`)
     return completed.join(', ') || '0–0'
   })
 
@@ -249,7 +259,8 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     const opponentName = draft.value.opponent?.name || 'Opponent'
     if (over) return winner === 'you' ? 'You won the match' : `${opponentName} won the match`
     if (currentRules.value.mode === 'tiebreak') return `Match tie-break · ${pointsA}–${pointsB}`
-    if (isTiebreak) return `Tie-break · ${pointsA}–${pointsB}`
+    if (isTiebreak)
+      return `${draft.value.isMatchTiebreak ? 'Match tie-break' : 'Tie-break'} · ${pointsA}–${pointsB}`
     if (pointsA >= 3 && pointsB >= 3) {
       if (format === 'noad' && pointsA === pointsB) return 'Deciding point'
       if (format === 'ad' && pointsA === pointsB) return 'Deuce'
@@ -297,13 +308,14 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function applyLadderRules() {
-    draft.value.format = LADDER_CONFIG.scoring === 'noad' ? 'noad' : 'ad'
+    const ladderConfig = getActiveLadderConfig()
+    draft.value.format = ladderConfig.scoring === 'noad' ? 'noad' : 'ad'
     draft.value.matchFormat = 'best-of-3'
     draft.value.customFormat = null
     draft.value.tieBreak = '6-6'
-    draft.value.ladderConfigSnapshot = { ...LADDER_CONFIG }
+    draft.value.ladderConfigSnapshot = { ...ladderConfig }
     resetScore()
-    return ladderMatchConfig()
+    return ladderMatchConfig(ladderConfig)
   }
 
   function chooseTiming(timing, creator) {
@@ -549,6 +561,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       setsB: draft.value.setsB,
       setScores: draft.value.setScores.map((set) => ({ ...set })),
       isTiebreak: draft.value.isTiebreak,
+      isMatchTiebreak: draft.value.isMatchTiebreak,
       over: draft.value.over,
       winner: draft.value.winner,
       status: draft.value.status,
@@ -576,6 +589,17 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     draft.value.pointsA = 0
     draft.value.pointsB = 0
     draft.value.isTiebreak = false
+    draft.value.isMatchTiebreak = false
+
+    if (
+      draft.value.matchType === 'ladder' &&
+      draft.value.ladderConfigSnapshot?.matchPreset === 'time-smart' &&
+      draft.value.setsA === 1 &&
+      draft.value.setsB === 1
+    ) {
+      draft.value.isTiebreak = true
+      draft.value.isMatchTiebreak = true
+    }
   }
 
   function recordPoint(side, actorId = '') {
@@ -602,7 +626,12 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     }
 
     if (draft.value.isTiebreak) {
-      if (own >= rules.tieBreakPoints && own - other >= 2) {
+      const tieBreakTarget = draft.value.isMatchTiebreak ? 10 : rules.tieBreakPoints
+      if (own >= tieBreakTarget && own - other >= 2) {
+        if (draft.value.isMatchTiebreak) {
+          awardSet(side, draft.value.pointsA, draft.value.pointsB)
+          return true
+        }
         const winningGames = rules.tieBreakAt + 1
         awardSet(
           side,
@@ -652,6 +681,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       setsB: 0,
       setScores: [],
       isTiebreak: false,
+      isMatchTiebreak: false,
       pointHistory: [],
       over: false,
       winner: '',
@@ -700,7 +730,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     invitations,
     savedFormats,
     opponents: CLUB_OPPONENTS,
-    ladderOpponents: LADDER_ELIGIBLE_OPPONENTS,
+    ladderOpponents,
     currentLadderRank: CURRENT_LADDER_RANK,
     formatLabel,
     matchTypeLabel,

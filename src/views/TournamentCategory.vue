@@ -600,7 +600,7 @@ watch(categoryId, () => {
   background: transparent;
   color: var(--tournament-muted);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   transition:
     background 0.15s ease,
     border-color 0.15s ease,
@@ -657,7 +657,7 @@ watch(categoryId, () => {
   margin: 0;
   color: var(--tournament-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-category__group-summary--current,
@@ -700,7 +700,7 @@ watch(categoryId, () => {
   color: var(--tournament-green-dark);
   font-size: 10px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-category__mini-table strong {
@@ -731,7 +731,7 @@ watch(categoryId, () => {
   background: #ffffff;
   color: var(--tournament-muted);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-category__player strong {
@@ -739,7 +739,7 @@ watch(categoryId, () => {
   overflow: hidden;
   color: var(--tournament-ink);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -765,7 +765,7 @@ watch(categoryId, () => {
   background: rgba(15, 23, 32, 0.08);
   color: inherit;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .t-filter-pill--active span {

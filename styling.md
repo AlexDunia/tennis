@@ -80,6 +80,69 @@ Active pages often use stronger local shadows, especially on dashboard cards, ch
 
 The global body font is Inter/Avenir/Segoe UI, but most active routed pages override to Poppins locally.
 
+#### Typography Hierarchy (Permanent Project Rule)
+
+**Source of truth:** `src/assets/main.css`
+
+The application uses one four-weight vocabulary. Components must use these semantic tokens instead
+of hard-coded numeric weights:
+
+```css
+--font-weight-regular: 400;
+--font-weight-medium: 500;
+--font-weight-semibold: 600;
+--font-weight-bold: 700;
+```
+
+| Role                                                      | Token                    | Required use                                               |
+| --------------------------------------------------------- | ------------------------ | ---------------------------------------------------------- |
+| Primary page and section headings                         | `--font-weight-bold`     | The strongest text on a screen; use sparingly              |
+| Card titles, field labels, buttons, active navigation     | `--font-weight-semibold` | Clear emphasis without competing with headings             |
+| Review values, notices, progress text, secondary controls | `--font-weight-medium`   | Calm structural emphasis                                   |
+| Paragraphs, descriptions, metadata, helper text           | `--font-weight-regular`  | Default reading weight                                     |
+| Eyebrows and uppercase labels                             | `--font-weight-semibold` | Pair with small size and letter spacing; never use 800/900 |
+
+Hierarchy rules:
+
+- 800 and 900 are not part of the product UI type system.
+- Do not hard-code `font-weight` numbers in component styles. Always use a global token.
+- Do not make paragraphs, descriptions, metadata, or helper copy bold.
+- A component should normally contain only one bold tier. Use size, color, spacing, and position
+  before adding more weight.
+- Buttons are semibold, not extra-bold.
+- Score values and important result numbers may use the bold token, while their labels remain
+  regular or semibold.
+- Uppercase text must not rely on weight alone. Use restrained tracking and reduced size.
+- New creation flows must follow the Friendly Match hierarchy: eyebrow, heading, supporting
+  paragraph, semibold choice title, then regular choice description.
+
+Reusable global classes are available when a component does not need a custom selector:
+
+```css
+.type-display
+.type-heading
+.type-subheading
+.type-label
+.type-body
+.type-meta
+.type-eyebrow
+```
+
+This section is project memory. Future contributors and AI agents must preserve this hierarchy
+unless the product owner explicitly changes the typography system.
+
+#### Onboarding and Creation Flow Rules (Permanent Project Rule)
+
+- Use the Friendly Match focused, full-screen shell for onboarding and creation flows.
+- Ask one clear question per screen; do not preselect identity or role choices.
+- Keep primary choice cards at least 84px tall and fields/actions at least 48px tall.
+- Write for first-time users: one idea per sentence, familiar words, and no unexplained jargon.
+- Reserve green for the selected state, keyboard focus, and the main forward action.
+- Show a thin progress indicator, a plain-language step label, Back, and one forward action.
+- Always provide route-shaped skeletons for a new focused flow and disable shimmer for reduced motion.
+- Persist drafts after each valid step, but publish or activate only after explicit review confirmation.
+- On mobile, stack choices and keep the current screen answer and forward action easy to reach.
+
 ### Global HTML/Body Styling
 
 ```css
@@ -1356,6 +1419,13 @@ Icons must:
 
 ### 4. Hierarchy Rule
 
+Typography interpretation:
+
+- Tier 1 uses `--font-weight-bold`; reserve it for primary headings and score/result emphasis
+- Tier 2 uses `--font-weight-semibold` or `--font-weight-medium` for titles, labels, and controls
+- Tier 3 uses `--font-weight-regular` for paragraphs, descriptions, metadata, and helper text
+- Never restore 800/900 weights to routine interface text
+
 - Tier 1 → strongest contrast
 - Tier 2 → structured but calm
 - Tier 3 → minimal and quiet
@@ -1473,24 +1543,24 @@ Change DefaultLayout.vue to update active sidebar navigation
 
 ## Summary Table: Component-to-CSS Mapping
 
-| Component / View        | File                                | Primary Classes                                      | Current Styling Source                                           |
-| ----------------------- | ----------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
-| DefaultLayout           | `src/layouts/DefaultLayout.vue`     | `.layout`, `.sidebar`, `.nav-link`, `.header`        | Mostly local hex values plus Poppins                             |
-| ToastShelf              | `src/components/ToastShelf.vue`     | `.toast-shelf`, `.toast`, `.toast--*`                | Local toast colors and fixed positioning                         |
-| BaseButton              | `src/components/BaseButton.vue`     | `.base-button`, `.base-button--*`                    | Global tokens for accent, border, light, shadow                  |
-| BaseInput               | `src/components/BaseInput.vue`      | `.field`, `.field__input`                            | Global tokens for border/text and local green focus glow         |
-| PersonAvatar            | `src/components/PersonAvatar.vue`   | `.person-avatar`                                     | Global surface/text tokens                                       |
-| ChallengeCard           | `src/components/ChallengeCard.vue`  | `.cc`, `.cc__*`, `.cc-btn`                           | Mostly local colors, Poppins, status-specific pills              |
-| TennisScoreboard        | `src/components/TennisScoreboard.vue` | `.tennis-scoreboard`, `.tennis-scoreboard__*`      | Global tokens plus local left/right player button colors         |
-| PerformanceChart        | `src/components/charts/PerformanceChart.vue` | `.performance-card`, `.chart-wrapper`, `.custom-tooltip` | Chart.js plus local chart/card styles                      |
-| DashboardView           | `src/views/DashboardView.vue`       | `.dashboard`, `.hero`, `.kpi`, `.activity-item`      | Local image hero, glass cards, Poppins                           |
-| RankingsView            | `src/views/RankingsView.vue`        | `.rankings`, `.leaderboard-*`, `.share-card-*`       | Local leaderboard and share modal styles                         |
-| ChallengesView          | `src/views/ChallengesView.vue`      | `.challenges`, `.summary-row`, `.ch-tab`, `.modal`   | Local cards, tabs, hero image, modal styles                      |
-| CreateChallengeView     | `src/views/CreateChallengeView.vue` | `.create-challenge`, `.section-card`, `.toggle-*`    | Global tokens mixed with local form styles                       |
-| PlayView                | `src/views/PlayView.vue`            | `.play`, `.play__meta-card`, `.play__wrapper`        | Global section-card tokens and local layout                      |
-| MatchDetailsView        | `src/views/MatchDetailsView.vue`    | `.match-details`, `.match-grid`, `.result-panel`     | Global tokens and local form styles                              |
-| ProfileView             | `src/views/ProfileView.vue`         | `.profile`, `.profile__stats`, `.profile__card`      | Local Poppins profile styling                                    |
-| NotificationsView       | `src/views/NotificationsView.vue`   | `.notifications-page`, `.notification-card`          | Local feed, badge, and type-icon styling                         |
+| Component / View    | File                                         | Primary Classes                                          | Current Styling Source                                   |
+| ------------------- | -------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| DefaultLayout       | `src/layouts/DefaultLayout.vue`              | `.layout`, `.sidebar`, `.nav-link`, `.header`            | Mostly local hex values plus Poppins                     |
+| ToastShelf          | `src/components/ToastShelf.vue`              | `.toast-shelf`, `.toast`, `.toast--*`                    | Local toast colors and fixed positioning                 |
+| BaseButton          | `src/components/BaseButton.vue`              | `.base-button`, `.base-button--*`                        | Global tokens for accent, border, light, shadow          |
+| BaseInput           | `src/components/BaseInput.vue`               | `.field`, `.field__input`                                | Global tokens for border/text and local green focus glow |
+| PersonAvatar        | `src/components/PersonAvatar.vue`            | `.person-avatar`                                         | Global surface/text tokens                               |
+| ChallengeCard       | `src/components/ChallengeCard.vue`           | `.cc`, `.cc__*`, `.cc-btn`                               | Mostly local colors, Poppins, status-specific pills      |
+| TennisScoreboard    | `src/components/TennisScoreboard.vue`        | `.tennis-scoreboard`, `.tennis-scoreboard__*`            | Global tokens plus local left/right player button colors |
+| PerformanceChart    | `src/components/charts/PerformanceChart.vue` | `.performance-card`, `.chart-wrapper`, `.custom-tooltip` | Chart.js plus local chart/card styles                    |
+| DashboardView       | `src/views/DashboardView.vue`                | `.dashboard`, `.hero`, `.kpi`, `.activity-item`          | Local image hero, glass cards, Poppins                   |
+| RankingsView        | `src/views/RankingsView.vue`                 | `.rankings`, `.leaderboard-*`, `.share-card-*`           | Local leaderboard and share modal styles                 |
+| ChallengesView      | `src/views/ChallengesView.vue`               | `.challenges`, `.summary-row`, `.ch-tab`, `.modal`       | Local cards, tabs, hero image, modal styles              |
+| CreateChallengeView | `src/views/CreateChallengeView.vue`          | `.create-challenge`, `.section-card`, `.toggle-*`        | Global tokens mixed with local form styles               |
+| PlayView            | `src/views/PlayView.vue`                     | `.play`, `.play__meta-card`, `.play__wrapper`            | Global section-card tokens and local layout              |
+| MatchDetailsView    | `src/views/MatchDetailsView.vue`             | `.match-details`, `.match-grid`, `.result-panel`         | Global tokens and local form styles                      |
+| ProfileView         | `src/views/ProfileView.vue`                  | `.profile`, `.profile__stats`, `.profile__card`          | Local Poppins profile styling                            |
+| NotificationsView   | `src/views/NotificationsView.vue`            | `.notifications-page`, `.notification-card`              | Local feed, badge, and type-icon styling                 |
 
 ---
 

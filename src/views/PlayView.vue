@@ -498,7 +498,7 @@ onUnmounted(() => {
   margin: 0 0 0.25rem;
   color: var(--color-accent-support);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -526,7 +526,7 @@ onUnmounted(() => {
   padding: 0 14px;
   background: rgba(0, 181, 26, 0.08);
   color: var(--color-accent-bright);
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   transition:
     transform 0.12s ease-in-out,
     box-shadow 0.12s ease-in-out;
@@ -597,7 +597,7 @@ onUnmounted(() => {
   padding: 1.25rem;
   background: var(--color-surface-muted);
   color: var(--color-muted);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 @media (max-width: 900px) {

@@ -186,6 +186,6 @@ onMounted(async () => {
   padding: 16px;
   color: var(--tournament-red);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 </style>

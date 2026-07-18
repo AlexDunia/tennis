@@ -122,7 +122,7 @@ onUnmounted(() => {
 .tournament-lightbox__footer small {
   color: rgba(255, 255, 255, 0.62);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-lightbox__actions,
@@ -140,7 +140,7 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-lightbox__delete {

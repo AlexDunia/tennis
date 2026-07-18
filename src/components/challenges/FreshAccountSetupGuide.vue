@@ -75,7 +75,7 @@ const steps = [
   margin: 0 0 3px;
   color: var(--color-primary-strong);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -119,7 +119,7 @@ const steps = [
   background: var(--color-surface-soft);
   color: var(--color-muted);
   font-size: 14px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .setup-guide__item--current .setup-guide__marker,
@@ -160,7 +160,7 @@ const steps = [
 .setup-guide__status {
   color: var(--color-muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .setup-guide__item--current .setup-guide__status {

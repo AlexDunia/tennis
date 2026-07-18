@@ -1,8 +1,13 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getPlayers } from '../services/PlayerService'
-import { ACCESS_ROLES, buildAccessProfile, hasPermission as checkPermission } from '../utils/auth/accessControl'
+import {
+  ACCESS_ROLES,
+  buildAccessProfile,
+  hasPermission as checkPermission,
+} from '../utils/auth/accessControl'
 import { useAuthStore } from './auth'
+import { getActiveLadderConfig, isEligibleLadderOpponent } from '../config/ladder'
 
 const ROLE_STORAGE_KEY = 'tennis.local.playerRoles.v1'
 
@@ -43,13 +48,14 @@ export const usePlayerStore = defineStore('player', () => {
     }, {})
   })
 
-  const playerAccessProfile = computed(() => (player) =>
-    buildAccessProfile(
-      player || {},
-      player?.id === currentPlayerId.value && authStore.user?.roleKey
-        ? authStore.user.roleKey
-        : roleOverrides.value[player?.id],
-    ),
+  const playerAccessProfile = computed(
+    () => (player) =>
+      buildAccessProfile(
+        player || {},
+        player?.id === currentPlayerId.value && authStore.user?.roleKey
+          ? authStore.user.roleKey
+          : roleOverrides.value[player?.id],
+      ),
   )
   const currentPlayer = computed(() => {
     const player = players.value.find((item) => item.id === currentPlayerId.value) ?? null
@@ -65,8 +71,8 @@ export const usePlayerStore = defineStore('player', () => {
       : null
   })
   const isCurrentPlayerAdmin = computed(() => Boolean(currentPlayer.value?.isAdmin))
-  const currentPlayerCan = computed(() => (permission) =>
-    checkPermission(currentPlayer.value || {}, permission),
+  const currentPlayerCan = computed(
+    () => (permission) => checkPermission(currentPlayer.value || {}, permission),
   )
 
   const categoryRoster = computed(() => (categoryId) => {
@@ -79,12 +85,10 @@ export const usePlayerStore = defineStore('player', () => {
     const active = currentPlayer.value
     if (!active) return []
 
+    const ladderConfig = getActiveLadderConfig()
+
     return players.value
-      .filter((player) => {
-        const isHigherRanked = player.rank < active.rank
-        const isWithinWindow = active.rank - player.rank <= 3
-        return isHigherRanked && isWithinWindow
-      })
+      .filter((player) => isEligibleLadderOpponent(active, player, ladderConfig))
       .sort((a, b) => a.rank - b.rank)
   })
 

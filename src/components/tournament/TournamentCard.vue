@@ -123,7 +123,7 @@ const progress = computed(() =>
 .tournament-card__name {
   color: #ffffff;
   font-size: 16px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
 }
 
@@ -131,7 +131,7 @@ const progress = computed(() =>
   margin-top: 4px;
   color: rgba(255, 255, 255, 0.68);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-card__footer {
@@ -141,7 +141,7 @@ const progress = computed(() =>
 .tournament-card__footer span {
   color: rgba(255, 255, 255, 0.72);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 @media (max-width: 520px) {

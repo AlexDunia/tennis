@@ -659,7 +659,7 @@ const modalSetLabel = computed(() => {
 
 .hero-label {
   font-size: 11.5px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: rgba(255, 255, 255, 0.72);
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -681,13 +681,13 @@ const modalSetLabel = computed(() => {
   align-items: center;
   justify-content: center;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   border: 1.5px solid rgba(255, 255, 255, 0.3);
 }
 
 .hero-name {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: -0.2px;
 }
 
@@ -711,7 +711,7 @@ const modalSetLabel = computed(() => {
 
 .next-card-label {
   font-size: 11.5px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: #a8b3bc;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -729,7 +729,7 @@ const modalSetLabel = computed(() => {
 
 .pending-name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #0f1720;
 }
 .pending-meta {
@@ -772,7 +772,7 @@ const modalSetLabel = computed(() => {
   padding: 8px 14px;
   border-radius: 9px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   font-family: 'Poppins', sans-serif;
   color: #7b8794;
   background: transparent;
@@ -806,7 +806,7 @@ const modalSetLabel = computed(() => {
 
 .ch-tab__chip {
   font-size: 10.5px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   padding: 1px 7px;
   border-radius: 20px;
   background: rgba(0, 0, 0, 0.06);
@@ -895,7 +895,7 @@ const modalSetLabel = computed(() => {
 
 .ch-empty__title {
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #0f1720;
   margin: 0;
 }
@@ -910,7 +910,7 @@ const modalSetLabel = computed(() => {
   padding: 7px 16px;
   border-radius: 10px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-family: 'Poppins', sans-serif;
   cursor: pointer;
   border: none;
@@ -965,7 +965,7 @@ const modalSetLabel = computed(() => {
 .modal__kicker {
   display: block;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #a8b3bc;
@@ -974,7 +974,7 @@ const modalSetLabel = computed(() => {
 
 .modal__title {
   font-size: 17px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #0f1720;
   letter-spacing: -0.3px;
   margin: 0;
@@ -1029,7 +1029,7 @@ const modalSetLabel = computed(() => {
   align-items: center;
   justify-content: center;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
 }
 
@@ -1044,7 +1044,7 @@ const modalSetLabel = computed(() => {
 
 .modal__player-name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #0f1720;
 }
 
@@ -1056,7 +1056,7 @@ const modalSetLabel = computed(() => {
 
 .modal__vs {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: #a8b3bc;
   letter-spacing: 0.1em;
   flex-shrink: 0;
@@ -1087,7 +1087,7 @@ const modalSetLabel = computed(() => {
 .modal__detail-label {
   display: block;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: #a8b3bc;
@@ -1097,7 +1097,7 @@ const modalSetLabel = computed(() => {
 .modal__detail-value {
   display: block;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: #0f1720;
 }
 

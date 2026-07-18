@@ -408,12 +408,12 @@ const pillClass = computed(() => ({
   align-items: center;
   gap: 2px;
   color: #0f1720;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .cc__rank-gain {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #007a32;
   background: rgba(0, 200, 83, 0.1);
   padding: 1px 7px;
@@ -424,7 +424,7 @@ const pillClass = computed(() => ({
 /* ── STATUS PILL ── */
 .cc__pill {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   padding: 4px 12px;
   border-radius: 20px;
   letter-spacing: 0.2px;
@@ -480,7 +480,7 @@ const pillClass = computed(() => ({
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
 }
 
@@ -501,7 +501,7 @@ const pillClass = computed(() => ({
 
 .cc__player-name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #0f1720;
   line-height: 1.2;
 }
@@ -522,7 +522,7 @@ const pillClass = computed(() => ({
 
 .cc__vs-text {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: #a8b3bc;
   letter-spacing: 0.1em;
 }
@@ -549,7 +549,7 @@ const pillClass = computed(() => ({
   gap: 6px;
   font-size: 12px;
   color: #4b5563;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .cc__info-item svg {
@@ -613,7 +613,7 @@ const pillClass = computed(() => ({
   padding: 8px 16px;
   border-radius: 10px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-family: 'Poppins', sans-serif;
   cursor: pointer;
   border: none;

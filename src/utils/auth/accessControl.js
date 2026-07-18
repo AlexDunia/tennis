@@ -2,12 +2,7 @@ export const ACCESS_ROLES = {
   player: {
     key: 'player',
     label: 'Player',
-    permissions: [
-      'tournaments.view',
-      'matches.view',
-      'rankings.view',
-      'challenges.create',
-    ],
+    permissions: ['tournaments.view', 'matches.view', 'rankings.view', 'challenges.create'],
   },
   tournament_admin: {
     key: 'tournament_admin',
@@ -53,7 +48,8 @@ export function buildAccessProfile(identity = {}, roleKey = getDefaultRoleForIde
     roleLabel: role.label,
     roles: [role.key],
     permissions,
-    isAdmin: role.key === ACCESS_ROLES.super_admin.key || role.key === ACCESS_ROLES.tournament_admin.key,
+    isAdmin:
+      role.key === ACCESS_ROLES.super_admin.key || role.key === ACCESS_ROLES.tournament_admin.key,
   }
 }
 

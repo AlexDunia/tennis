@@ -115,7 +115,7 @@ function isCurrentPlayerMatch(match) {
   right: 7px;
   color: var(--tournament-faint);
   font-size: 9px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.04em;
 }
 
@@ -145,7 +145,7 @@ function isCurrentPlayerMatch(match) {
   overflow: hidden;
   color: var(--tournament-ink);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -153,7 +153,7 @@ function isCurrentPlayerMatch(match) {
 .bracket-node__player span {
   color: var(--tournament-green-dark);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .bracket-node__player em {
@@ -164,7 +164,7 @@ function isCurrentPlayerMatch(match) {
   color: var(--tournament-green-dark);
   font-size: 10px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .bracket-node button {

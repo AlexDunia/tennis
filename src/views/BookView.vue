@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 // IMPORTS
 import { computed, onMounted, ref } from 'vue'
 import { useBookingStore } from '../stores/booking'
@@ -119,7 +119,7 @@ onMounted(async () => {
 }
 .book__item-date {
   margin: 0;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .book__item-detail {
   margin: 0;

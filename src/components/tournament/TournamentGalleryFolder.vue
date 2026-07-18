@@ -116,14 +116,14 @@ const lastUploadedLabel = computed(() => {
 .tournament-gallery-folder__title small {
   color: rgba(255, 255, 255, 0.72);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-gallery-folder__details {
   padding: 8px 2px 0;
   color: var(--tournament-muted);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-gallery-folder:hover {

@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 // IMPORTS
 import { computed, onMounted, ref } from 'vue'
 import { useBookingStore } from '../stores/booking'
@@ -111,7 +111,7 @@ onMounted(() => {
 }
 .history__item-title {
   margin: 0;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .history__item-meta {
   margin: 0;

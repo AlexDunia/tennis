@@ -81,7 +81,7 @@
   border-radius: var(--app-inner-radius);
   padding: 0.85rem 1.1rem;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1;
   transition:
     background 0.16s var(--motion-curve),
@@ -147,7 +147,7 @@
 .t-section-kicker {
   color: var(--tournament-faint);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -156,7 +156,7 @@
 .t-section-title {
   margin: 0;
   color: var(--tournament-ink);
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
 }
 
@@ -173,7 +173,7 @@
   margin: 0;
   color: var(--tournament-muted);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   line-height: 1.55;
 }
 
@@ -209,7 +209,7 @@
   background: #ffffff;
   color: var(--tournament-muted);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   transition:
     background 0.15s ease,
     border-color 0.15s ease,
@@ -275,7 +275,7 @@
   margin: 6px 0 0;
   color: #ffffff;
   font-size: clamp(22px, 4vw, 32px);
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   line-height: 1.1;
   letter-spacing: -0.04em;
 }
@@ -285,7 +285,7 @@
   margin: 8px 0 0;
   color: rgba(255, 255, 255, 0.72);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .t-hero__stats {
@@ -307,7 +307,7 @@
   display: block;
   color: #ffffff;
   font-size: 20px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   line-height: 1.15;
 }
 
@@ -316,7 +316,7 @@
   margin-top: 2px;
   color: rgba(255, 255, 255, 0.62);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }

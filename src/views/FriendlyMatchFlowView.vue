@@ -1649,6 +1649,9 @@ watch(
 .friendly-flow__header h1 {
   margin: 0;
   font-size: 18px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
 }
 .friendly-flow__back {
   width: 44px;
@@ -1673,8 +1676,9 @@ watch(
 .friendly-flow__step {
   color: var(--color-muted);
   font-size: 11px;
-  font-weight: 700;
-  opacity: 0.7;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.01em;
+  opacity: 0.78;
 }
 .friendly-flow__screen {
   display: grid;
@@ -1687,7 +1691,7 @@ watch(
   width: 100%;
 }
 .friendly-flow__intro {
-  max-width: none;
+  max-width: 720px;
 }
 .friendly-flow__eyebrow,
 .friendly-flow__intro h2,
@@ -1697,22 +1701,27 @@ watch(
 .friendly-flow__eyebrow {
   color: var(--color-primary-strong);
   font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.09em;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  opacity: 0.76;
+  opacity: 0.82;
 }
 .friendly-flow__intro h2 {
-  margin-top: 5px;
+  max-width: 760px;
+  margin-top: 7px;
   color: var(--color-text-soft);
   font-size: clamp(22px, 5vw, 30px);
-  line-height: 1.24;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
 }
 .friendly-flow__intro > p:last-child:not(.friendly-flow__eyebrow) {
-  margin-top: 7px;
+  max-width: 68ch;
+  margin-top: 10px;
   color: var(--color-muted);
   font-size: 13px;
-  line-height: 1.55;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.65;
 }
 .friendly-flow__notice,
 .eligibility-context {
@@ -1724,7 +1733,7 @@ watch(
   box-shadow: 0 7px 20px rgba(87, 61, 8, 0.045);
   color: #725413;
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
   line-height: 1.55;
 }
 .eligibility-context {
@@ -1744,7 +1753,7 @@ watch(
   gap: 6px;
   color: inherit;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: var(--font-weight-semibold);
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
   text-underline-offset: 3px;
@@ -1812,14 +1821,18 @@ watch(
 }
 .choice-card strong,
 .format-card strong {
-  font-size: 14px;
+  font-size: 14.5px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.008em;
+  line-height: 1.35;
 }
 .choice-card small,
 .format-card small {
-  margin-top: 3px;
+  margin-top: 5px;
   color: var(--color-muted);
   font-size: 12px;
-  line-height: 1.5;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.55;
 }
 .choice-card__arrow {
   color: var(--color-primary-strong);
@@ -1940,7 +1953,7 @@ watch(
   background: color-mix(in srgb, var(--color-primary) 9%, var(--color-surface));
   color: var(--color-primary-strong);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 .opponent-row__identity {
   display: grid;
@@ -1948,15 +1961,19 @@ watch(
 }
 .opponent-row__identity strong {
   font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
 }
 .opponent-row__identity small {
   color: var(--color-muted);
   font-size: 11.5px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.45;
 }
 .opponent-row__check {
   color: var(--color-primary-strong);
   font-size: 16px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   text-align: center;
 }
 .opponent-empty {
@@ -1970,10 +1987,12 @@ watch(
 }
 .opponent-empty strong {
   font-size: 15px;
+  font-weight: var(--font-weight-semibold);
 }
 .opponent-empty span {
   color: var(--color-muted);
   font-size: 12.5px;
+  font-weight: var(--font-weight-regular);
 }
 .friendly-flow .button-primary,
 .friendly-flow .button-secondary,
@@ -1982,6 +2001,7 @@ watch(
   align-items: center;
   justify-content: center;
   gap: 8px;
+  font-weight: var(--font-weight-semibold);
 }
 .friendly-flow .button-primary .flow-icon,
 .friendly-flow .button-secondary .flow-icon,
@@ -2035,10 +2055,12 @@ watch(
 .selection-footer p strong {
   color: #fff;
   font-size: 13px;
+  font-weight: var(--font-weight-semibold);
 }
 .selection-footer p small {
   color: rgba(255, 255, 255, 0.66);
   font-size: 10px;
+  font-weight: var(--font-weight-regular);
 }
 .selection-footer .opponent-row__avatar {
   background: rgba(255, 255, 255, 0.11);
@@ -2058,11 +2080,11 @@ watch(
   gap: 7px;
   color: var(--color-text-soft);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 .schedule-fields label small {
   color: var(--color-muted);
-  font-weight: 600;
+  font-weight: var(--font-weight-regular);
 }
 .schedule-fields input {
   width: 100%;
@@ -2097,13 +2119,14 @@ watch(
 }
 .custom-format-summary span {
   font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 .custom-format-summary strong {
   color: var(--color-text-soft);
   font-size: 13px;
+  font-weight: var(--font-weight-medium);
   line-height: 1.45;
 }
 .custom-format-section {
@@ -2124,6 +2147,14 @@ watch(
 .custom-disclosure__button strong {
   color: var(--color-text-soft);
   font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+}
+.custom-format-section__head small,
+.custom-setting-row small,
+.custom-disclosure__button small {
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
 }
 .custom-style-chips {
   display: grid;
@@ -2166,10 +2197,12 @@ watch(
 }
 .custom-style-chip strong {
   font-size: 12.5px;
+  font-weight: var(--font-weight-semibold);
 }
 .custom-style-chip small {
   color: var(--color-muted);
   font-size: 10.5px;
+  font-weight: var(--font-weight-regular);
 }
 .custom-setting-row {
   display: flex;
@@ -2198,7 +2231,7 @@ watch(
   background: transparent;
   color: var(--color-primary-strong);
   font-size: 18px;
-  font-weight: 700;
+  font-weight: var(--font-weight-semibold);
 }
 .custom-stepper button:hover:not(:disabled) {
   background: var(--color-primary-soft);
@@ -2210,6 +2243,7 @@ watch(
 .custom-stepper > strong {
   color: var(--color-text);
   font-size: 12px;
+  font-weight: var(--font-weight-semibold);
   text-align: center;
 }
 .setting-toggle {
@@ -2221,7 +2255,7 @@ watch(
   background: transparent;
   color: var(--color-muted);
   font-size: 10.5px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 .setting-toggle i {
   position: relative;
@@ -2296,7 +2330,7 @@ watch(
   padding-top: 2px;
   color: var(--color-text-soft);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 .custom-format-name input {
   width: 100%;
@@ -2346,10 +2380,12 @@ watch(
 }
 .invitation-action-row strong {
   font-size: 13px;
+  font-weight: var(--font-weight-semibold);
 }
 .invitation-action-row small {
   color: var(--color-muted);
   font-size: 11px;
+  font-weight: var(--font-weight-regular);
 }
 .qr-panel {
   display: grid;
@@ -2380,7 +2416,7 @@ watch(
   margin: 0;
   color: var(--color-primary-strong);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 .copy-link-action {
   width: min(248px, 100%);
@@ -2401,7 +2437,7 @@ watch(
   background: transparent;
   color: var(--color-muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-medium);
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -2420,7 +2456,7 @@ watch(
   color: white;
   box-shadow: 0 14px 38px rgba(15, 34, 24, 0.18);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   animation: noticeArrive 220ms var(--motion-curve) both;
 }
 .join-notification span {
@@ -2452,18 +2488,21 @@ watch(
 .status-block span {
   color: var(--color-muted);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
 }
 .join-summary strong,
 .status-block strong {
   font-size: 16px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.01em;
 }
 .join-summary small,
 .status-block small {
   color: var(--color-muted);
   font-size: 11.5px;
+  font-weight: var(--font-weight-regular);
   line-height: 1.5;
 }
 .external-join {
@@ -2484,6 +2523,8 @@ watch(
 }
 .review-row > strong {
   font-size: 13px;
+  font-weight: var(--font-weight-medium);
+  line-height: 1.5;
 }
 .review-row > strong small {
   display: inline-block;
@@ -2493,6 +2534,7 @@ watch(
   background: var(--color-surface-soft);
   color: var(--color-primary-strong);
   font-size: 9px;
+  font-weight: var(--font-weight-semibold);
 }
 .segmented-options {
   display: flex;
@@ -2505,7 +2547,7 @@ watch(
   background: var(--color-surface);
   color: var(--color-muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 .segmented-options button.active {
   border-color: var(--color-primary);
@@ -2524,7 +2566,7 @@ watch(
 .setup-default-note small {
   color: var(--color-primary-strong);
   font-size: 9px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -2556,6 +2598,9 @@ watch(
 .friendly-live__title-row h1 {
   margin: 5px 0 0;
   font-size: clamp(24px, 5vw, 32px);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
 }
 .friendly-live__live {
   padding: 5px 9px;
@@ -2563,7 +2608,8 @@ watch(
   background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
   color: var(--color-primary-strong);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .friendly-live__live--finished {
@@ -2585,11 +2631,13 @@ watch(
 .friendly-live__scoreline span {
   color: var(--color-muted);
   font-size: 9px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .friendly-live__scoreline strong {
   font-size: 14px;
+  font-weight: var(--font-weight-semibold);
 }
 .friendly-live__scoreline--finished > div:last-child {
   min-width: min(280px, 55vw);
@@ -2608,6 +2656,7 @@ watch(
 }
 .friendly-live__status strong {
   font-size: 14px;
+  font-weight: var(--font-weight-semibold);
 }
 .friendly-live__status > span {
   padding: 4px 7px;
@@ -2615,7 +2664,7 @@ watch(
   background: var(--color-surface);
   color: var(--color-muted);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-medium);
 }
 .friendly-live__status button {
   width: 42px;
@@ -2649,22 +2698,25 @@ watch(
 }
 .friendly-live__player > span {
   font-size: 14px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 .friendly-live__player > strong {
   font-size: clamp(44px, 10vw, 68px);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.035em;
   line-height: 1;
 }
 .friendly-live__player > small {
   color: var(--color-muted);
   font-size: 11px;
+  font-weight: var(--font-weight-regular);
   opacity: 0.68;
 }
 .friendly-live__count {
   margin: -5px 0 0;
   color: var(--color-muted);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-medium);
   text-align: center;
 }
 .friendly-live__finished {
@@ -2687,16 +2739,18 @@ watch(
 .friendly-live__finished-facts small {
   color: var(--color-muted);
   font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .friendly-live__finished-copy > strong {
   font-size: 17px;
+  font-weight: var(--font-weight-semibold);
 }
 .friendly-live__finished-copy > small {
   color: var(--color-muted);
   font-size: 11px;
+  font-weight: var(--font-weight-regular);
 }
 .friendly-live__finished-facts {
   display: flex;
@@ -2704,6 +2758,7 @@ watch(
 }
 .friendly-live__finished-facts strong {
   font-size: 13px;
+  font-weight: var(--font-weight-semibold);
 }
 .friendly-live__finished-undo {
   display: inline-flex;
@@ -2714,7 +2769,7 @@ watch(
   background: var(--color-surface);
   color: var(--color-text-soft);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 .friendly-live__finished-undo svg {
   width: 17px;

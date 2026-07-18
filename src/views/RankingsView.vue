@@ -577,7 +577,7 @@ const shareLinks = [
   gap: 8px;
 }
 .rankings__error-title {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-size: 14px;
   color: #0f1720;
 }
@@ -652,7 +652,7 @@ const shareLinks = [
 
 .section-title {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #7b8794;
@@ -684,7 +684,7 @@ const shareLinks = [
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-size: 13px;
   flex-shrink: 0;
 }
@@ -700,11 +700,11 @@ const shareLinks = [
 
 .name {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 .large-name {
   font-size: 19px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.3px;
 }
 
@@ -744,7 +744,7 @@ const shareLinks = [
 .stat strong {
   display: block;
   font-size: 22px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 .stat span {
   display: block;
@@ -761,7 +761,7 @@ const shareLinks = [
   border-radius: 6px;
   font-size: 13px;
   font-family: 'Poppins', sans-serif;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
 }
 .btn--sm {
@@ -791,7 +791,7 @@ const shareLinks = [
 
 .leaderboard-title {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.3px;
   color: #0f1720;
   flex-shrink: 0;
@@ -865,7 +865,7 @@ const shareLinks = [
   border-radius: 8px;
   font-size: 13px;
   font-family: 'Poppins', sans-serif;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: #0f1720;
   background: #fff;
   cursor: pointer;
@@ -900,7 +900,7 @@ const shareLinks = [
 }
 .share-dropdown-label {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #aab2ba;
@@ -944,7 +944,7 @@ const shareLinks = [
   margin-top: 4px;
   padding-top: 13px;
   color: #00843a;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 .save-icon {
   color: #00c853;
@@ -1019,7 +1019,7 @@ const shareLinks = [
   background: rgba(0, 200, 83, 0.07);
   color: #007a32;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1.25;
 }
 .row-avatar {
@@ -1033,12 +1033,12 @@ const shareLinks = [
   background: #ffd33d;
   padding: 2px 6px;
   border-radius: 4px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .winrate {
   color: #00c853;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 .action {
   display: flex;
@@ -1076,7 +1076,7 @@ const shareLinks = [
 
 .zone-label {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: #7b8794;
@@ -1096,7 +1096,7 @@ const shareLinks = [
   border: 1px solid rgba(0, 0, 0, 0.06);
 }
 .rankings__empty-title {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-size: 14px;
   color: #0f1720;
 }
@@ -1172,7 +1172,7 @@ const shareLinks = [
 
 .sc-event-label {
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.16em;
   color: #00c853;
   text-transform: uppercase;
@@ -1180,7 +1180,7 @@ const shareLinks = [
 
 .sc-season-label {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: rgba(255, 255, 255, 0.85);
   letter-spacing: 0.02em;
   margin-top: 1px;
@@ -1205,7 +1205,7 @@ const shareLinks = [
 
 .sc-rank-number {
   font-size: 52px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: #00c853;
   line-height: 1;
   letter-spacing: -2px;
@@ -1213,7 +1213,7 @@ const shareLinks = [
 
 .sc-rank-label {
   font-size: 8px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.35);
@@ -1234,7 +1234,7 @@ const shareLinks = [
 
 .sc-hero-name {
   font-size: 19px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: #fff;
   letter-spacing: -0.3px;
   line-height: 1.2;
@@ -1245,7 +1245,7 @@ const shareLinks = [
   gap: 6px;
   margin-top: 6px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: rgba(255, 255, 255, 0.45);
 }
 .sc-dot {
@@ -1267,7 +1267,7 @@ const shareLinks = [
 }
 .sc-section-text {
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.16em;
   color: rgba(255, 255, 255, 0.3);
   text-transform: uppercase;
@@ -1297,7 +1297,7 @@ const shareLinks = [
 
 .sc-list-num {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: rgba(255, 255, 255, 0.28);
   min-width: 18px;
   text-align: center;
@@ -1309,23 +1309,23 @@ const shareLinks = [
 .sc-list-name {
   flex: 1;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: rgba(255, 255, 255, 0.8);
 }
 .sc-list-row--you .sc-list-name {
   color: #fff;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .sc-list-wr {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #00c853;
 }
 
 .sc-you-tag {
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.06em;
   background: #00c853;
   color: #0a1018;
@@ -1358,7 +1358,7 @@ const shareLinks = [
   color: rgba(255, 255, 255, 0.4);
   font-size: 13px;
   font-family: 'Poppins', sans-serif;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   transition: background 0.15s;
@@ -1379,7 +1379,7 @@ const shareLinks = [
   color: #fff;
   font-size: 13px;
   font-family: 'Poppins', sans-serif;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -1442,7 +1442,7 @@ const shareLinks = [
     border-radius: 10px;
     margin-bottom: 4px;
     font-size: 10px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     color: var(--color-text-soft);
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1467,14 +1467,14 @@ const shareLinks = [
 
   .leaderboard-row > .col-rank {
     font-size: 12px;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     color: var(--color-text);
     text-align: center;
   }
 
   .leaderboard-row > .player {
     font-size: 13px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     color: #162218;
     min-width: 0;
     overflow: hidden;
@@ -1487,19 +1487,19 @@ const shareLinks = [
     height: 36px;
     border-radius: 50%;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
   }
 
   .leaderboard-row > .col-wins {
     font-size: 12px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     color: var(--color-text);
     text-align: center;
   }
 
   .leaderboard-row > .col-winrate {
     font-size: 12px;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     color: #00b51a;
     text-align: center;
   }
@@ -1529,7 +1529,7 @@ const shareLinks = [
 
   .zone-bar {
     font-size: 10px;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     letter-spacing: 0.6px;
     padding: 8px 16px;
     width: 100%;

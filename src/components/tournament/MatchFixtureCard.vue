@@ -173,7 +173,7 @@ function isCurrentPlayerMatch(match) {
   background: var(--tournament-blue-soft);
   color: var(--tournament-blue);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .match-fixture-card__score {
@@ -187,7 +187,7 @@ function isCurrentPlayerMatch(match) {
   background: var(--tournament-green-soft);
   color: var(--tournament-green-dark);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .match-fixture-card__body {
@@ -221,13 +221,13 @@ function isCurrentPlayerMatch(match) {
   background: var(--tournament-shell);
   color: var(--tournament-muted);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .match-fixture-card__player strong {
   min-width: 0;
   color: var(--tournament-ink);
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .match-fixture-card__player small {
@@ -236,13 +236,13 @@ function isCurrentPlayerMatch(match) {
   background: #ffffff;
   color: var(--tournament-green-dark);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
 }
 
 .match-fixture-card__body small {
   color: var(--tournament-faint);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
 }
 
@@ -252,7 +252,7 @@ function isCurrentPlayerMatch(match) {
   background: #ffffff;
   color: var(--tournament-green-dark);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--font-weight-bold);
   text-transform: none;
 }
 
@@ -260,7 +260,7 @@ function isCurrentPlayerMatch(match) {
   flex-wrap: wrap;
   color: var(--tournament-faint);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .match-fixture-card__meta span + span::before {
@@ -271,7 +271,7 @@ function isCurrentPlayerMatch(match) {
 .match-fixture-card__bye {
   color: var(--tournament-muted);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 @media (max-width: 640px) {

@@ -225,7 +225,7 @@ onUnmounted(clearPreview)
   gap: 6px;
   color: var(--tournament-ink);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-image-add input,
@@ -252,7 +252,7 @@ onUnmounted(clearPreview)
   background: transparent;
   color: var(--tournament-muted);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-image-add__modes button.active {
@@ -301,12 +301,12 @@ onUnmounted(clearPreview)
 }
 
 .tournament-image-add__file-name {
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-image-add__error {
   color: var(--tournament-red) !important;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-image-add__close {

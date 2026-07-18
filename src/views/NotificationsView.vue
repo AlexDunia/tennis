@@ -302,7 +302,7 @@ const formatTime = (value) => {
 .page-header__kicker {
   margin: 0;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-muted);
@@ -311,7 +311,7 @@ const formatTime = (value) => {
 .page-header__title {
   margin: 0.3rem 0 0;
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   letter-spacing: -0.3px;
 }
@@ -334,7 +334,7 @@ const formatTime = (value) => {
 /* ── Unread badge ── */
 .unread-badge {
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #7a5a00;
   background: rgba(255, 211, 61, 0.18);
   border: 1px solid rgba(255, 211, 61, 0.4);
@@ -347,7 +347,7 @@ const formatTime = (value) => {
   padding: 0.45rem 1rem;
   border-radius: 9px;
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-family: inherit;
   cursor: pointer;
   border: 1px solid var(--color-border);
@@ -415,7 +415,7 @@ const formatTime = (value) => {
 .empty-state__title {
   margin: 0;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
@@ -442,7 +442,7 @@ const formatTime = (value) => {
 .feed-group__label {
   margin: 0;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-muted);
@@ -585,7 +585,7 @@ const formatTime = (value) => {
 .notification-card__title {
   margin: 0;
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
@@ -615,7 +615,7 @@ const formatTime = (value) => {
   padding: 0.38rem 0.85rem;
   border-radius: 999px;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-family: inherit;
   cursor: pointer;
   border: none;

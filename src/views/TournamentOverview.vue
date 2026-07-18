@@ -236,7 +236,7 @@ watch(tournamentId, async (nextTournamentId) => {
   margin: 0;
   color: var(--tournament-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .tournament-overview__actions {

@@ -15,6 +15,8 @@ import TournamentGalleryView from '../views/TournamentGallery.vue'
 import LandingView from '../views/LandingView.vue'
 import LoginView from '../views/LoginView.vue'
 import FriendlyMatchFlowView from '../views/FriendlyMatchFlowView.vue'
+import AdminSetupView from '../views/AdminSetupView.vue'
+import PlayerClubJoinView from '../views/PlayerClubJoinView.vue'
 import { useAuthStore } from '../stores/auth'
 
 const routes = [
@@ -203,6 +205,26 @@ const routes = [
     meta: { title: 'Live friendly match', friendlyFlow: true, friendlyStep: 'live' },
   },
   {
+    path: '/onboarding/join-club',
+    name: 'PlayerClubJoin',
+    component: PlayerClubJoinView,
+    meta: {
+      title: 'Join your club',
+      onboardingFlow: true,
+    },
+  },
+  {
+    path: '/admin/setup',
+    name: 'AdminSetup',
+    component: AdminSetupView,
+    meta: {
+      title: 'Club Setup',
+      subtitle: 'Answer six simple questions to open your club.',
+      permission: 'club.manage',
+      onboardingFlow: true,
+    },
+  },
+  {
     path: '/challenges',
     name: 'Challenges',
     component: ChallengesView,
@@ -275,7 +297,7 @@ router.beforeEach((to) => {
     return { name: 'SignIn', query: { redirect: to.fullPath } }
   }
   if (to.meta.permission && !authStore.hasPermission(to.meta.permission)) {
-    return { name: 'Tournaments', query: { access: 'admin' } }
+    return { name: 'Dashboard', query: { access: 'admin' } }
   }
   return true
 })

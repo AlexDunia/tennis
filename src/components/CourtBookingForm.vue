@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 // IMPORTS
 import { computed, ref } from 'vue'
 
@@ -150,7 +150,7 @@ function handleSlotSelect(slot) {
   gap: 0.35rem;
 }
 .court-booking-form__label {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #222;
 }
 .court-booking-form__input,
@@ -162,7 +162,7 @@ function handleSlotSelect(slot) {
   font-family: inherit;
 }
 .court-booking-form__slots-title {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   margin-bottom: 0.35rem;
 }
 .court-booking-form__slots {
@@ -178,7 +178,7 @@ function handleSlotSelect(slot) {
   border: 1px solid rgba(0, 0, 0, 0.3);
   background: #fafafa;
   padding: 0.65rem 0.9rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   border-radius: 0.75rem;
   cursor: pointer;
 }
@@ -198,7 +198,7 @@ function handleSlotSelect(slot) {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 .court-booking-form__submit {
   border: none;
@@ -207,7 +207,7 @@ function handleSlotSelect(slot) {
   padding: 0.85rem;
   font-size: 1rem;
   border-radius: 0.75rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
 }
 .court-booking-form__submit:disabled {
@@ -217,6 +217,6 @@ function handleSlotSelect(slot) {
 .court-booking-form__error {
   margin: 0;
   color: #bf0a30;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 </style>

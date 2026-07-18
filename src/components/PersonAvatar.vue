@@ -38,7 +38,7 @@ const avatarStyle = computed(() => ({
   justify-content: center;
   overflow: hidden;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
 

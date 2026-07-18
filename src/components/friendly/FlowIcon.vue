@@ -52,6 +52,15 @@ defineProps({
     <template v-else-if="name === 'download'">
       <path d="M12 4v11M8 11l4 4 4-4M5 20h14" />
     </template>
+    <template v-else-if="name === 'upload'">
+      <path d="M12 20V9M8 13l4-4 4 4M5 4h14" />
+    </template>
+    <template v-else-if="name === 'scan'">
+      <path
+        d="M4 9V6a2 2 0 0 1 2-2h3M15 4h3a2 2 0 0 1 2 2v3M20 15v3a2 2 0 0 1-2 2h-3M9 20H6a2 2 0 0 1-2-2v-3"
+      />
+      <path d="M8 12h8M12 8v8" />
+    </template>
     <template v-else-if="name === 'link'">
       <path
         d="m10 14 4-4M8.5 17.5l-1 1a3.5 3.5 0 0 1-5-5l3-3a3.5 3.5 0 0 1 5 0M15.5 6.5l1-1a3.5 3.5 0 0 1 5 5l-3 3a3.5 3.5 0 0 1-5 0"

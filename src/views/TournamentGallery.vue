@@ -320,7 +320,7 @@ watch(
   margin-top: 7px;
   color: var(--tournament-muted);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .tournament-gallery__hero-actions {
@@ -363,7 +363,7 @@ watch(
 .tournament-gallery__summary-card span {
   color: var(--tournament-muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -398,7 +398,7 @@ watch(
   background: transparent;
   color: var(--tournament-muted);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
 }
 
 .tournament-gallery__back svg {

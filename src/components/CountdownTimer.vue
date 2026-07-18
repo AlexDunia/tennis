@@ -58,7 +58,7 @@ const formattedRemaining = computed(() => {
   margin: 0;
   font-size: 0.9rem;
   color: #4f46e5;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 .countdown__value {
   margin: 0;

@@ -303,7 +303,7 @@ onMounted(() => {
   background: rgba(0, 181, 26, 0.08);
   color: var(--color-primary-strong);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: var(--font-weight-semibold);
   text-decoration: none;
 }
 
@@ -318,7 +318,7 @@ onMounted(() => {
   margin: 0 0 0.35rem;
   color: var(--color-accent-support);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -344,7 +344,7 @@ onMounted(() => {
 .field__label {
   font-size: 0.88rem;
   color: var(--color-text);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .field__input {
@@ -368,7 +368,7 @@ onMounted(() => {
   min-height: 38px;
   background: var(--color-accent-bright);
   color: var(--color-light);
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   text-decoration: none;
   transition:
     transform 0.12s ease-in-out,

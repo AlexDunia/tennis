@@ -447,7 +447,7 @@ onMounted(() => {
 }
 .header h3 {
   font-size: 20px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   margin: 0;
 }
 .header p {
@@ -460,7 +460,7 @@ onMounted(() => {
 }
 .win-rate .value {
   font-size: 20px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   display: block;
 }
 .win-rate .label {
@@ -583,13 +583,13 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #fff;
   flex-shrink: 0;
 }
 .tt-name {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: #fff;
   margin: 0;
 }
@@ -619,7 +619,7 @@ onMounted(() => {
 }
 .tt-val {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: #fff;
 }
 
@@ -631,7 +631,7 @@ onMounted(() => {
 }
 .rec-win {
   color: #4ade80;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .rec-sep {
   color: #4b5563;
@@ -639,7 +639,7 @@ onMounted(() => {
 }
 .rec-loss {
   color: #f87171;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* Form strip */
@@ -684,7 +684,7 @@ onMounted(() => {
 }
 .bottom strong {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .green {
   color: var(--color-success, #22c55e);
