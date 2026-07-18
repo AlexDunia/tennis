@@ -142,6 +142,21 @@ unless the product owner explicitly changes the typography system.
 - Always provide route-shaped skeletons for a new focused flow and disable shimmer for reduced motion.
 - Persist drafts after each valid step, but publish or activate only after explicit review confirmation.
 - On mobile, stack choices and keep the current screen answer and forward action easy to reach.
+- Put Back in the top flow header as a 44px arrow control; do not repeat Back in the footer.
+- Standard focused-flow cards are 90px minimum height with a 44px icon tile, hairline border,
+  subtle shadow, semibold title, and regular 12px description.
+- Selected cards use a single low-opacity green hairline and roughly 2.5% green surface tint;
+  never use a thick ring or compensate with reduced padding.
+- When a creation choice needs substantial follow-up input, open a focused modal or mobile bottom
+  sheet instead of expanding controls far below the selected card.
+- All focused creation flows use the shared flow content width for the header, progress, intro,
+  controls, summaries, and actions so their left and right edges resolve to one content rail.
+- Organize each step into three zones: intro, answer, then action. Use the shared flow section
+  spacing between zones instead of negative margins or isolated one-off gaps.
+- Use the quiet flow shadow by default and the flow hover shadow only during hover. Borders and
+  surface contrast should provide most of the separation.
+- Labels sit directly above inputs with the shared control spacing; placeholders use the muted
+  text color at reduced opacity and must never compete with entered values.
 
 ### Global HTML/Body Styling
 

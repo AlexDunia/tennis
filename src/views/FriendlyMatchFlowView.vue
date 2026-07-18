@@ -77,7 +77,8 @@ const hasActiveChallengeBlock = computed(
   () => activeLadderChallenges.value.length >= LADDER_CONFIG.maxActiveChallenges,
 )
 const ladderAccessMessage = computed(() => {
-  if (LADDER_CONFIG.seasonStatus !== 'active') return 'This Ladder is not accepting challenges right now.'
+  if (LADDER_CONFIG.seasonStatus !== 'active')
+    return 'This Ladder is not accepting challenges right now.'
   if (!currentIdentity.value.rank)
     return 'You must be placed on the active Ladder before creating a challenge.'
   if (hasActiveChallengeBlock.value)
@@ -132,8 +133,25 @@ const pageTitle = computed(
 const stepText = computed(() => {
   if (isLadder.value) {
     if (isPlayNow.value)
-      return ({ type: '1 of 5', timing: '2 of 5', join: '3 of 5', clubOpponent: '3 of 5', format: '4 of 5' })[step.value] || ''
-    return ({ type: '1 of 6', timing: '2 of 6', clubOpponent: '3 of 6', schedule: '4 of 6', format: '5 of 6', scheduled: '6 of 6' })[step.value] || ''
+      return (
+        {
+          type: '1 of 5',
+          timing: '2 of 5',
+          join: '3 of 5',
+          clubOpponent: '3 of 5',
+          format: '4 of 5',
+        }[step.value] || ''
+      )
+    return (
+      {
+        type: '1 of 6',
+        timing: '2 of 6',
+        clubOpponent: '3 of 6',
+        schedule: '4 of 6',
+        format: '5 of 6',
+        scheduled: '6 of 6',
+      }[step.value] || ''
+    )
   }
   if (isPlayNow.value)
     return (
@@ -252,7 +270,7 @@ const availableOpponents = computed(() => {
 
 const backRoute = computed(() => {
   const routeName =
-    ({
+    {
       type: 'Dashboard',
       timing: 'FriendlyMatchType',
       join: 'FriendlyMatchTiming',
@@ -269,7 +287,7 @@ const backRoute = computed(() => {
       scheduled: 'Dashboard',
       externalJoin: 'Dashboard',
       live: 'FriendlyMatchFormat',
-    })[step.value] || 'Dashboard'
+    }[step.value] || 'Dashboard'
   return routeName.startsWith('FriendlyMatch') ? flowLocation(routeName) : { name: routeName }
 })
 
@@ -284,15 +302,9 @@ function guardStep() {
   else if (step.value === 'opponent') router.replace(flowLocation('FriendlyMatchClubOpponent'))
   else if (step.value === 'clubOpponent' && !friendlyMatchStore.draft.timing)
     router.replace(flowLocation('FriendlyMatchTiming'))
-  else if (
-    step.value === 'schedule' &&
-    (isPlayNow.value || !friendlyMatchStore.draft.opponent)
-  )
+  else if (step.value === 'schedule' && (isPlayNow.value || !friendlyMatchStore.draft.opponent))
     router.replace(flowLocation('FriendlyMatchClubOpponent'))
-  else if (
-    step.value === 'join' &&
-    (!isPlayNow.value || !friendlyMatchStore.draft.matchId)
-  )
+  else if (step.value === 'join' && (!isPlayNow.value || !friendlyMatchStore.draft.matchId))
     router.replace(flowLocation('FriendlyMatchTiming'))
   else if (step.value === 'scoring' && isLadder.value)
     router.replace(flowLocation('FriendlyMatchFormat'))
@@ -374,9 +386,10 @@ function continueWithClubOpponent() {
   if (isPlayNow.value) {
     const joined = friendlyMatchStore.addOpponentToPlayNow(friendlyMatchStore.draft.opponent)
     if (joined) announceJoined(joined.name)
-    else inlineNote.value = isLadder.value
-      ? 'That player is outside your eligible Ladder challenge window.'
-      : 'That player could not be added to this match.'
+    else
+      inlineNote.value = isLadder.value
+        ? 'That player is outside your eligible Ladder challenge window.'
+        : 'That player could not be added to this match.'
   } else router.push(flowLocation('FriendlyMatchSchedule'))
 }
 function continueFromSchedule() {
@@ -580,7 +593,9 @@ async function copyJoinLink() {
   }, 2400)
 }
 function simulatePlayerJoining() {
-  const simulated = availableOpponents.value.find((player) => player.id !== currentIdentity.value.id)
+  const simulated = availableOpponents.value.find(
+    (player) => player.id !== currentIdentity.value.id,
+  )
   if (!simulated) return
   const joined = friendlyMatchStore.addOpponentToPlayNow(simulated)
   if (joined) announceJoined(joined.name)
@@ -714,9 +729,11 @@ watch(
             <span class="flow-choice-icon"><FlowIcon name="ladder" /></span>
             <span
               ><strong>Ladder challenge</strong
-              ><small
-                >{{ currentIdentity.rank ? `You are rank #${currentIdentity.rank}. See only eligible players.` : 'Join the active Ladder to challenge ranked players.' }}</small
-              ></span
+              ><small>{{
+                currentIdentity.rank
+                  ? `You are rank #${currentIdentity.rank}. See only eligible players.`
+                  : 'Join the active Ladder to challenge ranked players.'
+              }}</small></span
             ><span class="choice-card__arrow" aria-hidden="true">›</span>
           </button>
           <button
@@ -736,9 +753,13 @@ watch(
         aria-labelledby="timing-title"
       >
         <div class="friendly-flow__intro">
-          <p class="friendly-flow__eyebrow">{{ isLadder ? 'Ladder challenge' : 'Friendly match' }}</p>
+          <p class="friendly-flow__eyebrow">
+            {{ isLadder ? 'Ladder challenge' : 'Friendly match' }}
+          </p>
           <h2 id="timing-title">When are you playing?</h2>
-          <p v-if="isLadder">Play immediately with an eligible opponent, or send a challenge for later.</p>
+          <p v-if="isLadder">
+            Play immediately with an eligible opponent, or send a challenge for later.
+          </p>
           <p v-else>
             Use a quick QR join when both players are together, or send an invitation for later.
           </p>
@@ -874,11 +895,17 @@ watch(
             class="button-secondary"
             @click="openClubOpponents"
           >
-            <FlowIcon name="users" /><span>{{ isLadder ? 'Add eligible opponent' : 'Add opponent from club' }}</span>
+            <FlowIcon name="users" /><span>{{
+              isLadder ? 'Add eligible opponent' : 'Add opponent from club'
+            }}</span>
           </button>
         </div>
         <div class="qr-panel qr-panel--single">
-          <img v-if="qrDataUrl" :src="qrDataUrl" :alt="`QR code for this ${isLadder ? 'Ladder challenge' : 'friendly match'} invitation`" />
+          <img
+            v-if="qrDataUrl"
+            :src="qrDataUrl"
+            :alt="`QR code for this ${isLadder ? 'Ladder challenge' : 'friendly match'} invitation`"
+          />
           <div v-else class="qr-panel__placeholder" aria-label="QR code loading"></div>
           <button
             type="button"
@@ -908,13 +935,18 @@ watch(
       >
         <div class="friendly-flow__intro">
           <p class="friendly-flow__eyebrow">
-            {{ isLadder && currentIdentity.rank ? 'Rank #' + currentIdentity.rank + ' · Eligible players' : 'Club members' }}
+            {{
+              isLadder && currentIdentity.rank
+                ? 'Rank #' + currentIdentity.rank + ' · Eligible players'
+                : 'Club members'
+            }}
           </p>
           <h2 id="club-opponent-title">
             {{ isLadder ? 'Choose an eligible opponent.' : 'Choose opponent from club.' }}
           </h2>
           <p v-if="isLadder">
-            Only active players within {{ LADDER_CONFIG.challengeRangeUp }} positions above you appear here.
+            Only active players within {{ LADDER_CONFIG.challengeRangeUp }} positions above you
+            appear here.
           </p>
           <p v-else>
             Select an active member. Your action will stay available at the bottom of the screen.
@@ -976,7 +1008,8 @@ watch(
           </button>
         </div>
         <div v-else class="opponent-empty">
-          <strong>{{ isLadder ? 'No eligible opponents right now' : 'No matching players' }}</strong><span>{{
+          <strong>{{ isLadder ? 'No eligible opponents right now' : 'No matching players' }}</strong
+          ><span>{{
             isLadder
               ? 'Availability depends on your Ladder position and the club challenge rules.'
               : 'Try another name.'
@@ -1232,30 +1265,51 @@ watch(
           <div class="review-list">
             <div class="review-row">
               <span>Players</span>
-              <strong>{{ currentIdentity.name }} (#{{ currentIdentity.rank }}) vs {{ opponentName }} (#{{ friendlyMatchStore.draft.opponent?.rank }})</strong>
+              <strong
+                >{{ currentIdentity.name }} (#{{ currentIdentity.rank }}) vs {{ opponentName }} (#{{
+                  friendlyMatchStore.draft.opponent?.rank
+                }})</strong
+              >
             </div>
             <div class="review-row">
               <span>Movement</span><strong>{{ ladderMovement.label }}</strong>
             </div>
             <div class="review-row">
-              <span>Scoring</span><strong>{{ friendlyMatchStore.formatLabel }} <small>Club rule</small></strong>
+              <span>Scoring</span
+              ><strong>{{ friendlyMatchStore.formatLabel }} <small>Club rule</small></strong>
             </div>
             <div class="review-row">
-              <span>Match format</span><strong>{{ LADDER_CONFIG.matchFormatLabel }} <small>Club rule</small></strong>
+              <span>Match format</span
+              ><strong>{{ LADDER_CONFIG.matchFormatLabel }} <small>Club rule</small></strong>
             </div>
             <div class="review-row">
-              <span>Tie-break</span><strong>{{ LADDER_CONFIG.tieBreakLabel }} <small>Club rule</small></strong>
+              <span>Tie-break</span
+              ><strong>{{ LADDER_CONFIG.tieBreakLabel }} <small>Club rule</small></strong>
             </div>
             <div class="review-row">
               <span>Timing</span><strong>{{ isPlayNow ? 'Play now' : formattedSchedule }}</strong>
             </div>
           </div>
           <div class="setup-default-note">
-            <FlowIcon name="lock" /><span>Respond within {{ LADDER_CONFIG.responseHours }} hours · Play within {{ LADDER_CONFIG.completionDays }} days</span>
+            <FlowIcon name="lock" /><span
+              >Respond within {{ LADDER_CONFIG.responseHours }} hours · Play within
+              {{ LADDER_CONFIG.completionDays }} days</span
+            >
           </div>
-          <button type="button" class="button-primary friendly-flow__continue" :disabled="challengeStore.isLoading" @click="completeReview">
+          <button
+            type="button"
+            class="button-primary friendly-flow__continue"
+            :disabled="challengeStore.isLoading"
+            @click="completeReview"
+          >
             <FlowIcon :name="isPlayNow ? 'play' : 'send'" />
-            <span>{{ challengeStore.isLoading ? 'Creating challenge…' : isPlayNow ? 'Accept and start match' : 'Send challenge' }}</span>
+            <span>{{
+              challengeStore.isLoading
+                ? 'Creating challenge…'
+                : isPlayNow
+                  ? 'Accept and start match'
+                  : 'Send challenge'
+            }}</span>
           </button>
         </template>
       </section>
@@ -1457,8 +1511,12 @@ watch(
         aria-labelledby="scheduled-title"
       >
         <div class="friendly-flow__intro">
-          <p class="friendly-flow__eyebrow">{{ isLadder ? 'Challenge sent' : 'Invitation sent' }}</p>
-          <h2 id="scheduled-title">{{ isLadder ? 'Your Ladder challenge is waiting.' : 'Your match is scheduled.' }}</h2>
+          <p class="friendly-flow__eyebrow">
+            {{ isLadder ? 'Challenge sent' : 'Invitation sent' }}
+          </p>
+          <h2 id="scheduled-title">
+            {{ isLadder ? 'Your Ladder challenge is waiting.' : 'Your match is scheduled.' }}
+          </h2>
           <p>
             {{ opponentName }} will receive an invitation{{
               hasScheduleDetails ? ` for ${formattedSchedule}` : ''
@@ -1491,7 +1549,8 @@ watch(
           <span
             class="friendly-live__live"
             :class="{ 'friendly-live__live--finished': friendlyMatchStore.draft.over }"
-          >{{ friendlyMatchStore.draft.over ? 'Finished' : 'Live' }}</span>
+            >{{ friendlyMatchStore.draft.over ? 'Finished' : 'Live' }}</span
+          >
         </div>
 
         <div
@@ -1501,7 +1560,9 @@ watch(
           <template v-if="friendlyMatchStore.draft.over">
             <div>
               <span>Sets won</span>
-              <strong>{{ friendlyMatchStore.draft.setsA }}–{{ friendlyMatchStore.draft.setsB }}</strong>
+              <strong
+                >{{ friendlyMatchStore.draft.setsA }}–{{ friendlyMatchStore.draft.setsB }}</strong
+              >
             </div>
             <div>
               <span>Final score</span>
@@ -1511,11 +1572,18 @@ watch(
           <template v-else>
             <div v-if="friendlyMatchStore.draft.matchFormat !== 'match-tiebreak'">
               <span>Sets</span>
-              <strong>{{ friendlyMatchStore.draft.setsA }}–{{ friendlyMatchStore.draft.setsB }}</strong>
+              <strong
+                >{{ friendlyMatchStore.draft.setsA }}–{{ friendlyMatchStore.draft.setsB }}</strong
+              >
             </div>
             <div v-if="friendlyMatchStore.draft.matchFormat !== 'match-tiebreak'">
-              <span>Games · Set {{ friendlyMatchStore.draft.setsA + friendlyMatchStore.draft.setsB + 1 }}</span>
-              <strong>{{ friendlyMatchStore.draft.gamesA }}–{{ friendlyMatchStore.draft.gamesB }}</strong>
+              <span
+                >Games · Set
+                {{ friendlyMatchStore.draft.setsA + friendlyMatchStore.draft.setsB + 1 }}</span
+              >
+              <strong
+                >{{ friendlyMatchStore.draft.gamesA }}–{{ friendlyMatchStore.draft.gamesB }}</strong
+              >
             </div>
             <div>
               <span>Points · Current game</span>
@@ -1551,8 +1619,14 @@ watch(
             <small>{{ currentIdentity.name }} vs {{ opponentName }}</small>
           </div>
           <div class="friendly-live__finished-facts">
-            <span><small>Final set scores</small><strong>{{ friendlyMatchStore.scoreSummary }}</strong></span>
-            <span><small>Total points played</small><strong>{{ friendlyMatchStore.draft.pointHistory.length }}</strong></span>
+            <span
+              ><small>Final set scores</small
+              ><strong>{{ friendlyMatchStore.scoreSummary }}</strong></span
+            >
+            <span
+              ><small>Total points played</small
+              ><strong>{{ friendlyMatchStore.draft.pointHistory.length }}</strong></span
+            >
           </div>
           <button
             type="button"
@@ -1613,7 +1687,9 @@ watch(
       :set-scores="friendlyMatchStore.draft.setScores"
       :match-format="friendlyMatchStore.matchFormatLabel"
       :scoring-format="friendlyMatchStore.formatLabel"
-      :primary-action-label="isLadder ? 'Submit result for confirmation' : 'Save result and return to dashboard'"
+      :primary-action-label="
+        isLadder ? 'Submit result for confirmation' : 'Save result and return to dashboard'
+      "
       @close="resultModalOpen = false"
       @finish="finishMatch"
     />
@@ -1639,6 +1715,8 @@ watch(
 }
 .friendly-flow__header {
   display: grid;
+  width: min(100%, var(--flow-content-width));
+  margin-inline: auto;
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
@@ -1659,7 +1737,7 @@ watch(
   padding: 0;
   border: var(--app-hairline);
   background: var(--color-surface);
-  box-shadow: 0 9px 24px rgba(15, 34, 24, 0.04);
+  box-shadow: var(--flow-shadow-quiet);
   color: var(--color-text-soft);
 }
 .friendly-flow__back svg,
@@ -1682,7 +1760,8 @@ watch(
 }
 .friendly-flow__screen {
   display: grid;
-  width: 100%;
+  width: min(100%, var(--flow-content-width));
+  margin-inline: auto;
   gap: 22px;
   padding-top: clamp(30px, 7vw, 58px);
 }
@@ -1692,6 +1771,7 @@ watch(
 }
 .friendly-flow__intro {
   max-width: 720px;
+  margin-bottom: 18px;
 }
 .friendly-flow__eyebrow,
 .friendly-flow__intro h2,
@@ -1771,7 +1851,7 @@ watch(
 .opponent-row {
   border: var(--app-hairline);
   background: var(--color-surface);
-  box-shadow: 0 9px 24px rgba(15, 34, 24, 0.04);
+  box-shadow: var(--flow-shadow-quiet);
   color: var(--color-text-soft);
   text-align: left;
   transition:
@@ -1844,7 +1924,12 @@ watch(
 .opponent-row:hover {
   transform: translateY(-1px);
   border-color: var(--color-border-strong);
-  box-shadow: 0 12px 28px rgba(15, 34, 24, 0.055);
+  box-shadow: var(--flow-shadow-hover);
+}
+.friendly-flow input::placeholder,
+.friendly-flow textarea::placeholder {
+  color: var(--color-muted);
+  opacity: 0.62;
 }
 .friendly-flow__choices--formats {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1896,8 +1981,8 @@ watch(
   max-width: none;
 }
 .match-format-choice--selected {
-  border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-primary) 34%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary) 2.5%, var(--color-surface));
 }
 .match-format-choice--selected .choice-card__arrow {
   font-size: 15px;
@@ -1940,9 +2025,8 @@ watch(
   border-radius: var(--app-card-radius);
 }
 .opponent-row--selected {
-  border: 2px solid var(--color-primary);
-  padding: 10px 13px;
-  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-primary) 34%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary) 2.5%, var(--color-surface));
 }
 .opponent-row__avatar {
   display: grid;
@@ -2186,9 +2270,9 @@ watch(
   box-shadow: 0 11px 26px rgba(15, 34, 24, 0.055);
 }
 .custom-style-chip--selected {
-  border-color: rgba(35, 183, 88, 0.55);
-  background: var(--color-primary-soft);
-  box-shadow: 0 10px 26px rgba(35, 183, 88, 0.09);
+  border-color: rgba(35, 183, 88, 0.34);
+  background: color-mix(in srgb, var(--color-primary) 2.5%, var(--color-surface));
+  box-shadow: 0 9px 24px rgba(15, 34, 24, 0.045);
 }
 .custom-style-chip .flow-choice-icon {
   grid-row: 1 / span 2;

@@ -41,6 +41,11 @@
   --app-inner-radius: 7px;
   --app-button-height: 44px;
   --app-hairline: 0.5px solid var(--color-border);
+  --flow-content-width: 920px;
+  --flow-section-space: clamp(30px, 5vw, 52px);
+  --flow-control-space: 10px;
+  --flow-shadow-quiet: 0 8px 24px rgba(15, 34, 24, 0.025);
+  --flow-shadow-hover: 0 11px 28px rgba(15, 34, 24, 0.045);
   --button-primary-bg: var(--color-primary);
   --button-primary-bg-hover: var(--color-primary-strong);
   --button-secondary-bg: #ffffff;

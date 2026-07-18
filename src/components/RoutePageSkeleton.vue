@@ -529,7 +529,7 @@ const opponentRows = computed(() =>
   height: 4px;
 }
 .onboarding-body {
-  width: min(100%, 860px);
+  width: min(100%, var(--flow-content-width));
   margin-inline: auto;
 }
 .onboarding-field {
@@ -794,6 +794,8 @@ const opponentRows = computed(() =>
 
 .flow-head {
   display: flex;
+  width: min(100%, var(--flow-content-width));
+  margin-inline: auto;
   align-items: center;
   gap: 12px;
   min-height: 62px;
@@ -802,6 +804,8 @@ const opponentRows = computed(() =>
 }
 .flow-body {
   display: grid;
+  width: min(100%, var(--flow-content-width));
+  margin-inline: auto;
   gap: 22px;
   padding-top: clamp(30px, 7vw, 58px);
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { useRoute, useRouter } from 'vue-router'
 import { ADMIN_SETUP_STEPS, createDefaultClubSetup } from '../config/admin'
@@ -33,8 +33,13 @@ const locationTimeLabel = ref('West Africa Time')
 const importFile = ref(null)
 const importBusy = ref(false)
 const importMessage = ref('')
+const importProgress = ref(0)
 const fileInput = ref(null)
 const qrDataUrl = ref('')
+const memberModalOpen = ref(false)
+const memberModal = ref(null)
+const memberModalError = ref('')
+const manualMember = reactive({ name: '', contact: '' })
 let importTimer = null
 
 const LOCATION_OPTIONS = Object.freeze([
@@ -97,18 +102,63 @@ const GROUP_OPTIONS = Object.freeze({
   doubles: ['everyone', 'men', 'women', 'mixed', 'senior', 'level'],
 })
 const MEMBER_OPTIONS = Object.freeze([
-  ['import-list', 'upload', 'Import a list'],
-  ['email-phone', 'send', 'Invite by email or phone'],
-  ['private-link', 'link', 'Share one link or QR code'],
-  ['manual', 'users', 'Add one at a time'],
-  ['later', 'calendar', 'Do this later'],
+  {
+    id: 'import-list',
+    icon: 'upload',
+    title: 'Import a list',
+    description: 'Upload Excel, CSV, or PDF.',
+  },
+  {
+    id: 'email-phone',
+    icon: 'send',
+    title: 'Invite by email or phone',
+    description: 'Send private invitations directly.',
+  },
+  {
+    id: 'private-link',
+    icon: 'link',
+    title: 'Share one link or QR code',
+    description: 'Let members join in their own time.',
+  },
+  {
+    id: 'manual',
+    icon: 'users',
+    title: 'Add one at a time',
+    description: 'Enter each member yourself.',
+  },
+  {
+    id: 'later',
+    icon: 'calendar',
+    title: 'Do this later',
+    description: 'Open the club without adding anyone.',
+  },
 ])
 
 const activeStep = computed(() => ADMIN_SETUP_STEPS[step.value - 1])
 const progress = computed(() => ((step.value - 1) / (ADMIN_SETUP_STEPS.length - 1)) * 100)
 const activeLadders = computed(() => form.ladders.filter((ladder) => ladder.enabled))
 const memberTitle = computed(
-  () => MEMBER_OPTIONS.find((item) => item[0] === form.membership.source)?.[2] || 'Do this later',
+  () => MEMBER_OPTIONS.find((item) => item.id === form.membership.source)?.title || 'Do this later',
+)
+const selectedMemberOption = computed(
+  () => MEMBER_OPTIONS.find((item) => item.id === form.membership.source) || MEMBER_OPTIONS[4],
+)
+const importFileSize = computed(() => {
+  if (!importFile.value) return ''
+  const megabytes = importFile.value.size / 1024 / 1024
+  return megabytes >= 1
+    ? `${megabytes.toFixed(1)} MB`
+    : `${Math.max(1, Math.round(importFile.value.size / 1024))} KB`
+})
+const memberModalAction = computed(
+  () =>
+    ({
+      'import-list': importFile.value ? 'Use this file' : 'Choose a file',
+      'email-phone': 'Save invitations',
+      'private-link': 'Done',
+      manual: 'Add members later',
+      later: 'I will do this later',
+    })[form.membership.source] || 'Done',
 )
 const inviteLink = computed(() => {
   const slug = form.workspace.name
@@ -180,6 +230,11 @@ function groupDescription(type, group) {
   if (group === 'level') return 'Use a clear level name.'
   return `Creates a ${groupTitle(group)} ${type === 'singles' ? 'Singles' : 'Doubles'} ladder.`
 }
+function groupIcon(group) {
+  if (group === 'senior') return 'calendar'
+  if (group === 'level') return 'ladder'
+  return 'users'
+}
 function ladderName(type, group) {
   const suffix = type === 'singles' ? 'Singles' : 'Doubles'
   if (group === 'everyone') return `Open ${suffix}`
@@ -233,17 +288,74 @@ function chooseMemberMethod(method) {
   form.membership.privateLinkEnabled = method === 'private-link'
   form.membership.allowManualEntry = ['manual', 'later'].includes(method)
   pageError.value = ''
+  memberModalError.value = ''
+  memberModalOpen.value = true
 }
-function handleFile(event) {
-  const file = event.target.files?.[0]
+function processImportFile(file) {
   if (!file) return
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  if (!['csv', 'xlsx', 'xls', 'pdf'].includes(extension)) {
+    memberModalError.value = 'Choose an Excel, CSV, or PDF file.'
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    memberModalError.value = 'Choose a file smaller than 10 MB.'
+    return
+  }
+  memberModalError.value = ''
+  if (importTimer) window.clearInterval(importTimer)
   importFile.value = file
   importBusy.value = true
-  importMessage.value = 'Reading your document…'
-  importTimer = window.setTimeout(() => {
-    importBusy.value = false
-    importMessage.value = 'Your file is ready. Nothing will be added until you review it.'
-  }, 1100)
+  importProgress.value = 16
+  importMessage.value = `Preparing ${file.name}…`
+  importTimer = window.setInterval(() => {
+    importProgress.value = Math.min(100, importProgress.value + 14)
+    if (importProgress.value === 100) {
+      window.clearInterval(importTimer)
+      importTimer = null
+      importBusy.value = false
+      importMessage.value = 'Ready for review. Nothing has been added yet.'
+    }
+  }, 140)
+}
+function handleFile(event) {
+  processImportFile(event.target.files?.[0])
+}
+function handleFileDrop(event) {
+  processImportFile(event.dataTransfer?.files?.[0])
+}
+function closeMemberModal() {
+  memberModalOpen.value = false
+  memberModalError.value = ''
+}
+function confirmMemberModal() {
+  const method = form.membership.source
+  if (method === 'import-list' && !importFile.value) {
+    fileInput.value?.click()
+    return
+  }
+  if (
+    method === 'email-phone' &&
+    !form.membership.inviteEmails.trim() &&
+    !form.membership.invitePhones.trim()
+  ) {
+    memberModalError.value = 'Add at least one email address or phone number.'
+    return
+  }
+  if (method === 'manual' && manualMember.name.trim().length < 2) {
+    memberModalError.value = 'Enter the member’s name.'
+    return
+  }
+  if (method === 'manual') {
+    notificationStore.addToast({
+      message: `${manualMember.name.trim()} is ready to add.`,
+      type: 'success',
+    })
+  }
+  closeMemberModal()
+}
+function handlePageKeydown(event) {
+  if (event.key === 'Escape' && memberModalOpen.value) closeMemberModal()
 }
 async function generateQrCode() {
   if (!form.membership.invitationToken) return
@@ -268,8 +380,10 @@ async function copyInviteLink() {
 async function goNext() {
   if (step.value === 1) form.workspace.name = form.workspace.name.trim()
   if (step.value === 2 && form.workspace.location.trim().length >= 2) locationConfirmed.value = true
-  if (step.value === 5 && form.membership.source === 'import-list' && !importFile.value)
-    return fileInput.value?.click()
+  if (step.value === 5 && form.membership.source === 'import-list' && !importFile.value) {
+    memberModalOpen.value = true
+    return
+  }
   if (
     step.value === 5 &&
     form.membership.source === 'email-phone' &&
@@ -327,7 +441,15 @@ watch(
   syncLadders,
 )
 watch(inviteLink, generateQrCode)
+watch(memberModalOpen, async (isOpen) => {
+  document.body.style.overflow = isOpen ? 'hidden' : ''
+  if (isOpen) {
+    await nextTick()
+    memberModal.value?.focus()
+  }
+})
 onMounted(async () => {
+  window.addEventListener('keydown', handlePageKeydown)
   step.value = routeStep()
   await adminStore.loadSetup()
   replaceForm(adminStore.setup)
@@ -341,168 +463,345 @@ onMounted(async () => {
   generateQrCode()
 })
 onUnmounted(() => {
-  if (importTimer) window.clearTimeout(importTimer)
+  window.removeEventListener('keydown', handlePageKeydown)
+  document.body.style.overflow = ''
+  if (importTimer) window.clearInterval(importTimer)
 })
 </script>
 
 <template>
   <main class="admin-onboarding">
-    <header class="flow-header">{{ activeStep.label }} · {{ step }} of 6</header>
+    <header class="flow-header">
+      <button class="flow-back" type="button" aria-label="Go back" @click="goBack">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+      </button>
+      <strong>{{ activeStep.label }}</strong>
+      <span>{{ step }} of 6</span>
+    </header>
     <progress :value="progress" max="100"></progress>
     <form class="flow-screen" @submit.prevent="submitStep">
-      <p class="eyebrow">{{ SCREEN_COPY[step - 1][0] }}</p>
-      <h1>{{ SCREEN_COPY[step - 1][1] }}</h1>
-      <p class="lead">{{ SCREEN_COPY[step - 1][2] }}</p>
+      <div class="flow-intro">
+        <p class="eyebrow">{{ SCREEN_COPY[step - 1][0] }}</p>
+        <h1>{{ SCREEN_COPY[step - 1][1] }}</h1>
+        <p class="lead">{{ SCREEN_COPY[step - 1][2] }}</p>
+      </div>
       <p v-if="pageError" class="flow-alert" role="alert">{{ pageError }}</p>
-      <label v-if="step === 1" class="answer-field">
-        <span>Club name</span>
-        <input v-model="form.workspace.name" placeholder="For example: Riverside Tennis Club" />
-      </label>
-      <div v-else-if="step === 2">
-        <input
-          v-model="form.workspace.location"
-          list="club-locations"
-          placeholder="Start typing your town or city"
-          aria-label="Town or city"
-          @input="locationConfirmed = false"
-          @change="confirmLocation"
-        />
-        <datalist id="club-locations">
-          <option v-for="item in LOCATION_OPTIONS" :key="item.label" :value="item.label"></option>
-        </datalist>
-        <button type="button" @click="confirmLocation">Use this location</button>
-        <p v-if="locationConfirmed">Time set automatically to {{ locationTimeLabel }}.</p>
-      </div>
-      <div v-else-if="step === 3" class="choices two">
-        <button
-          v-for="item in MATCH_TYPE_OPTIONS"
-          :key="item.id"
-          type="button"
-          :class="{ selected: matchTypes.includes(item.id) }"
-          @click="toggleMatchType(item.id)"
-        >
-          <FlowIcon :name="item.icon" />
-          <span
-            ><em v-if="item.badge">{{ item.badge }}</em
-            ><strong>{{ item.title }}</strong
-            ><small>{{ item.description }}</small></span
-          >
-          <b>{{ matchTypes.includes(item.id) ? '✓' : '' }}</b>
-        </button>
-      </div>
-      <div v-else-if="step === 4">
-        <section v-for="type in matchTypes" :key="type" class="group">
-          <h2>{{ type === 'singles' ? 'Singles ladder' : 'Doubles ladder' }}</h2>
-          <div class="choices">
-            <button
-              v-for="item in GROUP_OPTIONS[type]"
-              :key="item"
-              type="button"
-              :class="{ selected: groups[type].includes(item) }"
-              @click="toggleGroup(type, item)"
-            >
-              <span
-                ><strong>{{ groupTitle(item) }}</strong
-                ><small>{{ groupDescription(type, item) }}</small></span
-              >
-              <b>{{ groups[type].includes(item) ? '✓' : '' }}</b>
-            </button>
-          </div>
-          <label v-if="groups[type].includes(`senior`)"
-            >Starting age
-            <input v-model.number="seniorAge[type]" type="number" min="40" max="100" />
-          </label>
-          <label v-if="groups[type].includes(`level`)"
-            >Level name
-            <input v-model="levelName[type]" />
-          </label>
-        </section>
-      </div>
-      <div v-else-if="step === 5">
-        <div class="choices">
-          <button
-            v-for="item in MEMBER_OPTIONS"
-            :key="item[0]"
-            type="button"
-            :class="{ selected: form.membership.source === item[0] }"
-            @click="chooseMemberMethod(item[0])"
-          >
-            <FlowIcon :name="item[1]" /><strong>{{ item[2] }}</strong>
-            <b>{{ form.membership.source === item[0] ? '✓' : '' }}</b>
+      <div class="flow-answer">
+        <label v-if="step === 1" class="answer-field">
+          <span>Club name</span>
+          <input v-model="form.workspace.name" placeholder="For example: Riverside Tennis Club" />
+        </label>
+        <div v-else-if="step === 2" class="location-answer">
+          <label class="location-label" for="club-location">Town or city</label>
+          <input
+            id="club-location"
+            v-model="form.workspace.location"
+            list="club-locations"
+            placeholder="Start typing your town or city"
+            aria-label="Town or city"
+            @input="locationConfirmed = false"
+            @change="confirmLocation"
+          />
+          <datalist id="club-locations">
+            <option v-for="item in LOCATION_OPTIONS" :key="item.label" :value="item.label"></option>
+          </datalist>
+          <button class="location-action" type="button" @click="confirmLocation">
+            <FlowIcon name="check" /> Use this location
           </button>
-        </div>
-        <div v-if="form.membership.source === `import-list`" class="detail">
-          <input ref="fileInput" type="file" @change="handleFile" />
-          <p v-if="importBusy" class="loading">{{ importMessage }}</p>
-          <p v-else>
-            {{ importMessage || 'GORRA will organise the file and let you check it first.' }}
+          <p v-if="locationConfirmed" class="location-confirmation">
+            <FlowIcon name="check" /> Time set automatically to {{ locationTimeLabel }}.
           </p>
         </div>
-        <div v-else-if="form.membership.source === `email-phone`" class="detail two">
-          <textarea
-            v-model="form.membership.inviteEmails"
-            aria-label="Member email addresses"
-            placeholder="Email addresses"
-          ></textarea>
-          <textarea
-            v-model="form.membership.invitePhones"
-            aria-label="Member phone numbers"
-            placeholder="Phone numbers"
-          ></textarea>
+        <div v-else-if="step === 3" class="choices two">
+          <button
+            v-for="item in MATCH_TYPE_OPTIONS"
+            :key="item.id"
+            type="button"
+            :class="{ selected: matchTypes.includes(item.id) }"
+            @click="toggleMatchType(item.id)"
+          >
+            <span class="choice-icon"><FlowIcon :name="item.icon" /></span>
+            <span
+              ><em v-if="item.badge">{{ item.badge }}</em
+              ><strong>{{ item.title }}</strong
+              ><small>{{ item.description }}</small></span
+            >
+            <b>{{ matchTypes.includes(item.id) ? '✓' : '' }}</b>
+          </button>
         </div>
-        <div v-else-if="form.membership.source === `private-link`" class="detail invite">
-          <img v-if="qrDataUrl" :src="qrDataUrl" alt="Club invitation QR code" />
-          <div>
-            <p>{{ inviteLink }}</p>
-            <button type="button" @click="copyInviteLink">Copy invitation link</button>
+        <div v-else-if="step === 4">
+          <section v-for="type in matchTypes" :key="type" class="group">
+            <h2>{{ type === 'singles' ? 'Singles ladder' : 'Doubles ladder' }}</h2>
+            <div class="choices">
+              <button
+                v-for="item in GROUP_OPTIONS[type]"
+                :key="item"
+                type="button"
+                :class="{ selected: groups[type].includes(item) }"
+                @click="toggleGroup(type, item)"
+              >
+                <span class="choice-icon"><FlowIcon :name="groupIcon(item)" /></span>
+                <span
+                  ><strong>{{ groupTitle(item) }}</strong
+                  ><small>{{ groupDescription(type, item) }}</small></span
+                >
+                <b>{{ groups[type].includes(item) ? '✓' : '' }}</b>
+              </button>
+            </div>
+            <label v-if="groups[type].includes(`senior`)"
+              >Starting age
+              <input v-model.number="seniorAge[type]" type="number" min="40" max="100" />
+            </label>
+            <label v-if="groups[type].includes(`level`)"
+              >Level name
+              <input v-model="levelName[type]" />
+            </label>
+          </section>
+        </div>
+        <div v-else-if="step === 5">
+          <div class="choices">
+            <button
+              v-for="item in MEMBER_OPTIONS"
+              :key="item.id"
+              type="button"
+              :class="{ selected: form.membership.source === item.id }"
+              @click="chooseMemberMethod(item.id)"
+            >
+              <span class="choice-icon"><FlowIcon :name="item.icon" /></span>
+              <span>
+                <strong>{{ item.title }}</strong>
+                <small>{{ item.description }}</small>
+              </span>
+              <b>{{ form.membership.source === item.id ? '✓' : '›' }}</b>
+            </button>
           </div>
         </div>
-        <p v-else class="detail">{{ memberTitle }}. You can change this after the club opens.</p>
-      </div>
-      <div v-else class="review">
-        <h2>{{ form.workspace.name }}</h2>
-        <p>{{ form.workspace.location }}</p>
-        <h3>Ladders</h3>
-        <ul>
-          <li v-for="ladder in activeLadders" :key="ladder.id">{{ ladder.name }}</li>
-        </ul>
-        <h3>Members</h3>
-        <p>{{ memberTitle }}</p>
-        <button type="button" @click="syncRoute(1)">Go back and change something</button>
+        <div v-else class="review">
+          <h2>{{ form.workspace.name }}</h2>
+          <p>{{ form.workspace.location }}</p>
+          <h3>Ladders</h3>
+          <ul>
+            <li v-for="ladder in activeLadders" :key="ladder.id">{{ ladder.name }}</li>
+          </ul>
+          <h3>Members</h3>
+          <p>{{ memberTitle }}</p>
+          <button type="button" @click="syncRoute(1)">Go back and change something</button>
+        </div>
       </div>
       <footer class="actions">
-        <button type="button" @click="goBack">Back</button>
         <button class="primary" type="submit" :disabled="adminStore.isSaving">
           {{ primaryActionLabel }}
         </button>
       </footer>
     </form>
+
+    <Teleport to="body">
+      <Transition name="member-modal">
+        <div
+          v-if="memberModalOpen"
+          class="member-modal-backdrop"
+          @mousedown.self="closeMemberModal"
+        >
+          <section
+            ref="memberModal"
+            class="member-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="member-modal-title"
+            tabindex="-1"
+          >
+            <header class="member-modal__header">
+              <span class="member-modal__icon">
+                <FlowIcon :name="selectedMemberOption.icon" />
+              </span>
+              <div>
+                <p class="member-modal__eyebrow">Add members</p>
+                <h2 id="member-modal-title">{{ selectedMemberOption.title }}</h2>
+                <p>{{ selectedMemberOption.description }}</p>
+              </div>
+              <button
+                class="member-modal__close"
+                type="button"
+                aria-label="Close"
+                @click="closeMemberModal"
+              >
+                <FlowIcon name="close" />
+              </button>
+            </header>
+
+            <p v-if="memberModalError" class="flow-alert" role="alert">
+              {{ memberModalError }}
+            </p>
+
+            <div class="member-modal__body">
+              <template v-if="form.membership.source === 'import-list'">
+                <input
+                  ref="fileInput"
+                  class="visually-hidden"
+                  type="file"
+                  accept=".csv,.xlsx,.xls,.pdf"
+                  @change="handleFile"
+                />
+                <button
+                  class="upload-zone"
+                  type="button"
+                  @click="fileInput?.click()"
+                  @dragover.prevent
+                  @drop.prevent="handleFileDrop"
+                >
+                  <span class="upload-zone__icon"><FlowIcon name="upload" /></span>
+                  <strong>{{
+                    importFile ? 'Choose a different file' : 'Choose a file to upload'
+                  }}</strong>
+                  <small>Excel, CSV, or PDF · up to 10 MB</small>
+                  <span>Browse files</span>
+                </button>
+                <div v-if="importFile" class="upload-file">
+                  <span class="upload-file__icon"><FlowIcon name="check" /></span>
+                  <div>
+                    <strong>{{ importFile.name }}</strong>
+                    <small>{{ importFileSize }} · {{ importMessage }}</small>
+                  </div>
+                  <b>{{ importProgress }}%</b>
+                  <progress :value="importProgress" max="100"></progress>
+                </div>
+                <p class="privacy-note">
+                  <FlowIcon name="check" /> You will review everything before members are added.
+                </p>
+              </template>
+
+              <div v-else-if="form.membership.source === 'email-phone'" class="modal-fields">
+                <label>
+                  <span>Email addresses</span>
+                  <textarea
+                    v-model="form.membership.inviteEmails"
+                    placeholder="name@example.com"
+                  ></textarea>
+                  <small>Separate several addresses with commas.</small>
+                </label>
+                <label>
+                  <span>Phone numbers</span>
+                  <textarea
+                    v-model="form.membership.invitePhones"
+                    placeholder="+234 800 000 0000"
+                  ></textarea>
+                  <small>Separate several numbers with commas.</small>
+                </label>
+              </div>
+
+              <div v-else-if="form.membership.source === 'private-link'" class="modal-invite">
+                <img v-if="qrDataUrl" :src="qrDataUrl" alt="Club invitation QR code" />
+                <div>
+                  <p>Anyone with this private invitation can ask to join your club.</p>
+                  <output>{{ inviteLink }}</output>
+                  <button type="button" @click="copyInviteLink">
+                    <FlowIcon name="copy" /> Copy invitation link
+                  </button>
+                </div>
+              </div>
+
+              <div v-else-if="form.membership.source === 'manual'" class="modal-fields">
+                <label>
+                  <span>Member name</span>
+                  <input v-model="manualMember.name" placeholder="Full name" />
+                </label>
+                <label>
+                  <span>Email or phone <small>Optional</small></span>
+                  <input
+                    v-model="manualMember.contact"
+                    placeholder="How should the club contact them?"
+                  />
+                </label>
+                <p class="privacy-note">
+                  <FlowIcon name="users" /> You can add more members after the club opens.
+                </p>
+              </div>
+
+              <div v-else class="later-note">
+                <span><FlowIcon name="calendar" /></span>
+                <div>
+                  <strong>That is completely fine.</strong>
+                  <p>Your club can open now. Add members whenever you are ready.</p>
+                </div>
+              </div>
+            </div>
+
+            <footer class="member-modal__actions">
+              <button type="button" @click="closeMemberModal">Cancel</button>
+              <button class="primary" type="button" @click="confirmMemberModal">
+                {{ memberModalAction }}
+              </button>
+            </footer>
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
   </main>
 </template>
 <style scoped>
 .admin-onboarding {
+  width: min(1140px, 100%);
   min-height: 100svh;
-  padding: clamp(20px, 4vw, 48px);
+  margin: 0 auto;
+  padding: clamp(18px, 3vw, 34px) clamp(20px, 3.5vw, 40px) 44px;
   color: var(--color-text, #172319);
-  background: #f7f8f4;
+  background: var(--color-bg, #fff);
+  font-family: inherit;
 }
 .flow-header,
-.flow-screen,
 progress {
-  width: min(100%, 860px);
+  width: min(100%, var(--flow-content-width));
+  margin-inline: auto;
+}
+.flow-screen {
+  width: min(100%, var(--flow-content-width));
   margin-inline: auto;
 }
 .flow-header {
-  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 52px;
+  gap: 12px;
+  padding-bottom: 14px;
   color: #657066;
-  font-size: 0.875rem;
+  font-size: 0.78rem;
   font-weight: var(--font-weight-medium, 500);
   letter-spacing: 0.02em;
 }
+.flow-header strong {
+  color: var(--color-text-soft, #425044);
+  font-size: 0.9rem;
+  font-weight: var(--font-weight-semibold, 600);
+}
+.flow-header > span {
+  opacity: 0.78;
+}
+.flow-back {
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  place-items: center;
+  border: var(--app-hairline);
+  border-radius: var(--app-inner-radius, 12px);
+  background: var(--color-surface, #fff);
+  box-shadow: var(--flow-shadow-quiet);
+  color: var(--color-text-soft, #425044);
+}
+.flow-back svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 progress {
   display: block;
-  height: 4px;
-  margin-bottom: clamp(44px, 8vh, 84px);
+  height: 3px;
+  margin-bottom: 0;
   overflow: hidden;
   border: 0;
   border-radius: 999px;
@@ -519,39 +818,51 @@ progress::-moz-progress-bar {
 }
 .flow-screen {
   display: grid;
-  gap: 20px;
+  gap: 0;
+  padding-top: clamp(30px, 7vw, 58px);
+}
+.flow-intro {
+  display: grid;
+  max-width: 760px;
+  gap: 7px;
+}
+.flow-answer {
+  width: 100%;
+  margin-top: var(--flow-section-space);
 }
 .answer-field {
   display: grid;
-  gap: 8px;
+  gap: var(--flow-control-space);
+  color: var(--color-text-soft, #425044);
+  font-size: 12.5px;
   font-weight: var(--font-weight-medium, 500);
 }
 .eyebrow {
   margin: 0;
   color: #647067;
-  font-size: 0.78rem;
+  font-size: 10px;
   font-weight: var(--font-weight-semibold, 600);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 h1 {
-  max-width: 720px;
-  margin: -4px 0 0;
-  font-size: clamp(2rem, 5vw, 3.5rem);
+  max-width: 760px;
+  margin: 0;
+  font-size: clamp(22px, 5vw, 30px);
   font-weight: var(--font-weight-bold, 700);
-  line-height: 1.04;
-  letter-spacing: -0.04em;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
 }
 .lead {
-  max-width: 650px;
-  margin: -6px 0 18px;
+  max-width: 68ch;
+  margin: 0;
   color: #5e6860;
-  font-size: clamp(1rem, 2vw, 1.15rem);
+  font-size: 13px;
   font-weight: var(--font-weight-regular, 400);
   line-height: 1.65;
 }
 .flow-alert {
-  margin: 0;
+  margin: 18px 0 0;
   padding: 14px 16px;
   border: 1px solid #e6b9b9;
   border-radius: 12px;
@@ -564,13 +875,19 @@ textarea {
   width: 100%;
   min-height: 58px;
   padding: 14px 16px;
-  border: 1px solid #cdd5cd;
+  border: var(--app-hairline);
   border-radius: 14px;
   color: inherit;
   background: #fff;
   font: inherit;
   font-size: 1.05rem;
   font-weight: var(--font-weight-regular, 400);
+  box-shadow: inset 0 1px 0 rgba(15, 34, 24, 0.015);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-muted, #6d7a70);
+  opacity: 0.62;
 }
 textarea {
   min-height: 130px;
@@ -579,7 +896,7 @@ textarea {
 input:focus,
 textarea:focus,
 button:focus-visible {
-  outline: 3px solid rgba(40, 122, 69, 0.24);
+  outline: 2px solid rgba(40, 122, 69, 0.14);
   outline-offset: 2px;
   border-color: #287a45;
 }
@@ -608,30 +925,44 @@ button:disabled {
 }
 .choices > button {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 92px;
-  gap: 16px;
+  min-height: 90px;
+  column-gap: 15px;
   padding: 18px;
+  border: var(--app-hairline);
+  border-radius: var(--app-card-radius, 16px);
+  box-shadow: var(--flow-shadow-quiet);
+  color: var(--color-text-soft, #425044);
   text-align: left;
   transition:
-    border-color 160ms ease,
-    background 160ms ease,
-    transform 160ms ease;
+    transform 180ms var(--motion-curve),
+    box-shadow 180ms var(--motion-curve),
+    border-color 180ms ease,
+    background 180ms ease;
 }
 .choices > button:hover {
   transform: translateY(-1px);
-  border-color: #92a396;
+  border-color: color-mix(in srgb, var(--color-primary, #287a45) 24%, var(--color-border));
+  box-shadow: var(--flow-shadow-hover);
 }
 .choices > button.selected {
-  border-color: #287a45;
-  background: #f0f8f2;
-  box-shadow: 0 0 0 1px #287a45;
+  border-color: color-mix(in srgb, var(--color-primary, #287a45) 34%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary, #287a45) 2.5%, #fff);
+  box-shadow: var(--flow-shadow-quiet);
 }
-.choices svg {
-  width: 26px;
-  height: 26px;
-  color: #526057;
+.choice-icon {
+  display: grid !important;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--color-surface-soft, #f4f7f5);
+  color: var(--color-primary-strong, #287a45);
+}
+.choice-icon .flow-icon {
+  width: 22px;
+  height: 22px;
 }
 .choices span {
   display: grid;
@@ -640,7 +971,10 @@ button:disabled {
 .choices strong,
 .choices em {
   font-style: normal;
+  font-size: 14.5px;
   font-weight: var(--font-weight-semibold, 600);
+  letter-spacing: -0.008em;
+  line-height: 1.35;
 }
 .choices em {
   width: fit-content;
@@ -652,19 +986,54 @@ button:disabled {
 }
 .choices small {
   color: #687269;
-  font-size: 0.92rem;
+  font-size: 12px;
   font-weight: var(--font-weight-regular, 400);
-  line-height: 1.45;
+  line-height: 1.55;
 }
 .choices b {
   color: #287a45;
-  font-size: 1.25rem;
+  font-size: 18px;
   font-weight: var(--font-weight-semibold, 600);
+  opacity: 0.68;
+}
+.location-answer {
+  display: grid;
+}
+.location-label {
+  margin-bottom: var(--flow-control-space);
+  color: var(--color-text-soft, #425044);
+  font-size: 12.5px;
+  font-weight: var(--font-weight-medium, 500);
+}
+.location-action {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+.location-action .flow-icon,
+.location-confirmation .flow-icon,
+.privacy-note .flow-icon {
+  width: 17px;
+  height: 17px;
+}
+.location-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  color: #59635b;
+  font-size: 12.5px;
+  font-weight: var(--font-weight-regular, 400);
 }
 .group {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   padding-block: 8px 28px;
+}
+.group .choices {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .group + .group {
   border-top: 1px solid #dfe4df;
@@ -688,11 +1057,12 @@ button:disabled {
   gap: 14px;
   margin-top: 18px;
   padding: clamp(18px, 3vw, 26px);
-  border: 1px solid #d7ddd7;
+  border: var(--app-hairline);
   border-radius: 16px;
   background: #fff;
   color: #59635b;
   font-weight: var(--font-weight-regular, 400);
+  box-shadow: var(--flow-shadow-quiet);
 }
 .detail p,
 .review p {
@@ -729,9 +1099,9 @@ button:disabled {
 }
 .actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 14px;
-  margin-top: clamp(24px, 6vh, 54px);
+  margin-top: var(--flow-section-space);
   padding-top: 20px;
   border-top: 1px solid #dfe4df;
 }
@@ -743,6 +1113,317 @@ button:disabled {
   border-color: #287a45;
   color: #fff;
   background: #287a45;
+}
+.member-modal-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 18, 12, 0.38);
+  backdrop-filter: blur(8px);
+}
+.member-modal {
+  width: min(100%, 720px);
+  max-height: min(88svh, 820px);
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 32px 90px rgba(8, 23, 13, 0.2);
+}
+.member-modal__header {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 44px;
+  align-items: start;
+  gap: 16px;
+  padding: 24px 24px 20px;
+  border-bottom: var(--app-hairline);
+}
+.member-modal__icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--color-surface-soft, #f4f7f5);
+  color: var(--color-primary-strong, #287a45);
+}
+.member-modal__icon .flow-icon {
+  width: 23px;
+  height: 23px;
+}
+.member-modal__eyebrow {
+  margin: 0 0 5px !important;
+  color: var(--color-primary-strong, #287a45);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold, 600);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+.member-modal__header h2 {
+  margin: 0;
+  color: var(--color-text-soft, #425044);
+  font-size: 20px;
+  font-weight: var(--font-weight-bold, 700);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.member-modal__header p:last-child {
+  margin: 5px 0 0;
+  color: var(--color-muted, #687269);
+  font-size: 12.5px;
+  font-weight: var(--font-weight-regular, 400);
+  line-height: 1.55;
+}
+.member-modal__close {
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  place-items: center;
+  border: var(--app-hairline);
+  border-radius: 12px;
+  color: var(--color-muted, #687269);
+}
+.member-modal__close .flow-icon {
+  width: 19px;
+  height: 19px;
+}
+.member-modal > .flow-alert {
+  margin: 18px 24px 0;
+}
+.member-modal__body {
+  padding: 24px;
+}
+.upload-zone {
+  display: grid;
+  width: 100%;
+  min-height: 238px;
+  align-content: center;
+  justify-items: center;
+  gap: 7px;
+  padding: 28px;
+  border: 1px dashed color-mix(in srgb, var(--color-primary, #287a45) 30%, #cdd5cd);
+  border-radius: var(--app-card-radius, 16px);
+  background: color-mix(in srgb, var(--color-primary, #287a45) 1.8%, #fff);
+  text-align: center;
+}
+.upload-zone:hover {
+  border-color: color-mix(in srgb, var(--color-primary, #287a45) 45%, #cdd5cd);
+  background: color-mix(in srgb, var(--color-primary, #287a45) 3%, #fff);
+}
+.upload-zone__icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 6px;
+  place-items: center;
+  border-radius: 15px;
+  background: #eef6f0;
+  color: var(--color-primary-strong, #287a45);
+}
+.upload-zone__icon .flow-icon {
+  width: 25px;
+  height: 25px;
+}
+.upload-zone strong {
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold, 600);
+}
+.upload-zone small {
+  color: var(--color-muted, #687269);
+  font-size: 12px;
+  font-weight: var(--font-weight-regular, 400);
+}
+.upload-zone > span:last-child {
+  margin-top: 8px;
+  color: var(--color-primary-strong, #287a45);
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold, 600);
+}
+.upload-file {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: var(--app-hairline);
+  border-radius: 14px;
+  background: var(--color-surface-soft, #f4f7f5);
+}
+.upload-file__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 11px;
+  background: #e6f4e9;
+  color: var(--color-primary-strong, #287a45);
+}
+.upload-file strong,
+.upload-file small {
+  display: block;
+}
+.upload-file strong {
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold, 600);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upload-file small {
+  margin-top: 3px;
+  color: var(--color-muted, #687269);
+  font-size: 10.5px;
+  font-weight: var(--font-weight-regular, 400);
+}
+.upload-file b {
+  color: var(--color-muted, #687269);
+  font-size: 11px;
+  font-weight: var(--font-weight-medium, 500);
+}
+.upload-file progress {
+  grid-column: 2 / -1;
+  height: 3px;
+}
+.privacy-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  color: var(--color-muted, #687269);
+  font-size: 11.5px;
+  font-weight: var(--font-weight-regular, 400);
+}
+.modal-fields {
+  display: grid;
+  gap: 18px;
+}
+.modal-fields label {
+  display: grid;
+  gap: 8px;
+  color: var(--color-text-soft, #425044);
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold, 600);
+}
+.modal-fields label > span small,
+.modal-fields label > small {
+  color: var(--color-muted, #687269);
+  font-size: 10.5px;
+  font-weight: var(--font-weight-regular, 400);
+}
+.modal-invite {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+}
+.modal-invite img {
+  width: 150px;
+  border: var(--app-hairline);
+  border-radius: 14px;
+}
+.modal-invite p {
+  margin: 0 0 12px;
+  color: var(--color-muted, #687269);
+  font-size: 12.5px;
+  font-weight: var(--font-weight-regular, 400);
+  line-height: 1.55;
+}
+.modal-invite output {
+  display: block;
+  padding: 12px;
+  overflow-wrap: anywhere;
+  border: var(--app-hairline);
+  border-radius: 11px;
+  background: var(--color-surface-soft, #f4f7f5);
+  color: var(--color-text-soft, #425044);
+  font-size: 10.5px;
+}
+.modal-invite button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.modal-invite button .flow-icon {
+  width: 17px;
+  height: 17px;
+}
+.later-note {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  min-height: 132px;
+  padding: 22px;
+  border: var(--app-hairline);
+  border-radius: var(--app-card-radius, 16px);
+  background: var(--color-surface-soft, #f4f7f5);
+}
+.later-note > span {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--color-primary-strong, #287a45);
+}
+.later-note strong {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold, 600);
+}
+.later-note p {
+  margin: 5px 0 0;
+  color: var(--color-muted, #687269);
+  font-size: 12px;
+  font-weight: var(--font-weight-regular, 400);
+}
+.member-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 18px 24px 22px;
+  border-top: var(--app-hairline);
+  background: rgba(250, 251, 249, 0.82);
+}
+.member-modal__actions .primary {
+  min-width: 150px;
+  border-color: #287a45;
+  color: #fff;
+  background: #287a45;
+}
+.member-modal-enter-active,
+.member-modal-leave-active {
+  transition: opacity 180ms ease;
+}
+.member-modal-enter-active .member-modal,
+.member-modal-leave-active .member-modal {
+  transition:
+    transform 220ms var(--motion-curve),
+    opacity 180ms ease;
+}
+.member-modal-enter-from,
+.member-modal-leave-to {
+  opacity: 0;
+}
+.member-modal-enter-from .member-modal,
+.member-modal-leave-to .member-modal {
+  opacity: 0;
+  transform: translateY(14px) scale(0.985);
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 .loading {
   position: relative;
@@ -773,6 +1454,7 @@ button:disabled {
     margin-bottom: 38px;
   }
   .choices.two,
+  .group .choices,
   .detail.two {
     grid-template-columns: 1fr;
   }
@@ -782,10 +1464,42 @@ button:disabled {
   .invite img {
     width: 132px;
   }
+  .member-modal-backdrop {
+    align-items: end;
+    padding: 12px;
+  }
+  .member-modal {
+    width: 100%;
+    max-height: 92svh;
+    border-radius: 20px 20px 14px 14px;
+  }
+  .member-modal__header {
+    grid-template-columns: 44px minmax(0, 1fr) 40px;
+    gap: 12px;
+    padding: 20px 18px 17px;
+  }
+  .member-modal__body {
+    padding: 18px;
+  }
+  .modal-invite {
+    grid-template-columns: 1fr;
+  }
+  .modal-invite img {
+    width: 132px;
+  }
+  .member-modal__actions {
+    position: sticky;
+    bottom: 0;
+    padding: 14px 18px 18px;
+  }
+  .member-modal-enter-from .member-modal,
+  .member-modal-leave-to .member-modal {
+    transform: translateY(28px);
+  }
 }
 @media (max-width: 480px) {
   h1 {
-    font-size: 2rem;
+    font-size: 24px;
   }
   .choices > button {
     min-height: 84px;
@@ -795,9 +1509,13 @@ button:disabled {
     position: sticky;
     bottom: 0;
     padding: 14px 0;
-    background: #f7f8f4;
+    background: var(--color-bg, #fff);
   }
   .actions button {
+    min-width: 0;
+    flex: 1;
+  }
+  .member-modal__actions button {
     min-width: 0;
     flex: 1;
   }

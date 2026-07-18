@@ -317,32 +317,33 @@ h1 {
 }
 
 .auth-role-option {
-  min-height: 112px;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 11px;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  min-height: 90px;
+  align-items: center;
+  column-gap: 15px;
   padding: 18px;
-  border: 1px solid #d5ddd7;
-  border-radius: 9px;
+  border: var(--app-hairline);
+  border-radius: var(--app-card-radius);
   background: #fff;
+  box-shadow: var(--flow-shadow-quiet);
   color: #172319;
   text-align: left;
   white-space: normal;
 }
 
 .auth-role-option--active {
-  border-color: var(--color-primary-strong);
-  background: #f2fbf3;
-  box-shadow: 0 0 0 2px rgba(0, 181, 26, 0.1);
+  border-color: color-mix(in srgb, var(--color-primary) 34%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary) 2.5%, #fff);
+  box-shadow: var(--flow-shadow-quiet);
 }
 
 .auth-role-option__icon {
   display: grid;
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   place-items: center;
-  border-radius: 7px;
+  border-radius: 13px;
   background: #edf5ef;
   color: #087524;
 }
