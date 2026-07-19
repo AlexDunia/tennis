@@ -157,6 +157,12 @@ unless the product owner explicitly changes the typography system.
   surface contrast should provide most of the separation.
 - Labels sit directly above inputs with the shared control spacing; placeholders use the muted
   text color at reduced opacity and must never compete with entered values.
+- Gorra modal entrances may use one restrained tennis-swing motion: no more than roughly 1.5
+  degrees of rotation, one small settle, and under 500ms. Never loop or bounce the modal.
+- Media-led sharing popups center the image or QR code, supporting text, and evenly spaced action
+  icons. Use the dark-green gradient icon treatment while keeping long URLs visually secondary.
+- Every symbolic modal animation must have a motion-free fade fallback through reduced-motion
+  preferences.
 
 ### Global HTML/Body Styling
 

@@ -377,6 +377,39 @@ async function copyInviteLink() {
     pageError.value = 'Select the link and copy it manually.'
   }
 }
+async function shareInviteLink() {
+  if (!navigator.share) {
+    await copyInviteLink()
+    return
+  }
+  try {
+    await navigator.share({
+      title: `Join ${form.workspace.name || 'my tennis club'}`,
+      text: 'Use this private invitation to join our club on Gorra.',
+      url: inviteLink.value,
+    })
+  } catch (error) {
+    if (error?.name !== 'AbortError') {
+      notificationStore.addToast({
+        message: 'Sharing is not available here. The link is ready to copy.',
+        type: 'info',
+      })
+    }
+  }
+}
+function downloadQrCode() {
+  if (!qrDataUrl.value) return
+  const download = document.createElement('a')
+  const clubSlug =
+    form.workspace.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'gorra-club'
+  download.href = qrDataUrl.value
+  download.download = `${clubSlug}-invitation-qr.png`
+  download.click()
+  notificationStore.addToast({ message: 'QR code downloaded.', type: 'success' })
+}
 async function goNext() {
   if (step.value === 1) form.workspace.name = form.workspace.name.trim()
   if (step.value === 2 && form.workspace.location.trim().length >= 2) locationConfirmed.value = true
@@ -690,14 +723,30 @@ onUnmounted(() => {
               </div>
 
               <div v-else-if="form.membership.source === 'private-link'" class="modal-invite">
-                <img v-if="qrDataUrl" :src="qrDataUrl" alt="Club invitation QR code" />
-                <div>
-                  <p>Anyone with this private invitation can ask to join your club.</p>
-                  <output>{{ inviteLink }}</output>
-                  <button type="button" @click="copyInviteLink">
-                    <FlowIcon name="copy" /> Copy invitation link
+                <div class="qr-stage">
+                  <img v-if="qrDataUrl" :src="qrDataUrl" alt="Club invitation QR code" />
+                  <span class="qr-stage__ball" aria-hidden="true"></span>
+                </div>
+                <h3>Scan to join</h3>
+                <p>Point a phone camera at the QR code, or share the private invitation below.</p>
+                <output aria-label="Private invitation link">{{ inviteLink }}</output>
+                <div class="share-actions" aria-label="Invitation actions">
+                  <button class="share-action" type="button" @click="copyInviteLink">
+                    <span class="share-action__icon"><FlowIcon name="copy" /></span>
+                    <small>Copy link</small>
+                  </button>
+                  <button class="share-action" type="button" @click="shareInviteLink">
+                    <span class="share-action__icon"><FlowIcon name="share" /></span>
+                    <small>Share</small>
+                  </button>
+                  <button class="share-action" type="button" @click="downloadQrCode">
+                    <span class="share-action__icon"><FlowIcon name="download" /></span>
+                    <small>Download QR</small>
                   </button>
                 </div>
+                <p class="invite-privacy">
+                  Only people with this invitation can use it to ask to join.
+                </p>
               </div>
 
               <div v-else-if="form.membership.source === 'manual'" class="modal-fields">
@@ -726,7 +775,7 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <footer class="member-modal__actions">
+            <footer v-if="form.membership.source !== 'private-link'" class="member-modal__actions">
               <button type="button" @click="closeMemberModal">Cancel</button>
               <button class="primary" type="button" @click="confirmMemberModal">
                 {{ memberModalAction }}
@@ -1132,23 +1181,39 @@ button:disabled {
   border-radius: 22px;
   background: #fff;
   box-shadow: 0 32px 90px rgba(8, 23, 13, 0.2);
+  transform-origin: 50% 120%;
 }
 .member-modal__header {
+  position: relative;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 44px;
-  align-items: start;
-  gap: 16px;
-  padding: 24px 24px 20px;
+  justify-items: center;
+  gap: 11px;
+  padding: 28px 70px 22px;
   border-bottom: var(--app-hairline);
+  text-align: center;
 }
 .member-modal__icon {
+  position: relative;
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 54px;
+  height: 54px;
   place-items: center;
-  border-radius: 14px;
-  background: var(--color-surface-soft, #f4f7f5);
-  color: var(--color-primary-strong, #287a45);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #082d1a 0%, #176a3a 100%);
+  box-shadow: 0 10px 24px rgba(8, 56, 29, 0.13);
+  color: #fff;
+}
+.member-modal__icon::after {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid rgba(8, 45, 26, 0.16);
+  border-radius: 50%;
+  background: #d7ee64;
+  box-shadow: 0 3px 8px rgba(67, 91, 18, 0.2);
+  content: '';
 }
 .member-modal__icon .flow-icon {
   width: 23px;
@@ -1179,6 +1244,9 @@ button:disabled {
   line-height: 1.55;
 }
 .member-modal__close {
+  position: absolute;
+  top: 22px;
+  right: 22px;
   display: grid;
   width: 44px;
   min-height: 44px;
@@ -1186,6 +1254,7 @@ button:disabled {
   place-items: center;
   border: var(--app-hairline);
   border-radius: 12px;
+  background: #fff;
   color: var(--color-muted, #687269);
 }
 .member-modal__close .flow-icon {
@@ -1318,17 +1387,47 @@ button:disabled {
 }
 .modal-invite {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  align-items: center;
-  gap: 24px;
+  justify-items: center;
+  gap: 12px;
+  padding: 2px 18px 12px;
+  text-align: center;
 }
-.modal-invite img {
-  width: 150px;
+.qr-stage {
+  position: relative;
+  width: 220px;
+  margin-bottom: 4px;
+  padding: 13px;
   border: var(--app-hairline);
-  border-radius: 14px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--flow-shadow-quiet);
+}
+.qr-stage img {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+}
+.qr-stage__ball {
+  position: absolute;
+  right: -6px;
+  bottom: 24px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #d7ee64;
+  box-shadow: 0 5px 12px rgba(54, 81, 14, 0.2);
+}
+.modal-invite h3 {
+  margin: 0;
+  color: var(--color-text, #172319);
+  font-size: 18px;
+  font-weight: var(--font-weight-bold, 700);
+  letter-spacing: -0.02em;
 }
 .modal-invite p {
-  margin: 0 0 12px;
+  max-width: 48ch;
+  margin: 0;
   color: var(--color-muted, #687269);
   font-size: 12.5px;
   font-weight: var(--font-weight-regular, 400);
@@ -1336,6 +1435,8 @@ button:disabled {
 }
 .modal-invite output {
   display: block;
+  width: min(100%, 500px);
+  margin-top: 4px;
   padding: 12px;
   overflow-wrap: anywhere;
   border: var(--app-hairline);
@@ -1344,15 +1445,60 @@ button:disabled {
   color: var(--color-text-soft, #425044);
   font-size: 10.5px;
 }
-.modal-invite button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
+.share-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 88px);
+  justify-content: center;
+  gap: clamp(14px, 4vw, 30px);
+  margin-top: 14px;
 }
-.modal-invite button .flow-icon {
-  width: 17px;
-  height: 17px;
+.share-action {
+  display: grid;
+  min-height: auto;
+  justify-items: center;
+  gap: 9px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.share-action:hover {
+  transform: translateY(-1px);
+}
+.share-action__icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #082d1a 0%, #176a3a 100%);
+  box-shadow: 0 10px 24px rgba(8, 56, 29, 0.13);
+  color: #fff;
+  transition:
+    transform 180ms var(--motion-curve),
+    box-shadow 180ms ease;
+}
+.share-action:hover .share-action__icon {
+  transform: rotate(-3deg) scale(1.025);
+  box-shadow: 0 13px 28px rgba(8, 56, 29, 0.16);
+}
+.share-action__icon .flow-icon {
+  width: 21px;
+  height: 21px;
+}
+.share-action small {
+  color: var(--color-text-soft, #425044);
+  font-size: 11px;
+  font-weight: var(--font-weight-medium, 500);
+  line-height: 1.35;
+  text-align: center;
+}
+.modal-invite .invite-privacy {
+  margin-top: 8px;
+  color: var(--color-muted, #687269);
+  font-size: 10.5px;
+  opacity: 0.78;
 }
 .later-note {
   display: grid;
@@ -1400,22 +1546,87 @@ button:disabled {
 }
 .member-modal-enter-active,
 .member-modal-leave-active {
-  transition: opacity 180ms ease;
+  transition: opacity 220ms ease;
 }
-.member-modal-enter-active .member-modal,
+.member-modal-enter-active .member-modal {
+  animation: tennis-swing-in 460ms var(--motion-curve) both;
+}
+.member-modal-enter-active .member-modal__icon {
+  animation: racket-icon-settle 520ms 70ms var(--motion-curve) both;
+}
+.member-modal-enter-active .member-modal__icon::after {
+  animation: tennis-ball-arc 560ms 90ms var(--motion-curve) both;
+}
+.member-modal-enter-active .member-modal__body > * {
+  animation: modal-content-rise 300ms 130ms var(--motion-curve) both;
+}
 .member-modal-leave-active .member-modal {
   transition:
-    transform 220ms var(--motion-curve),
+    transform 180ms ease,
     opacity 180ms ease;
 }
 .member-modal-enter-from,
 .member-modal-leave-to {
   opacity: 0;
 }
-.member-modal-enter-from .member-modal,
 .member-modal-leave-to .member-modal {
   opacity: 0;
-  transform: translateY(14px) scale(0.985);
+  transform: translateY(8px) scale(0.99);
+}
+@keyframes tennis-swing-in {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) rotate(-1.35deg) scale(0.982);
+  }
+  56% {
+    opacity: 1;
+    transform: translateY(-3px) rotate(0.32deg) scale(1.002);
+  }
+  78% {
+    transform: translateY(1px) rotate(-0.1deg) scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(0) scale(1);
+  }
+}
+@keyframes racket-icon-settle {
+  0% {
+    opacity: 0;
+    transform: rotate(-13deg) scale(0.9);
+  }
+  62% {
+    opacity: 1;
+    transform: rotate(3deg) scale(1.025);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(0) scale(1);
+  }
+}
+@keyframes tennis-ball-arc {
+  0% {
+    opacity: 0;
+    transform: translate(-20px, 15px) scale(0.55);
+  }
+  58% {
+    opacity: 1;
+    transform: translate(3px, -3px) scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+@keyframes modal-content-rise {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .visually-hidden {
   position: absolute;
@@ -1474,25 +1685,20 @@ button:disabled {
     border-radius: 20px 20px 14px 14px;
   }
   .member-modal__header {
-    grid-template-columns: 44px minmax(0, 1fr) 40px;
-    gap: 12px;
-    padding: 20px 18px 17px;
+    gap: 10px;
+    padding: 22px 58px 18px;
   }
   .member-modal__body {
     padding: 18px;
   }
-  .modal-invite {
-    grid-template-columns: 1fr;
-  }
-  .modal-invite img {
-    width: 132px;
+  .qr-stage {
+    width: 196px;
   }
   .member-modal__actions {
     position: sticky;
     bottom: 0;
     padding: 14px 18px 18px;
   }
-  .member-modal-enter-from .member-modal,
   .member-modal-leave-to .member-modal {
     transform: translateY(28px);
   }
@@ -1518,6 +1724,17 @@ button:disabled {
   .member-modal__actions button {
     min-width: 0;
     flex: 1;
+  }
+  .modal-invite {
+    padding-inline: 0;
+  }
+  .share-actions {
+    grid-template-columns: repeat(3, 76px);
+    gap: 8px;
+  }
+  .share-action__icon {
+    width: 52px;
+    height: 52px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
