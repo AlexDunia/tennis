@@ -15,9 +15,11 @@ import TournamentGalleryView from '../views/TournamentGallery.vue'
 import LandingView from '../views/LandingView.vue'
 import LoginView from '../views/LoginView.vue'
 import FriendlyMatchFlowView from '../views/FriendlyMatchFlowView.vue'
-import AdminSetupView from '../views/AdminSetupView.vue'
-import PlayerClubJoinView from '../views/PlayerClubJoinView.vue'
+import ClubsView from '../views/ClubsView.vue'
+import MemberOnboardingView from '../views/MemberOnboardingView.vue'
+import SettingsView from '../views/SettingsView.vue'
 import { useAuthStore } from '../stores/auth'
+import { useAdminStore } from '../stores/admin'
 
 const routes = [
   {
@@ -207,7 +209,7 @@ const routes = [
   {
     path: '/onboarding/join-club',
     name: 'PlayerClubJoin',
-    component: PlayerClubJoinView,
+    component: MemberOnboardingView,
     meta: {
       title: 'Join your club',
       onboardingFlow: true,
@@ -216,12 +218,33 @@ const routes = [
   {
     path: '/admin/setup',
     name: 'AdminSetup',
-    component: AdminSetupView,
+    component: ClubsView,
     meta: {
       title: 'Club Setup',
-      subtitle: 'Answer six simple questions to open your club.',
+      subtitle: 'Create a club or join one with an invite code.',
       permission: 'club.manage',
       onboardingFlow: true,
+    },
+  },
+  {
+    path: '/clubs',
+    name: 'Clubs',
+    component: ClubsView,
+    meta: {
+      title: 'Clubs',
+      subtitle: 'Open a club, create another one, or join with an invite code.',
+      permission: 'club.manage',
+      onboardingFlow: true,
+    },
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: SettingsView,
+    meta: {
+      title: 'Settings',
+      subtitle: 'Keep your club, ladders, rules, members, and account up to date.',
+      permission: 'club.manage',
     },
   },
   {
@@ -291,11 +314,29 @@ const router = createRouter({
   },
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   if (!to.meta.public && !authStore.isAuthenticated) {
     return { name: 'SignIn', query: { redirect: to.fullPath } }
   }
+
+  const isClubFlow = ['AdminSetup', 'Clubs'].includes(String(to.name || ''))
+  if (!to.meta.public && authStore.isAdmin && !isClubFlow) {
+    const adminStore = useAdminStore()
+    try {
+      await adminStore.loadClubs()
+    } catch {
+      return { name: 'AdminSetup', query: { view: 'start', recovery: '1' } }
+    }
+    if (!adminStore.isConfigured) {
+      await adminStore.loadSetup()
+      const hasStarted = Number(adminStore.setup?.completedStep || 0) > 0
+      return hasStarted
+        ? { name: 'AdminSetup', query: { step: adminStore.resumeStep } }
+        : { name: 'AdminSetup', query: { view: 'start' } }
+    }
+  }
+
   if (to.meta.permission && !authStore.hasPermission(to.meta.permission)) {
     return { name: 'Dashboard', query: { access: 'admin' } }
   }

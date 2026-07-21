@@ -20,6 +20,23 @@ export const ACCESS_ROLES = {
       'challenges.create',
     ],
   },
+  club_admin: {
+    key: 'club_admin',
+    label: 'Club Admin',
+    permissions: [
+      'club.manage',
+      'tournaments.view',
+      'tournaments.manage',
+      'tournaments.score.update',
+      'tournaments.fixtures.manage',
+      'tournaments.knockout.manage',
+      'tournaments.images.manage',
+      'matches.view',
+      'matches.live_score',
+      'rankings.view',
+      'challenges.create',
+    ],
+  },
   super_admin: {
     key: 'super_admin',
     label: 'Super Admin',
@@ -39,17 +56,18 @@ export function getDefaultRoleForIdentity(identity = {}) {
 
 export function buildAccessProfile(identity = {}, roleKey = getDefaultRoleForIdentity(identity)) {
   const role = ACCESS_ROLES[roleKey] || ACCESS_ROLES.player
-  const permissions = role.permissions.includes('*')
-    ? ['*']
-    : [...new Set([...(identity.permissions || []), ...role.permissions])]
+  const permissions = role.permissions.includes('*') ? ['*'] : [...role.permissions]
 
   return {
     roleKey: role.key,
     roleLabel: role.label,
     roles: [role.key],
     permissions,
-    isAdmin:
-      role.key === ACCESS_ROLES.super_admin.key || role.key === ACCESS_ROLES.tournament_admin.key,
+    isAdmin: [
+      ACCESS_ROLES.club_admin.key,
+      ACCESS_ROLES.super_admin.key,
+      ACCESS_ROLES.tournament_admin.key,
+    ].includes(role.key),
   }
 }
 

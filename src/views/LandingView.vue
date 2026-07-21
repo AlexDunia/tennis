@@ -1,9 +1,13 @@
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import '../assets/landing.css'
 import scanToJoinImage from '../assets/landing/scan-to-join.jpg'
 import playTheMatchImage from '../assets/landing/play-the-match.jpg'
+
+const stickyTrigger = ref(null)
+const navDocked = ref(false)
+let scrollFrame = null
 
 const problems = [
   [
@@ -24,6 +28,19 @@ const problems = [
   ],
 ]
 
+function updateNavigationState() {
+  if (!stickyTrigger.value) return
+  navDocked.value = stickyTrigger.value.getBoundingClientRect().top <= window.innerHeight * 0.56
+}
+
+function scheduleNavigationUpdate() {
+  if (scrollFrame) return
+  scrollFrame = window.requestAnimationFrame(() => {
+    updateNavigationState()
+    scrollFrame = null
+  })
+}
+
 onMounted(() => {
   document.title = 'Gorra | Tennis club management, without the chasing'
   const description =
@@ -34,23 +51,34 @@ onMounted(() => {
     'content',
     'Run your tennis ladder, challenges, tournaments, fixtures and match scores from one clear club operating system.',
   )
+  window.addEventListener('scroll', scheduleNavigationUpdate, { passive: true })
+  window.addEventListener('resize', scheduleNavigationUpdate)
+  updateNavigationState()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', scheduleNavigationUpdate)
+  window.removeEventListener('resize', scheduleNavigationUpdate)
+  if (scrollFrame) window.cancelAnimationFrame(scrollFrame)
 })
 </script>
 
 <template>
   <div class="marketing-home">
     <a class="skip-link" href="#main-content">Skip to content</a>
-    <header class="public-nav">
-      <RouterLink class="brand" to="/" aria-label="Gorra home"
-        ><i>G</i><span>GORRA</span></RouterLink
-      >
-      <nav aria-label="Public navigation">
-        <a href="#players">How it works</a><a href="#tournaments">Tournaments</a
-        ><a href="#why-gorra">Why Gorra</a>
-      </nav>
-      <RouterLink class="member-link" to="/signin" data-track="start_sign_in"
-        >Member sign in ↗</RouterLink
-      >
+    <header class="public-nav" :class="{ 'public-nav--docked': navDocked }">
+      <div class="public-nav__inner">
+        <RouterLink class="brand" to="/" aria-label="Gorra home"
+          ><i>G</i><span>GORRA</span></RouterLink
+        >
+        <nav aria-label="Public navigation">
+          <a href="#players">How it works</a><a href="#tournaments">Tournaments</a
+          ><a href="#why-gorra">Why Gorra</a>
+        </nav>
+        <RouterLink class="member-link" to="/signin" data-track="start_sign_in"
+          >Member sign in ↗</RouterLink
+        >
+      </div>
     </header>
 
     <main id="main-content">
@@ -58,8 +86,8 @@ onMounted(() => {
         <div class="mk-hero__copy">
           <p class="eyebrow">HELPING TENNIS CLUBS KEEP EVERY MATCH MOVING</p>
           <h1>
-            <span class="mk-hero__title-primary">TENNIS CLUB MANAGEMENT,</span>
-            <span class="mk-hero__title-accent">WITHOUT THE CHASING.</span>
+            <span class="mk-hero__title-primary">Tennis club management,</span>
+            <span class="mk-hero__title-accent">without the chasing.</span>
           </h1>
           <p class="lead">
             GORRA is tennis club management software for scoring matches, running ladders and
@@ -207,7 +235,7 @@ onMounted(() => {
             </div>
           </article>
         </div>
-        <p class="simple-flow-note">
+        <p ref="stickyTrigger" class="simple-flow-note">
           The same three steps work for friendly matches, ladders, and tournaments.
         </p>
       </section>

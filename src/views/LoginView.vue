@@ -17,9 +17,9 @@ const roleOptions = [
     description: 'Join your club and start playing.',
   },
   {
-    key: 'super_admin',
-    label: 'I manage a club',
-    description: 'Set up your club and invite members.',
+    key: 'club_admin',
+    label: 'Club admin',
+    description: 'Create your club, shape its ladders, and welcome members.',
   },
 ]
 
@@ -41,7 +41,7 @@ async function enterWorkspace(roleKey = selectedRole.value) {
   try {
     selectedRole.value = roleKey
     errorMessage.value = ''
-    const isAdmin = roleKey === 'super_admin'
+    const isAdmin = roleKey === 'club_admin' || roleKey === 'super_admin'
     await authStore.login({
       username: isAdmin ? 'Heredina' : 'Club Player',
       email: isAdmin ? 'admin@gorra.demo' : 'player@gorra.demo',
@@ -49,13 +49,17 @@ async function enterWorkspace(roleKey = selectedRole.value) {
       dataMode: isAdmin || useDemoData.value ? APP_DATA_MODES.DEMO : APP_DATA_MODES.EMPTY,
     })
     if (isSignUp.value) {
-      const destination =
-        roleKey === 'super_admin'
-          ? { name: 'AdminSetup', query: { step: 'name' } }
-          : {
-              name: 'PlayerClubJoin',
-              query: { club: route.query.club, invite: route.query.invite },
-            }
+      const destination = isAdmin
+        ? {
+            name: 'AdminSetup',
+            query: route.query.invite
+              ? { view: 'join', from: 'signup', invite: route.query.invite }
+              : { view: 'start', from: 'signup' },
+          }
+        : {
+            name: 'PlayerClubJoin',
+            query: { club: route.query.club, invite: route.query.invite },
+          }
       await router.push(destination)
       return
     }
@@ -71,6 +75,9 @@ async function enterWorkspace(roleKey = selectedRole.value) {
 <template>
   <section class="auth-page">
     <div class="auth-page__backdrop" aria-hidden="true"></div>
+    <div class="auth-page__atmosphere" aria-hidden="true">
+      <span></span><span></span><span></span>
+    </div>
 
     <main class="auth-panel">
       <RouterLink class="auth-brand" to="/" aria-label="Gorra home">
@@ -79,14 +86,21 @@ async function enterWorkspace(roleKey = selectedRole.value) {
       </RouterLink>
 
       <div class="auth-panel__content">
+        <div v-if="isSignUp" class="auth-progress" aria-label="Signup progress">
+          <span class="auth-progress__step auth-progress__step--done"><i>OK</i> Account</span>
+          <span class="auth-progress__line" aria-hidden="true"></span>
+          <span class="auth-progress__step auth-progress__step--active" aria-current="step"
+            ><i>2</i> Your role</span
+          >
+        </div>
         <p class="auth-access-kicker">
-          {{ isSignUp ? 'First, tell us about you' : 'One-click access' }}
+          {{ isSignUp ? 'Getting started' : 'Welcome back' }}
         </p>
-        <h1>{{ isSignUp ? 'Which sounds like you?' : 'How would you like to enter?' }}</h1>
+        <h1>{{ isSignUp ? 'How will you use Gorra?' : 'How would you like to enter?' }}</h1>
         <p class="auth-access-intro">
           {{
             isSignUp
-              ? 'Choose one. We will show only the steps you need.'
+              ? 'Choose the role that fits today. We will tailor every next step around it.'
               : 'Choose a role to open the application.'
           }}
         </p>
@@ -108,7 +122,7 @@ async function enterWorkspace(roleKey = selectedRole.value) {
             @click="chooseRole(option.key)"
           >
             <span class="auth-role-option__icon" aria-hidden="true">
-              <svg v-if="option.key === 'super_admin'" viewBox="0 0 24 24">
+              <svg v-if="option.key !== 'player'" viewBox="0 0 24 24">
                 <path d="M12 3 4.5 6v5.2c0 4.6 3.2 8.1 7.5 9.8 4.3-1.7 7.5-5.2 7.5-9.8V6L12 3Z" />
                 <path d="m8.5 12 2.2 2.2 4.8-5" />
               </svg>
@@ -122,6 +136,9 @@ async function enterWorkspace(roleKey = selectedRole.value) {
                 authStore.isAuthLoading && selectedRole === option.key ? 'Opening…' : option.label
               }}</strong>
               <small>{{ option.description }}</small>
+            </span>
+            <span class="auth-role-option__check" aria-hidden="true">
+              <svg viewBox="0 0 18 18"><path d="m4 9 3 3 7-7" /></svg>
             </span>
           </button>
         </div>
@@ -166,6 +183,14 @@ async function enterWorkspace(roleKey = selectedRole.value) {
   padding: 4svh 0;
 }
 
+.auth-page::after {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 22%, rgba(152, 255, 170, 0.12), transparent 34%);
+  pointer-events: none;
+  content: '';
+}
+
 .auth-page__backdrop {
   position: absolute;
   inset: 0;
@@ -183,6 +208,36 @@ async function enterWorkspace(roleKey = selectedRole.value) {
       center / cover no-repeat;
 }
 
+.auth-page__atmosphere {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.auth-page__atmosphere span {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  opacity: 0;
+  animation: auth-ball-drift 8s ease-in-out infinite;
+}
+.auth-page__atmosphere span:nth-child(1) {
+  left: 12%;
+  top: 64%;
+}
+.auth-page__atmosphere span:nth-child(2) {
+  right: 14%;
+  top: 22%;
+  animation-delay: 2.4s;
+}
+.auth-page__atmosphere span:nth-child(3) {
+  right: 24%;
+  bottom: 12%;
+  animation-delay: 5.1s;
+}
+
 .auth-panel {
   position: relative;
   z-index: 1;
@@ -196,7 +251,9 @@ async function enterWorkspace(roleKey = selectedRole.value) {
   border-radius: 14px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 24px 80px rgba(3, 12, 6, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 32px 100px rgba(3, 12, 6, 0.36);
+  animation: auth-panel-arrive 620ms var(--motion-curve) both;
 }
 
 .auth-brand {
@@ -231,6 +288,49 @@ async function enterWorkspace(roleKey = selectedRole.value) {
   width: 100%;
   margin: auto 0;
   padding: 44px 0 30px;
+}
+
+.auth-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 30px;
+  color: #819087;
+  font-size: 10.5px;
+  font-weight: var(--font-weight-medium);
+}
+.auth-progress__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.auth-progress__step i {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border: 1px solid #dce4de;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 8px;
+  font-style: normal;
+}
+.auth-progress__step--done i {
+  border-color: #c8e9cf;
+  background: #eaf7ed;
+  color: #16743a;
+}
+.auth-progress__step--active {
+  color: #172319;
+}
+.auth-progress__step--active i {
+  border-color: #172319;
+  color: #172319;
+}
+.auth-progress__line {
+  width: 32px;
+  height: 1px;
+  background: #dce4de;
 }
 
 h1 {
@@ -317,8 +417,9 @@ h1 {
 }
 
 .auth-role-option {
+  position: relative;
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr) 22px;
   min-height: 90px;
   align-items: center;
   column-gap: 15px;
@@ -330,12 +431,22 @@ h1 {
   color: #172319;
   text-align: left;
   white-space: normal;
+  transition:
+    transform 220ms var(--motion-curve),
+    border-color 220ms ease,
+    background 220ms ease,
+    box-shadow 220ms var(--motion-curve);
+}
+.auth-role-option:hover:not(:disabled) {
+  transform: translateY(-3px);
+  border-color: #c9d7cd;
+  box-shadow: 0 15px 34px rgba(15, 34, 24, 0.08);
 }
 
 .auth-role-option--active {
   border-color: color-mix(in srgb, var(--color-primary) 34%, var(--color-border));
   background: color-mix(in srgb, var(--color-primary) 2.5%, #fff);
-  box-shadow: var(--flow-shadow-quiet);
+  box-shadow: 0 14px 34px rgba(19, 107, 54, 0.09);
 }
 
 .auth-role-option__icon {
@@ -356,6 +467,35 @@ h1 {
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.auth-role-option__check {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid #d8e1da;
+  border-radius: 50%;
+  color: transparent;
+  transition:
+    transform 220ms var(--motion-spring),
+    color 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+.auth-role-option__check svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.auth-role-option--active .auth-role-option__check {
+  transform: scale(1.08);
+  border-color: var(--color-primary-strong);
+  background: var(--color-primary-strong);
+  color: #fff;
 }
 .auth-role-option strong,
 .auth-role-option small {
@@ -528,6 +668,10 @@ h1 {
     display: none;
   }
 
+  .auth-page__atmosphere {
+    display: none;
+  }
+
   .auth-panel {
     height: 100svh;
     max-height: none;
@@ -571,6 +715,38 @@ h1 {
 
   .auth-switch {
     margin-top: 18px;
+  }
+}
+
+@keyframes auth-panel-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes auth-ball-drift {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0) scale(0.7);
+  }
+  25%,
+  70% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.7;
+    transform: translate3d(20px, -30px, 0) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-panel,
+  .auth-page__atmosphere span {
+    animation: none;
   }
 }
 </style>

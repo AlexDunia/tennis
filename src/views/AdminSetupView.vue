@@ -11,6 +11,7 @@ import {
   normalizeClubSetup,
   validateClubSetupStep,
 } from '../utils/admin/clubSetup'
+import { validateRosterImport } from '../utils/onboarding/rosterImport'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
 
 const route = useRoute()
@@ -22,6 +23,9 @@ const form = reactive(createDefaultClubSetup())
 const step = ref(1)
 const pageError = ref('')
 const matchTypes = ref(['singles'])
+const stepHeading = ref(null)
+const lastSavedLabel = ref('')
+const memberMethodTouched = ref(false)
 const groups = reactive({ singles: ['everyone'], doubles: ['everyone'] })
 const seniorAge = reactive({ singles: 60, doubles: 60 })
 const levelName = reactive({
@@ -135,7 +139,7 @@ const MEMBER_OPTIONS = Object.freeze([
 ])
 
 const activeStep = computed(() => ADMIN_SETUP_STEPS[step.value - 1])
-const progress = computed(() => ((step.value - 1) / (ADMIN_SETUP_STEPS.length - 1)) * 100)
+const progress = computed(() => (step.value / ADMIN_SETUP_STEPS.length) * 100)
 const activeLadders = computed(() => form.ladders.filter((ladder) => ladder.enabled))
 const memberTitle = computed(
   () => MEMBER_OPTIONS.find((item) => item.id === form.membership.source)?.title || 'Do this later',
@@ -149,6 +153,25 @@ const importFileSize = computed(() => {
   return megabytes >= 1
     ? `${megabytes.toFixed(1)} MB`
     : `${Math.max(1, Math.round(importFile.value.size / 1024))} KB`
+})
+const canContinue = computed(() => {
+  if (adminStore.isSaving || adminStore.isLoading) return false
+  if (step.value === 1) return form.workspace.name.trim().length >= 2
+  if (step.value === 2) return form.workspace.location.trim().length >= 2
+  if (step.value === 3) return matchTypes.value.length > 0
+  if (step.value === 4) return matchTypes.value.every((type) => groups[type]?.length > 0)
+  if (step.value === 5) {
+    if (!memberMethodTouched.value) return false
+    if (form.membership.source === 'import-list') return Boolean(importFile.value)
+    if (form.membership.source === 'email-phone') {
+      return Boolean(form.membership.inviteEmails.trim() || form.membership.invitePhones.trim())
+    }
+    if (form.membership.source === 'private-link') {
+      return form.membership.invitationToken.length >= 24
+    }
+    if (form.membership.source === 'manual') return manualMember.name.trim().length >= 2
+  }
+  return true
 })
 const memberModalAction = computed(
   () =>
@@ -283,7 +306,12 @@ function confirmLocation() {
   if (knownLocation) selectLocation(knownLocation)
   else locationConfirmed.value = form.workspace.location.trim().length >= 2
 }
+function handleLocationInput() {
+  locationConfirmed.value = false
+  pageError.value = ''
+}
 function chooseMemberMethod(method) {
+  memberMethodTouched.value = true
   form.membership.source = method
   form.membership.privateLinkEnabled = method === 'private-link'
   form.membership.allowManualEntry = ['manual', 'later'].includes(method)
@@ -292,14 +320,9 @@ function chooseMemberMethod(method) {
   memberModalOpen.value = true
 }
 function processImportFile(file) {
-  if (!file) return
-  const extension = file.name.split('.').pop()?.toLowerCase()
-  if (!['csv', 'xlsx', 'xls', 'pdf'].includes(extension)) {
-    memberModalError.value = 'Choose an Excel, CSV, or PDF file.'
-    return
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    memberModalError.value = 'Choose a file smaller than 10 MB.'
+  const validation = validateRosterImport(file)
+  if (!validation.valid) {
+    memberModalError.value = validation.message
     return
   }
   memberModalError.value = ''
@@ -411,6 +434,10 @@ function downloadQrCode() {
   notificationStore.addToast({ message: 'QR code downloaded.', type: 'success' })
 }
 async function goNext() {
+  if (!canContinue.value) {
+    pageError.value = 'Complete this step before continuing.'
+    return
+  }
   if (step.value === 1) form.workspace.name = form.workspace.name.trim()
   if (step.value === 2 && form.workspace.location.trim().length >= 2) locationConfirmed.value = true
   if (step.value === 5 && form.membership.source === 'import-list' && !importFile.value) {
@@ -433,6 +460,7 @@ async function goNext() {
   form.completedStep = Math.max(form.completedStep, step.value)
   try {
     await adminStore.saveDraft(form)
+    lastSavedLabel.value = 'Draft saved on this device'
     syncRoute(step.value + 1)
   } catch (error) {
     pageError.value = error?.message || 'Your answer could not be saved.'
@@ -440,7 +468,7 @@ async function goNext() {
 }
 function goBack() {
   pageError.value = ''
-  step.value > 1 ? syncRoute(step.value - 1) : router.push({ name: 'Dashboard' })
+  step.value > 1 ? syncRoute(step.value - 1) : router.push({ name: 'SignUp' })
 }
 async function publish() {
   syncLadders()
@@ -459,9 +487,11 @@ function submitStep() {
 }
 watch(
   () => route.query.step,
-  () => {
+  async () => {
     step.value = routeStep()
     pageError.value = ''
+    await nextTick()
+    stepHeading.value?.focus()
   },
 )
 watch(
@@ -484,8 +514,13 @@ watch(memberModalOpen, async (isOpen) => {
 onMounted(async () => {
   window.addEventListener('keydown', handlePageKeydown)
   step.value = routeStep()
-  await adminStore.loadSetup()
-  replaceForm(adminStore.setup)
+  try {
+    await adminStore.loadSetup()
+    replaceForm(adminStore.setup)
+  } catch (error) {
+    pageError.value = error?.message || 'Your saved setup could not be loaded.'
+  }
+  memberMethodTouched.value = form.completedStep >= 5
   hydrateFlowState()
   if (!form.membership.invitationToken)
     form.membership.invitationToken = createPrivateInvitationToken()
@@ -494,6 +529,8 @@ onMounted(async () => {
   locationConfirmed.value = Boolean(form.workspace.location)
   syncLadders()
   generateQrCode()
+  await nextTick()
+  stepHeading.value?.focus()
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', handlePageKeydown)
@@ -504,6 +541,11 @@ onUnmounted(() => {
 
 <template>
   <main class="admin-onboarding">
+    <div class="flow-atmosphere" aria-hidden="true">
+      <span class="flow-atmosphere__court"></span>
+      <span class="flow-atmosphere__ball"></span>
+      <span class="flow-atmosphere__glow"></span>
+    </div>
     <header class="flow-header">
       <button class="flow-back" type="button" aria-label="Go back" @click="goBack">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
@@ -511,119 +553,147 @@ onUnmounted(() => {
       <strong>{{ activeStep.label }}</strong>
       <span>{{ step }} of 6</span>
     </header>
-    <progress :value="progress" max="100"></progress>
-    <form class="flow-screen" @submit.prevent="submitStep">
-      <div class="flow-intro">
-        <p class="eyebrow">{{ SCREEN_COPY[step - 1][0] }}</p>
-        <h1>{{ SCREEN_COPY[step - 1][1] }}</h1>
-        <p class="lead">{{ SCREEN_COPY[step - 1][2] }}</p>
-      </div>
-      <p v-if="pageError" class="flow-alert" role="alert">{{ pageError }}</p>
-      <div class="flow-answer">
-        <label v-if="step === 1" class="answer-field">
-          <span>Club name</span>
-          <input v-model="form.workspace.name" placeholder="For example: Riverside Tennis Club" />
-        </label>
-        <div v-else-if="step === 2" class="location-answer">
-          <label class="location-label" for="club-location">Town or city</label>
-          <input
-            id="club-location"
-            v-model="form.workspace.location"
-            list="club-locations"
-            placeholder="Start typing your town or city"
-            aria-label="Town or city"
-            @input="locationConfirmed = false"
-            @change="confirmLocation"
-          />
-          <datalist id="club-locations">
-            <option v-for="item in LOCATION_OPTIONS" :key="item.label" :value="item.label"></option>
-          </datalist>
-          <button class="location-action" type="button" @click="confirmLocation">
-            <FlowIcon name="check" /> Use this location
-          </button>
-          <p v-if="locationConfirmed" class="location-confirmation">
-            <FlowIcon name="check" /> Time set automatically to {{ locationTimeLabel }}.
-          </p>
-        </div>
-        <div v-else-if="step === 3" class="choices two">
-          <button
-            v-for="item in MATCH_TYPE_OPTIONS"
-            :key="item.id"
-            type="button"
-            :class="{ selected: matchTypes.includes(item.id) }"
-            @click="toggleMatchType(item.id)"
-          >
-            <span class="choice-icon"><FlowIcon :name="item.icon" /></span>
-            <span
-              ><em v-if="item.badge">{{ item.badge }}</em
-              ><strong>{{ item.title }}</strong
-              ><small>{{ item.description }}</small></span
-            >
-            <b>{{ matchTypes.includes(item.id) ? '✓' : '' }}</b>
-          </button>
-        </div>
-        <div v-else-if="step === 4">
-          <section v-for="type in matchTypes" :key="type" class="group">
-            <h2>{{ type === 'singles' ? 'Singles ladder' : 'Doubles ladder' }}</h2>
-            <div class="choices">
+    <progress :value="progress" max="100" :aria-label="`Step ${step} of 6`"></progress>
+    <form class="flow-screen" :aria-busy="adminStore.isSaving" @submit.prevent="submitStep">
+      <Transition name="setup-step" mode="out-in">
+        <section :key="step" class="step-panel">
+          <div class="flow-intro">
+            <p class="eyebrow">{{ SCREEN_COPY[step - 1][0] }}</p>
+            <h1 ref="stepHeading" tabindex="-1">{{ SCREEN_COPY[step - 1][1] }}</h1>
+            <p class="lead">{{ SCREEN_COPY[step - 1][2] }}</p>
+          </div>
+          <p v-if="pageError" class="flow-alert" role="alert">{{ pageError }}</p>
+          <div class="flow-answer">
+            <label v-if="step === 1" class="answer-field">
+              <span>Club name</span>
+              <input
+                v-model="form.workspace.name"
+                placeholder="For example: Greenview Tennis Club"
+                autocomplete="organization"
+                maxlength="100"
+                required
+                autofocus
+                @input="pageError = ''"
+              />
+            </label>
+            <div v-else-if="step === 2" class="location-answer">
+              <label class="location-label" for="club-location">Town or city</label>
+              <input
+                id="club-location"
+                v-model="form.workspace.location"
+                list="club-locations"
+                placeholder="Start typing your town or city"
+                aria-label="Town or city"
+                autocomplete="address-level2"
+                maxlength="120"
+                required
+                @input="handleLocationInput"
+                @change="confirmLocation"
+              />
+              <datalist id="club-locations">
+                <option
+                  v-for="item in LOCATION_OPTIONS"
+                  :key="item.label"
+                  :value="item.label"
+                ></option>
+              </datalist>
+              <button class="location-action" type="button" @click="confirmLocation">
+                <FlowIcon name="check" /> Use this location
+              </button>
+              <p v-if="locationConfirmed" class="location-confirmation">
+                <FlowIcon name="check" /> Time set automatically to {{ locationTimeLabel }}.
+              </p>
+            </div>
+            <div v-else-if="step === 3" class="choices two">
               <button
-                v-for="item in GROUP_OPTIONS[type]"
-                :key="item"
+                v-for="item in MATCH_TYPE_OPTIONS"
+                :key="item.id"
                 type="button"
-                :class="{ selected: groups[type].includes(item) }"
-                @click="toggleGroup(type, item)"
+                :class="{ selected: matchTypes.includes(item.id) }"
+                :aria-pressed="matchTypes.includes(item.id)"
+                @click="toggleMatchType(item.id)"
               >
-                <span class="choice-icon"><FlowIcon :name="groupIcon(item)" /></span>
+                <span class="choice-icon"><FlowIcon :name="item.icon" /></span>
                 <span
-                  ><strong>{{ groupTitle(item) }}</strong
-                  ><small>{{ groupDescription(type, item) }}</small></span
+                  ><em v-if="item.badge">{{ item.badge }}</em
+                  ><strong>{{ item.title }}</strong
+                  ><small>{{ item.description }}</small></span
                 >
-                <b>{{ groups[type].includes(item) ? '✓' : '' }}</b>
+                <b>{{ matchTypes.includes(item.id) ? '✓' : '' }}</b>
               </button>
             </div>
-            <label v-if="groups[type].includes(`senior`)"
-              >Starting age
-              <input v-model.number="seniorAge[type]" type="number" min="40" max="100" />
-            </label>
-            <label v-if="groups[type].includes(`level`)"
-              >Level name
-              <input v-model="levelName[type]" />
-            </label>
-          </section>
-        </div>
-        <div v-else-if="step === 5">
-          <div class="choices">
-            <button
-              v-for="item in MEMBER_OPTIONS"
-              :key="item.id"
-              type="button"
-              :class="{ selected: form.membership.source === item.id }"
-              @click="chooseMemberMethod(item.id)"
-            >
-              <span class="choice-icon"><FlowIcon :name="item.icon" /></span>
-              <span>
-                <strong>{{ item.title }}</strong>
-                <small>{{ item.description }}</small>
-              </span>
-              <b>{{ form.membership.source === item.id ? '✓' : '›' }}</b>
-            </button>
+            <div v-else-if="step === 4">
+              <section v-for="type in matchTypes" :key="type" class="group">
+                <h2>{{ type === 'singles' ? 'Singles ladder' : 'Doubles ladder' }}</h2>
+                <div class="choices">
+                  <button
+                    v-for="item in GROUP_OPTIONS[type]"
+                    :key="item"
+                    type="button"
+                    :class="{ selected: groups[type].includes(item) }"
+                    :aria-pressed="groups[type].includes(item)"
+                    @click="toggleGroup(type, item)"
+                  >
+                    <span class="choice-icon"><FlowIcon :name="groupIcon(item)" /></span>
+                    <span
+                      ><strong>{{ groupTitle(item) }}</strong
+                      ><small>{{ groupDescription(type, item) }}</small></span
+                    >
+                    <b>{{ groups[type].includes(item) ? '✓' : '' }}</b>
+                  </button>
+                </div>
+                <label v-if="groups[type].includes(`senior`)"
+                  >Starting age
+                  <input v-model.number="seniorAge[type]" type="number" min="40" max="100" />
+                </label>
+                <label v-if="groups[type].includes(`level`)"
+                  >Level name
+                  <input v-model="levelName[type]" />
+                </label>
+              </section>
+            </div>
+            <div v-else-if="step === 5">
+              <div class="choices">
+                <button
+                  v-for="item in MEMBER_OPTIONS"
+                  :key="item.id"
+                  type="button"
+                  :class="{ selected: form.membership.source === item.id }"
+                  :aria-pressed="form.membership.source === item.id"
+                  @click="chooseMemberMethod(item.id)"
+                >
+                  <span class="choice-icon"><FlowIcon :name="item.icon" /></span>
+                  <span>
+                    <strong>{{ item.title }}</strong>
+                    <small>{{ item.description }}</small>
+                  </span>
+                  <b>{{ form.membership.source === item.id ? '✓' : '›' }}</b>
+                </button>
+              </div>
+            </div>
+            <div v-else class="review">
+              <h2>{{ form.workspace.name }}</h2>
+              <p>{{ form.workspace.location }}</p>
+              <h3>Ladders</h3>
+              <ul>
+                <li v-for="ladder in activeLadders" :key="ladder.id">{{ ladder.name }}</li>
+              </ul>
+              <h3>Members</h3>
+              <p>{{ memberTitle }}</p>
+              <button type="button" @click="syncRoute(1)">Go back and change something</button>
+            </div>
           </div>
-        </div>
-        <div v-else class="review">
-          <h2>{{ form.workspace.name }}</h2>
-          <p>{{ form.workspace.location }}</p>
-          <h3>Ladders</h3>
-          <ul>
-            <li v-for="ladder in activeLadders" :key="ladder.id">{{ ladder.name }}</li>
-          </ul>
-          <h3>Members</h3>
-          <p>{{ memberTitle }}</p>
-          <button type="button" @click="syncRoute(1)">Go back and change something</button>
-        </div>
-      </div>
+        </section>
+      </Transition>
       <footer class="actions">
-        <button class="primary" type="submit" :disabled="adminStore.isSaving">
+        <p class="save-state" aria-live="polite">
+          <span aria-hidden="true"></span>
+          {{ lastSavedLabel || 'Your answers stay on this device' }}
+        </p>
+        <button class="primary" type="submit" :disabled="!canContinue">
+          <i v-if="adminStore.isSaving" class="button-spinner" aria-hidden="true"></i>
           {{ primaryActionLabel }}
+          <FlowIcon v-if="!adminStore.isSaving" name="arrow-right" />
         </button>
       </footer>
     </form>
@@ -789,13 +859,70 @@ onUnmounted(() => {
 </template>
 <style scoped>
 .admin-onboarding {
-  width: min(1140px, 100%);
+  position: relative;
+  width: 100%;
   min-height: 100svh;
   margin: 0 auto;
   padding: clamp(18px, 3vw, 34px) clamp(20px, 3.5vw, 40px) 44px;
   color: var(--color-text, #172319);
-  background: var(--color-bg, #fff);
+  background:
+    radial-gradient(circle at 8% 10%, rgba(214, 238, 99, 0.1), transparent 28rem),
+    linear-gradient(145deg, #f8faf7 0%, #fff 48%, #f5f8f5 100%);
   font-family: inherit;
+}
+.flow-atmosphere {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.flow-atmosphere__court {
+  position: absolute;
+  right: -13vw;
+  top: -18vh;
+  width: 48vw;
+  height: 82vh;
+  border: 1px solid rgba(26, 105, 52, 0.06);
+  transform: rotate(-11deg);
+}
+.flow-atmosphere__court::before,
+.flow-atmosphere__court::after {
+  position: absolute;
+  background: rgba(26, 105, 52, 0.05);
+  content: '';
+}
+.flow-atmosphere__court::before {
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+.flow-atmosphere__court::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+.flow-atmosphere__ball {
+  position: absolute;
+  right: 7vw;
+  top: 17vh;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #d9ee68;
+  box-shadow: 0 8px 22px rgba(74, 106, 20, 0.24);
+  animation: setup-ball-float 5.5s ease-in-out infinite;
+}
+.flow-atmosphere__glow {
+  position: absolute;
+  left: -12rem;
+  bottom: -12rem;
+  width: 34rem;
+  height: 34rem;
+  border-radius: 50%;
+  background: rgba(35, 136, 70, 0.035);
+  filter: blur(2px);
 }
 .flow-header,
 progress {
@@ -817,6 +944,7 @@ progress {
   font-size: 0.78rem;
   font-weight: var(--font-weight-medium, 500);
   letter-spacing: 0.02em;
+  position: relative;
 }
 .flow-header strong {
   color: var(--color-text-soft, #425044);
@@ -861,6 +989,7 @@ progress::-webkit-progress-bar {
 }
 progress::-webkit-progress-value {
   background: #287a45;
+  transition: width 420ms var(--motion-curve);
 }
 progress::-moz-progress-bar {
   background: #287a45;
@@ -869,6 +998,26 @@ progress::-moz-progress-bar {
   display: grid;
   gap: 0;
   padding-top: clamp(30px, 7vw, 58px);
+}
+.step-panel {
+  min-width: 0;
+}
+.flow-intro h1:focus {
+  outline: none;
+}
+.setup-step-enter-active,
+.setup-step-leave-active {
+  transition:
+    opacity 190ms ease,
+    transform 240ms var(--motion-curve);
+}
+.setup-step-enter-from {
+  opacity: 0;
+  transform: translateY(11px);
+}
+.setup-step-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 .flow-intro {
   display: grid;
@@ -999,6 +1148,15 @@ button:disabled {
   border-color: color-mix(in srgb, var(--color-primary, #287a45) 34%, var(--color-border));
   background: color-mix(in srgb, var(--color-primary, #287a45) 2.5%, #fff);
   box-shadow: var(--flow-shadow-quiet);
+}
+.choices > button.selected .choice-icon {
+  animation: selected-icon-settle 320ms var(--motion-spring);
+}
+.choices > button.selected b {
+  animation: check-pop 260ms var(--motion-spring);
+}
+.choices > button:active {
+  transform: translateY(0) scale(0.985);
 }
 .choice-icon {
   display: grid !important;
@@ -1148,11 +1306,44 @@ button:disabled {
 }
 .actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 14px;
   margin-top: var(--flow-section-space);
   padding-top: 20px;
   border-top: 1px solid #dfe4df;
+}
+.save-state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #7a857c;
+  font-size: 10.5px;
+  font-weight: 400;
+}
+.save-state span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #62a778;
+  box-shadow: 0 0 0 4px rgba(50, 135, 78, 0.08);
+}
+.button-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.38);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: button-spin 700ms linear infinite;
+}
+.actions .primary .flow-icon {
+  width: 17px;
+  height: 17px;
+}
+.actions .primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
 }
 .actions button {
   min-width: 116px;
@@ -1657,6 +1848,41 @@ button:disabled {
     transform: translateX(100%);
   }
 }
+@keyframes setup-ball-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-28px, 38px, 0);
+  }
+}
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes selected-icon-settle {
+  0% {
+    transform: scale(0.88) rotate(-5deg);
+  }
+  70% {
+    transform: scale(1.05) rotate(1deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes check-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 0.68;
+    transform: scale(1);
+  }
+}
 @media (max-width: 700px) {
   .admin-onboarding {
     padding: 18px;
@@ -1717,6 +1943,9 @@ button:disabled {
     padding: 14px 0;
     background: var(--color-bg, #fff);
   }
+  .save-state {
+    display: none;
+  }
   .actions button {
     min-width: 0;
     flex: 1;
@@ -1738,6 +1967,9 @@ button:disabled {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .flow-atmosphere__ball,
+  .button-spinner,
+  .choices > button.selected .choice-icon,
   *,
   *::after {
     scroll-behavior: auto !important;

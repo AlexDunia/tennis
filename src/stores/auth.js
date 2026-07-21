@@ -36,7 +36,9 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => isLoggedIn.value && Boolean(user.value))
   const accessProfile = computed(() => buildAccessProfile(user.value || {}))
   const isAdmin = computed(() => accessProfile.value.isAdmin)
-  const hasPermission = computed(() => (permission) => checkPermission(accessProfile.value, permission))
+  const hasPermission = computed(
+    () => (permission) => checkPermission(accessProfile.value, permission),
+  )
 
   watch([isLoggedIn, user], () => {
     const payload = {
@@ -49,10 +51,12 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(credentials) {
     try {
       isAuthLoading.value = true
-      const roleKey = credentials.roleKey === 'super_admin' ? 'super_admin' : 'player'
-      const playerId = roleKey === 'super_admin' ? 'player-02' : 'player-05'
+      const roleKey = ['club_admin', 'super_admin'].includes(credentials.roleKey)
+        ? credentials.roleKey
+        : 'player'
+      const playerId = roleKey === 'player' ? 'player-05' : 'player-02'
       const requestedMode =
-        roleKey === 'super_admin' || credentials.dataMode === APP_DATA_MODES.DEMO
+        roleKey !== 'player' || credentials.dataMode === APP_DATA_MODES.DEMO
           ? APP_DATA_MODES.DEMO
           : APP_DATA_MODES.EMPTY
       setAppDataMode(requestedMode)

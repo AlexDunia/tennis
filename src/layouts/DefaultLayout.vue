@@ -158,7 +158,12 @@
       </div>
     </main>
 
-    <nav v-if="showBottomNav" class="bottom-nav" aria-label="Primary navigation">
+    <nav
+      v-if="showBottomNav"
+      class="bottom-nav"
+      aria-label="Primary navigation"
+      :style="{ '--bottom-nav-items': navigationItems.length + 2 }"
+    >
       <a
         v-for="item in navigationItems"
         :key="`bottom-${item.routeName}`"
@@ -293,17 +298,23 @@ const baseNavigationItems = [
   },
 ]
 
-const adminNavigationItem = {
-  to: { name: 'AdminSetup' },
-  routeName: 'AdminSetup',
-  label: 'Club Admin',
-  icon: `<svg width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.6'><path d='M8 2.2 13 4.3v3.6c0 3-1.9 5.1-5 6.1-3.1-1-5-3.1-5-6.1V4.3L8 2.2Z'/><path d='M6 8h4M8 6v4' stroke-linecap='round'/></svg>`,
-}
+const adminNavigationItems = [
+  {
+    to: { name: 'Clubs', query: { view: 'start' } },
+    routeName: 'Clubs',
+    label: 'Clubs',
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 13.5V6.8L8 2.5l5.5 4.3v6.7H9.8V9.4H6.2v4.1H2.5Z" stroke-linejoin="round"/></svg>',
+  },
+  {
+    to: { name: 'Settings' },
+    routeName: 'Settings',
+    label: 'Settings',
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.4M8 12.8v1.4M14.2 8h-1.4M3.2 8H1.8M12.4 3.6l-1 1M4.6 11.4l-1 1M12.4 12.4l-1-1M4.6 4.6l-1-1" stroke-linecap="round"/></svg>',
+  },
+]
 
 const navigationItems = computed(() =>
-  authStore.hasPermission('club.manage')
-    ? [...baseNavigationItems, adminNavigationItem]
-    : baseNavigationItems,
+  authStore.isAdmin ? [...baseNavigationItems, ...adminNavigationItems] : baseNavigationItems,
 )
 
 const profileIcon =
@@ -528,9 +539,11 @@ const unreadCount = computed(() => notificationStore.unreadCount)
 const currentPlayer = computed(() => playerStore.currentPlayer)
 
 const isNavigationActive = (routeName) => {
-  return routeName === 'Tournaments'
-    ? route.path.startsWith('/tournaments')
-    : route.name === routeName
+  if (routeName === 'Tournaments') return route.path.startsWith('/tournaments')
+  if (routeName === 'Clubs') {
+    return ['Clubs', 'AdminSetup'].includes(String(route.name || ''))
+  }
+  return route.name === routeName
 }
 </script>
 
@@ -1166,7 +1179,7 @@ const isNavigationActive = (routeName) => {
     border-top: 0.5px solid rgba(255, 255, 255, 0.08);
     z-index: 40;
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--bottom-nav-items, 6), minmax(0, 1fr));
     box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
     border-radius: 16px 16px 0 0;
   }
