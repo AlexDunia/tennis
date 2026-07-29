@@ -5,7 +5,11 @@ import ChallengesView from '../views/ChallengesView.vue'
 import MatchDetailsView from '../views/MatchDetailsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
+import PlayHubView from '../views/PlayHubView.vue'
 import ProfileView from '../views/ProfileView.vue'
+import HistoryView from '../views/HistoryView.vue'
+import ClubView from '../views/ClubView.vue'
+import AccountSettingsView from '../views/AccountSettingsView.vue'
 import TournamentCategoryView from '../views/TournamentCategory.vue'
 import TournamentCreateView from '../views/TournamentCreate.vue'
 import TournamentHubView from '../views/TournamentHub.vue'
@@ -26,29 +30,48 @@ const routes = [
     path: '/',
     name: 'Home',
     component: LandingView,
-    meta: { title: 'Gorra — The operating system for club tennis', public: true },
+    meta: { title: 'GORRA — The operating system for club tennis', public: true },
   },
   {
     path: '/signin',
     alias: '/login',
     name: 'SignIn',
     component: LoginView,
-    meta: { title: 'Sign in to Gorra', public: true, authPage: true, authMode: 'signin' },
+    meta: { title: 'Sign in to GORRA', public: true, authPage: true, authMode: 'signin' },
   },
   {
     path: '/signup',
     name: 'SignUp',
     component: LoginView,
-    meta: { title: 'Join Gorra', public: true, authPage: true, authMode: 'signup' },
+    meta: { title: 'Join GORRA', public: true, authPage: true, authMode: 'signup' },
   },
   {
     path: '/dashboard',
     name: 'Dashboard',
     component: DashboardView,
     meta: {
-      title: 'Dashboard',
-      subtitle: 'Overview first, then jump into the exact ladder action that needs attention.',
+      title: 'Home',
+      subtitle: 'Your tennis, next actions, and club activity.',
+      primarySection: 'home',
     },
+  },
+  {
+    path: '/home',
+    redirect: { name: 'Dashboard' },
+  },
+  {
+    path: '/play',
+    name: 'Play',
+    component: PlayHubView,
+    meta: {
+      title: 'Play',
+      subtitle: 'Start or continue a match.',
+      primarySection: 'play',
+    },
+  },
+  {
+    path: '/compete',
+    redirect: { name: 'Rankings' },
   },
   {
     path: '/rankings',
@@ -57,6 +80,7 @@ const routes = [
     meta: {
       title: 'Rankings',
       subtitle: 'Track the ladder, compare records, and see who you can challenge next.',
+      primarySection: 'compete',
     },
   },
   {
@@ -66,6 +90,7 @@ const routes = [
     meta: {
       title: 'Tournaments',
       subtitle: 'Manage group stages, standings, knockout brackets, and champions.',
+      primarySection: 'compete',
     },
   },
   {
@@ -76,6 +101,7 @@ const routes = [
       title: 'Create Tournament',
       subtitle: 'Build a tournament with categories, groups, and rules.',
       permission: 'tournaments.manage',
+      primarySection: 'compete',
     },
   },
   {
@@ -85,6 +111,7 @@ const routes = [
     meta: {
       title: 'Tournament Overview',
       subtitle: 'See categories, progress, officials, and the match schedule.',
+      primarySection: 'compete',
     },
   },
   {
@@ -94,6 +121,7 @@ const routes = [
     meta: {
       title: 'Tournament Category',
       subtitle: 'Work through groups, fixtures, standings, and knockout rounds.',
+      primarySection: 'compete',
     },
   },
   {
@@ -103,6 +131,7 @@ const routes = [
     meta: {
       title: 'Tournament Schedule',
       subtitle: 'All tournament matches grouped by date and filterable by category.',
+      primarySection: 'compete',
     },
   },
   {
@@ -112,6 +141,7 @@ const routes = [
     meta: {
       title: 'Tournament Gallery',
       subtitle: 'Browse and share moments from this tournament edition.',
+      primarySection: 'compete',
     },
   },
   {
@@ -122,6 +152,7 @@ const routes = [
     meta: {
       title: 'Tournament Match',
       subtitle: 'Review the shared match record with tournament context.',
+      primarySection: 'compete',
     },
   },
   {
@@ -129,82 +160,143 @@ const routes = [
     alias: '/ladder-match/type',
     name: 'FriendlyMatchType',
     component: FriendlyMatchFlowView,
-    meta: { title: 'New match', friendlyFlow: true, friendlyStep: 'type' },
+    meta: {
+      title: 'New match',
+      friendlyFlow: true,
+      friendlyStep: 'type',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/timing',
     alias: '/ladder-match/timing',
     name: 'FriendlyMatchTiming',
     component: FriendlyMatchFlowView,
-    meta: { title: 'When are you playing?', friendlyFlow: true, friendlyStep: 'timing' },
+    meta: {
+      title: 'When are you playing?',
+      friendlyFlow: true,
+      friendlyStep: 'timing',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/join',
     alias: '/ladder-match/join',
     name: 'FriendlyMatchJoin',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Let your opponent join', friendlyFlow: true, friendlyStep: 'join' },
+    meta: {
+      title: 'Let your opponent join',
+      friendlyFlow: true,
+      friendlyStep: 'join',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/club-opponent',
     alias: '/ladder-match/opponent',
     name: 'FriendlyMatchClubOpponent',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Choose opponent from club', friendlyFlow: true, friendlyStep: 'clubOpponent' },
+    meta: {
+      title: 'Choose opponent from club',
+      friendlyFlow: true,
+      friendlyStep: 'clubOpponent',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/schedule',
     alias: '/ladder-match/schedule',
     name: 'FriendlyMatchSchedule',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Optional match timing', friendlyFlow: true, friendlyStep: 'schedule' },
+    meta: {
+      title: 'Optional match timing',
+      friendlyFlow: true,
+      friendlyStep: 'schedule',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/opponent',
     name: 'FriendlyMatchOpponent',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Choose opponent', friendlyFlow: true, friendlyStep: 'opponent' },
+    meta: {
+      title: 'Choose opponent',
+      friendlyFlow: true,
+      friendlyStep: 'opponent',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/scoring',
     alias: '/ladder-match/scoring',
     name: 'FriendlyMatchScoring',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Scoring', friendlyFlow: true, friendlyStep: 'scoring' },
+    meta: {
+      title: 'Scoring',
+      friendlyFlow: true,
+      friendlyStep: 'scoring',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/format',
     alias: '/ladder-match/format',
     name: 'FriendlyMatchFormat',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Match format', friendlyFlow: true, friendlyStep: 'format' },
+    meta: {
+      title: 'Match format',
+      friendlyFlow: true,
+      friendlyStep: 'format',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/custom-format',
     name: 'FriendlyMatchCustomFormat',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Custom format', friendlyFlow: true, friendlyStep: 'customFormat' },
+    meta: {
+      title: 'Custom format',
+      friendlyFlow: true,
+      friendlyStep: 'customFormat',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/scheduled',
     alias: '/ladder-match/sent',
     name: 'FriendlyMatchScheduled',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Invitation sent', friendlyFlow: true, friendlyStep: 'scheduled' },
+    meta: {
+      title: 'Invitation sent',
+      friendlyFlow: true,
+      friendlyStep: 'scheduled',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/join/:token',
     alias: '/ladder-match/join/:token',
     name: 'FriendlyMatchJoinInvitation',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Join friendly match', friendlyFlow: true, friendlyStep: 'externalJoin' },
+    meta: {
+      title: 'Join friendly match',
+      friendlyFlow: true,
+      friendlyStep: 'externalJoin',
+      primarySection: 'play',
+    },
   },
   {
     path: '/friendly-match/live',
     alias: '/ladder-match/live',
     name: 'FriendlyMatchLive',
     component: FriendlyMatchFlowView,
-    meta: { title: 'Live friendly match', friendlyFlow: true, friendlyStep: 'live' },
+    meta: {
+      title: 'Live friendly match',
+      friendlyFlow: true,
+      friendlyStep: 'live',
+      primarySection: 'play',
+      immersive: true,
+    },
   },
   {
     path: '/onboarding/join-club',
@@ -213,6 +305,7 @@ const routes = [
     meta: {
       title: 'Join your club',
       onboardingFlow: true,
+      primarySection: 'club',
     },
   },
   {
@@ -224,6 +317,7 @@ const routes = [
       subtitle: 'Create a club or join one with an invite code.',
       permission: 'club.manage',
       onboardingFlow: true,
+      primarySection: 'club',
     },
   },
   {
@@ -235,16 +329,38 @@ const routes = [
       subtitle: 'Open a club, create another one, or join with an invite code.',
       permission: 'club.manage',
       onboardingFlow: true,
+      primarySection: 'club',
+    },
+  },
+  {
+    path: '/club',
+    name: 'Club',
+    component: ClubView,
+    meta: {
+      title: 'Club',
+      subtitle: 'Your club, members, courts, and rules.',
+      primarySection: 'club',
     },
   },
   {
     path: '/settings',
+    alias: '/club/settings',
     name: 'Settings',
     component: SettingsView,
     meta: {
-      title: 'Settings',
-      subtitle: 'Keep your club, ladders, rules, members, and account up to date.',
+      title: 'Club Settings',
+      subtitle: 'Manage club details, members, ladders, and rules.',
       permission: 'club.manage',
+      primarySection: 'club',
+    },
+  },
+  {
+    path: '/account/settings',
+    name: 'AccountSettings',
+    component: AccountSettingsView,
+    meta: {
+      title: 'Account Settings',
+      subtitle: 'Update your profile, password, and session.',
     },
   },
   {
@@ -254,6 +370,7 @@ const routes = [
     meta: {
       title: 'Challenges',
       subtitle: 'Accept, review, and monitor every ladder challenge from one focused queue.',
+      primarySection: 'compete',
     },
   },
   {
@@ -263,6 +380,15 @@ const routes = [
     meta: { title: 'Profile', subtitle: 'Your ladder record and stats.' },
   },
   {
+    path: '/history',
+    name: 'History',
+    component: HistoryView,
+    meta: {
+      title: 'Match History',
+      subtitle: 'Completed matches and court activity.',
+    },
+  },
+  {
     path: '/matches/:matchId',
     name: 'MatchDetails',
     component: MatchDetailsView,
@@ -270,6 +396,7 @@ const routes = [
     meta: {
       title: 'Match Details',
       subtitle: 'Confirm the final score, verify the winner, and move the ladder forward.',
+      primarySection: 'compete',
     },
   },
   {
@@ -281,6 +408,8 @@ const routes = [
       title: 'Play',
       subtitle: 'Run the live scoreboard in a focused full-screen match environment.',
       permission: 'matches.live_score',
+      primarySection: 'play',
+      immersive: true,
     },
   },
   {
@@ -344,7 +473,7 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title} | Gorra` : 'Gorra'
+  document.title = to.meta.title ? `${to.meta.title} | GORRA` : 'GORRA'
   window.setTimeout(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, 0)
