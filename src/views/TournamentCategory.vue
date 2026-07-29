@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAdminStore } from '../stores/admin'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
@@ -16,6 +17,7 @@ import { useTournamentLiveRefresh } from '../composables/useTournamentLiveRefres
 
 const route = useRoute()
 const router = useRouter()
+const adminStore = useAdminStore()
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
@@ -35,7 +37,9 @@ const tabs = [
 const tournamentId = computed(() => route.params.tournamentId)
 const categoryId = computed(() => route.params.categoryId)
 const tournament = computed(() =>
-  tournamentStore.activeTournament?.id === tournamentId.value ? tournamentStore.activeTournament : null,
+  tournamentStore.activeTournament?.id === tournamentId.value
+    ? tournamentStore.activeTournament
+    : null,
 )
 const category = computed(() => tournamentStore.activeCategoryById(categoryId.value))
 const categoryMatches = computed(() =>
@@ -43,7 +47,9 @@ const categoryMatches = computed(() =>
     (match) => match.tournamentId === tournamentId.value && match.categoryId === categoryId.value,
   ),
 )
-const playableCategoryMatches = computed(() => categoryMatches.value.filter((match) => !match.isBye))
+const playableCategoryMatches = computed(() =>
+  categoryMatches.value.filter((match) => !match.isBye),
+)
 const groupMatches = computed(() =>
   playableCategoryMatches.value.filter((match) => match.round === 'group'),
 )
@@ -95,13 +101,16 @@ const statusFilters = computed(() => {
       ...filter,
       count: countMatchesForStatusFilter(filter.value),
     }))
-    .filter((filter) => filter.value === 'all' || filter.count > 0 || filter.value === statusFilter.value)
+    .filter(
+      (filter) => filter.value === 'all' || filter.count > 0 || filter.value === statusFilter.value,
+    )
 })
-const groupStandings = computed(() =>
-  category.value?.groups.map((group) => ({
-    group,
-    standings: tournamentStore.standingsForGroup(categoryId.value, group.id),
-  })) || [],
+const groupStandings = computed(
+  () =>
+    category.value?.groups.map((group) => ({
+      group,
+      standings: tournamentStore.standingsForGroup(categoryId.value, group.id),
+    })) || [],
 )
 const champion = computed(() => tournamentStore.championForCategory(categoryId.value))
 const progress = computed(() =>
@@ -122,7 +131,8 @@ const formatSummary = computed(() => {
   return 'Play group matches. Best players qualify for knockout.'
 })
 const qualifierCopy = computed(() => {
-  const qualifiers = category.value?.settings?.qualifiersPerGroup || tournament.value?.rules?.qualifiersPerGroup || 0
+  const qualifiers =
+    category.value?.settings?.qualifiersPerGroup || tournament.value?.rules?.qualifiersPerGroup || 0
   if (!qualifiers) {
     return 'Best record wins.'
   }
@@ -131,7 +141,9 @@ const qualifierCopy = computed(() => {
     ? `Top ${qualifiers} go through.`
     : `Top ${qualifiers} in each group go through.`
 })
-const canManageTournament = computed(() => playerStore.currentPlayerCan('tournaments.score.update'))
+const canManageTournament = computed(() =>
+  adminStore.hasActiveClubPermission('tournaments.score.update'),
+)
 const currentPlayer = computed(() => playerStore.currentPlayer)
 const currentPlayerId = computed(() => currentPlayer.value?.id || '')
 const currentPlayerFirstName = computed(() => currentPlayer.value?.name?.split(' ')[0] || 'Player')
@@ -151,17 +163,22 @@ const currentPlayerGroupEntry = computed(() => {
 })
 const currentPlayerMatches = computed(() =>
   playableCategoryMatches.value.filter(
-    (match) => match.player1Id === currentPlayerId.value || match.player2Id === currentPlayerId.value,
+    (match) =>
+      match.player1Id === currentPlayerId.value || match.player2Id === currentPlayerId.value,
   ),
 )
 const currentPlayerPendingCount = computed(
   () => currentPlayerMatches.value.filter((match) => match.status === 'pending').length,
 )
 const activeGroupFilter = computed(
-  () => groupFilters.value.find((filter) => filter.value === groupFilter.value) || groupFilters.value[0],
+  () =>
+    groupFilters.value.find((filter) => filter.value === groupFilter.value) ||
+    groupFilters.value[0],
 )
 const activeStatusFilter = computed(
-  () => statusFilters.value.find((filter) => filter.value === statusFilter.value) || statusFilters.value[0],
+  () =>
+    statusFilters.value.find((filter) => filter.value === statusFilter.value) ||
+    statusFilters.value[0],
 )
 const filterSummaryTitle = computed(() => {
   const count = filteredMatches.value.length
@@ -173,7 +190,8 @@ const filterSummaryCopy = computed(() => {
   const statusLabel = activeStatusFilter.value?.label || 'All Status'
   const name = currentPlayerFirstName.value
   const playerCount = filteredMatches.value.filter(
-    (match) => match.player1Id === currentPlayerId.value || match.player2Id === currentPlayerId.value,
+    (match) =>
+      match.player1Id === currentPlayerId.value || match.player2Id === currentPlayerId.value,
   ).length
 
   if (!filteredMatches.value.length) {
@@ -227,13 +245,15 @@ function countMatchesForStatusFilter(filterValue) {
 
 function countPlayed(groupId) {
   return categoryMatches.value.filter(
-    (match) => !match.isBye && match.groupId === groupId && ['completed', 'walkover'].includes(match.status),
+    (match) =>
+      !match.isBye && match.groupId === groupId && ['completed', 'walkover'].includes(match.status),
   ).length
 }
 
 function countRemaining(groupId) {
-  return categoryMatches.value.filter((match) => !match.isBye && match.groupId === groupId && match.status === 'pending')
-    .length
+  return categoryMatches.value.filter(
+    (match) => !match.isBye && match.groupId === groupId && match.status === 'pending',
+  ).length
 }
 
 function getGroupStandings(groupId) {
@@ -270,7 +290,7 @@ async function saveSchedule(payload) {
 }
 
 async function closeRoundRobin() {
-  if (!playerStore.currentPlayerCan('tournaments.knockout.manage')) {
+  if (!adminStore.hasActiveClubPermission('tournaments.knockout.manage')) {
     return
   }
 
@@ -287,15 +307,23 @@ async function closeRoundRobin() {
   }
 }
 
-watch(tournamentId, async (nextTournamentId) => {
-  hasLoaded.value = false
-  selectedTab.value = 'overview'
-  groupFilter.value = 'all'
-  statusFilter.value = 'all'
-  selectedMatch.value = null
-  await Promise.all([tournamentStore.fetchTournament(nextTournamentId), matchStore.loadMatches(), playerStore.loadPlayers()])
-  hasLoaded.value = true
-}, { immediate: true })
+watch(
+  tournamentId,
+  async (nextTournamentId) => {
+    hasLoaded.value = false
+    selectedTab.value = 'overview'
+    groupFilter.value = 'all'
+    statusFilter.value = 'all'
+    selectedMatch.value = null
+    await Promise.all([
+      tournamentStore.fetchTournament(nextTournamentId),
+      matchStore.loadMatches(),
+      playerStore.loadPlayers(),
+    ])
+    hasLoaded.value = true
+  },
+  { immediate: true },
+)
 
 watch(categoryId, () => {
   selectedTab.value = 'overview'
@@ -311,9 +339,7 @@ watch(categoryId, () => {
         <div>
           <CategoryStatusBadge :status="category.status" />
           <h2 class="t-hero__title">{{ category.name }}</h2>
-          <p class="t-hero__copy">
-            Play matches, enter scores, and see who stays alive.
-          </p>
+          <p class="t-hero__copy">Play matches, enter scores, and see who stays alive.</p>
         </div>
         <RouterLink class="t-button t-button--secondary" :to="`/tournaments/${tournamentId}`">
           Back to Overview
@@ -322,7 +348,9 @@ watch(categoryId, () => {
 
       <div class="t-hero__stats">
         <div class="t-stat-tile">
-          <span class="t-stat-tile__value">{{ completedGroupMatches.length }}/{{ groupMatches.length }}</span>
+          <span class="t-stat-tile__value"
+            >{{ completedGroupMatches.length }}/{{ groupMatches.length }}</span
+          >
           <span class="t-stat-tile__label">Group matches</span>
         </div>
         <div class="t-stat-tile">
@@ -344,7 +372,11 @@ watch(categoryId, () => {
       <span class="t-section-kicker">Your place here</span>
       <strong>{{ personalCategoryCopy }}</strong>
       <p>
-        {{ canManageTournament ? 'Admin changes refresh for viewers automatically.' : 'You will see score changes here automatically.' }}
+        {{
+          canManageTournament
+            ? 'Admin changes refresh for viewers automatically.'
+            : 'You will see score changes here automatically.'
+        }}
       </p>
     </section>
 
@@ -367,7 +399,10 @@ watch(categoryId, () => {
           v-for="group in category.groups"
           :key="group.id"
           class="t-shell-card tournament-category__group-summary"
-          :class="{ 'tournament-category__group-summary--current': currentPlayerGroupEntry?.group.id === group.id }"
+          :class="{
+            'tournament-category__group-summary--current':
+              currentPlayerGroupEntry?.group.id === group.id,
+          }"
         >
           <div class="t-section-header">
             <div>
@@ -384,7 +419,11 @@ watch(categoryId, () => {
               :style="{
                 width: `${
                   countPlayed(group.id) + countRemaining(group.id)
-                    ? Math.round((countPlayed(group.id) / (countPlayed(group.id) + countRemaining(group.id))) * 100)
+                    ? Math.round(
+                        (countPlayed(group.id) /
+                          (countPlayed(group.id) + countRemaining(group.id))) *
+                          100,
+                      )
                     : 0
                 }%`,
               }"
@@ -394,9 +433,14 @@ watch(categoryId, () => {
             <div
               v-for="standing in getGroupStandings(group.id).slice(0, 2)"
               :key="standing.playerId"
-              :class="{ 'tournament-category__mini-row--current': isCurrentPlayer(standing.playerId) }"
+              :class="{
+                'tournament-category__mini-row--current': isCurrentPlayer(standing.playerId),
+              }"
             >
-              <span>{{ standing.rank }}. {{ standing.name }} <em v-if="isCurrentPlayer(standing.playerId)">You</em></span>
+              <span
+                >{{ standing.rank }}. {{ standing.name }}
+                <em v-if="isCurrentPlayer(standing.playerId)">You</em></span
+              >
               <strong>{{ standing.points }} pts</strong>
             </div>
           </div>
@@ -406,9 +450,7 @@ watch(categoryId, () => {
       <article class="t-shell-card tournament-category__explainer">
         <span class="t-section-kicker">Simple tournament guide</span>
         <h3 class="t-section-title">How this category works</h3>
-        <p class="t-copy">
-          {{ formatSummary }} {{ qualifierCopy }}
-        </p>
+        <p class="t-copy">{{ formatSummary }} {{ qualifierCopy }}</p>
       </article>
     </section>
 
@@ -417,7 +459,10 @@ watch(categoryId, () => {
         v-for="group in category.groups"
         :key="group.id"
         class="t-shell-card tournament-category__group-card"
-        :class="{ 'tournament-category__group-card--current': currentPlayerGroupEntry?.group.id === group.id }"
+        :class="{
+          'tournament-category__group-card--current':
+            currentPlayerGroupEntry?.group.id === group.id,
+        }"
       >
         <div class="t-section-header">
           <div>
@@ -478,7 +523,9 @@ watch(categoryId, () => {
       </div>
 
       <article class="t-shell-card tournament-category__filter-summary">
-        <span class="t-section-kicker">{{ activeGroupFilter?.label }} / {{ activeStatusFilter?.label }}</span>
+        <span class="t-section-kicker"
+          >{{ activeGroupFilter?.label }} / {{ activeStatusFilter?.label }}</span
+        >
         <strong>{{ filterSummaryTitle }}</strong>
         <p>{{ filterSummaryCopy }}</p>
       </article>
@@ -495,8 +542,14 @@ watch(categoryId, () => {
       />
       <TournamentEmptyState
         v-if="!filteredMatches.length"
-        :title="groupMatches.length ? 'No fixtures match this view' : 'Fixtures have not been generated'"
-        :message="groupMatches.length ? 'Try changing the group or status filter.' : 'Confirm the players and competition format before generating fixtures.'"
+        :title="
+          groupMatches.length ? 'No fixtures match this view' : 'Fixtures have not been generated'
+        "
+        :message="
+          groupMatches.length
+            ? 'Try changing the group or status filter.'
+            : 'Confirm the players and competition format before generating fixtures.'
+        "
       />
     </section>
 
@@ -531,7 +584,7 @@ watch(categoryId, () => {
         } still pending. Finish those matches, then generate the knockout.`"
         @action="closeRoundRobin"
       >
-        <template v-if="playerStore.currentPlayerCan('tournaments.knockout.manage')" #action>
+        <template v-if="adminStore.hasActiveClubPermission('tournaments.knockout.manage')" #action>
           Generate Knockout
         </template>
       </TournamentEmptyState>

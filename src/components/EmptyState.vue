@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import BaseButton from './BaseButton.vue'
+import FlowIcon from './friendly/FlowIcon.vue'
 
 const props = defineProps({
   variant: { type: String, default: 'first-use' },
@@ -29,6 +30,16 @@ const hasSecondaryAction = computed(() =>
     ? Boolean(props.secondaryActionLabel)
     : props.showSecondaryAction && Boolean(props.secondaryActionLabel),
 )
+
+const emptyIconName = computed(() => {
+  const requested = String(props.illustration || props.icon || '').toLowerCase()
+  const aliases = {
+    tournament: 'trophy',
+    gallery: 'trophy',
+    player: 'profile',
+  }
+  return aliases[requested] || requested || 'matches'
+})
 </script>
 
 <template>
@@ -40,6 +51,9 @@ const hasSecondaryAction = computed(() =>
     ]"
     :aria-label="ariaLabel || title"
   >
+    <div class="empty-state-system__visual" aria-hidden="true">
+      <FlowIcon :name="emptyIconName" />
+    </div>
     <div class="empty-state-system__content">
       <h3>{{ title }}</h3>
       <p>{{ description }}</p>
@@ -80,6 +94,22 @@ const hasSecondaryAction = computed(() =>
 .empty-state-system--left {
   justify-items: start;
   text-align: left;
+}
+
+.empty-state-system__visual {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface-soft);
+  color: var(--color-primary-strong);
+}
+
+.empty-state-system__visual :deep(.flow-icon) {
+  width: 20px;
+  height: 20px;
 }
 
 .empty-state-system__content { max-width: 520px; }

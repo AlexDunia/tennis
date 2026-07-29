@@ -99,7 +99,7 @@ function startMatch() {
 .friendly-home__header h1 {
   margin-top: 2px;
   color: var(--color-text);
-  font-size: clamp(25px, 4vw, 34px);
+  font-size: clamp(22px, 4vw, 28px);
   line-height: 1.15;
 }
 
@@ -229,14 +229,14 @@ function startMatch() {
 
 .friendly-home__result strong {
   color: var(--color-text-soft);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
 .friendly-home__result small {
   margin-top: 2px;
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 12px;
   opacity: 0.72;
 }
 

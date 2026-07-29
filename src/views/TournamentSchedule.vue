@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAdminStore } from '../stores/admin'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
@@ -12,6 +13,7 @@ import { formatAppDate } from '../utils/dateFormat'
 
 const route = useRoute()
 const router = useRouter()
+const adminStore = useAdminStore()
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
@@ -24,12 +26,16 @@ const hasLoaded = ref(false)
 
 const tournamentId = computed(() => route.params.tournamentId)
 const tournament = computed(() =>
-  tournamentStore.activeTournament?.id === tournamentId.value ? tournamentStore.activeTournament : null,
+  tournamentStore.activeTournament?.id === tournamentId.value
+    ? tournamentStore.activeTournament
+    : null,
 )
 const matches = computed(() =>
   matchStore.matches.filter((match) => match.tournamentId === tournamentId.value && !match.isBye),
 )
-const canManageTournament = computed(() => playerStore.currentPlayerCan('tournaments.score.update'))
+const canManageTournament = computed(() =>
+  adminStore.hasActiveClubPermission('tournaments.score.update'),
+)
 const currentPlayerId = computed(() => playerStore.currentPlayer?.id || '')
 const categoryFilters = computed(() => [
   { label: 'All Categories', value: 'all' },
@@ -40,7 +46,8 @@ const categoryFilters = computed(() => [
 ])
 const filteredMatches = computed(() =>
   matches.value.filter((match) => {
-    const matchesCategory = categoryFilter.value === 'all' || match.categoryId === categoryFilter.value
+    const matchesCategory =
+      categoryFilter.value === 'all' || match.categoryId === categoryFilter.value
     const matchesStatus = statusFilter.value === 'all' || match.status === statusFilter.value
     const matchesCourt = courtFilter.value === 'all' || match.court === courtFilter.value
     return matchesCategory && matchesStatus && matchesCourt
@@ -55,12 +62,16 @@ const scheduledGroups = computed(() =>
       return { ...groups, [match.scheduledDate]: group }
     }, {}),
 )
-const unscheduledMatches = computed(() => filteredMatches.value.filter((match) => !match.scheduledDate))
+const unscheduledMatches = computed(() =>
+  filteredMatches.value.filter((match) => !match.scheduledDate),
+)
 
 useTournamentLiveRefresh(tournamentId)
 
 function categoryName(categoryId) {
-  return tournament.value?.categories.find((category) => category.id === categoryId)?.name || categoryId
+  return (
+    tournament.value?.categories.find((category) => category.id === categoryId)?.name || categoryId
+  )
 }
 
 async function saveScore(payload) {
@@ -87,15 +98,19 @@ function handleMatchOpen(match) {
   router.push(`/tournaments/${tournamentId.value}/match/${match.id}`)
 }
 
-watch(tournamentId, async (nextTournamentId) => {
-  hasLoaded.value = false
-  categoryFilter.value = 'all'
-  statusFilter.value = 'all'
-  courtFilter.value = 'all'
-  selectedMatch.value = null
-  await Promise.all([tournamentStore.fetchTournament(nextTournamentId), matchStore.loadMatches()])
-  hasLoaded.value = true
-}, { immediate: true })
+watch(
+  tournamentId,
+  async (nextTournamentId) => {
+    hasLoaded.value = false
+    categoryFilter.value = 'all'
+    statusFilter.value = 'all'
+    courtFilter.value = 'all'
+    selectedMatch.value = null
+    await Promise.all([tournamentStore.fetchTournament(nextTournamentId), matchStore.loadMatches()])
+    hasLoaded.value = true
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -159,54 +174,60 @@ watch(tournamentId, async (nextTournamentId) => {
       v-if="!filteredMatches.length"
       :icon="matches.length ? 'Search' : 'Fixtures'"
       :title="matches.length ? 'No fixtures match this view' : 'Fixtures have not been generated'"
-      :message="matches.length ? 'Try changing the category, status or court filter.' : 'Confirm the players and competition format before generating fixtures.'"
+      :message="
+        matches.length
+          ? 'Try changing the category, status or court filter.'
+          : 'Confirm the players and competition format before generating fixtures.'
+      "
       @action="clearScheduleFilters"
     >
       <template v-if="matches.length" #action>Clear filters</template>
     </TournamentEmptyState>
 
     <template v-else>
-    <section
-      v-for="(dayMatches, day) in scheduledGroups"
-      :key="day"
-      class="t-shell-card tournament-schedule__day"
-    >
-      <h3 class="t-section-title">{{ formatAppDate(day) }}</h3>
-      <div class="tournament-schedule__scroll">
-        <MatchFixtureRow
-          v-for="match in dayMatches"
-          :key="match.id"
-          :current-player-id="currentPlayerId"
-          :match="match"
-          :category-name="categoryName(match.categoryId)"
-          @open="handleMatchOpen"
-        />
-      </div>
-    </section>
-
-    <section class="t-shell-card tournament-schedule__day">
-      <div class="t-section-header">
-        <div>
-          <h3 class="t-section-title">Unscheduled</h3>
-          <p class="t-muted">{{ unscheduledMatches.length }} matches still need a time and court.</p>
+      <section
+        v-for="(dayMatches, day) in scheduledGroups"
+        :key="day"
+        class="t-shell-card tournament-schedule__day"
+      >
+        <h3 class="t-section-title">{{ formatAppDate(day) }}</h3>
+        <div class="tournament-schedule__scroll">
+          <MatchFixtureRow
+            v-for="match in dayMatches"
+            :key="match.id"
+            :current-player-id="currentPlayerId"
+            :match="match"
+            :category-name="categoryName(match.categoryId)"
+            @open="handleMatchOpen"
+          />
         </div>
-      </div>
-      <div v-if="unscheduledMatches.length" class="tournament-schedule__scroll">
-        <MatchFixtureRow
-          v-for="match in unscheduledMatches"
-          :key="match.id"
-          :current-player-id="currentPlayerId"
-          :match="match"
-          :category-name="categoryName(match.categoryId)"
-          @open="handleMatchOpen"
+      </section>
+
+      <section class="t-shell-card tournament-schedule__day">
+        <div class="t-section-header">
+          <div>
+            <h3 class="t-section-title">Unscheduled</h3>
+            <p class="t-muted">
+              {{ unscheduledMatches.length }} matches still need a time and court.
+            </p>
+          </div>
+        </div>
+        <div v-if="unscheduledMatches.length" class="tournament-schedule__scroll">
+          <MatchFixtureRow
+            v-for="match in unscheduledMatches"
+            :key="match.id"
+            :current-player-id="currentPlayerId"
+            :match="match"
+            :category-name="categoryName(match.categoryId)"
+            @open="handleMatchOpen"
+          />
+        </div>
+        <TournamentEmptyState
+          v-else
+          title="Everything is scheduled"
+          message="No unscheduled matches match the current filters."
         />
-      </div>
-      <TournamentEmptyState
-        v-else
-        title="Everything is scheduled"
-        message="No unscheduled matches match the current filters."
-      />
-    </section>
+      </section>
     </template>
 
     <TournamentMatchModal

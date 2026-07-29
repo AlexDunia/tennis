@@ -2,6 +2,7 @@
 // 1. IMPORTS
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAdminStore } from '../stores/admin'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
@@ -20,6 +21,7 @@ import EmptyState from '../components/EmptyState.vue'
 const route = useRoute()
 
 // 5. STORES
+const adminStore = useAdminStore()
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
@@ -39,12 +41,19 @@ const challenger = computed(
 const defender = computed(
   () => playerStore.players.find((player) => player.id === match.value?.defenderId) || null,
 )
-const canSubmitScore = computed(() => match.value?.type !== 'tournament' && match.value?.status === 'scheduled')
+const canSubmitScore = computed(
+  () => match.value?.type !== 'tournament' && match.value?.status === 'scheduled',
+)
 const tournament = computed(() => tournamentStore.activeTournament)
 const tournamentId = computed(() => route.params.tournamentId || match.value?.tournamentId || '')
-const canManageTournament = computed(() => playerStore.currentPlayerCan('tournaments.score.update'))
+const canManageTournament = computed(() =>
+  adminStore.hasActiveClubPermission('tournaments.score.update'),
+)
 const canOpenLiveBoard = computed(
-  () => match.value?.type === 'tournament' && canManageTournament.value && ['pending', 'scheduled'].includes(match.value.status),
+  () =>
+    match.value?.type === 'tournament' &&
+    canManageTournament.value &&
+    ['pending', 'scheduled'].includes(match.value.status),
 )
 const canEditTournamentResult = computed(
   () =>
@@ -181,14 +190,20 @@ onMounted(() => {
         </RouterLink>
         <p class="match-summary__status">{{ tournament?.name || 'Tournament match' }}</p>
         <h2>{{ tournamentCategory?.name || match.categoryId }} Match</h2>
-        <p class="match-copy">{{ tournamentRoundLabel }} - {{ playerOneName }} vs {{ playerTwoName }}</p>
+        <p class="match-copy">
+          {{ tournamentRoundLabel }} - {{ playerOneName }} vs {{ playerTwoName }}
+        </p>
       </div>
 
       <div class="match-summary section-card">
         <p class="match-summary__status">{{ match.statusLabel }}</p>
         <h2>{{ playerOneName }} vs {{ playerTwoName }}</h2>
         <p class="match-copy">
-          {{ match.scheduledAt ? `Scheduled ${formatAppDateTime(match.scheduledAt)}` : 'Schedule pending' }}
+          {{
+            match.scheduledAt
+              ? `Scheduled ${formatAppDateTime(match.scheduledAt)}`
+              : 'Schedule pending'
+          }}
         </p>
         <p class="match-copy">{{ match.score ? `Score ${match.score}` : 'No score submitted' }}</p>
       </div>
@@ -234,8 +249,17 @@ onMounted(() => {
         />
         <template v-else>
           <h3>Tournament controls</h3>
-          <p class="panel-copy">Use the category fixture tools to keep this completed result accurate.</p>
-          <button v-if="canEditTournamentResult" class="submit-button" type="button" @click="openTournamentScoreModal">{{ tournamentScoreActionLabel }}</button>
+          <p class="panel-copy">
+            Use the category fixture tools to keep this completed result accurate.
+          </p>
+          <button
+            v-if="canEditTournamentResult"
+            class="submit-button"
+            type="button"
+            @click="openTournamentScoreModal"
+          >
+            {{ tournamentScoreActionLabel }}
+          </button>
         </template>
       </div>
 
@@ -270,7 +294,11 @@ onMounted(() => {
   display: grid;
 }
 
-.match-details__loading { display: grid; gap: 10px; padding: 1.25rem; }
+.match-details__loading {
+  display: grid;
+  gap: 10px;
+  padding: 1.25rem;
+}
 
 .match-grid {
   display: grid;

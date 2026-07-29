@@ -8,6 +8,7 @@ import { useNotificationStore } from '../stores/notification'
 import BaseButton from '../components/BaseButton.vue'
 import PersonAvatar from '../components/PersonAvatar.vue'
 import EmptyState from '../components/EmptyState.vue'
+import FlowIcon from '../components/friendly/FlowIcon.vue'
 
 // 2. ROUTER / ROUTE
 const route = useRoute()
@@ -272,7 +273,10 @@ onMounted(async () => {
             </div>
 
             <div class="format-pill">
-              <span>🎾</span>
+              <svg class="format-pill__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="7.5" />
+                <path d="M6.4 8.5c3.5 1 6.9 4.4 8.9 8.7M17.6 7c-2.3.8-4.5 2.7-5.8 5" />
+              </svg>
               <span>{{ formatLabel }}</span>
             </div>
           </div>
@@ -325,7 +329,7 @@ onMounted(async () => {
 
           <!-- Trigger when nothing selected -->
           <button v-if="!selectedOpponent" type="button" class="picker-trigger" @click="openPicker">
-            <span class="picker-trigger__icon">👤</span>
+            <FlowIcon name="profile" class="picker-trigger__icon" />
             <span>Choose your opponent</span>
             <span class="picker-trigger__arrow">›</span>
           </button>
@@ -737,6 +741,17 @@ onMounted(async () => {
   width: fit-content;
 }
 
+.format-pill__icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .identity-nudge {
   margin: 0;
   font-size: 0.8rem;
@@ -824,7 +839,9 @@ onMounted(async () => {
 }
 
 .picker-trigger__icon {
-  font-size: 1rem;
+  width: 18px;
+  height: 18px;
+  color: var(--color-primary);
 }
 
 .picker-trigger__arrow {

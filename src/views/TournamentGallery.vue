@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAdminStore } from '../stores/admin'
 import { useNotificationStore } from '../stores/notification'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
@@ -13,6 +14,7 @@ import TournamentImageLightbox from '../components/tournament/TournamentImageLig
 
 const route = useRoute()
 const router = useRouter()
+const adminStore = useAdminStore()
 const notificationStore = useNotificationStore()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
@@ -25,19 +27,27 @@ const tournamentId = computed(() => String(route.params.tournamentId || ''))
 const selectedImageId = computed(() => String(route.query.image || ''))
 const activeFolderKey = computed(() => String(route.query.folder || ''))
 const tournament = computed(() =>
-  tournamentStore.activeTournament?.id === tournamentId.value ? tournamentStore.activeTournament : null,
+  tournamentStore.activeTournament?.id === tournamentId.value
+    ? tournamentStore.activeTournament
+    : null,
 )
 const editionYear = computed(() =>
   tournament.value?.roundRobinStart ? new Date(tournament.value.roundRobinStart).getFullYear() : '',
 )
-const canManageImages = computed(() => playerStore.currentPlayerCan('tournaments.images.manage'))
+const canManageImages = computed(() =>
+  adminStore.hasActiveClubPermission('tournaments.images.manage'),
+)
 const categoriesById = computed(() =>
-  Object.fromEntries((tournament.value?.categories || []).map((category) => [category.id, category])),
+  Object.fromEntries(
+    (tournament.value?.categories || []).map((category) => [category.id, category]),
+  ),
 )
 const galleryImages = computed(() =>
   galleryStore.images.map((image) => ({
     ...image,
-    categoryName: image.categoryId ? categoriesById.value[image.categoryId]?.name || 'Uncategorized' : '',
+    categoryName: image.categoryId
+      ? categoriesById.value[image.categoryId]?.name || 'Uncategorized'
+      : '',
   })),
 )
 const folders = computed(() => [
@@ -60,8 +70,8 @@ const folders = computed(() => [
     }
   }),
 ])
-const activeFolder = computed(() =>
-  folders.value.find((folder) => folder.id === activeFolderKey.value) || folders.value[0],
+const activeFolder = computed(
+  () => folders.value.find((folder) => folder.id === activeFolderKey.value) || folders.value[0],
 )
 const filteredImages = computed(() => {
   return galleryImages.value.filter((image) => {
@@ -183,7 +193,12 @@ watch(
           <p>Browse tournament photos by folder or view every image in upload order.</p>
         </div>
         <div class="tournament-gallery__hero-actions">
-          <button v-if="canManageImages" type="button" class="t-button t-button--primary" @click="showAddModal = true">
+          <button
+            v-if="canManageImages"
+            type="button"
+            class="t-button t-button--primary"
+            @click="showAddModal = true"
+          >
             Add image
           </button>
         </div>
@@ -212,7 +227,12 @@ watch(
         </div>
       </div>
       <div class="tournament-gallery__folder-grid">
-        <TournamentGalleryFolder v-for="folder in folders" :key="folder.id" :folder="folder" @open="openFolder" />
+        <TournamentGalleryFolder
+          v-for="folder in folders"
+          :key="folder.id"
+          :folder="folder"
+          @open="openFolder"
+        />
       </div>
     </section>
 
@@ -232,21 +252,38 @@ watch(
 
     <p v-else-if="galleryStore.error" class="t-shell-card tournament-gallery__error">
       {{ galleryStore.error }}
-      <button type="button" class="t-button t-button--secondary" @click="galleryStore.fetchImages(tournamentId)">Retry</button>
+      <button
+        type="button"
+        class="t-button t-button--secondary"
+        @click="galleryStore.fetchImages(tournamentId)"
+      >
+        Retry
+      </button>
     </p>
 
     <section v-else-if="activeFolderKey && filteredImages.length" class="tournament-gallery__grid">
-      <TournamentGalleryCard v-for="image in filteredImages" :key="image.id" :image="image" @open="openImage" />
+      <TournamentGalleryCard
+        v-for="image in filteredImages"
+        :key="image.id"
+        :image="image"
+        @open="openImage"
+      />
     </section>
 
     <TournamentEmptyState
       v-else-if="activeFolderKey || !galleryStore.images.length"
       icon="Gallery"
       :title="galleryStore.images.length ? 'No matching images' : 'No tournament images yet'"
-      :message="galleryStore.images.length ? 'This folder has no images yet. Open another folder or add one here.' : 'Tournament photos will appear here after an administrator adds them.'"
+      :message="
+        galleryStore.images.length
+          ? 'This folder has no images yet. Open another folder or add one here.'
+          : 'Tournament photos will appear here after an administrator adds them.'
+      "
       @action="showAddModal = true"
     >
-      <template v-if="canManageImages && !galleryStore.images.length" #action>Add first image</template>
+      <template v-if="canManageImages && !galleryStore.images.length" #action
+        >Add first image</template
+      >
     </TournamentEmptyState>
 
     <TournamentImageLightbox

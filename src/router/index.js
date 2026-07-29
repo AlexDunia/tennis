@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
-import RankingsView from '../views/RankingsView.vue'
-import ChallengesView from '../views/ChallengesView.vue'
+import RankingsView from '../views/compete/LadderView.vue'
+import ChallengesView from '../views/compete/ChallengesQueueView.vue'
 import MatchDetailsView from '../views/MatchDetailsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
@@ -12,7 +12,7 @@ import ClubView from '../views/ClubView.vue'
 import AccountSettingsView from '../views/AccountSettingsView.vue'
 import TournamentCategoryView from '../views/TournamentCategory.vue'
 import TournamentCreateView from '../views/TournamentCreate.vue'
-import TournamentHubView from '../views/TournamentHub.vue'
+import TournamentHubView from '../views/compete/TournamentsListView.vue'
 import TournamentOverviewView from '../views/TournamentOverview.vue'
 import TournamentScheduleView from '../views/TournamentSchedule.vue'
 import TournamentGalleryView from '../views/TournamentGallery.vue'
@@ -78,8 +78,8 @@ const routes = [
     name: 'Rankings',
     component: RankingsView,
     meta: {
-      title: 'Rankings',
-      subtitle: 'Track the ladder, compare records, and see who you can challenge next.',
+      title: 'Ladder',
+      subtitle: 'Your rank and nearby players.',
       primarySection: 'compete',
     },
   },
@@ -89,7 +89,7 @@ const routes = [
     component: TournamentHubView,
     meta: {
       title: 'Tournaments',
-      subtitle: 'Manage group stages, standings, knockout brackets, and champions.',
+      subtitle: 'Active and completed events.',
       primarySection: 'compete',
     },
   },
@@ -101,6 +101,7 @@ const routes = [
       title: 'Create Tournament',
       subtitle: 'Build a tournament with categories, groups, and rules.',
       permission: 'tournaments.manage',
+      activeClubPermission: true,
       primarySection: 'compete',
     },
   },
@@ -351,6 +352,7 @@ const routes = [
       title: 'Club Settings',
       subtitle: 'Manage club details, members, ladders, and rules.',
       permission: 'club.manage',
+      activeClubPermission: true,
       primarySection: 'club',
     },
   },
@@ -369,7 +371,7 @@ const routes = [
     component: ChallengesView,
     meta: {
       title: 'Challenges',
-      subtitle: 'Accept, review, and monitor every ladder challenge from one focused queue.',
+      subtitle: 'Challenges sent and received.',
       primarySection: 'compete',
     },
   },
@@ -408,6 +410,7 @@ const routes = [
       title: 'Play',
       subtitle: 'Run the live scoreboard in a focused full-screen match environment.',
       permission: 'matches.live_score',
+      activeClubPermission: true,
       primarySection: 'play',
       immersive: true,
     },
@@ -466,7 +469,17 @@ router.beforeEach(async (to) => {
     }
   }
 
-  if (to.meta.permission && !authStore.hasPermission(to.meta.permission)) {
+  if (to.meta.activeClubPermission) {
+    const adminStore = useAdminStore()
+    try {
+      if (!adminStore.activeClubId) await adminStore.loadClubs()
+    } catch {
+      return { name: 'Dashboard', query: { access: 'club' } }
+    }
+    if (!adminStore.hasActiveClubPermission(to.meta.permission)) {
+      return { name: 'Dashboard', query: { access: 'admin' } }
+    }
+  } else if (to.meta.permission && !authStore.hasPermission(to.meta.permission)) {
     return { name: 'Dashboard', query: { access: 'admin' } }
   }
   return true

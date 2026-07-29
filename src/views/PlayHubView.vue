@@ -148,11 +148,14 @@ onMounted(() => {
 }
 
 .play-hub__intro h1 {
-  font-size: clamp(28px, 5vw, 42px);
+  font-size: 22px;
 }
 
 .play-hub__intro > p:last-child {
+  max-width: 58ch;
   color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .play-hub__eyebrow {
@@ -170,10 +173,10 @@ onMounted(() => {
 }
 
 .play-option {
-  min-height: 126px;
+  min-height: 120px;
   justify-content: flex-start;
-  gap: 16px;
-  padding: 22px;
+  gap: 15px;
+  padding: 20px;
   border: 1px solid var(--color-border);
   border-radius: var(--app-card-radius);
   background: var(--color-surface);
@@ -189,9 +192,9 @@ onMounted(() => {
 
 .play-option__icon {
   display: grid;
-  flex: 0 0 46px;
-  width: 46px;
-  height: 46px;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   border-radius: 50%;
   background: var(--color-surface-soft);
@@ -199,7 +202,7 @@ onMounted(() => {
 }
 
 .play-option__icon svg {
-  width: 22px;
+  width: 20px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -224,6 +227,7 @@ onMounted(() => {
 .play-option small {
   color: var(--color-muted);
   font-size: 12px;
+  font-weight: var(--font-weight-regular);
   line-height: 1.5;
 }
 
@@ -239,7 +243,7 @@ onMounted(() => {
 }
 
 .play-hub__section-heading h2 {
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .play-hub__section-heading > span {
@@ -294,16 +298,17 @@ onMounted(() => {
 
 @media (max-width: 640px) {
   .play-hub {
-    gap: 22px;
+    gap: 24px;
   }
 
   .play-hub__actions {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .play-option {
     min-height: 104px;
-    padding: 18px;
+    padding: 17px;
   }
 }
 </style>

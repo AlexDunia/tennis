@@ -95,9 +95,20 @@
         <span>{{ formatDate(challenge.scheduledAt) }}</span>
       </div>
 
-      <div v-if="challenge.responseDeadline && challenge.status === 'awaiting'" class="cc__info-item">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
-          <circle cx="8" cy="8" r="6" /><path d="M8 4v4l2.5 1.5" stroke-linecap="round" />
+      <div
+        v-if="challenge.responseDeadline && challenge.status === 'awaiting'"
+        class="cc__info-item"
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+        >
+          <circle cx="8" cy="8" r="6" />
+          <path d="M8 4v4l2.5 1.5" stroke-linecap="round" />
         </svg>
         <span>Respond by {{ formatDate(challenge.responseDeadline) }}</span>
       </div>

@@ -1790,7 +1790,7 @@ watch(
   max-width: 760px;
   margin-top: 7px;
   color: var(--color-text-soft);
-  font-size: clamp(22px, 5vw, 30px);
+  font-size: clamp(20px, 4vw, 26px);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.025em;
   line-height: 1.2;
@@ -1799,7 +1799,7 @@ watch(
   max-width: 68ch;
   margin-top: 10px;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: var(--font-weight-regular);
   line-height: 1.65;
 }

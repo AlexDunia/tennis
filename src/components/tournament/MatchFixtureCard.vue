@@ -90,13 +90,16 @@ function isCurrentPlayerMatch(match) {
 
     <footer class="match-fixture-card__footer">
       <div class="match-fixture-card__meta">
-        <span>{{ formatAppDateWithTime(match.scheduledDate, match.scheduledTime, { fallback: 'Not yet scheduled' }) }}</span>
+        <span>{{
+          formatAppDateWithTime(match.scheduledDate, match.scheduledTime, {
+            fallback: 'Not yet scheduled',
+          })
+        }}</span>
         <span>{{ match.court || 'No court' }}</span>
       </div>
       <div v-if="!match.isBye" class="match-fixture-card__actions">
         <button
-          v-if="['pending', 'scheduled'].includes(match.status)"
-          v-show="canManage"
+          v-if="canManage && ['pending', 'scheduled'].includes(match.status)"
           class="t-button t-button--secondary"
           type="button"
           @click="emit('live', match)"

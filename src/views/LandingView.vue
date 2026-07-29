@@ -11,20 +11,20 @@ let scrollFrame = null
 
 const problems = [
   [
-    'The score exists. Somewhere.',
-    'It was posted in a chat on Tuesday. The ladder still says otherwise on Sunday.',
+    'Someone knows the score.',
+    'But it is buried in the club chat, and the ladder still has not moved.',
   ],
   [
-    'The fixture was announced.',
-    'Then forty-seven messages arrived, and the one that mattered disappeared.',
+    'The fixture got lost.',
+    'It was shared once, then disappeared under a week of new messages.',
   ],
   [
-    'Everybody knows the ranking.',
-    'Until two people remember it differently and the administrator becomes the court of appeal.',
+    'The ranking is up for debate.',
+    'Two players remember it differently, so the organiser has to settle it again.',
   ],
   [
-    'The challenge was accepted.',
-    'But who is confirming the date, recording the result, and moving the ladder?',
+    'The match is agreed. Now what?',
+    'Someone still has to confirm the date, save the result and update the ladder.',
   ],
 ]
 
@@ -42,14 +42,14 @@ function scheduleNavigationUpdate() {
 }
 
 onMounted(() => {
-  document.title = 'Gorra | Tennis club management, without the chasing'
+  document.title = 'GORRA | Tennis club management made simpler'
   const description =
     document.querySelector('meta[name="description"]') ||
     document.head.appendChild(document.createElement('meta'))
   description.setAttribute('name', 'description')
   description.setAttribute(
     'content',
-    'Run your tennis ladder, challenges, tournaments, fixtures and match scores from one clear club operating system.',
+    'Manage tennis ladders, challenges, tournaments, fixtures and match scores in one simple place for your club.',
   )
   window.addEventListener('scroll', scheduleNavigationUpdate, { passive: true })
   window.addEventListener('resize', scheduleNavigationUpdate)
@@ -84,14 +84,14 @@ onUnmounted(() => {
     <main id="main-content">
       <section class="mk-hero">
         <div class="mk-hero__copy">
-          <p class="eyebrow">HELPING TENNIS CLUBS KEEP EVERY MATCH MOVING</p>
+          <p class="eyebrow">One place for your club's tennis</p>
           <h1>
             <span class="mk-hero__title-primary">Tennis club management,</span>
             <span class="mk-hero__title-accent">without the chasing.</span>
           </h1>
           <p class="lead">
-            GORRA is tennis club management software for scoring matches, running ladders and
-            tournaments, and keeping every player up to date.
+            Run the ladder, organise tournaments, record scores and keep players in the loop,
+            without chasing updates through the club chat.
           </p>
           <div class="actions">
             <a
@@ -183,8 +183,8 @@ onUnmounted(() => {
           <p class="eyebrow">One match. Three steps.</p>
           <h2>How it works</h2>
           <p>
-            One player opens the match. The other scans the code. Then you play. Gorra saves the
-            result.
+            One player starts the match, the other joins, and you play. GORRA keeps the score and
+            saves the result.
           </p>
         </div>
         <div class="simple-flow-grid" aria-label="Three simple steps to play a match">
@@ -199,7 +199,7 @@ onUnmounted(() => {
             </figure>
             <div>
               <h3>Scan and accept</h3>
-              <p>Scan once and your match is confirmed. No forms. No back-and-forth.</p>
+              <p>Scan the code, check the match details and you are ready for court.</p>
             </div>
           </article>
           <article class="simple-flow-card">
@@ -212,8 +212,8 @@ onUnmounted(() => {
             <div>
               <h3>Stay in the game</h3>
               <p>
-                Focus on the tennis. Keep score as you play, let someone else score for you, or add
-                the result when you finish.
+                Keep score as you play, ask someone courtside to help, or enter the result when the
+                match ends.
               </p>
             </div>
           </article>
@@ -229,8 +229,7 @@ onUnmounted(() => {
             <div>
               <h3>Save and share</h3>
               <p>
-                Your result is saved, the table updates and can be shared, everyone knows where they
-                stand.
+                The result is saved, the table updates and everyone can see where they stand.
               </p>
             </div>
           </article>
@@ -243,7 +242,7 @@ onUnmounted(() => {
       <section id="why-gorra" class="mk-section friction">
         <div class="intro">
           <p class="eyebrow">Let’s call it what it is</p>
-          <h2>The club is being held together by one very patient person.</h2>
+          <h2>Running the club should not depend on one person's phone.</h2>
           <p>
             And everybody knows who that person is. The one updating the sheet, sending the
             reminders, finding the score, and answering “who do I play next?” for the fourth time
@@ -265,8 +264,8 @@ onUnmounted(() => {
 
       <section id="product" class="mk-section record">
         <div>
-          <p class="eyebrow">One version of the truth</p>
-          <h2>If it happened at the club, Gorra remembers it.</h2>
+          <p class="eyebrow">A club record everyone can trust</p>
+          <h2>Every match has a clear history.</h2>
           <p>
             Who challenged whom. Who accepted. When the match is due. What the final score was. Who
             moved up. What is still waiting. One visible record means fewer explanations—and fewer
@@ -296,8 +295,8 @@ onUnmounted(() => {
       <section id="tournaments" class="mk-section tournament">
         <div class="tournament-copy">
           <div>
-            <p class="eyebrow">Tournament control</p>
-            <h2>Four steps in. A whole tournament out.</h2>
+            <p class="eyebrow">Tournament day, under control</p>
+            <h2>Set it up once. Keep the whole event moving.</h2>
           </div>
           <p>
             Categories, players, formats, group stages, knockout paths and scores—organized from one
@@ -354,8 +353,8 @@ onUnmounted(() => {
 
       <section class="mk-section notifications">
         <div>
-          <p class="eyebrow">Less chasing, naturally</p>
-          <h2>The reminder has already been sent. You can put your phone down.</h2>
+          <p class="eyebrow">Players know what needs attention</p>
+          <h2>Reminders do not have to come from you every time.</h2>
           <p>
             Gorra keeps members aware of challenges, result reviews, schedule changes and tournament
             activity—without turning the administrator into the club’s full-time notification

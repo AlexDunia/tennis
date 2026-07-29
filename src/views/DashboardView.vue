@@ -11,6 +11,7 @@ import { formatAppDateWithTime } from '../utils/dateFormat'
 import PerformanceChart from '@/components/charts/PerformanceChart.vue'
 import EmptyState from '../components/EmptyState.vue'
 import FriendlyMatchHome from '../components/friendly/FriendlyMatchHome.vue'
+import FlowIcon from '../components/friendly/FlowIcon.vue'
 import { useAuthStore } from '../stores/auth'
 import { APP_DATA_MODES, appDataMode } from '../dataMode'
 
@@ -69,7 +70,7 @@ const winStreak = computed(() => {
 
 const performanceNote = computed(() => {
   if (winRate.value >= 70)
-    return `You're on fire 🔥 — top ${100 - winRate.value}% of players this month.`
+    return `You're on a roll — top ${100 - winRate.value}% of players this month.`
   if (winRate.value >= 50) return `Solid form. One more push and you crack the top 10.`
   return `Every loss is data. Your comeback arc starts here.`
 })
@@ -336,21 +337,24 @@ onMounted(async () => {
       <div class="hero-scrim"></div>
       <div class="hero-top">
         <div class="hero-copy">
-          <!-- <p class="hero__eyebrow">{{ greeting }}, {{ currentPlayer?.name }} 👋</p> -->
-          <h1 class="hero__title">{{ greeting }}, {{ firstName }} 👋</h1>
+          <h1 class="hero__title">{{ greeting }}, {{ firstName }}</h1>
           <p class="hero__subtitle">
             You are Ranked <strong class="rank-badge">#{{ currentPlayer?.rank }}</strong>
           </p>
           <div class="hero__stats" v-if="winStreak > 1">
             <div class="stat-pill">
               <span>Streak</span>
-              <strong class="streak">{{ winStreak }} wins 🔥</strong>
+              <strong class="streak">
+                {{ winStreak }} wins
+                <FlowIcon name="spark" class="streak__icon" />
+              </strong>
             </div>
           </div>
         </div>
 
         <button class="cta button-primary" @click="openCreate">
-          <span class="cta-icon">⚡</span> Start Challenge
+          <FlowIcon name="challenge" class="cta-icon" />
+          Start Challenge
         </button>
       </div>
 
@@ -507,8 +511,8 @@ onMounted(async () => {
             description="Your performance trend will appear after more results are recorded."
           />
           <div class="insights">
-            <span>📊 {{ matchStore.matches.length }} total matches</span>
-            <span>🗓 {{ upcomingMatches }} upcoming</span>
+            <span><FlowIcon name="chart" /> {{ matchStore.matches.length }} total matches</span>
+            <span><FlowIcon name="calendar" /> {{ upcomingMatches }} upcoming</span>
           </div>
         </section>
       </section>
@@ -746,7 +750,15 @@ onMounted(async () => {
 }
 
 .streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: #fde68a !important;
+}
+
+.streak__icon {
+  width: 14px;
+  height: 14px;
 }
 
 /* ─── CTA — green brand gradient ───────────────────── */
@@ -771,7 +783,8 @@ onMounted(async () => {
 }
 
 .cta-icon {
-  font-size: 13px;
+  width: 16px;
+  height: 16px;
 }
 
 /* ─── KPI GLASS ROW ─────────────────────────────────
@@ -1259,6 +1272,18 @@ onMounted(async () => {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.insights span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.insights .flow-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--color-primary);
 }
 
 /* ─── ACTIVITY ──────────────────────────────────────── */

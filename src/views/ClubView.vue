@@ -2,19 +2,17 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '../stores/admin'
-import { useAuthStore } from '../stores/auth'
 import EmptyState from '../components/EmptyState.vue'
 
 const route = useRoute()
 const router = useRouter()
 const adminStore = useAdminStore()
-const authStore = useAuthStore()
 
 const activeClub = computed(() => adminStore.activeClub)
 const setup = computed(() => activeClub.value?.setup || null)
 const workspace = computed(() => setup.value?.workspace || {})
 const rules = computed(() => setup.value?.rules || {})
-const isManager = computed(() => authStore.hasPermission('club.manage'))
+const isManager = computed(() => adminStore.hasActiveClubPermission('club.manage'))
 const section = computed(() => {
   const value = String(route.query.section || 'overview')
   return ['overview', 'members', 'rules'].includes(value) ? value : 'overview'
@@ -277,7 +275,7 @@ onMounted(() => {
 .club-hero__copy h1 {
   overflow: hidden;
   color: var(--color-text);
-  font-size: clamp(24px, 4vw, 34px);
+  font-size: clamp(21px, 3vw, 28px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -328,7 +326,7 @@ onMounted(() => {
 
 .club-stats strong {
   color: var(--color-text);
-  font-size: 24px;
+  font-size: 21px;
 }
 
 .club-grid {
@@ -346,7 +344,7 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--app-card-radius);
   background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 4px 14px rgba(15, 34, 24, 0.025);
 }
 
 .club-card--wide {
@@ -366,7 +364,7 @@ onMounted(() => {
 }
 
 .club-card__heading h2 {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .club-list,

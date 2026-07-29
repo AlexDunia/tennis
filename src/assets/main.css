@@ -149,6 +149,8 @@ b {
 a,
 button,
 [role='button'],
+[tabindex]:not([tabindex='-1']),
+summary,
 label[for],
 select,
 input[type='button'],
@@ -208,7 +210,7 @@ a[role='button']:hover:not(:disabled),
 .button-primary:hover:not(:disabled),
 .button-secondary:hover:not(:disabled),
 .button-ghost:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: translateY(-0.5px);
 }
 
 button:active:not(:disabled),
@@ -297,8 +299,29 @@ a[role='button'],
 .surface-card:hover,
 .section-card:hover {
   border-color: var(--color-border-strong);
-  box-shadow: 0 18px 48px rgba(15, 34, 24, 0.06);
-  transform: translateY(-1px);
+  box-shadow: 0 9px 24px rgba(15, 34, 24, 0.035);
+}
+
+:where(a, button, [role='button'], summary):hover :is(svg, .flow-icon, .tennis-nav-icon) {
+  transform: translateY(-1px) rotate(-2deg);
+  transition: transform 180ms var(--motion-curve);
+}
+
+:where(a, button, [role='button'], summary):active :is(svg, .flow-icon, .tennis-nav-icon) {
+  animation: interactiveIconTap 360ms var(--motion-spring);
+}
+
+@keyframes interactiveIconTap {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  38% {
+    transform: translate3d(2px, -2px, 0) rotate(7deg) scale(0.9);
+  }
+  72% {
+    transform: translate3d(-1px, 0, 0) rotate(-3deg) scale(1.08);
+  }
 }
 
 input,
@@ -458,6 +481,10 @@ img {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  :where(a, button, [role='button'], summary) :is(svg, .flow-icon, .tennis-nav-icon) {
+    animation: none !important;
+    transition: none !important;
+  }
   .page-enter-active,
   .page-leave-active,
   .skeleton::before,

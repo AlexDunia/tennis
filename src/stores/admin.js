@@ -16,6 +16,23 @@ import {
 import { sanitizeDirectoryId } from '../utils/admin/clubSetup.js'
 import { useAuthStore } from './auth.js'
 
+const ACTIVE_CLUB_MANAGER_PERMISSIONS = new Set([
+  'club.manage',
+  'tournaments.manage',
+  'tournaments.score.update',
+  'tournaments.fixtures.manage',
+  'tournaments.knockout.manage',
+  'tournaments.images.manage',
+  'matches.live_score',
+])
+
+const ACTIVE_CLUB_PLAYER_PERMISSIONS = new Set([
+  'tournaments.view',
+  'matches.view',
+  'rankings.view',
+  'challenges.create',
+])
+
 export const useAdminStore = defineStore('admin', () => {
   const authStore = useAuthStore()
   const setup = ref(createDefaultClubSetup())
@@ -63,6 +80,24 @@ export const useAdminStore = defineStore('admin', () => {
     }))
   })
   const hasMultipleClubs = computed(() => clubOptions.value.length > 1)
+  const activeMembership = computed(() => {
+    const userId = currentUserId()
+    return (
+      memberships.value.find(
+        (membership) => membership.userId === userId && membership.clubId === activeClubId.value,
+      ) || null
+    )
+  })
+  const activeClubRole = computed(() => activeMembership.value?.role || 'player')
+  const activeClubRoleLabel = computed(() =>
+    ['admin', 'co-admin'].includes(activeClubRole.value) ? 'Admin' : 'Player',
+  )
+  const isActiveClubAdmin = computed(() => ['admin', 'co-admin'].includes(activeClubRole.value))
+  const hasActiveClubPermission = computed(() => (permission) => {
+    if (!activeMembership.value) return false
+    if (ACTIVE_CLUB_PLAYER_PERMISSIONS.has(permission)) return true
+    return isActiveClubAdmin.value && ACTIVE_CLUB_MANAGER_PERMISSIONS.has(permission)
+  })
   const isConfigured = computed(() => {
     const activeSetup = activeClub.value?.setup
     return Boolean(
@@ -253,6 +288,11 @@ export const useAdminStore = defineStore('admin', () => {
     activeClub,
     clubOptions,
     hasMultipleClubs,
+    activeMembership,
+    activeClubRole,
+    activeClubRoleLabel,
+    isActiveClubAdmin,
+    hasActiveClubPermission,
     isLoading,
     isSaving,
     error,

@@ -115,6 +115,44 @@ defineProps({
     <template v-else-if="name === 'plus'">
       <path d="M12 5v14M5 12h14" />
     </template>
+    <template v-else-if="name === 'challenge'">
+      <path d="M4 18 17 5M13 5h4v4M5 10v8h8" />
+      <circle cx="7" cy="7" r="3" />
+    </template>
+    <template v-else-if="name === 'search'">
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="m15 15 4.5 4.5" />
+    </template>
+    <template v-else-if="name === 'chart'">
+      <path d="M5 19V11M12 19V5M19 19v-6M3 19h18" />
+    </template>
+    <template v-else-if="name === 'profile'">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 20c1.4-3.5 4.8-5 8-5s6.6 1.5 8 5" />
+    </template>
+    <template v-else-if="name === 'notifications'">
+      <path d="M12 4.5A4.5 4.5 0 0 1 16.5 9v3.5l1.7 2v.7H5.8v-.7l1.7-2V9A4.5 4.5 0 0 1 12 4.5Z" />
+      <path d="M10 18a2 2 0 0 0 4 0" />
+    </template>
+    <template v-else-if="name === 'scoreboard'">
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <path d="M8 9h3M14 9h2M8 14h2M13 14h3" />
+    </template>
+    <template v-else-if="name === 'fixtures'">
+      <rect x="4" y="5.5" width="16" height="14" rx="2" />
+      <path d="M8 3.5v4M16 3.5v4M4 10h16M8 14h3" />
+    </template>
+    <template v-else-if="name === 'matches'">
+      <circle cx="12" cy="12" r="7.5" />
+      <path d="M6.4 8.5c3.5 1 6.9 4.4 8.9 8.7M17.6 7c-2.3.8-4.5 2.7-5.8 5" />
+    </template>
+    <template v-else-if="['players', 'members'].includes(name)">
+      <circle cx="9" cy="9" r="3" />
+      <path d="M3.5 20c.5-3.4 2.3-5 5.5-5s5 1.6 5.5 5M15.5 6.5a3 3 0 0 1 0 5.8M16 15c2.7.2 4.1 1.8 4.5 5" />
+    </template>
+    <template v-else-if="name === 'club'">
+      <path d="m4 11 8-7 8 7M6.5 9.5V20h11V9.5M10 20v-6h4v6" />
+    </template>
   </svg>
 </template>
 

@@ -11,7 +11,78 @@
         <span class="brand__name">GORRA</span>
       </a>
 
-      <nav class="primary-nav" aria-label="Primary navigation">
+      <div ref="clubMenuRoot" class="club-switcher">
+        <button
+          class="club-switcher__trigger"
+          type="button"
+          aria-haspopup="menu"
+          :aria-expanded="clubMenuOpen"
+          :disabled="adminStore.isLoading || !adminStore.activeClub"
+          @click="clubMenuOpen = !clubMenuOpen"
+        >
+          <span class="club-switcher__copy">
+            <small>Active club</small>
+            <strong>{{ currentClubName }}</strong>
+          </span>
+          <svg class="club-switcher__chevron" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m6 8 4 4 4-4" />
+          </svg>
+        </button>
+
+        <Transition name="menu">
+          <div v-if="clubMenuOpen" class="club-menu" role="menu" aria-label="Switch active club">
+            <button
+              v-for="club in adminStore.clubOptions"
+              :key="club.id"
+              class="club-menu__item"
+              type="button"
+              role="menuitem"
+              :disabled="adminStore.isLoading"
+              @click="switchClub(club.id)"
+            >
+              <span class="club-menu__copy">
+                <strong>{{ club.name }}</strong>
+                <small>{{ formatClubRole(club.role) }}</small>
+              </span>
+              <svg
+                v-if="club.id === adminStore.activeClubId"
+                class="club-menu__check"
+                viewBox="0 0 20 20"
+                aria-label="Current club"
+              >
+                <path d="m4 10 4 4 8-9" />
+              </svg>
+              <span
+                v-else-if="switchingClubId === club.id"
+                class="club-menu__loading"
+                aria-label="Switching club"
+              ></span>
+            </button>
+
+            <a
+              :href="getNavigationHref({ name: 'Club', query: { section: 'overview' } })"
+              class="club-menu__all"
+              role="menuitem"
+              @click="
+                handleNavigationClick({ name: 'Club', query: { section: 'overview' } }, $event)
+              "
+            >
+              <span>View all clubs</span>
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="m8 5 5 5-5 5" />
+              </svg>
+            </a>
+          </div>
+        </Transition>
+      </div>
+
+      <nav class="primary-nav" aria-label="Primary navigation" :style="primaryMotionStyle">
+        <span
+          v-if="primaryMotion.active"
+          :key="`primary-motion-${primaryMotion.revision}`"
+          class="primary-nav__motion"
+          aria-hidden="true"
+        ></span>
         <a
           v-for="item in navigationItems"
           :key="item.section"
@@ -26,14 +97,6 @@
           <span class="label">{{ item.label }}</span>
         </a>
       </nav>
-
-      <div class="sidebar-club">
-        <span class="sidebar-club__mark" aria-hidden="true">{{ clubInitials }}</span>
-        <span>
-          <small>Active club</small>
-          <strong>{{ currentClubName }}</strong>
-        </span>
-      </div>
     </aside>
 
     <main
@@ -48,26 +111,13 @@
       <header
         v-if="showHeader"
         class="app-header"
-        :class="{ 'app-header--with-sidebar': showSidebar }"
+        :class="{
+          'app-header--with-sidebar': showSidebar,
+          'app-header--compete': showCompeteSectionShell,
+        }"
       >
         <div class="global-identity">
-          <span class="global-identity__brand" aria-hidden="true">GORRA</span>
-          <div class="club-control">
-            <label v-if="adminStore.hasMultipleClubs">
-              <span class="visually-hidden">Current tennis club</span>
-              <select
-                :value="adminStore.activeClubId"
-                :disabled="adminStore.isLoading"
-                aria-label="Switch active tennis club"
-                @change="switchClub"
-              >
-                <option v-for="club in adminStore.clubOptions" :key="club.id" :value="club.id">
-                  {{ club.name }}
-                </option>
-              </select>
-            </label>
-            <span v-else class="club-control__name">{{ currentClubName }}</span>
-          </div>
+          <span class="global-identity__brand">GORRA</span>
         </div>
 
         <div class="header-main">
@@ -108,6 +158,20 @@
 
         <div class="header-actions">
           <a
+            v-if="isCompeteTournaments && canCreateTournament"
+            :href="getNavigationHref({ name: 'TournamentCreate' })"
+            class="header-create-button"
+            aria-label="New tournament"
+            title="New tournament"
+            @click="handleNavigationClick({ name: 'TournamentCreate' }, $event)"
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 4v12M4 10h12" />
+            </svg>
+            <span>New tournament</span>
+          </a>
+
+          <a
             :href="getNavigationHref({ name: 'Notifications' })"
             class="header-icon-button"
             :aria-label="unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'"
@@ -130,7 +194,7 @@
               <span class="account-avatar" aria-hidden="true">{{ accountInitials }}</span>
               <span class="account-copy">
                 <strong>{{ currentPlayer?.name || authStore.user?.name || 'Player' }}</strong>
-                <small>{{ authStore.accessProfile.roleLabel || 'Player' }}</small>
+                <small>{{ adminStore.activeClubRoleLabel }}</small>
               </span>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
             </button>
@@ -141,7 +205,7 @@
                   <span class="account-avatar" aria-hidden="true">{{ accountInitials }}</span>
                   <span>
                     <strong>{{ currentPlayer?.name || authStore.user?.name || 'Player' }}</strong>
-                    <small>{{ authStore.user?.email || authStore.accessProfile.roleLabel }}</small>
+                    <small>{{ authStore.user?.email || adminStore.activeClubRoleLabel }}</small>
                   </span>
                 </div>
 
@@ -179,7 +243,14 @@
           v-if="showContextualNavigation"
           class="context-nav"
           :aria-label="`${activePrimaryLabel} navigation`"
+          :style="contextMotionStyle"
         >
+          <span
+            v-if="contextMotion.active"
+            :key="`context-motion-${contextMotion.revision}`"
+            class="context-nav__motion"
+            aria-hidden="true"
+          ></span>
           <a
             v-for="item in contextualItems"
             :key="item.label"
@@ -188,9 +259,12 @@
             :aria-current="isContextItemActive(item) ? 'page' : undefined"
             @click="handleNavigationClick(item.to, $event)"
           >
-            {{ item.label }}
+            <span class="context-nav__icon" aria-hidden="true" v-html="item.icon"></span>
+            <span>{{ item.label }}</span>
           </a>
         </nav>
+
+        <CompeteSectionShell v-if="showCompeteSectionShell" />
 
         <div class="watch-only">
           <strong>Rank #{{ currentPlayer?.rank || '-' }}</strong>
@@ -229,7 +303,7 @@
                     ? 'onboarding-flow'
                     : route.meta.friendlyFlow
                       ? 'friendly-match-flow'
-                      : route.fullPath
+                      : `${route.fullPath}:${adminStore.activeClubId || 'no-club'}`
                 "
               />
             </Transition>
@@ -238,7 +312,13 @@
       </div>
     </main>
 
-    <nav v-if="showBottomNav" class="bottom-nav" aria-label="Primary navigation">
+    <nav v-if="showBottomNav" class="bottom-nav" aria-label="Primary navigation" :style="primaryMotionStyle">
+      <span
+        v-if="primaryMotion.active"
+        :key="`bottom-motion-${primaryMotion.revision}`"
+        class="bottom-nav__motion"
+        aria-hidden="true"
+      ></span>
       <a
         v-for="item in navigationItems"
         :key="`bottom-${item.section}`"
@@ -258,7 +338,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
 import { useMatchStore } from '../stores/match'
@@ -269,6 +349,7 @@ import { useAuthStore } from '../stores/auth'
 import { useAdminStore } from '../stores/admin'
 import ToastShelf from '../components/ToastShelf.vue'
 import RoutePageSkeleton from '../components/RoutePageSkeleton.vue'
+import CompeteSectionShell from '../components/compete/CompeteSectionShell.vue'
 import { APP_DATA_MODES, appDataMode } from '../dataMode'
 
 const route = useRoute()
@@ -282,7 +363,10 @@ const authStore = useAuthStore()
 const adminStore = useAdminStore()
 
 const accountMenuRoot = ref(null)
+const clubMenuRoot = ref(null)
 const accountMenuOpen = ref(false)
+const clubMenuOpen = ref(false)
+const switchingClubId = ref('')
 const mobileMediaQuery =
   typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)') : null
 const isMobileViewport = ref(mobileMediaQuery?.matches ?? false)
@@ -290,6 +374,10 @@ const pageSkeletonActive = ref(true)
 let pageSkeletonTimer = null
 const PAGE_SKELETON_DURATION = 900
 const FRIENDLY_FLOW_SKELETON_DURATION = 650
+const primaryMotion = ref({ active: false, from: 0, to: 0, revision: 0 })
+const contextMotion = ref({ active: false, from: 0, to: 0, revision: 0 })
+let primaryMotionTimer = null
+let contextMotionTimer = null
 
 const homeIcon =
   '<svg viewBox="0 0 24 24" fill="none"><path d="m3 11 9-7 9 7v9H6v-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 20v-6h5v6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>'
@@ -299,6 +387,12 @@ const competeIcon =
   '<svg viewBox="0 0 24 24" fill="none"><path d="M8 4h8v3a4 4 0 0 1-8 0V4Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 5H4v2a4 4 0 0 0 4 4M16 5h4v2a4 4 0 0 1-4 4M12 11v5M8.5 20h7M9 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 const clubIcon =
   '<svg viewBox="0 0 24 24" fill="none"><path d="M4 20V9l8-5 8 5v11H4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 20v-6h6v6M8 10h.01M12 10h.01M16 10h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+const overviewIcon =
+  '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="4" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="14" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="14" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.7"/></svg>'
+const membersIcon =
+  '<svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="9" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 20c.5-3.4 2.3-5 5.5-5s5 1.6 5.5 5M15.5 6.5a3 3 0 0 1 0 5.8M16 15c2.7.2 4.1 1.8 4.5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>'
+const rulesIcon =
+  '<svg viewBox="0 0 24 24" fill="none"><path d="M4 7h5M15 7h5M4 17h9M17 17h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="7" r="3" stroke="currentColor" stroke-width="1.7"/><circle cx="15" cy="17" r="2" stroke="currentColor" stroke-width="1.7"/></svg>'
 const profileIcon =
   '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M4 20c1.5-3.5 5-5 8-5s6.5 1.5 8 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>'
 const historyIcon =
@@ -323,7 +417,7 @@ const accountItems = computed(() => {
     { to: { name: 'History' }, label: 'Match history', icon: historyIcon },
     { to: { name: 'AccountSettings' }, label: 'Account settings', icon: settingsIcon },
   ]
-  if (authStore.hasPermission('club.manage')) {
+  if (adminStore.hasActiveClubPermission('club.manage')) {
     items.push({
       to: { name: 'Settings' },
       label: 'Club settings',
@@ -336,15 +430,6 @@ const accountItems = computed(() => {
 const currentPlayer = computed(() => playerStore.currentPlayer)
 const unreadCount = computed(() => notificationStore.unreadCount)
 const currentClubName = computed(() => adminStore.activeClub?.name || 'Your tennis club')
-const clubInitials = computed(() =>
-  currentClubName.value
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase(),
-)
 const accountInitials = computed(() => {
   const name = currentPlayer.value?.name || authStore.user?.name || 'Player'
   const parts = String(name).trim().split(/\s+/).filter(Boolean)
@@ -418,33 +503,33 @@ const activePrimarySection = computed(() => {
   }
   return ''
 })
+const showCompeteSectionShell = computed(() =>
+  ['Rankings', 'Challenges', 'Tournaments'].includes(String(route.name || '')),
+)
+const isCompeteTournaments = computed(() => route.name === 'Tournaments')
+const canCreateTournament = computed(() => adminStore.hasActiveClubPermission('tournaments.manage'))
 const activePrimaryLabel = computed(
   () => navigationItems.find((item) => item.section === activePrimarySection.value)?.label || '',
 )
 const contextualItems = computed(() => {
-  if (activePrimarySection.value === 'compete') {
-    return [
-      { label: 'Ladder', to: { name: 'Rankings' }, key: 'ladder' },
-      { label: 'Challenges', to: { name: 'Challenges' }, key: 'challenges' },
-      { label: 'Tournaments', to: { name: 'Tournaments' }, key: 'tournaments' },
-    ]
-  }
   if (activePrimarySection.value === 'club') {
     const items = [
-      { label: 'Overview', to: { name: 'Club' }, key: 'overview' },
+      { label: 'Overview', to: { name: 'Club' }, key: 'overview', icon: overviewIcon },
       {
         label: 'Members',
         to: { name: 'Club', query: { section: 'members' } },
         key: 'members',
+        icon: membersIcon,
       },
       {
         label: 'Rules',
         to: { name: 'Club', query: { section: 'rules' } },
         key: 'rules',
+        icon: rulesIcon,
       },
     ]
-    if (authStore.hasPermission('club.manage')) {
-      items.push({ label: 'Manage', to: { name: 'Settings' }, key: 'manage' })
+    if (adminStore.hasActiveClubPermission('club.manage')) {
+      items.push({ label: 'Manage', to: { name: 'Settings' }, key: 'manage', icon: settingsIcon })
     }
     return items
   }
@@ -453,6 +538,60 @@ const contextualItems = computed(() => {
 const showContextualNavigation = computed(
   () => showAppChrome.value && contextualItems.value.length > 0 && !isTournamentCreate.value,
 )
+
+const primaryIndex = computed(() =>
+  navigationItems.findIndex((item) => item.section === activePrimarySection.value),
+)
+const activeContextKey = computed(() => {
+  if (route.name === 'Settings') return 'manage'
+  if (route.name !== 'Club') return ''
+  const key = String(route.query.section || 'overview')
+  return ['overview', 'members', 'rules'].includes(key) ? key : 'overview'
+})
+const contextIndex = computed(() =>
+  contextualItems.value.findIndex((item) => item.key === activeContextKey.value),
+)
+const primaryMotionStyle = computed(() => ({
+  '--motion-from': primaryMotion.value.from,
+  '--motion-to': primaryMotion.value.to,
+  '--motion-count': navigationItems.length,
+}))
+const contextMotionStyle = computed(() => ({
+  '--motion-from': contextMotion.value.from,
+  '--motion-to': contextMotion.value.to,
+  '--motion-count': Math.max(1, contextualItems.value.length),
+  '--context-count': Math.max(1, contextualItems.value.length),
+}))
+
+watch(primaryIndex, (to, from) => {
+  if (from < 0 || to < 0 || from === to) return
+  if (primaryMotionTimer) window.clearTimeout(primaryMotionTimer)
+  primaryMotion.value = {
+    active: true,
+    from,
+    to,
+    revision: primaryMotion.value.revision + 1,
+  }
+  primaryMotionTimer = window.setTimeout(() => {
+    primaryMotion.value = { ...primaryMotion.value, active: false }
+    primaryMotionTimer = null
+  }, 620)
+})
+
+watch(contextIndex, (to, from) => {
+  if (from < 0 || to < 0 || from === to) return
+  if (contextMotionTimer) window.clearTimeout(contextMotionTimer)
+  contextMotion.value = {
+    active: true,
+    from,
+    to,
+    revision: contextMotion.value.revision + 1,
+  }
+  contextMotionTimer = window.setTimeout(() => {
+    contextMotion.value = { ...contextMotion.value, active: false }
+    contextMotionTimer = null
+  }, 620)
+})
 
 const tournamentCreateStep = computed(() => {
   const step = String(route.query.step || 'basics')
@@ -574,11 +713,16 @@ function isContextItemActive(item) {
   return item.key === section
 }
 
-async function switchClub(event) {
-  const clubId = event.target.value
+function formatClubRole(role) {
+  return ['admin', 'co-admin'].includes(role) ? 'Admin' : 'Player'
+}
+
+async function switchClub(clubId) {
   if (!clubId || clubId === adminStore.activeClubId) return
+  switchingClubId.value = clubId
   try {
     await adminStore.switchClub(clubId)
+    clubMenuOpen.value = false
     notificationStore.addToast({
       message: `${currentClubName.value} is now active.`,
       type: 'success',
@@ -588,6 +732,8 @@ async function switchClub(event) {
       message: error?.message || 'Unable to switch clubs.',
       type: 'error',
     })
+  } finally {
+    switchingClubId.value = ''
   }
 }
 
@@ -620,13 +766,19 @@ async function signOut() {
 }
 
 function handleDocumentPointer(event) {
+  if (clubMenuOpen.value && !clubMenuRoot.value?.contains(event.target)) {
+    clubMenuOpen.value = false
+  }
   if (accountMenuOpen.value && !accountMenuRoot.value?.contains(event.target)) {
     accountMenuOpen.value = false
   }
 }
 
 function handleDocumentKeydown(event) {
-  if (event.key === 'Escape') accountMenuOpen.value = false
+  if (event.key === 'Escape') {
+    accountMenuOpen.value = false
+    clubMenuOpen.value = false
+  }
 }
 
 function updateViewportMode(event) {
@@ -645,12 +797,15 @@ onMounted(() => {
 
 const removeRouteAfterEach = router.afterEach((to) => {
   accountMenuOpen.value = false
+  clubMenuOpen.value = false
   if (to.meta.public === true) pageSkeletonActive.value = false
   else schedulePageSkeleton(to)
 })
 
 onUnmounted(() => {
   if (pageSkeletonTimer) window.clearTimeout(pageSkeletonTimer)
+  if (primaryMotionTimer) window.clearTimeout(primaryMotionTimer)
+  if (contextMotionTimer) window.clearTimeout(contextMotionTimer)
   if (typeof removeRouteAfterEach === 'function') removeRouteAfterEach()
   document.removeEventListener('pointerdown', handleDocumentPointer)
   document.removeEventListener('keydown', handleDocumentKeydown)
@@ -687,7 +842,7 @@ onUnmounted(() => {
   display: flex;
   width: var(--app-sidebar-width);
   flex-direction: column;
-  gap: 30px;
+  gap: 18px;
   padding: 24px 18px;
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -719,13 +874,171 @@ onUnmounted(() => {
   letter-spacing: 0.08em;
 }
 
-.primary-nav {
+.club-switcher {
+  position: relative;
+  width: 100%;
+}
+
+.club-switcher__trigger {
+  display: flex;
+  width: 100%;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-inner-radius);
+  background: var(--color-surface-soft);
+  color: var(--color-text);
+  text-align: left;
+}
+
+.club-switcher__trigger:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.club-switcher__copy,
+.club-menu__copy {
   display: grid;
+  min-width: 0;
+}
+
+.club-switcher__copy small {
+  color: var(--color-muted);
+  font-size: 9px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.club-switcher__copy strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.club-switcher__chevron {
+  width: 16px;
+  flex: 0 0 16px;
+  fill: none;
+  stroke: var(--color-muted);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.club-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 70;
+  display: grid;
+  width: 100%;
+  min-width: 184px;
+  overflow: hidden;
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-card-radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-strong);
+}
+
+.club-menu__item,
+.club-menu__all {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: var(--app-inner-radius);
+  background: transparent;
+  color: var(--color-text-soft);
+  text-align: left;
+  text-decoration: none;
+}
+
+.club-menu__item:hover:not(:disabled),
+.club-menu__all:hover {
+  background: var(--color-surface-soft);
+  color: var(--color-text);
+}
+
+.club-menu__copy strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.club-menu__copy small {
+  color: var(--color-muted);
+  font-size: 9px;
+}
+
+.club-menu__check,
+.club-menu__all svg {
+  width: 17px;
+  flex: 0 0 17px;
+  fill: none;
+  stroke: var(--color-primary-strong);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.club-menu__all {
+  margin-top: 5px;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 var(--app-inner-radius) var(--app-inner-radius);
+  color: var(--color-primary-strong);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.club-menu__loading {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  border: 2px solid var(--color-border-strong);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: clubMenuSpin 700ms linear infinite;
+}
+
+@keyframes clubMenuSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.primary-nav {
+  position: relative;
+  display: grid;
+  overflow: hidden;
   gap: 5px;
 }
 
+.primary-nav__motion {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 0;
+  height: 46px;
+  border-radius: var(--app-inner-radius);
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(0, 181, 26, 0.03), rgba(0, 181, 26, 0.16), rgba(0, 181, 26, 0.03));
+  animation: primaryNavTrack 580ms var(--motion-curve) both;
+}
+
 .nav-link {
+  position: relative;
   display: flex;
+  overflow: hidden;
+  z-index: 1;
   align-items: center;
   gap: 12px;
   min-height: 46px;
@@ -746,6 +1059,59 @@ onUnmounted(() => {
 .nav-link.active {
   background: color-mix(in srgb, var(--color-primary) 8%, white);
   color: var(--color-primary-strong);
+}
+
+@keyframes primaryNavTrack {
+  from {
+    opacity: 0.18;
+    transform: translateY(calc(var(--motion-from) * 51px));
+  }
+  48% {
+    opacity: 0.68;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-to) * 51px));
+  }
+}
+
+.nav-link.active .icon {
+  animation: tennisNavigationSwing 650ms var(--motion-spring);
+}
+
+@keyframes tennisNavigationSwing {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  24% {
+    transform: translate3d(-3px, 1px, 0) rotate(-19deg) scale(0.96);
+  }
+  50% {
+    transform: translate3d(6px, -4px, 0) rotate(15deg) scale(1.16);
+  }
+  72% {
+    transform: translate3d(0, 1px, 0) rotate(-5deg) scale(0.96);
+  }
+  88% {
+    transform: translate3d(0, -2px, 0) rotate(2deg) scale(1.08);
+  }
+}
+
+@keyframes tennisOptionSettle {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  32% {
+    transform: translate3d(-3px, 0, 0) rotate(-1deg);
+  }
+  62% {
+    transform: translate3d(5px, -1px, 0) rotate(1deg);
+  }
+  82% {
+    transform: translate3d(-1px, 0, 0);
+  }
 }
 
 .icon {
@@ -833,7 +1199,7 @@ onUnmounted(() => {
   align-items: center;
   min-height: var(--app-header-height);
   gap: 24px;
-  padding: 12px 26px;
+  padding: 12px 30px;
   border-bottom: 1px solid var(--color-border);
   background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 4px 18px rgba(15, 34, 24, 0.035);
@@ -842,6 +1208,16 @@ onUnmounted(() => {
 
 .app-header--with-sidebar {
   left: var(--app-sidebar-width);
+}
+
+@media (min-width: 768px) {
+  .app-header--with-sidebar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .app-header--with-sidebar .global-identity {
+    display: none;
+  }
 }
 
 .global-identity {
@@ -913,13 +1289,13 @@ onUnmounted(() => {
 
 .page-context h1 {
   color: var(--color-text);
-  font-size: 17px;
+  font-size: 19px;
   letter-spacing: -0.01em;
 }
 
 .page-context p {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .header-back {
@@ -1001,6 +1377,39 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.header-create-button {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-primary);
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-light);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transition:
+    transform var(--motion-short) var(--motion-curve),
+    box-shadow var(--motion-short) var(--motion-curve);
+}
+
+.header-create-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 16px rgba(39, 126, 86, 0.18);
+}
+
+.header-create-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 
 .header-icon-button,
@@ -1194,15 +1603,25 @@ onUnmounted(() => {
   position: sticky;
   top: var(--app-header-height);
   z-index: 22;
-  display: flex;
+  display: grid;
   width: 100%;
-  gap: 4px;
+  grid-template-columns: repeat(var(--context-count), minmax(0, 1fr));
+  gap: 0;
   margin: -26px 0 24px;
   padding: 10px 0 0;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg);
-  overflow-x: auto;
+  overflow: hidden;
   scrollbar-width: none;
+}
+
+.context-nav__motion {
+  position: absolute;
+  inset: 10px auto 0 0;
+  width: calc(100% / var(--motion-count));
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(0, 181, 26, 0.14), transparent);
+  animation: horizontalNavTrack 580ms var(--motion-curve) both;
 }
 
 .context-nav::-webkit-scrollbar {
@@ -1211,15 +1630,30 @@ onUnmounted(() => {
 
 .context-nav a {
   position: relative;
-  display: grid;
-  min-width: max-content;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
   min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   padding: 0 14px;
-  place-items: center;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
+}
+
+.context-nav__icon {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+}
+
+.context-nav__icon :deep(svg) {
+  width: 18px;
+  height: 18px;
 }
 
 .context-nav a::after {
@@ -1233,15 +1667,31 @@ onUnmounted(() => {
 
 .context-nav a.active {
   color: var(--color-primary-strong);
+  animation: tennisOptionSettle 620ms var(--motion-spring);
 }
 
 .context-nav a.active::after {
   background: var(--color-primary);
 }
 
+@keyframes horizontalNavTrack {
+  from {
+    opacity: 0.14;
+    transform: translateX(calc(var(--motion-from) * 100%));
+  }
+  48% {
+    opacity: 0.72;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--motion-to) * 100%));
+  }
+}
+
 .page-shell {
   position: relative;
   min-height: 100%;
+  font-size: 15px;
 }
 
 .page-shell--public {
@@ -1332,7 +1782,8 @@ onUnmounted(() => {
   }
 
   .brand__name,
-  .nav-link .label,
+  .club-switcher__copy,
+  .club-switcher__chevron,
   .sidebar-club > span:last-child {
     display: none;
   }
@@ -1344,6 +1795,25 @@ onUnmounted(() => {
   .nav-link {
     justify-content: center;
     padding-inline: 0;
+  }
+
+  .club-switcher__trigger {
+    min-height: 44px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .club-switcher__trigger::before {
+    content: 'C';
+    color: var(--color-primary-strong);
+    font-size: 11px;
+    font-weight: var(--font-weight-bold);
+  }
+
+  .club-menu {
+    top: 0;
+    left: calc(100% + 10px);
+    width: 220px;
   }
 
   .sidebar-club {
@@ -1359,7 +1829,7 @@ onUnmounted(() => {
 
 @media (max-width: 767px) {
   .layout {
-    --app-header-height: 68px;
+    --app-header-height: 82px;
     --app-bottom-nav-height: 64px;
   }
 
@@ -1384,8 +1854,8 @@ onUnmounted(() => {
     left: 0;
     grid-template-columns: minmax(0, 1fr) auto;
     min-height: var(--app-header-height);
-    gap: 10px;
-    padding: 9px 14px;
+    gap: 8px;
+    padding: 9px 7.5vw;
   }
 
   .global-identity {
@@ -1406,8 +1876,34 @@ onUnmounted(() => {
     min-height: 38px;
   }
 
+  .app-header--compete .global-identity {
+    display: none;
+  }
+
   .header-main {
     display: none;
+  }
+
+  .app-header--compete .header-main {
+    display: flex;
+  }
+
+  .app-header--compete .page-context {
+    gap: 1px;
+  }
+
+  .app-header--compete .page-context h1 {
+    font-size: 18px;
+  }
+
+  .app-header--compete .page-context p {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 1.25;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .account-copy,
@@ -1428,20 +1924,35 @@ onUnmounted(() => {
   }
 
   .content {
-    padding: 18px 16px 28px;
+    width: 85%;
+    margin-inline: auto;
+    padding: 18px 0 28px;
   }
 
   .content--fullscreen,
   .content--public {
+    width: 100%;
+    margin-inline: 0;
     padding: 0;
   }
 
   .context-nav {
     top: var(--app-header-height);
-    margin: -18px -16px 18px;
-    width: calc(100% + 32px);
-    padding: 6px 8px 0;
+    width: 100%;
+    margin: -18px 0 18px;
+    padding: 6px 0 0;
     background: rgba(255, 255, 255, 0.98);
+  }
+
+  .header-create-button {
+    width: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    padding: 0;
+  }
+
+  .header-create-button span {
+    display: none;
   }
 
   .context-nav a {
@@ -1456,15 +1967,28 @@ onUnmounted(() => {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     min-height: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px));
-    padding: 3px 6px env(safe-area-inset-bottom, 0px);
+    padding: 3px 7.5vw env(safe-area-inset-bottom, 0px);
     border-top: 1px solid var(--color-border);
     background: rgba(255, 255, 255, 0.98);
     box-shadow: 0 -5px 18px rgba(15, 34, 24, 0.04);
     backdrop-filter: blur(14px);
+    overflow: hidden;
+  }
+
+  .bottom-nav__motion {
+    position: absolute;
+    inset: 3px auto env(safe-area-inset-bottom, 0px) 7.5vw;
+    width: calc(85% / var(--motion-count));
+    pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(0, 181, 26, 0.15), transparent);
+    animation: horizontalNavTrack 580ms var(--motion-curve) both;
   }
 
   .bottom-nav__item {
+    position: relative;
     display: flex;
+    overflow: hidden;
+    z-index: 1;
     min-width: 0;
     min-height: 58px;
     align-items: center;
@@ -1495,6 +2019,10 @@ onUnmounted(() => {
 
   .bottom-nav__item.active {
     color: var(--color-primary-strong);
+  }
+
+  .bottom-nav__item.active .icon {
+    animation: tennisNavigationSwing 650ms var(--motion-spring);
   }
 }
 
@@ -1559,6 +2087,12 @@ onUnmounted(() => {
   .page-shell--ready :deep(.opponent-list > *),
   .page-shell--ready :deep(.friendly-live > *),
   .page-shell--ready :deep(.friendly-live__players > *) {
+    animation: none !important;
+  }
+
+  .nav-link.active .icon,
+  .bottom-nav__item.active .icon,
+  .context-nav a.active {
     animation: none !important;
   }
 
