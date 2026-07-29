@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import RankingsView from '../views/RankingsView.vue'
 import ChallengesView from '../views/ChallengesView.vue'
@@ -307,7 +307,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHashHistory(import.meta.env.BASE_URL), // 👈 changed
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
   scrollBehavior() {
     return { top: 0, left: 0 }

@@ -57,7 +57,7 @@ The creation flow is broken into four steps:
 
 ### Live Scoreboard
 
-The play screen provides a live tennis scoreboard. It supports real tennis scoring, including love, deuce, advantage, sets, and tiebreaks. It is useful during play and for following match progress.
+The play screen provides a live tennis scoreboard. It supports real tennis scoring, including love, deuce, advantage, sets, and tiebreaks. It is useful durkjnnnkoknknbxdfeing play and for following match progress.
 
 ### Match Details
 

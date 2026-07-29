@@ -2,10 +2,11 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// GitHub Pages config for repo: tennis
+const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1] || 'tennis'
+
 export default defineConfig({
   plugins: [vue()],
-  base: '/tennis/', // 👈 MUST match your repo name exactly
+  base: process.env.NODE_ENV === 'production' ? `/${repoName}/` : '/',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

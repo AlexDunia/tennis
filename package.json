@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "homepage": "https://AlexDunia.github.io/tennis",
+  "homepage": "https://AlexDunia.github.io/tennis/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
