@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { APP_DATA_MODES } from '../dataMode'
+import AppLogo from '../components/AppLogo.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -81,8 +82,7 @@ async function enterWorkspace(roleKey = selectedRole.value) {
 
     <main class="auth-panel">
       <RouterLink class="auth-brand" to="/" aria-label="Gorra home">
-        <span class="auth-brand__mark">G</span>
-        <span>GORRA</span>
+        <AppLogo class="auth-brand__logo" />
       </RouterLink>
 
       <div class="auth-panel__content">
@@ -260,28 +260,12 @@ async function enterWorkspace(roleKey = selectedRole.value) {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  color: #101713;
-  font-size: 18px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
-  line-height: 1;
   text-decoration: none;
 }
 
-.auth-brand__mark {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 50% 50% 50% 12%;
-  background: var(--color-primary);
-  color: white;
-  font-family: Georgia, serif;
-  font-size: 19px;
-  font-style: italic;
-  letter-spacing: 0;
-  transform: rotate(-5deg);
+.auth-brand__logo {
+  width: 120px;
+  max-height: 42px;
 }
 
 .auth-panel__content {

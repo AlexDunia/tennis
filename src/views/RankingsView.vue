@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePlayerStore } from '../stores/player'
 import EmptyState from '../components/EmptyState.vue'
+import AppLogo from '../components/AppLogo.vue'
 
 const router = useRouter()
 const playerStore = usePlayerStore()
@@ -460,10 +461,9 @@ const shareLinks = [
             <div class="sc-accent" />
 
             <div class="sc-header">
-              <img
+              <AppLogo
                 class="sc-logo-img cloudinary-img"
-                src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776503502/RENAISSANCE-AFRICA-ENERGY-LOGO-update_s4eb9u.png"
-                alt="Renaissance Africa Energy"
+                on-dark
                 crossorigin="anonymous"
               />
               <div class="sc-header-right">
@@ -512,7 +512,7 @@ const shareLinks = [
               </li>
             </ul>
 
-            <div class="sc-footer">Renaissance Africa Energy Company Limited</div>
+            <div class="sc-footer">GORRA · CLUB TENNIS</div>
           </div>
 
           <!-- Actions -->

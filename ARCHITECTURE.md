@@ -1,1118 +1,484 @@
-# ShellTennis PH - Current Product Architecture
-
-## Overview
-
-ShellTennis PH is a Vue 3 and Vite single-page application for a tennis ladder workflow.
-
-The active product experience is centered on a simple club ladder:
-
-1. A player checks the dashboard.
-2. The player views the rankings.
-3. The player challenges an eligible higher-ranked opponent.
-4. The opponent accepts or declines the challenge.
-5. An accepted challenge becomes a scheduled match.
-6. The match can be scored live from the Play screen.
-7. The official result is submitted from Match Details.
-8. The result is reviewed from Challenges.
-9. Player records and ladder rankings update after review.
-
-The current app is a prototype-style frontend with mock services. It has strong UI coverage for the ladder flow, but it does not yet have production backend persistence, real authentication, disputes, or canonical structured match results.
-
----
-
-## Technology Stack
-
-- Vue 3.5+
-- Composition API
-- `<script setup>`
-- Pinia
-- Vue Router 4
-- Axios
-- Chart.js
-- vue-chartjs
-- Vite
-- Prettier
-- localStorage for selected prototype state
-- Cloudinary-hosted brand and tennis images
-
----
-
-## Runtime Boot
-
-The app starts in `src/main.js`.
-
-Boot order:
-
-1. `createApp(App)` creates the Vue app.
-2. Pinia is installed.
-3. Vue Router is installed.
-4. `src/assets/main.css` is imported.
-5. The app waits for `router.isReady()`.
-6. The app mounts to `#app`.
-
-`src/App.vue` renders only `DefaultLayout`.
-
-`src/layouts/DefaultLayout.vue` owns the active shell:
-
-- fixed left sidebar
-- Renaissance Africa logo
-- sidebar links for Dashboard, Rankings, Challenges, Profile, and Notifications
-- unread notification badge
-- route-aware title and subtitle
-- current player name and initials in the header
-- routed page content through `RouterView`
-- global `ToastShelf`
-
----
-
-## Routing Architecture
-
-Router file: `src/router/index.js`
-
-The app uses `createWebHashHistory`, so browser URLs use hash routing such as `/#/dashboard`.
-
-Active route map:
-
-- `/` redirects to `/dashboard`
-- `/dashboard` renders `DashboardView.vue`
-- `/rankings` renders `RankingsView.vue`
-- `/challenges` renders `ChallengesView.vue`
-- `/create-challenge` renders `CreateChallengeView.vue`
-- `/play/:matchId` renders `PlayView.vue`
-- `/matches/:matchId` renders `MatchDetailsView.vue`
-- `/profile` renders `ProfileView.vue`
-- `/notifications` renders `NotificationsView.vue`
-- unknown routes redirect to `/dashboard`
-
-There are currently no active routes for:
-
-- login
-- booking
-- landing
-- history
-- matches list
-
-Those views exist in the repo, but the active router does not expose them.
-
-There are also no route guards today. Authentication state exists, but active ladder routes can be opened without logging in.
-
----
-
-## Active User Flow
-
-### 1. Dashboard
-
-File: `src/views/DashboardView.vue`
-
-On mount, the dashboard loads:
-
-- players
-- challenges
-- matches
-- bookings
-
-It uses:
-
-- `playerStore.currentPlayer`
-- `challengeStore.summaryCounts`
-- `matchStore.matches`
-- `matchStore.scheduledMatches`
-- `bookingStore.loadBookings()`
-
-The dashboard is a command center. It does not complete full workflows inline.
-
-It routes users to:
-
-- Create Challenge
-- Match Details
-
-It also displays:
-
-- current player rank
-- wins, losses, matches, and win rate
-- win streak
-- pending challenge counts
-- scheduled match counts
-- pending review counts
-- performance chart
-- recent activity
-
-### 2. Rankings
-
-File: `src/views/RankingsView.vue`
-
-On mount, the page loads players.
-
-It reads:
-
-- `playerStore.sortedLadder`
-- `playerStore.currentPlayer`
-- `playerStore.getPlayerZone(playerId)`
-
-The page separates players into:
-
-- challengeable players
-- current player
-- out-of-range players
-
-Challenge action:
-
-- routes to `CreateChallenge` with `?opponent=<playerId>`
-
-Sharing behavior:
-
-- WhatsApp share opens a `wa.me` URL
-- Facebook share opens the Facebook sharer URL
-- Instagram action copies the current URL
-- save-as-image opens a modal and dynamically imports `html2canvas` from CDN
-- if image generation fails, it opens a fallback HTML preview window
-
-### 3. Create Challenge
-
-File: `src/views/CreateChallengeView.vue`
-
-On mount, the page loads players.
-
-It uses:
-
-- `playerStore.currentPlayer`
-- `playerStore.availableOpponents`
-- `route.query.opponent`
-- `challengeStore.createChallenge(payload)`
-- `notificationStore.addToast()`
-- `notificationStore.addNotification()`
-
-Form state includes:
-
-- opponent
-- match type: singles or doubles
-- match format: best of 3, best of 5, or custom
-- custom set count
-- set win rule
-- game scoring rule
-- final set rule
-- teammate IDs for doubles
-- optional scorer
-- optional note
-
-Submit payload includes:
-
-- `challengerId`
-- `defenderId`
-- `teams`
-- `matchConfig`
-- `scorerId`
-- `note`
-
-Current mock API note:
-
-- `POST /challenges` stores challenger, defender, scorer, status, requested time, and note
-- it does not yet persist every submitted field, including teams and full match configuration
-
-### 4. Challenges
-
-File: `src/views/ChallengesView.vue`
-
-On mount, the page loads:
-
-- challenges
-- matches
-
-It uses:
-
-- `challengeStore.filteredChallenges`
-- `challengeStore.summaryCounts`
-- `challengeStore.filterStatus`
-- `matchStore.matches`
-- `playerStore.currentPlayer`
-- `notificationStore`
-
-Supported filters:
-
-- `all`
-- `awaiting`
-- `scheduled`
-- `pending_review`
-
-Challenge actions:
-
-- Accept calls `challengeStore.acceptChallenge(challengeId)`
-- Decline calls `challengeStore.declineChallenge(challengeId)`
-- Review calls `challengeStore.reviewChallenge(challengeId)`
-- Details finds the related match by `challengeId` and routes to Match Details
-
-Accept and review actions reload matches afterward.
-
-The page also includes a details modal for awaiting challenges. The modal shows matchup, rules, scorer, schedule, and note.
-
-### 5. Match Creation
-
-There is no active standalone create-match route.
-
-Matches are created by accepting a challenge.
-
-In the mock API adapter:
-
-- `POST /challenges/:id/accept` changes the challenge to `scheduled`
-- `scheduledAt` is set to the provided value or a default future date
-- a match is created with `status: 'scheduled'`
-
-### 6. Play
-
-File: `src/views/PlayView.vue`
-
-Route: `/play/:matchId`
-
-On mount, it loads:
-
-- players
-- matches
-
-It creates local scoreboard state with:
-
-- `createScoreboard(challengerName, defenderName)`
-
-Point scoring uses:
-
-- `recordPoint(scoreboardState, playerKey)`
-
-Current behavior:
-
-- live scoring is local state only
-- live scoring is not persisted to the mock API
-- point logs are not saved
-- refreshing the page resets the live scoreboard
-- the scoreboard defaults to best of 3 sets
-
-### 7. Match Details
-
-File: `src/views/MatchDetailsView.vue`
-
-Route: `/matches/:matchId`
-
-On mount, it loads:
-
-- players
-- matches
-
-It finds the match with:
-
-- `matchStore.matchById(matchId)`
-
-It initializes the form with:
-
-- winner defaulted to the challenger
-- score defaulted to `6-4, 6-4`
-
-Submit behavior:
-
-- only enabled when `match.status === 'scheduled'`
-- calls `matchStore.submitResult(matchId, { winnerId, score })`
-
-Mock API result behavior:
-
-- sets `match.score`
-- sets `match.winnerId`
-- changes the match status to `pending_review`
-- changes the related challenge status to `pending_review`
-
-Current data mismatch:
-
-- this flow depends on a scheduled match with `challengerId` and `defenderId`
-- `MatchService.getMatches()` currently returns completed demo matches directly
-- because of that, result submission is architecturally wired but the active match read path needs cleanup before the full result flow is reliable
-
-### 8. Result Review And Ranking Update
-
-Review happens from the Challenges page.
-
-The review action calls:
-
-- `challengeStore.reviewChallenge(challengeId)`
-
-Mock API behavior:
-
-- challenge status becomes `completed`
-- related match status becomes `completed`
-- both players get `matchesPlayed + 1`
-- winner gets a win
-- loser gets a loss
-- if the challenger beats a higher-ranked defender, their ranks swap
-- all players are normalized back into sequential rank order
-
-### 9. Profile
-
-File: `src/views/ProfileView.vue`
-
-On mount, it loads:
-
-- players
-- challenges
-
-It displays:
-
-- current player identity
-- rank
-- wins
-- losses
-- win rate
-- matches played
-- total challenges
-- completed challenges
-- ladder standing details
-
-### 10. Notifications
-
-File: `src/views/NotificationsView.vue`
-
-Notifications are kept in the notification Pinia store.
-
-The page supports:
-
-- grouped feed by Today, Yesterday, and Earlier
-- unread count
-- mark one read
-- mark all read
-- dismiss one
-- clear all
-- empty state
-
-Prototype behavior:
-
-- if the notification feed is empty when the page loads, the page seeds example notifications
-- notifications do not persist across reloads
-
----
-
-## Domain Model
-
-### Player
-
-Current source:
-
-- `src/services/ApiService.js`
-- consumed through `PlayerService.js`
-
-Shape:
-
-- `id`
-- `name`
-- `imageUrl`
-- `rank`
-- `wins`
-- `losses`
-- `matchesPlayed`
-
-Current active player:
-
-- `player-02`
-
-### Challenge
-
-Current source:
-
-- `src/services/ApiService.js`
-- consumed through `ChallengeService.js`
-
-Stored shape:
-
-- `id`
-- `challengerId`
-- `defenderId`
-- `scorerId`
-- `status`
-- `requestedAt`
-- `scheduledAt`
-- `note`
-
-Enriched response shape also includes:
-
-- `statusLabel`
-- `challengerName`
-- `defenderName`
-- `scorerName`
-- `challengerRank`
-- `defenderRank`
-- `challengerImage`
-- `defenderImage`
-
-Current statuses:
-
-- `awaiting`
-- `scheduled`
-- `pending_review`
-- `completed`
-
-There is a `withdrawChallenge()` service and store function, but the store currently does not return it from `useChallengeStore()`, so it is not available to active UI.
-
-### Match
-
-Current sources:
-
-- `src/services/ApiService.js` supports match endpoints
-- `src/services/MatchService.js` currently returns demo mock matches directly for `getMatches()`
-- `submitMatchResult()` calls the Axios mock API
-
-Adapter-backed match shape:
-
-- `id`
-- `challengeId`
-- `challengerId`
-- `defenderId`
-- `status`
-- `scheduledAt`
-- `score`
-- `winnerId`
-- `statusLabel`
-- `challengerName`
-- `defenderName`
-- `challengerImage`
-- `defenderImage`
-
-Current `MatchService.getMatches()` demo shape:
-
-- `id`
-- `playerA`
-- `playerB`
-- `challengerName`
-- `defenderName`
-- `winnerId`
-- `score`
-- `status`
-- `completedAt`
-
-Current statuses:
-
-- `scheduled`
-- `pending_review`
-- `completed`
-
-Technical mismatch:
-
-- the Axios mock adapter includes `GET /matches`
-- the active `MatchService.getMatches()` does not call it today
-- because of that, match list data and mock API match mutation can drift
-- accepted challenge matches can be created in the adapter but lost when the store reloads from the direct demo match list
-
-### Scoreboard
-
-Source:
-
-- `src/utils/tennisScoring.js`
-
-Scoreboard shape:
-
-- `players`
-- `sets`
-- `currentSetIndex`
-- `currentGame`
-- `completedSets`
-- `matchWinner`
-- `bestOfSets`
-
-Current game shape:
-
-- `points`
-- `advantage`
-- `inTieBreak`
-- `tieBreakPoints`
-
-Scoring rules implemented:
-
-- normal tennis labels: Love, 15, 30, 40
-- deuce and advantage
-- set tiebreak starts at 6-6
-- tiebreak requires at least 7 points and a 2-point lead
-- set win requires at least 6 games and a 2-game lead unless won by tiebreak
-- match winner is set when a player wins enough sets for the selected best-of value
-
-### Notification
-
-Source:
-
-- `src/stores/notification.js`
-
-Shape:
-
-- `id`
-- `title`
-- `message`
-- `type`
-- `time`
-- `read`
-
-Types used:
-
-- `info`
-- `success`
-- `warning`
-- `danger`
-
-Notifications and toasts are memory-only.
-
-### Booking
-
-Source:
-
-- `src/services/BookingService.js`
-- `src/stores/booking.js`
-
-Booking shape:
-
-- `id`
-- `date`
-- `startHour`
-- `duration`
-- `playerName`
-- `description`
-- `createdAt`
-
-Booking is not part of the active route map, but the store and service still exist.
-
-Rules:
-
-- one court
-- available slots from 06:00 to 20:00
-- 1-hour and 2-hour durations
-- overlap detection prevents double booking
-- persisted under `sheltennis-bookings`
-
-### Auth
-
-Source:
-
-- `src/stores/auth.js`
-- `src/composables/useAuth.js`
-
-Auth shape:
-
-- `isLoggedIn`
-- `user`
-- `isAuthLoading`
-- `authMessage`
-
-Auth is persisted under:
-
-- `sheltennis-auth`
-
-Current limitation:
-
-- auth is not enforced by router guards
-- active player is still fixed by `playerStore.currentPlayerId`
-
----
-
-## Store Layer
-
-### `player` Store
-
-File: `src/stores/player.js`
-
-State:
-
-- `players`
-- `currentPlayerId`
-- `isLoading`
-- `error`
-
-Computed:
-
-- `sortedLadder`
-- `currentPlayer`
-- `availableOpponents`
-- `getPlayerZone`
-
-Actions:
-
-- `loadPlayers()`
-
-Important rule:
-
-- `availableOpponents` returns players ranked above the current player and within 3 positions
-
-### `challenge` Store
-
-File: `src/stores/challenge.js`
-
-State:
-
-- `challenges`
-- `filterStatus`
-- `isLoading`
-- `error`
-
-Computed:
-
-- `filteredChallenges`
-- `summaryCounts`
-
-Actions returned by the store:
-
-- `loadChallenges()`
-- `createChallenge(payload)`
-- `acceptChallenge(challengeId, scheduledAt)`
-- `declineChallenge(challengeId)`
-- `reviewChallenge(challengeId)`
-- `setFilter(status)`
-
-Implementation note:
-
-- `withdrawChallenge()` exists internally but is not returned by the store
-
-### `match` Store
-
-File: `src/stores/match.js`
-
-State:
-
-- `matches`
-- `isLoading`
-- `error`
-
-Computed:
-
-- `matchById`
-- `scheduledMatches`
-- `pendingReviewMatches`
-- `openChallenges`
-
-Actions:
-
-- `loadMatches()`
-- `submitResult(matchId, payload)`
-
-Important mismatch:
-
-- legacy `MatchesView.vue` expects APIs such as `liveMatches`, `upcomingMatches`, `joinExistingMatch()`, and `createNewMatch()`
-- those APIs do not exist in the current match store
-- because `MatchesView.vue` is not routed, this does not affect the active app
-
-### `notification` Store
-
-File: `src/stores/notification.js`
-
-State:
-
-- `notifications`
-- `toasts`
-
-Computed:
-
-- `unreadCount`
-
-Actions:
-
-- `addNotification(payload)`
-- `addToast(payload)`
-- `markRead(id)`
-- `dismissNotification(id)`
-- `clearNotifications()`
-- `dismissToast(id)`
-
-### `booking` Store
-
-File: `src/stores/booking.js`
-
-State:
-
-- `bookings`
-- `bookingSlots`
-- `isBookingLoading`
-- `bookingMessage`
-
-Computed:
-
-- `upcomingCount`
-
-Actions:
-
-- `loadBookings()`
-- `loadSlots(date)`
-- `bookCourt(payload)`
-
-Persistence:
-
-- localStorage key `sheltennis-bookings`
-
-### `auth` Store
-
-File: `src/stores/auth.js`
-
-State:
-
-- `isLoggedIn`
-- `user`
-- `isAuthLoading`
-- `authMessage`
-
-Computed:
-
-- `isAuthenticated`
-
-Actions:
-
-- `login(credentials)`
-- `logout()`
-
-Persistence:
-
-- localStorage key `sheltennis-auth`
-
-### `counter` Store
-
-File: `src/stores/counter.js`
-
-This is a demo store with:
-
-- `count`
-- `doubleCount`
-- `increment()`
-
-It is not part of the active ladder flow.
-
----
-
-## Service Layer
-
-### `src/services/ApiService.js`
-
-Responsibilities:
-
-- create the Axios client
-- provide a custom mock adapter
-- seed mock players, challenges, and matches lazily
-- simulate network latency
-- enrich challenge and match responses
-- handle challenge and match mutations
-- update rankings after review
-
-Implemented mock endpoints:
-
-- `GET /players`
-- `GET /challenges`
-- `GET /matches`
-- `POST /challenges`
-- `POST /challenges/:id/accept`
-- `POST /matches/:id/result`
-- `POST /challenges/:id/review`
-- `POST /challenges/:id/decline`
-
-Missing adapter endpoint:
-
-- `POST /challenges/:id/withdraw` is declared in `ChallengeService.js`, but the mock adapter does not implement it
-
-### `src/services/PlayerService.js`
-
-Functions:
-
-- `getPlayers()`
-- `getPlayerById(playerId)`
-
-Uses:
-
-- Axios mock API
-
-### `src/services/ChallengeService.js`
-
-Functions:
-
-- `getChallenges()`
-- `createChallenge(payload)`
-- `acceptChallenge(challengeId, scheduledAt)`
-- `reviewChallenge(challengeId)`
-- `declineChallenge(challengeId)`
-- `withdrawChallenge(challengeId)`
-
-Uses:
-
-- Axios mock API
-
-### `src/services/MatchService.js`
-
-Functions:
-
-- `getMatches()`
-- `submitMatchResult(matchId, payload)`
-
-Current behavior:
-
-- `getMatches()` returns hardcoded demo completed matches directly
-- `submitMatchResult()` calls `POST /matches/:id/result` on the Axios mock API
-
-This is the biggest service-layer mismatch today.
-
-### `src/services/BookingService.js`
-
-Functions:
-
-- `fetchSampleBookings()`
-- `createBooking(payload, existingBookings)`
-- `fetchDailySlots(date)`
-- `getSlotLabel(startHour, duration)`
-
-Uses:
-
-- `fakeRequest()` from `src/services/api.js`
-
-### `src/services/api.js`
-
-Shared helper functions:
-
-- `fakeRequest(payload, delay)`
-- `createId(prefix)`
-- `createTimestamp()`
-
----
-
-## Component And View Layer
-
-### Active Layout And Global Components
-
-- `DefaultLayout.vue`
-- `ToastShelf.vue`
-
-### Active Routed Views
-
-- `DashboardView.vue`
-- `RankingsView.vue`
-- `ChallengesView.vue`
-- `CreateChallengeView.vue`
-- `PlayView.vue`
-- `MatchDetailsView.vue`
-- `ProfileView.vue`
-- `NotificationsView.vue`
-
-### Active Reusable Components
-
-- `BaseButton.vue`
-- `BaseInput.vue`
-- `ChallengeCard.vue`
-- `PersonAvatar.vue`
-- `TennisScoreboard.vue`
-- `PerformanceChart.vue`
-
-### Present But Secondary Or Legacy
-
-- `LandingView.vue`
-- `LoginView.vue`
-- `BookView.vue`
-- `MatchesView.vue`
-- `HistoryView.vue`
-- `NavBar.vue`
-- `MatchCard.vue`
-- `CourtBookingForm.vue`
-- `CountdownTimer.vue`
-- `PlayerCard.vue`
-- `RankingRow.vue`
-
-Important:
-
-- the existence of a view file does not mean it is currently reachable
-- active product behavior should be inferred from `src/router/index.js`, not from the full file list
-
----
-
-## Styling Architecture
-
-Global CSS:
-
-- `src/assets/main.css`
-
-Global styling provides:
-
-- light color scheme
-- app-wide color tokens
-- surface and border tokens
-- green primary accent
-- yellow and orange support accents
-- shared card helpers
-- base element resets
-
-Layout-level styling:
-
-- `src/layouts/DefaultLayout.vue`
-
-View-level styling:
-
-- each active view contains its own scoped or local CSS
-- many views import Poppins directly
-
-Current visual direction:
-
-- white dashboard workspace
-- fixed sidebar
-- clean cards
-- green tennis/brand accents
-- subtle borders and shadows
-- some richer image-based hero sections on Dashboard, Rankings, and Challenges
-
----
-
-## Data And Persistence Architecture
-
-### Memory-Only State
-
-These reset on reload:
-
-- players
-- challenges
-- ladder rankings
-- notifications
-- toasts
-- live scoreboard state
-
-### localStorage State
-
-These persist across reloads:
-
-- auth state under `sheltennis-auth`
-- booking state under `sheltennis-bookings`
-
-### Mock API State
-
-The Axios mock adapter keeps:
-
-- players
-- challenges
-- matches
-
-This state is in memory inside `ApiService.js` and is seeded lazily.
-
-Current caution:
-
-- match read data is not fully aligned with the adapter because `MatchService.getMatches()` returns hardcoded demo data
-
----
-
-## End-To-End Data Flow
-
-### Active Ladder Flow
-
-1. A routed view mounts.
-2. The view calls one or more Pinia actions.
-3. The store calls a service wrapper.
-4. The service calls the mock API or returns demo data.
-5. The store updates refs.
-6. Computed values update.
-7. The view re-renders.
-
-### Challenge Creation Flow
-
-1. `CreateChallengeView` loads players.
-2. The user selects an eligible opponent.
-3. The view builds a challenge payload.
-4. `challengeStore.createChallenge()` calls `ChallengeService.createChallenge()`.
-5. The mock API creates an awaiting challenge.
-6. The store pushes the challenge into local store state.
-7. A toast and notification are created.
-8. The router navigates to Challenges.
-
-### Challenge Acceptance Flow
-
-1. `ChallengesView` calls `challengeStore.acceptChallenge(challengeId)`.
-2. `ChallengeService.acceptChallenge()` posts to the mock API.
-3. The mock API marks the challenge scheduled.
-4. The mock API creates a scheduled match.
-5. The challenge store replaces the challenge record.
-6. The match store reloads matches.
-7. Toast and notification messages are created.
-
-### Result Submission Flow
-
-1. `MatchDetailsView` loads players and matches.
-2. The user selects winner and score.
-3. `matchStore.submitResult()` calls `MatchService.submitMatchResult()`.
-4. The mock API marks the match pending review.
-5. The related challenge becomes pending review.
-6. The match store replaces the local match if found.
-7. The player store reloads players.
-
-Current caution:
-
-- this flow is intended for scheduled challenge-derived matches
-- the current demo match read path mostly returns completed matches, so this path should be retested after `MatchService.getMatches()` is aligned with `ApiService.js`
-
-### Result Review Flow
-
-1. `ChallengesView` calls `challengeStore.reviewChallenge(challengeId)`.
-2. The mock API completes the challenge and match.
-3. The mock API updates wins, losses, matches played, and ranks.
-4. The challenge store replaces the challenge record.
-5. The player store is updated with returned players.
-6. The match store reloads matches.
-7. Toast and notification messages are created.
-
-### Live Scoring Flow
-
-1. `PlayView` loads players and matches.
-2. The view creates local scoreboard state.
-3. `TennisScoreboard` emits `point` events.
-4. `PlayView` calls `recordPoint()`.
-5. Local scoreboard state updates.
-6. No backend or store persistence happens for point data.
-
-### Notification Flow
-
-1. Views call `notificationStore.addToast()` for temporary messages.
-2. Views call `notificationStore.addNotification()` for feed messages.
-3. `DefaultLayout` shows unread badge.
-4. `ToastShelf` shows active toasts.
-5. `NotificationsView` lets users read, dismiss, or clear notifications.
-
----
-
-## Known Technical Gaps
-
-Current gaps in the architecture:
-
-- no production backend
-- no real authentication or route guards
-- active player is hardcoded to `player-02`
-- live scoreboard does not persist
-- point history is not saved
-- stored match result is still a plain score string
-- structured `sets` are not the source of truth yet
-- submitted challenge match configuration is not fully persisted by the mock API
-- `MatchService.getMatches()` is not aligned with the Axios mock adapter
-- route-level booking flow is not active
-- route-level login flow is not active
-- `MatchesView.vue` references old match-store APIs and should be treated as legacy
-- withdraw challenge is declared but not exposed in active store/UI and is not implemented by the mock adapter
-- 48-hour response and result confirmation timers are not enforced
-- disputes are not implemented
-- auto-confirmation is not implemented
-- monthly dispute limits are not implemented
-
----
-
-## Product Direction Not Yet Implemented
-
-These are target product rules, not current runtime behavior:
-
-- official results should use structured set data instead of plain score strings
-- both players should confirm final results
-- players should have a 48-hour confirmation window
-- undisputed results should auto-confirm after the window
-- disputed results should freeze ranking updates
-- admins should resolve disputes manually
-- each player should have a monthly dispute limit
-- ranking updates should happen only after final confirmation
-- live score history should be persisted for auditability
-
----
-
-## Practical Working Model
-
-When working in this repo, assume:
-
-- the active product is the routed dashboard ladder flow
-- the active shell is `DefaultLayout`
-- the route map is the source of truth for what users can currently open
-- players and challenges use the Axios mock adapter
-- match reads currently use demo data from `MatchService.js`
-- matches are intended to be created by accepting challenges
-- official score submission happens on Match Details
-- ranking updates happen when challenge review completes
-- live scoring is useful UI but not persisted
-- auth and booking exist as secondary systems but are not active routed product flows
-- legacy files should not be treated as active behavior unless they are added to the router and brought back in sync
+# GORRA - Technical Architecture
+
+Status of this document: **Implemented** as a repository-grounded description of the current frontend prototype. Last verified on 2026-07-30.
+
+Related documents: [product features and workflows](APP_FEATURES.md) and [UI psychology, motion, and visual discipline](docs/GORRA_UI_PSYCHOLOGY_AND_MOTION_SYSTEM.md).
+
+## Status vocabulary
+
+- **Implemented** - active and connected at runtime.
+- **Partially implemented** - active connection exists, but an important part is missing or contradictory.
+- **Prototype or mock** - browser-simulated infrastructure, not a production backend.
+- **Planned** - direction or configuration without a complete active path.
+- **Legacy or inactive** - not reached by the active router/import graph.
+- **Needs verification** - the code does not establish one coherent intended behavior.
+
+## Architecture summary and runtime status
+
+GORRA is a Vue 3 single-page application built with Vite. Every route ultimately renders inside `DefaultLayout`; that layout changes presentation by route metadata so public, onboarding, friendly-match, immersive scoreboard, wide tournament, and standard app-shell pages feel different without separate root applications.
+
+The active runtime is a local-first prototype:
+
+- Vue Router provides public, member, club, challenge, friendly-match, tournament, match, and account routes.
+- Pinia stores own reactive application state.
+- Service wrappers call an Axios client with a custom in-process adapter.
+- The adapter seeds and mutates player, ladder, match, tournament, and gallery records.
+- Browser `localStorage` persists selected state, including the mock databases.
+- Optional browser APIs support QR generation, sharing, clipboard, fullscreen, sound, and legacy hash navigation.
+- One optional remote call exists for ladder creation access when `VITE_LADDER_ACCESS_ENDPOINT` is configured.
+
+There is no production API, database, identity provider, tenant boundary, object store, queue, websocket, or server-side permission system. `VITE_API_BASE_URL` is assigned to the Axios instance, but the custom adapter handles the current requests locally.
+
+## Source-of-truth hierarchy
+
+When repository sources conflict, use this order:
+
+1. `src/router/index.js` for reachability, route metadata, aliases, redirects, and guards.
+2. `src/main.js`, `src/App.vue`, and `src/layouts/DefaultLayout.vue` for boot and shell behavior.
+3. Active routed views and their imported components for visible behavior.
+4. Pinia stores for state and action contracts.
+5. Services and `src/services/ApiService.js` for mutation, validation, persistence, and mock endpoint behavior.
+6. Config, composables, and utilities for business calculations and shared rules.
+7. Global and component CSS for actual presentation.
+8. These three core documents.
+9. Other repository documents as history/reference only.
+
+A file is not active simply because it exists. The active import chain is decisive.
+
+## Reference Map
+
+- `ARCH-BOOT` - `index.html`, `src/main.js`, `src/App.vue`, `src/utils/formSafety.js`, `src/assets/main.css`, `src/assets/tournament.css`.
+- `ARCH-ROUTER` - `src/router/index.js`, `src/layouts/DefaultLayout.vue`, `src/components/RoutePageSkeleton.vue`, `src/components/compete/CompeteSectionShell.vue`.
+- `ARCH-AUTH` - `src/views/LoginView.vue`, `src/stores/auth.js`, `src/composables/useAuth.js`, `src/utils/auth/accessControl.js`, `src/dataMode.js`, `src/router/index.js`.
+- `ARCH-CLUB` - `src/stores/admin.js`, `src/services/AdminService.js`, `src/config/admin.js`, `src/utils/admin/clubSetup.js`, `src/views/ClubsView.vue`, `src/views/ClubView.vue`, `src/views/SettingsView.vue`, `src/views/MemberOnboardingView.vue`.
+- `ARCH-LADDER` - `src/config/ladder.js`, `src/stores/player.js`, `src/stores/challenge.js`, `src/stores/match.js`, `src/services/PlayerService.js`, `src/services/ChallengeService.js`, `src/services/MatchService.js`, `src/services/LadderAccessService.js`, `src/services/ApiService.js`.
+- `ARCH-FRIENDLY` - `src/stores/friendlyMatch.js`, `src/views/PlayHubView.vue`, `src/views/FriendlyMatchFlowView.vue`, `src/components/friendly/FriendlyMatchHome.vue`, `src/components/friendly/MatchResultModal.vue`.
+- `ARCH-TOURNAMENT` - `src/stores/tournament.js`, `src/stores/tournamentGallery.js`, `src/services/TournamentService.js`, `src/services/TournamentImageService.js`, `src/services/ApiService.js`, `src/composables/useTournamentFixtures.js`, `src/composables/useTournamentStandings.js`, `src/composables/useBracketBuilder.js`, `src/composables/useTournamentLiveRefresh.js`, `src/utils/tournament/assignPlayersToCategories.js`, `src/utils/tournament/buildCategoryGroups.js`, `src/utils/tournament/buildTournamentPayload.js`, `src/utils/tournament/validateTournamentSetup.js`, `src/utils/tournament/tournamentFormatAdvisor.js`, `src/utils/tournament/categoryTemplates.js`.
+- `ARCH-NOTIFY` - `src/stores/notification.js`, `src/views/NotificationsView.vue`, `src/components/ToastShelf.vue`, `src/utils/notificationSound.js`.
+- `ARCH-UI` - `src/assets/main.css`, `src/assets/landing.css`, `src/assets/tournament.css`, `src/layouts/DefaultLayout.vue`, `src/components/EmptyState.vue`, `src/components/RoutePageSkeleton.vue`, `src/components/BaseButton.vue`, `src/components/BaseInput.vue`, `src/components/compete/TennisNavIcon.vue`, `src/components/friendly/FlowIcon.vue`.
+- `ARCH-DEPLOY` - `package.json`, `vite.config.js`, `public/404.html`, `.github/workflows/deploy.yml`, `docs/GITHUB_PAGES_DEPLOYMENT_GUIDE.md`.
+
+## Technology stack
+
+| Layer | Technology | Runtime use | Status |
+| --- | --- | --- | --- |
+| UI | Vue `3.5.x`, Composition API, `<script setup>` | Views, components, layout | **Implemented** |
+| State | Pinia `3.x` | Auth, club, player, challenge, match, friendly, tournament, gallery, notification, booking | **Implemented** |
+| Routing | Vue Router `4.6.x` with `createWebHistory` | Route table, guards, metadata, redirects | **Implemented** |
+| HTTP abstraction | Axios `1.6.x` | Custom local adapter; no current network API for core data | **Prototype or mock** |
+| Charts | Chart.js `4.5.x`, vue-chartjs `5.3.x` | Dashboard performance chart | **Implemented** |
+| QR | `qrcode` `1.5.x` | Club and play-now invitation images | **Implemented** client-side |
+| Build | Vite `5.4.x`, Vue plugin | Dev/build/static assets | **Implemented** |
+| Deployment | GitHub Pages, Actions, `gh-pages` script | Static production deployment | **Implemented**, configuration has caveats |
+| Formatting | Prettier `3.8.x` | Source formatting script | **Implemented** tooling |
+
+No TypeScript, test runner, linter script, server framework, schema ORM, or component library is configured in `package.json`.
+
+## Boot sequence
+
+Implementation: `ARCH-BOOT`, `ARCH-ROUTER`.
+
+1. `index.html` exposes `#app` and loads `/src/main.js`; its static title is still `Vite App` until routing updates `document.title`.
+2. `src/main.js` creates the Vue app from `src/App.vue`.
+3. Pinia and Vue Router are installed.
+4. `src/assets/main.css` and `src/assets/tournament.css` are imported globally.
+5. `hardenFormSubmissions(document)` runs in the browser to reduce accidental form submissions.
+6. A compatibility listener watches `window.location.hash`. If the hash contains a slash route, it replaces the current history route with that path.
+7. The app waits for `router.isReady()`, performs one hash sync, and mounts.
+8. `src/App.vue` renders `DefaultLayout` only.
+9. `DefaultLayout` mounts the active `RouterView`, global toast shelf, route skeleton, shell chrome, active-club context, and account/navigation behaviors.
+10. Router `afterEach` sets `document.title` to `<route title> | GORRA` and resets scroll.
+
+Routing is browser-history mode, not hash history. Legacy hash URLs may still work through the custom sync bridge. GitHub Pages direct-route handling depends on `public/404.html` and its hardcoded `/tennis` repository path.
+
+## System diagram
+
+```mermaid
+flowchart TD
+  Browser[Browser / GitHub Pages] --> Boot[index.html + main.js]
+  Boot --> Router[Vue Router guards and metadata]
+  Boot --> Pinia[Pinia]
+  Router --> Layout[DefaultLayout]
+  Layout --> View[Active routed view]
+  View --> Component[Shared or domain component]
+  View --> Store[Pinia store]
+  Component --> Store
+  Store --> Service[Service wrapper]
+  Service --> Adapter[Axios custom mock adapter]
+  Adapter --> Memory[In-process mock database]
+  Adapter --> Storage[(localStorage)]
+  Store --> Storage
+  View --> BrowserAPI[Clipboard / Share / Fullscreen / FileReader / QR]
+  View -. optional .-> AccessEndpoint[VITE_LADDER_ACCESS_ENDPOINT]
+  Adapter --> Store
+  Store --> View
+  View --> Feedback[Toast / notification / skeleton / empty-error state]
+```
+
+## Curated folder map
+
+```text
+src/
+  main.js                 boot, plugins, hash compatibility, mount
+  App.vue                 root layout only
+  router/index.js         complete active route and guard table
+  layouts/                shared shell and responsive navigation
+  views/                  active and legacy routed-page candidates
+    compete/              active Ladder, Challenges, Tournaments tabs
+  components/             shared UI plus friendly/tournament domains
+  stores/                 Pinia state and actions
+  services/               wrappers plus Axios mock adapter
+  composables/            auth helper and tournament calculations/refresh
+  config/                 club setup and ladder rules
+  utils/                  scoring, validation, sanitization, dates, invitations
+  data/                   fresh-account ladder fixture generation
+  assets/                 global, landing, and tournament styling
+docs/                     supporting product, deployment, schema, and legacy handoff docs
+public/                   favicon and GitHub Pages 404 redirect
+.github/workflows/        Pages build/deploy workflow
+```
+
+Active competition views are the files under `src/views/compete/`, even though older similarly named views remain in `src/views/`.
+
+## Layout and shell architecture
+
+`src/App.vue` never swaps layouts. `DefaultLayout.vue` derives shell mode from route metadata and path/name:
+
+| Mode | Trigger | Shell behavior |
+| --- | --- | --- |
+| Public | `meta.public` | No app sidebar/header/bottom navigation; full-width public content |
+| Focused flow | `meta.friendlyFlow` or `meta.onboardingFlow` | No standard chrome; full-screen guided flow and shorter skeleton timing |
+| Immersive | `meta.immersive` | No standard chrome; full-screen scoreboard |
+| Standard app | Authenticated route without the above | Desktop/tablet sidebar, fixed header, content rail, mobile bottom nav |
+| Wide tournament | Tournament creation/viewer routes | Wider content workspace; Players/Review creation steps can hide sidebar for their own side rail |
+
+Shared primary navigation is Home, Play, Compete, Club. Compete supplies Ladder/Challenges/Tournaments tabs. Club supplies Overview/Members/Rules and role-sensitive Manage. Account menu supplies Profile, Match history, Account settings, and Club settings for managers.
+
+The shell loads players and clubs on authenticated mount, manages active-club switching, exposes notification count, derives route-aware tournament titles/subtitles, schedules route-shaped skeletons (900 ms standard, 650 ms focused), and animates navigation from prior to next index.
+
+Implementation: `ARCH-ROUTER`, `ARCH-CLUB`, `ARCH-NOTIFY`, `ARCH-UI`.
+
+## Full active route map
+
+All rows use `DefaultLayout`; “shell” describes which chrome it exposes. Unless marked Public, the global guard requires `authStore.isAuthenticated`.
+
+### Public, entry, and redirects
+
+| Path | Name / target | Component | Shell | Guard/metadata | Status |
+| --- | --- | --- | --- | --- | --- |
+| `/` | `Home` | `src/views/LandingView.vue` | Public | `public`; title only | **Implemented** |
+| `/signin` (alias `/login`) | `SignIn` | `src/views/LoginView.vue` | Public | `public`, `authPage`, `authMode=signin` | **Prototype or mock** auth |
+| `/signup` | `SignUp` | `src/views/LoginView.vue` | Public | `public`, `authPage`, `authMode=signup` | **Prototype or mock** auth |
+| `/home` | redirect `Dashboard` | - | - | Redirect itself has no public flag | **Implemented** |
+| `/compete` | redirect `Rankings` | - | - | Authenticated | **Implemented** |
+| `/create-challenge` | redirect `/ladder-match/type?mode=ladder` | - | - | Preserves query | **Implemented** compatibility |
+| `/:pathMatch(.*)*` | redirect `/dashboard` | - | - | Unauthenticated requests first go to sign-in | **Implemented** |
+
+### Shared member/admin areas
+
+| Path | Name | Component | Shell | Access and metadata | Status |
+| --- | --- | --- | --- | --- | --- |
+| `/dashboard` | `Dashboard` | `src/views/DashboardView.vue` | Standard | Auth; `primarySection=home` | **Implemented** |
+| `/play` | `Play` | `src/views/PlayHubView.vue` | Standard | Auth; `primarySection=play` | **Implemented** |
+| `/rankings` | `Rankings` | `src/views/compete/LadderView.vue` | Standard + Compete tabs | Auth; `primarySection=compete` | **Implemented** |
+| `/challenges` | `Challenges` | `src/views/compete/ChallengesQueueView.vue` | Standard + Compete tabs | Auth; `primarySection=compete` | **Partially implemented** actions |
+| `/tournaments` | `Tournaments` | `src/views/compete/TournamentsListView.vue` | Standard + Compete tabs | Auth; `primarySection=compete` | **Implemented** mock |
+| `/club` | `Club` | `src/views/ClubView.vue` | Standard + Club context tabs | Auth; `primarySection=club`; `section` query selects overview/members/rules | **Implemented** local data |
+| `/profile` | `Profile` | `src/views/ProfileView.vue` | Standard | Auth | **Implemented** mock |
+| `/history` | `History` | `src/views/HistoryView.vue` | Standard | Auth | **Partially implemented** mixed sources |
+| `/notifications` | `Notifications` | `src/views/NotificationsView.vue` | Standard | Auth | **Implemented** local |
+| `/account/settings` | `AccountSettings` | `src/views/AccountSettingsView.vue` | Standard | Auth | **Prototype or mock** |
+| `/matches/:matchId` | `MatchDetails` | `src/views/MatchDetailsView.vue` | Standard; Compete considered active | Auth; `props=true`; `matchId` param | **Partially implemented** ladder submission |
+| `/play/:matchId` | `PlayMatch` | `src/views/PlayView.vue` | Immersive | Auth; active-club `matches.live_score`; `props=true`; `matchId`; `primarySection=play` | **Implemented** for managers; player path **Needs verification** |
+
+### Club onboarding and management
+
+| Path | Name | Component | Shell | Access and metadata | Status |
+| --- | --- | --- | --- | --- | --- |
+| `/onboarding/join-club` | `PlayerClubJoin` | `src/views/MemberOnboardingView.vue` | Focused onboarding | Auth; `onboardingFlow`; `primarySection=club`; query `club/invite` | **Partially implemented**, visual join only |
+| `/admin/setup` | `AdminSetup` | `src/views/ClubsView.vue` | Focused onboarding | Auth; global `club.manage`; query `view/step/invite` | **Prototype or mock** |
+| `/clubs` | `Clubs` | `src/views/ClubsView.vue` | Focused onboarding | Auth; global `club.manage`; query-driven create/join/switch | **Prototype or mock** |
+| `/settings` (alias `/club/settings`) | `Settings` | `src/views/SettingsView.vue` | Standard + Club Manage context | Auth; active-club `club.manage`; `primarySection=club` | **Prototype or mock** |
+
+### Friendly and ladder focused flow
+
+All rows render `src/views/FriendlyMatchFlowView.vue`, use `meta.friendlyFlow=true`, set `primarySection=play`, and use `meta.friendlyStep` as the screen state.
+
+| Path (legacy alias where present) | Name | Step | Parameters/role | Status |
+| --- | --- | --- | --- | --- |
+| `/friendly-match/type` (`/ladder-match/type`) | `FriendlyMatchType` | `type` | Query `mode=ladder` selects ladder | **Implemented** |
+| `/friendly-match/timing` (`/ladder-match/timing`) | `FriendlyMatchTiming` | `timing` | Guarded by selected type | **Implemented** |
+| `/friendly-match/join` (`/ladder-match/join`) | `FriendlyMatchJoin` | `join` | Creator QR/link waiting screen | **Prototype or mock** |
+| `/friendly-match/club-opponent` (`/ladder-match/opponent`) | `FriendlyMatchClubOpponent` | `clubOpponent` | Hardcoded/local opponent list | **Prototype or mock** |
+| `/friendly-match/schedule` (`/ladder-match/schedule`) | `FriendlyMatchSchedule` | `schedule` | Optional date/time/court | **Implemented** locally |
+| `/friendly-match/opponent` | `FriendlyMatchOpponent` | `opponent` | Guard redirects to club-opponent screen | **Legacy-compatible route** |
+| `/friendly-match/scoring` (`/ladder-match/scoring`) | `FriendlyMatchScoring` | `scoring` | Friendly scoring mode; ladder skips it | **Implemented** |
+| `/friendly-match/format` (`/ladder-match/format`) | `FriendlyMatchFormat` | `format` | Preset/saved format review | **Implemented** |
+| `/friendly-match/custom-format` | `FriendlyMatchCustomFormat` | `customFormat` | Friendly only | **Implemented** locally |
+| `/friendly-match/scheduled` (`/ladder-match/sent`) | `FriendlyMatchScheduled` | `scheduled` | Confirmation/status | **Partially implemented** acceptance |
+| `/friendly-match/join/:token` (`/ladder-match/join/:token`) | `FriendlyMatchJoinInvitation` | `externalJoin` | Auth required; `token` param | **Prototype or mock** |
+| `/friendly-match/live` (`/ladder-match/live`) | `FriendlyMatchLive` | `live` | Focused + `immersive`; local draft-owner scoring | **Implemented** locally |
+
+### Tournament workspace
+
+| Path | Name | Component | Shell | Access, parameters, metadata | Status |
+| --- | --- | --- | --- | --- | --- |
+| `/tournaments/create` | `TournamentCreate` | `src/views/TournamentCreate.vue` | Wide; Players/Review own side rail | Auth; active-club `tournaments.manage`; query `step`; `primarySection=compete` | **Implemented** mock |
+| `/tournaments/:tournamentId` | `TournamentOverview` | `src/views/TournamentOverview.vue` | Wide viewer | Auth; `tournamentId`; `primarySection=compete` | **Implemented** mock |
+| `/tournaments/:tournamentId/category/:categoryId` | `TournamentCategory` | `src/views/TournamentCategory.vue` | Wide viewer | Auth; two params; `primarySection=compete` | **Implemented** mock |
+| `/tournaments/:tournamentId/schedule` | `TournamentSchedule` | `src/views/TournamentSchedule.vue` | Wide viewer | Auth; `tournamentId`; `primarySection=compete` | **Implemented** mock |
+| `/tournaments/:tournamentId/gallery` | `TournamentGallery` | `src/views/TournamentGallery.vue` | Wide viewer | Auth; `tournamentId`; query `folder/image`; `primarySection=compete` | **Implemented** local gallery |
+| `/tournaments/:tournamentId/match/:matchId` | `TournamentMatchDetails` | `src/views/MatchDetailsView.vue` | Wide viewer | Auth; two params; `props=true`; `primarySection=compete` | **Implemented** mock |
+
+## Authentication, role resolution, and authorization
+
+Implementation: `ARCH-AUTH`, `ARCH-CLUB`, `ARCH-ROUTER`.
+
+### Session and identity
+
+`auth` loads `sheltennis-auth` at store creation and watches login/user to persist it. Login uses `fakeRequest()`, builds a hardcoded player/admin identity, selects empty/demo mode, and attaches a role access profile. `player.currentPlayerId` resolves from `auth.user.playerId`, falling back to `player-02`.
+
+Active login offers `player` and `club_admin`. `tournament_admin` and `super_admin` exist in access control but are not offered. `LOCAL_ADMIN_PLAYER_IDS` also promotes `player-02` to super admin when no explicit role wins, which is prototype coupling.
+
+### Two role systems
+
+- Global access roles: `player`, `tournament_admin`, `club_admin`, `super_admin` with permission arrays.
+- Per-club membership roles: `player`, `co-admin`, `admin` stored in the club directory.
+
+`admin.hasActiveClubPermission()` grants a small read/player set to any active membership and manager permissions only to admin/co-admin. This active-club result is used for club settings, tournament management, scoring, images, and live score routes.
+
+### Guard order
+
+1. Non-public route without auth -> `SignIn?redirect=<fullPath>`.
+2. Global admin on a route other than AdminSetup/Clubs -> load clubs; if no configured active club, redirect into setup/recovery.
+3. `meta.activeClubPermission` -> ensure active club and require active-club permission; failure goes to Dashboard with `access=club/admin`.
+4. Other `meta.permission` -> require global permission; failure goes to Dashboard with `access=admin`.
+
+Read routes such as Ladder and Tournaments do not apply their nominal view permissions. The `tournament_admin` role can enter the global-admin setup redirect but lacks global `club.manage`, producing a possible redirect loop when unconfigured. **Needs verification**.
+
+Authorization is enforced only in browser code. AdminService repeats club membership/manager checks for local directory operations, and the ladder mock adapter checks participant actor IDs. Tournament mutation handlers do not check actor authority. None of these are production security boundaries.
+
+## Active club context
+
+`admin` derives the actor from auth identity, loads the local club directory, resolves memberships, and exposes `activeClubId`, active membership/role, permission checks, configured state, and active ladders. `DefaultLayout` presents the active club, switches it through AdminService, and uses it for role-sensitive navigation.
+
+The context is incomplete at the domain level: player, challenge, match, and tournament mock records are not consistently keyed or filtered by active club. Switching clubs changes shell/settings context and permissions but does not reliably switch competition datasets. Player onboarding also does not write a membership. Status: **Partially implemented**. Implementation: `ARCH-CLUB`, `ARCH-LADDER`, `ARCH-TOURNAMENT`.
+
+## Store and service map
+
+| Store | Responsibility and state/actions | Service/persistence | Main consumers | Limitation |
+| --- | --- | --- | --- | --- |
+| `auth` (`src/stores/auth.js`) | Session, user, loading/message, access profile, login/logout | `fakeRequest`; `sheltennis-auth` | Router, layout, login, player/admin stores, settings | Hardcoded identities; stale naming; no credential authority |
+| `admin` (`src/stores/admin.js`) | Clubs, memberships, active club, setup draft, manager permissions; load/save/join/switch/invite | `AdminService.js`; directory/setup localStorage | Router, layout, Clubs/Club/Settings, tournament UI | Local tenancy only; player onboarding disconnected |
+| `player` (`src/stores/player.js`) | Roster, current player, sorted ladder, category rosters, eligible opponents, role overrides | `PlayerService` -> mock adapter; role override key | Dashboard, Ladder, challenge/match/tournament views | One global roster; active club/ladders not selected |
+| `challenge` (`src/stores/challenge.js`) | Challenge list/filter/counts; create/accept/decline/withdraw/review | `ChallengeService` -> mock adapter -> ladder key | Dashboard, queue, focused ladder flow | Confirm/withdraw actions not exposed in active queue |
+| `match` (`src/stores/match.js`) | Shared match list, scheduled/review lookups, patch/live state/result | `MatchService` -> mock adapter -> ladder/tournament keys | Dashboard, Play, details, tournament | Ladder result callers inconsistently supply `submittedBy` |
+| `friendlyMatch` (`src/stores/friendlyMatch.js`) | Draft/invitations/formats/results; join, score, undo, finish | Four GORRA localStorage keys | Play hub/focused flow | Separate domain from shared matches; hardcoded opponents |
+| `tournament` (`src/stores/tournament.js`) | Tournament list/active event, standings, champion, fixtures, stage close, scores, schedules | `TournamentService` + match store -> tournament key | Dashboard and tournament routes | Local polling/concurrency; active club not attached |
+| `tournamentGallery` (`src/stores/tournamentGallery.js`) | Image list and CRUD state | `TournamentImageService` -> tournament key | Gallery | Data URLs/local quota, no object store |
+| `notification` (`src/stores/notification.js`) | Persistent feed, transient toasts, score-event dedupe | Mode-aware localStorage; optional audio | Layout, dashboard, actions, notification view | Browser/profile scoped, not account/server scoped |
+| `booking` (`src/stores/booking.js`) | Bookings/slots and overlap-aware booking | `BookingService`; `sheltennis-bookings[.empty]` | Dashboard/history; inactive Book view | No active booking route |
+| `counter` (`src/stores/counter.js`) | Scaffold counter | Memory | None active | **Legacy or inactive** |
+
+Service wrappers are intentionally thin. `ApiService.js` owns most mock validation, data creation, endpoint routing, ranking changes, tournament progression, and persistence. `AdminService.js` is a separate local directory service and does not use Axios. `LadderAccessService.js` is local by default and optionally calls a configured remote eligibility endpoint.
+
+## Composables and utilities
+
+| File/system | Responsibility | Consumers/status |
+| --- | --- | --- |
+| `src/composables/useAuth.js` | Thin computed facade over auth store | Present; limited active use |
+| `useTournamentFixtures.js` | Generate round-robin fixtures | Mock adapter/tournament lifecycle; **Implemented** |
+| `useTournamentStandings.js` | Calculate group standings/tiebreak order | Store/adapter/tables; **Implemented** |
+| `useBracketBuilder.js` | Empty/generate/progress knockout structures | Adapter/tournament UI; **Implemented** |
+| `useTournamentLiveRefresh.js` | Poll tournament/match data | Tournament overview/category/schedule/details; **Prototype or mock** |
+| `utils/tennisScoring.js` | Shared scoreboard state and point rules | Routed Play view; **Implemented** |
+| `config/ladder.js` | Eligibility, movement, locked match config, deadlines | Ladder/challenge/friendly/API; club override **Partially implemented** |
+| `utils/tournament/*` | Category assignment, group building, payload, setup validation, format advice/templates | Tournament creation; **Implemented** |
+| `utils/formSafety.js` | Sanitization, safe URL/image checks, submission hardening | Boot, settings, gallery, services; **Implemented** client-side |
+| `utils/onboarding/*` | Club invitation display search/validation and roster parsing/import validation | Onboarding/admin/settings; mixed prototype paths |
+
+## Domain models
+
+No TypeScript interfaces are defined; shapes are JavaScript objects normalized at store/service boundaries.
+
+- **Auth user:** `name`, `email`, `playerId`, `roleKey`, `roles`, `permissions`, `isAdmin`, `lastLogin`, `avatar`. Source: `ARCH-AUTH`.
+- **Club directory:** schema version, clubs, memberships, per-user active club, per-user drafts. Club setup contains workspace, membership/invites/roster, ladders, placement, rules, status/timestamps. Source: `ARCH-CLUB`.
+- **Player:** `id`, `name`, image, rank/ladder metadata, wins/losses/matches, category/gender/veteran metadata. Source: `ARCH-LADDER` and `ApiService.js`.
+- **Challenge:** participants, scorer, type/scope, status, requested/accepted/declined/cancelled/confirmed timestamps, response/play deadlines, pre-match positions, ladder/match-config snapshots, note. Source: `ARCH-LADDER`.
+- **Shared match:** ladder fields (`challengeId`, challenger/defender) or tournament fields (`tournamentId`, category/group/stage, player1/player2), schedule/court, status, score/winner, sets/games, `liveState`, timestamps. Source: `ARCH-LADDER`, `ARCH-TOURNAMENT`.
+- **Friendly draft/invitation/result:** separate local type/timing/opponent/schedule/format/score/ownership/token/status fields. Source: `ARCH-FRIENDLY`.
+- **Tournament:** basics/status/dates/officials/rules, categories/groups/knockout, images, timestamps. Source: `ARCH-TOURNAMENT`.
+- **Notification:** ID, title/message/type/time/read, optional event key/meta. Source: `ARCH-NOTIFY`.
+- **Booking:** ID, date/start/duration/player/description/createdAt. Source: inactive booking subsystem.
+
+Status strings are domain-specific. Do not normalize `pending` tournament fixtures, `scheduled` ladder matches, `waiting_*` friendly invitations, and `pending_review` ladder results into one state without an explicit migration.
+
+## Major data flows
+
+### Club setup and switching
+
+```text
+Admin action
+-> ClubsView / SettingsView / DefaultLayout
+-> admin store
+-> AdminService
+-> validate actor, membership, setup, invite
+-> gorra.admin.clubDirectory.v2 (+ legacy setup mirror)
+-> store reloads active club/memberships
+-> shell/context/toast updates
+```
+
+### Ladder challenge and confirmation
+
+```text
+Player action
+-> FriendlyMatchFlowView or ChallengesQueueView
+-> challenge store
+-> ChallengeService
+-> Axios mock adapter
+-> validate ladder/actor/status/deadline
+-> tennis.mock.ladderState.v1
+-> challenge/match/player state update
+-> toast/queue/ladder refresh
+```
+
+Result submission requires `submittedBy`; confirmation requires the other participant. Active UI coverage is incomplete, as documented in [features](APP_FEATURES.md).
+
+### Live scoreboard
+
+```text
+Point action
+-> PlayView + TennisScoreboard
+-> tennisScoring utility
+-> matchStore.saveLiveState
+-> MatchService PATCH /matches/:id
+-> mock adapter + ladder/tournament localStorage
+-> match store
+-> persisted scoreboard and UI clocks/status
+```
+
+Focused friendly scoring instead deep-watches `friendlyMatch.draft` directly to its own localStorage key.
+
+### Tournament create and progression
+
+```text
+Manager input
+-> TournamentCreate
+-> assignment/group/format/validation utilities
+-> tournament store
+-> TournamentService
+-> mock adapter
+-> tournament record + generated shared matches
+-> tennis.mock.tournamentState.v1
+-> tournament/match stores
+-> overview/category/schedule/bracket feedback
+```
+
+Score entry can update group standings or progress knockout participants. Live-refresh composables poll the same local adapter.
+
+### Notification flow
+
+```text
+Domain action or observed score change
+-> notification store
+-> event-key/signature dedupe
+-> mode-specific notification localStorage
+-> header unread state + Dashboard feed + NotificationsView
+-> read/dismiss/clear mutation
+```
+
+## Persistence architecture
+
+| Key | Owner | Contents | Scope/problem |
+| --- | --- | --- | --- |
+| `sheltennis-auth` | auth store | Session/user | Stale name; local and forgeable |
+| `gorra.appDataMode.v1` | data mode | `empty`/`demo` | Correct GORRA key |
+| `gorra.admin.clubDirectory.v2` | AdminService | Clubs, memberships, active club, drafts, private invites | Local tenant prototype |
+| `gorra.admin.clubSetup.v1` | AdminService/config | Legacy mirror | Ladder reader expects schema 1 while current setup schema is 2 |
+| `tennis.mock.ladderState.v1` | mock adapter | Players, challenges, ladder matches/live state | Not club- or mode-scoped |
+| `tennis.mock.tournamentState.v1` | mock adapter | Tournaments, matches, gallery | Not club- or mode-scoped; data URLs can be large |
+| `gorra.friendlyMatch*.v*` | friendly store | Draft, invites, results, formats | Separate competition silo |
+| `tennis.local.notifications.v1[.empty]` | notification store | Feed | Mode-aware, not user-aware |
+| `tennis.local.matchEventSignatures.v1[.empty]` | notification store | Dedup signatures | Mode-aware, not user-aware |
+| `tennis.local.playerRoles.v1` | player store | Role overrides | Prototype only |
+| `sheltennis-bookings[.empty]` | booking store | Bookings | Stale name; inactive route |
+
+The mock adapter loads state lazily and holds a module-level database. Fresh mode filters ladder records by an account scope and returns no tournaments; demo mode reads all stored records. Because the storage keys are shared, demo can observe fresh-mode records. Status: **Needs verification**.
+
+## External integrations and browser APIs
+
+- Cloudinary profile/tennis images and Unsplash tournament seeds: remote visual assets, not application data APIs.
+- Google Fonts imports: active CSS fetches Poppins and DM Sans; system fallbacks apply offline.
+- `ui-avatars.com`: auth prototype avatar URL.
+- Optional `VITE_LADDER_ACCESS_ENDPOINT`: POST with credentials for eligibility; local check remains default.
+- `navigator.clipboard`, Web Share, Fullscreen, FileReader/object URLs, `window.confirm`, Web Audio, and QR canvas/data URL generation.
+- GitHub Pages and GitHub Actions static deployment.
+
+No Cloudinary upload API, email/SMS provider, push provider, payment provider, analytics SDK, or realtime service is connected.
+
+## UI and responsive implementation layer
+
+Implementation: `ARCH-UI` and the canonical [UI psychology document](docs/GORRA_UI_PSYCHOLOGY_AND_MOTION_SYSTEM.md).
+
+- `main.css` defines shared color, weight, radius, border, motion, focus, button, card, and skeleton tokens; its base body font is Inter/system.
+- `DefaultLayout.vue` applies Poppins to the active shell, fixed header/sidebar, 220 px desktop and 76 px tablet sidebar, mobile bottom navigation, 85% mobile content rail, contextual navigation, skeleton overlay, and reduced-motion overrides.
+- `tournament.css` applies DM Sans/Poppins to tournament workspace rules.
+- `landing.css` owns public presentation and uses mixed Inter/Poppins variables.
+- Views/components add scoped responsive rules; tournament brackets have desktop/mobile variants.
+- `RoutePageSkeleton.vue` maps route names/steps to destination-shaped skeletons and disables shimmer for reduced motion.
+- `EmptyState.vue`, tournament empty state, ToastShelf, BaseButton/BaseInput, FlowIcon, and TennisNavIcon supply shared patterns, though older views still contain one-off UI.
+
+The intended system is cohesive, but typography and some radii/shadows remain inconsistent between global, shell, tournament, auth/onboarding, and legacy components.
+
+## Deployment and configuration
+
+Implementation: `ARCH-DEPLOY`.
+
+- `npm run build` runs Vite; `npm run deploy` builds and publishes `dist` through `gh-pages`.
+- The GitHub Actions workflow on `main` runs Node 20, `npm ci`, build, Pages artifact upload, and deployment.
+- Vite production base is `/<GITHUB_REPOSITORY name>/`, defaulting to `/tennis/`.
+- `package.json.homepage` and `public/404.html` are hardcoded to the `tennis` repository path.
+- Router uses browser history with `import.meta.env.BASE_URL`; `404.html` redirects deep links back to `/<repo>/?redirect=...`.
+- The app does not read the `redirect` query produced by `404.html`; `main.js` only synchronizes a slash path from `location.hash`. Direct-route recovery therefore **Needs verification**.
+- `index.html` favicon path is absolute `/favicon.ico`, which may miss the Vite base on Pages. **Needs verification**.
+
+Environment variable recognized in active code:
+
+- `VITE_LADDER_ACCESS_ENDPOINT` - optional remote ladder eligibility check.
+- `VITE_API_BASE_URL` - Axios base URL value, though the custom adapter still handles core calls.
+
+## Technical mismatches and production-readiness gaps
+
+1. Prototype login can create privileged roles without authentication; localStorage is forgeable.
+2. No server authorization, tenant filtering, transaction, audit trail, rate limit, or concurrency control exists.
+3. Player onboarding success does not create a club-directory membership.
+4. Active-club switch is not propagated as a filter/key to player, ladder, match, or tournament data.
+5. Setup schema v2 conflicts with the ladder config reader's schema-v1 condition.
+6. `tournament_admin` can encounter a setup/dashboard redirect loop and is not selectable.
+7. Player Play hub and `/play/:matchId` permissions disagree.
+8. Ladder Match Details and Play result submissions omit `submittedBy`; focused ladder finish includes it.
+9. Result confirmation and withdraw exist in services but are absent from the active challenge queue.
+10. Scheduled friendly invitation acceptance is not connected.
+11. Data-mode persistence is only partially scoped; gallery and competition state can leak across local modes/users/clubs.
+12. Tournament adapter mutation endpoints trust UI checks.
+13. Gallery upload stores base64 data in localStorage; there is no remote file lifecycle.
+14. Polling every two seconds substitutes for realtime updates and may overwrite local state in future multi-user use.
+15. Password update is a timeout only; account/profile changes mutate local auth state.
+16. Package/index/storage/copy/deployment paths retain `tennis`, `sheltennis`, ShellTennis, or Vite names.
+17. No automated tests, lint command, production monitoring, or typed contracts are configured.
+
+## Legacy or inactive code
+
+| Files | Classification/reason |
+| --- | --- |
+| `src/views/RankingsView.vue`, `ChallengesView.vue`, `TournamentHub.vue` | **Legacy or inactive** alternatives; router uses `views/compete/*` |
+| `src/views/CreateChallengeView.vue` | **Legacy or inactive**; route redirects to focused flow |
+| `src/views/AdminSetupView.vue`, `PlayerClubJoinView.vue` | **Legacy or inactive**; router uses ClubsView/MemberOnboardingView |
+| `src/views/BookView.vue`, `MatchesView.vue` | **Legacy or inactive**; no routes; Matches expects nonexistent store APIs |
+| `src/components/NavBar.vue`, `ChallengeCard.vue`, `PlayerCard.vue`, `RankingRow.vue`, `CourtBookingForm.vue`, `CountdownTimer.vue` | Older paths or inactive unless imported by an active file |
+| `src/stores/counter.js` | Scaffold demo |
+| `styling.md`, `logic.md`, older ShellTennis/RSP handoffs | Reference/history; not runtime truth |
+
+## Architecture handoff rule
+
+For a new change, trace route -> layout mode -> active view/component -> store/composable -> service -> adapter/storage -> state update -> feedback. Confirm both global role and active-club role where relevant. Do not infer production security or server persistence from local guards, Axios-shaped calls, or durable localStorage.

@@ -3,6 +3,7 @@
 import { computed } from 'vue'
 import { RouterLink, useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import AppLogo from './AppLogo.vue'
 
 // PROPS
 // none
@@ -51,11 +52,7 @@ function handleAuthAction() {
   <header class="navbar">
     <div class="navbar__brand">
       <RouterLink class="navbar__logo" to="/">
-        <img
-          src="https://res.cloudinary.com/dnuhjsckk/image/upload/v1776503502/RENAISSANCE-AFRICA-ENERGY-LOGO-update_s4eb9u.png"
-          alt="Renaissance Africa Energy logo"
-          class="navbar__logo-image cloudinary-img"
-        />
+        <AppLogo class="navbar__logo-image" on-dark />
       </RouterLink>
       <p class="navbar__tagline">Port Harcourt Team Court</p>
     </div>

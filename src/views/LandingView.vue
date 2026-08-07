@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import AppLogo from '../components/AppLogo.vue'
 import '../assets/landing.css'
 import scanToJoinImage from '../assets/landing/scan-to-join.jpg'
 import playTheMatchImage from '../assets/landing/play-the-match.jpg'
@@ -68,9 +69,9 @@ onUnmounted(() => {
     <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="public-nav" :class="{ 'public-nav--docked': navDocked }">
       <div class="public-nav__inner">
-        <RouterLink class="brand" to="/" aria-label="Gorra home"
-          ><i>G</i><span>GORRA</span></RouterLink
-        >
+        <RouterLink class="brand" to="/" aria-label="Gorra home">
+          <AppLogo class="brand__logo" :on-dark="!navDocked" />
+        </RouterLink>
         <nav aria-label="Public navigation">
           <a href="#players">How it works</a><a href="#tournaments">Tournaments</a
           ><a href="#why-gorra">Why Gorra</a>
@@ -434,7 +435,9 @@ onUnmounted(() => {
       </section>
     </main>
     <footer class="public-footer">
-      <RouterLink class="brand" to="/"><i>G</i><span>GORRA</span></RouterLink>
+      <RouterLink class="brand" to="/" aria-label="Gorra home">
+        <AppLogo class="brand__logo" on-dark />
+      </RouterLink>
       <p>The operating system for club tennis.</p>
       <nav>
         <a href="#players">How it works</a><a href="#tournaments">Tournaments</a

@@ -2,6 +2,7 @@
 import { computed, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
+import AppLogo from '../components/AppLogo.vue'
 import { useNotificationStore } from '../stores/notification'
 import {
   clubNameFromSlug,
@@ -175,7 +176,9 @@ onUnmounted(() => {
       >
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
       </button>
-      <a class="join-brand" href="#/" aria-label="Gorra home"><span>G</span> GORRA</a>
+      <a class="join-brand" href="#/" aria-label="Gorra home">
+        <AppLogo class="join-brand__logo" />
+      </a>
       <div class="join-security"><FlowIcon name="check" /> Invitation protected</div>
     </header>
 
@@ -414,25 +417,11 @@ onUnmounted(() => {
   justify-self: center;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: #142019;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
   text-decoration: none;
 }
-.join-brand span {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border-radius: 50% 50% 50% 10px;
-  background: #087524;
-  color: #fff;
-  font-family: Georgia, serif;
-  font-size: 17px;
-  font-style: italic;
-  transform: rotate(-5deg);
+.join-brand__logo {
+  width: 112px;
+  max-height: 38px;
 }
 .join-security {
   display: flex;

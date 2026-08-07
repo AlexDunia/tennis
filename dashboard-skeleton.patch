@@ -1,0 +1,84 @@
+diff --git a/src/components/RoutePageSkeleton.vue b/src/components/RoutePageSkeleton.vue
+--- a/src/components/RoutePageSkeleton.vue
++++ b/src/components/RoutePageSkeleton.vue
+@@ -293,13 +293,21 @@
+     </template>
+ 
+     <template v-else-if="variant === 'dashboard'">
+-      <span class="sk sk-hero"></span>
+-      <div class="three-grid">
+-        <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-stat"></span>
++      <div class="dashboard-identity">
++        <span class="sk sk-dashboard-badge"></span>
++        <div class="stack gap-7">
++          <span class="sk sk-line w-24 thin"></span>
++          <span class="sk sk-line w-34 title"></span>
++        </div>
+       </div>
+-      <span class="sk sk-line w-12 thin"></span>
+-      <div class="three-grid dashboard-grid">
+-        <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-card mid"></span>
++      <span class="sk sk-dashboard-ladder"></span>
++      <div class="member-head dashboard-section-head">
++        <span class="sk sk-line w-28"></span>
++        <span class="sk sk-line w-10 thin"></span>
++      </div>
++      <div class="three-grid dashboard-activity">
++        <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-dashboard-activity"></span>
+       </div>
+-      <span class="sk sk-card activity"></span>
++      <span class="sk sk-dashboard-opportunity"></span>
+     </template>
+@@ -648,4 +656,32 @@
+ .sk-hero {
+   height: 290px;
+ }
++.dashboard-identity {
++  display: flex;
++  min-height: 58px;
++  align-items: center;
++  gap: 12px;
++}
++.sk-dashboard-badge {
++  width: 54px;
++  height: 54px;
++  flex: 0 0 54px;
++  border-radius: 50%;
++}
++.sk-dashboard-ladder {
++  height: 390px;
++  border-radius: calc(var(--app-card-radius) * 2.2);
++}
++.dashboard-section-head {
++  min-height: 34px;
++  padding: 0;
++  border: 0;
++}
++.sk-dashboard-activity {
++  height: 246px;
++}
++.sk-dashboard-opportunity {
++  height: 80px;
++  border-radius: calc(var(--app-card-radius) * 2);
++}
+ .sk-tournament-hero {
+@@ -797,5 +833,19 @@
+   .tabs {
+     overflow: hidden;
+     gap: 16px;
+   }
++  .sk-dashboard-badge {
++    width: 48px;
++    height: 48px;
++    flex-basis: 48px;
++  }
++  .sk-dashboard-ladder {
++    height: 374px;
++  }
++  .dashboard-activity {
++    display: grid;
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++  }
++  .sk-dashboard-activity { height: 226px; }
++  .dashboard-activity .sk-dashboard-activity:last-child { display: none; }
+   .sk-line.tab {

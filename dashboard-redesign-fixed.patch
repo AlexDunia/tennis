@@ -1,0 +1,149 @@
+diff --git a/src/layouts/DefaultLayout.vue b/src/layouts/DefaultLayout.vue
+--- a/src/layouts/DefaultLayout.vue
++++ b/src/layouts/DefaultLayout.vue
+@@ -281,8 +281,8 @@
+               :route-name="String(route.name || '')"
+               :friendly-step="String(route.meta.friendlyStep || '')"
+               :friendly-match-type="friendlyMatchStore.draft.matchType"
+               :friendly-timing="friendlyMatchStore.draft.timing"
+-              :fresh-dashboard="isFreshDashboardSkeleton"
++              :fresh-dashboard="false"
+               :opponent-count="
+                 friendlyMatchStore.draft.matchType === 'ladder'
+                   ? friendlyMatchStore.ladderOpponents.length
+@@ -336,7 +336,6 @@
+ import ToastShelf from '../components/ToastShelf.vue'
+ import RoutePageSkeleton from '../components/RoutePageSkeleton.vue'
+ import CompeteSectionShell from '../components/compete/CompeteSectionShell.vue'
+-import { APP_DATA_MODES, appDataMode } from '../dataMode'
+ 
+ const route = useRoute()
+ const router = useRouter()
+@@ -437,10 +436,6 @@
+   const parts = String(name).trim().split(/\s+/).filter(Boolean)
+   return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : name.slice(0, 2)).toUpperCase()
+ })
+-const isFreshDashboardSkeleton = computed(
+-  () =>
+-    route.name === 'Dashboard' && appDataMode.value === APP_DATA_MODES.EMPTY && !authStore.isAdmin,
+-)
+ 
+ const tournamentCreateSteps = ['basics', 'categories', 'players', 'review']
+ const tournamentCreateTitles = {
+@@ -1855,7 +1850,7 @@
+     grid-template-columns: minmax(0, 1fr) auto;
+     min-height: var(--app-header-height);
+     gap: 8px;
+-    padding: 9px 7.5vw;
++    padding: 9px 7vw;
+   }
+@@ -1924,7 +1919,7 @@
+   }
+ 
+   .content {
+-    width: 85%;
++    width: 86%;
+     margin-inline: auto;
+     padding: 18px 0 28px;
+   }
+@@ -1960,7 +1955,7 @@
+     z-index: 40;
+     display: grid;
+     grid-template-columns: repeat(4, minmax(0, 1fr));
+     min-height: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+-    padding: 3px 7.5vw env(safe-area-inset-bottom, 0px);
++    padding: 3px 7vw env(safe-area-inset-bottom, 0px);
+     border-top: 1px solid var(--color-border);
+@@ -1972,6 +1967,6 @@
+ 
+   .bottom-nav__motion {
+     position: absolute;
+-    inset: 3px auto env(safe-area-inset-bottom, 0px) 7.5vw;
+-    width: calc(85% / var(--motion-count));
++    inset: 3px auto env(safe-area-inset-bottom, 0px) 7vw;
++    width: calc(86% / var(--motion-count));
+     pointer-events: none;
+diff --git a/src/components/RoutePageSkeleton.vue b/src/components/RoutePageSkeleton.vue
+--- a/src/components/RoutePageSkeleton.vue
++++ b/src/components/RoutePageSkeleton.vue
+@@ -293,13 +293,21 @@
+     </template>
+ 
+     <template v-else-if="variant === 'dashboard'">
+-      <span class="sk sk-hero"></span>
+-      <div class="three-grid">
+-        <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-stat"></span>
++      <div class="dashboard-identity">
++        <span class="sk sk-dashboard-badge"></span>
++        <div class="stack gap-7">
++          <span class="sk sk-line w-24 thin"></span>
++          <span class="sk sk-line w-34 title"></span>
++        </div>
+       </div>
+-      <span class="sk sk-line w-12 thin"></span>
+-      <div class="three-grid dashboard-grid">
+-        <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-card mid"></span>
++      <span class="sk sk-dashboard-ladder"></span>
++      <div class="member-head dashboard-section-head">
++        <span class="sk sk-line w-28"></span>
++        <span class="sk sk-line w-10 thin"></span>
++      </div>
++      <div class="three-grid dashboard-activity">
++        <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-dashboard-activity"></span>
+       </div>
+-      <span class="sk sk-card activity"></span>
++      <span class="sk sk-dashboard-opportunity"></span>
+     </template>
+@@ -648,4 +656,32 @@
+ .sk-hero {
+   height: 290px;
+ }
++.dashboard-identity {
++  display: flex;
++  min-height: 58px;
++  align-items: center;
++  gap: 12px;
++}
++.sk-dashboard-badge {
++  width: 54px;
++  height: 54px;
++  flex: 0 0 54px;
++  border-radius: 50%;
++}
++.sk-dashboard-ladder {
++  height: 390px;
++  border-radius: calc(var(--app-card-radius) * 2.2);
++}
++.dashboard-section-head {
++  min-height: 34px;
++  padding: 0;
++  border: 0;
++}
++.sk-dashboard-activity {
++  height: 246px;
++}
++.sk-dashboard-opportunity {
++  height: 80px;
++  border-radius: calc(var(--app-card-radius) * 2);
++}
+ .sk-tournament-hero {
+@@ -797,5 +830,19 @@
+   .tabs {
+     overflow: hidden;
+     gap: 16px;
+   }
++  .sk-dashboard-badge {
++    width: 48px;
++    height: 48px;
++    flex-basis: 48px;
++  }
++  .sk-dashboard-ladder {
++    height: 374px;
++  }
++  .dashboard-activity {
++    display: grid;
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++  }
++  .sk-dashboard-activity { height: 226px; }
++  .dashboard-activity .sk-dashboard-activity:last-child { display: none; }
+   .sk-line.tab {

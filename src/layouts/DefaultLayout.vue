@@ -7,8 +7,7 @@
         aria-label="GORRA Home"
         @click="handleNavigationClick({ name: 'Dashboard' }, $event)"
       >
-        <span class="brand__mark" aria-hidden="true">G</span>
-        <span class="brand__name">GORRA</span>
+        <AppLogo class="brand__logo" />
       </a>
 
       <div ref="clubMenuRoot" class="club-switcher">
@@ -116,9 +115,14 @@
           'app-header--compete': showCompeteSectionShell,
         }"
       >
-        <div class="global-identity">
-          <span class="global-identity__brand">GORRA</span>
-        </div>
+        <a
+          class="global-identity"
+          :href="getNavigationHref({ name: 'Dashboard' })"
+          aria-label="GORRA Home"
+          @click="handleNavigationClick({ name: 'Dashboard' }, $event)"
+        >
+          <AppLogo class="global-identity__logo" />
+        </a>
 
         <div class="header-main">
           <button
@@ -285,7 +289,7 @@
               :friendly-step="String(route.meta.friendlyStep || '')"
               :friendly-match-type="friendlyMatchStore.draft.matchType"
               :friendly-timing="friendlyMatchStore.draft.timing"
-              :fresh-dashboard="isFreshDashboardSkeleton"
+              :fresh-dashboard="false"
               :opponent-count="
                 friendlyMatchStore.draft.matchType === 'ladder'
                   ? friendlyMatchStore.ladderOpponents.length
@@ -350,7 +354,7 @@ import { useAdminStore } from '../stores/admin'
 import ToastShelf from '../components/ToastShelf.vue'
 import RoutePageSkeleton from '../components/RoutePageSkeleton.vue'
 import CompeteSectionShell from '../components/compete/CompeteSectionShell.vue'
-import { APP_DATA_MODES, appDataMode } from '../dataMode'
+import AppLogo from '../components/AppLogo.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -435,10 +439,6 @@ const accountInitials = computed(() => {
   const parts = String(name).trim().split(/\s+/).filter(Boolean)
   return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : name.slice(0, 2)).toUpperCase()
 })
-const isFreshDashboardSkeleton = computed(
-  () =>
-    route.name === 'Dashboard' && appDataMode.value === APP_DATA_MODES.EMPTY && !authStore.isAdmin,
-)
 
 const tournamentCreateSteps = ['basics', 'categories', 'players', 'review']
 const tournamentCreateTitles = {
@@ -857,21 +857,9 @@ onUnmounted(() => {
   text-decoration: none;
 }
 
-.brand__mark {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: #fff;
-  font-weight: var(--font-weight-bold);
-}
-
-.brand__name {
-  font-size: 16px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
+.brand__logo {
+  width: 124px;
+  max-height: 44px;
 }
 
 .club-switcher {
@@ -1225,14 +1213,14 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  text-decoration: none;
 }
 
-.global-identity__brand {
-  display: none;
-  color: var(--color-text);
-  font-size: 13px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
+.global-identity__logo {
+  display: block;
+  width: 96px;
+  max-width: 28vw;
+  max-height: 34px;
 }
 
 .club-control {
@@ -1781,7 +1769,16 @@ onUnmounted(() => {
     padding-inline: 10px;
   }
 
-  .brand__name,
+  .brand {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .brand__logo {
+    width: 52px;
+    max-height: 28px;
+  }
+
   .club-switcher__copy,
   .club-switcher__chevron,
   .sidebar-club > span:last-child {
@@ -1855,14 +1852,14 @@ onUnmounted(() => {
     grid-template-columns: minmax(0, 1fr) auto;
     min-height: var(--app-header-height);
     gap: 8px;
-    padding: 9px 7.5vw;
+    padding: 9px 7vw;
   }
 
   .global-identity {
     gap: 8px;
   }
 
-  .global-identity__brand {
+  .global-identity__logo {
     display: block;
   }
 
@@ -1924,7 +1921,7 @@ onUnmounted(() => {
   }
 
   .content {
-    width: 85%;
+    width: 86%;
     margin-inline: auto;
     padding: 18px 0 28px;
   }
@@ -1967,7 +1964,7 @@ onUnmounted(() => {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     min-height: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px));
-    padding: 3px 7.5vw env(safe-area-inset-bottom, 0px);
+    padding: 3px 7vw env(safe-area-inset-bottom, 0px);
     border-top: 1px solid var(--color-border);
     background: rgba(255, 255, 255, 0.98);
     box-shadow: 0 -5px 18px rgba(15, 34, 24, 0.04);
@@ -1977,8 +1974,8 @@ onUnmounted(() => {
 
   .bottom-nav__motion {
     position: absolute;
-    inset: 3px auto env(safe-area-inset-bottom, 0px) 7.5vw;
-    width: calc(85% / var(--motion-count));
+    inset: 3px auto env(safe-area-inset-bottom, 0px) 7vw;
+    width: calc(86% / var(--motion-count));
     pointer-events: none;
     background: linear-gradient(100deg, transparent, rgba(0, 181, 26, 0.15), transparent);
     animation: horizontalNavTrack 580ms var(--motion-curve) both;
@@ -2027,8 +2024,8 @@ onUnmounted(() => {
 }
 
 @media (max-width: 390px) {
-  .global-identity__brand {
-    font-size: 11px;
+  .global-identity__logo {
+    width: 86px;
   }
 
   .club-control__name,

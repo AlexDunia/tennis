@@ -1,0 +1,349 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/friendly/FlowIcon.vue");
+const _sfc_main = {
+  __name: 'FlowIcon',
+  props: {
+  name: { type: String, required: true },
+},
+  setup(__props, { expose: __expose }) {
+  __expose();
+
+
+
+const __returned__ = {  }
+Object.defineProperty(__returned__, '__isScriptSetup', { enumerable: false, value: true })
+return __returned__
+}
+
+}
+import { createElementVNode as _createElementVNode, Fragment as _Fragment, openBlock as _openBlock, createElementBlock as _createElementBlock, createCommentVNode as _createCommentVNode } from "/node_modules/.vite/deps/vue.js?v=901b918e"
+
+const _hoisted_1 = {
+  class: "flow-icon",
+  viewBox: "0 0 24 24",
+  "aria-hidden": "true"
+}
+const _hoisted_2 = {
+  key: 1,
+  d: "M7 20V4M17 20V4M7 8h10M7 13h10M7 18h10"
+}
+const _hoisted_3 = {
+  key: 3,
+  d: "m9 7 8 5-8 5V7Z"
+}
+const _hoisted_4 = {
+  key: 8,
+  d: "M5 12h14M14 7l5 5-5 5"
+}
+const _hoisted_5 = {
+  key: 10,
+  d: "M12 4v11M8 11l4 4 4-4M5 20h14"
+}
+const _hoisted_6 = {
+  key: 11,
+  d: "M12 20V9M8 13l4-4 4 4M5 4h14"
+}
+const _hoisted_7 = {
+  key: 13,
+  d: "m10 14 4-4M8.5 17.5l-1 1a3.5 3.5 0 0 1-5-5l3-3a3.5 3.5 0 0 1 5 0M15.5 6.5l1-1a3.5 3.5 0 0 1 5 5l-3 3a3.5 3.5 0 0 1-5 0"
+}
+const _hoisted_8 = {
+  key: 14,
+  d: "m7 7 10 10M17 7 7 17"
+}
+const _hoisted_9 = {
+  key: 15,
+  d: "M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M13 8l4 4-4 4M8 12h9"
+}
+const _hoisted_10 = {
+  key: 16,
+  d: "m4 11 8-7 8 7M6.5 9.5V20h11V9.5M10 20v-6h4v6"
+}
+const _hoisted_11 = {
+  key: 22,
+  d: "M7 4h10v16l-5-3-5 3V4Z"
+}
+const _hoisted_12 = {
+  key: 25,
+  d: "m5 12 4 4L19 6"
+}
+const _hoisted_13 = {
+  key: 26,
+  d: "M12 5v14M5 12h14"
+}
+const _hoisted_14 = {
+  key: 29,
+  d: "M5 19V11M12 19V5M19 19v-6M3 19h18"
+}
+const _hoisted_15 = {
+  key: 36,
+  d: "m4 11 8-7 8 7M6.5 9.5V20h11V9.5M10 20v-6h4v6"
+}
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (_openBlock(), _createElementBlock("svg", _hoisted_1, [
+    ($props.name === 'friendly')
+      ? (_openBlock(), _createElementBlock(_Fragment, { key: 0 }, [
+          _cache[0] || (_cache[0] = _createElementVNode("circle", {
+            cx: "12",
+            cy: "12",
+            r: "7.5"
+          }, null, -1 /* CACHED */)),
+          _cache[1] || (_cache[1] = _createElementVNode("path", { d: "M6.4 8.5c3.5 1 6.9 4.4 8.9 8.7M17.6 7c-2.3.8-4.5 2.7-5.8 5" }, null, -1 /* CACHED */))
+        ], 64 /* STABLE_FRAGMENT */))
+      : ($props.name === 'ladder')
+        ? (_openBlock(), _createElementBlock("path", _hoisted_2))
+        : ($props.name === 'trophy')
+          ? (_openBlock(), _createElementBlock(_Fragment, { key: 2 }, [
+              _cache[2] || (_cache[2] = _createElementVNode("path", { d: "M8 4h8v3.5c0 3-1.5 5-4 5s-4-2-4-5V4Z" }, null, -1 /* CACHED */)),
+              _cache[3] || (_cache[3] = _createElementVNode("path", { d: "M8 6H5v1.5c0 2 1.2 3.2 3.4 3.4M16 6h3v1.5c0 2-1.2 3.2-3.4 3.4M12 12.5V17M8.5 20h7M10 17h4" }, null, -1 /* CACHED */))
+            ], 64 /* STABLE_FRAGMENT */))
+          : ($props.name === 'play')
+            ? (_openBlock(), _createElementBlock("path", _hoisted_3))
+            : ($props.name === 'calendar')
+              ? (_openBlock(), _createElementBlock(_Fragment, { key: 4 }, [
+                  _cache[4] || (_cache[4] = _createElementVNode("rect", {
+                    x: "4",
+                    y: "5.5",
+                    width: "16",
+                    height: "14",
+                    rx: "2"
+                  }, null, -1 /* CACHED */)),
+                  _cache[5] || (_cache[5] = _createElementVNode("path", { d: "M8 3.5v4M16 3.5v4M4 10h16M8 14h3" }, null, -1 /* CACHED */))
+                ], 64 /* STABLE_FRAGMENT */))
+              : ($props.name === 'users')
+                ? (_openBlock(), _createElementBlock(_Fragment, { key: 5 }, [
+                    _cache[6] || (_cache[6] = _createElementVNode("circle", {
+                      cx: "9",
+                      cy: "9",
+                      r: "3"
+                    }, null, -1 /* CACHED */)),
+                    _cache[7] || (_cache[7] = _createElementVNode("path", { d: "M3.5 20c.5-3.4 2.3-5 5.5-5s5 1.6 5.5 5M15.5 6.5a3 3 0 0 1 0 5.8M16 15c2.7.2 4.1 1.8 4.5 5" }, null, -1 /* CACHED */))
+                  ], 64 /* STABLE_FRAGMENT */))
+                : ($props.name === 'copy')
+                  ? (_openBlock(), _createElementBlock(_Fragment, { key: 6 }, [
+                      _cache[8] || (_cache[8] = _createElementVNode("rect", {
+                        x: "8",
+                        y: "8",
+                        width: "11",
+                        height: "11",
+                        rx: "2"
+                      }, null, -1 /* CACHED */)),
+                      _cache[9] || (_cache[9] = _createElementVNode("path", { d: "M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" }, null, -1 /* CACHED */))
+                    ], 64 /* STABLE_FRAGMENT */))
+                  : ($props.name === 'spark')
+                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 7 }, [
+                        _cache[10] || (_cache[10] = _createElementVNode("path", { d: "m12 3 1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3Z" }, null, -1 /* CACHED */)),
+                        _cache[11] || (_cache[11] = _createElementVNode("path", { d: "m18.5 15 .7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7.7-2.1Z" }, null, -1 /* CACHED */))
+                      ], 64 /* STABLE_FRAGMENT */))
+                    : ($props.name === 'arrow-right')
+                      ? (_openBlock(), _createElementBlock("path", _hoisted_4))
+                      : ($props.name === 'share')
+                        ? (_openBlock(), _createElementBlock(_Fragment, { key: 9 }, [
+                            _cache[12] || (_cache[12] = _createElementVNode("circle", {
+                              cx: "18",
+                              cy: "5",
+                              r: "2.5"
+                            }, null, -1 /* CACHED */)),
+                            _cache[13] || (_cache[13] = _createElementVNode("circle", {
+                              cx: "6",
+                              cy: "12",
+                              r: "2.5"
+                            }, null, -1 /* CACHED */)),
+                            _cache[14] || (_cache[14] = _createElementVNode("circle", {
+                              cx: "18",
+                              cy: "19",
+                              r: "2.5"
+                            }, null, -1 /* CACHED */)),
+                            _cache[15] || (_cache[15] = _createElementVNode("path", { d: "m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" }, null, -1 /* CACHED */))
+                          ], 64 /* STABLE_FRAGMENT */))
+                        : ($props.name === 'download')
+                          ? (_openBlock(), _createElementBlock("path", _hoisted_5))
+                          : ($props.name === 'upload')
+                            ? (_openBlock(), _createElementBlock("path", _hoisted_6))
+                            : ($props.name === 'scan')
+                              ? (_openBlock(), _createElementBlock(_Fragment, { key: 12 }, [
+                                  _cache[16] || (_cache[16] = _createElementVNode("path", { d: "M4 9V6a2 2 0 0 1 2-2h3M15 4h3a2 2 0 0 1 2 2v3M20 15v3a2 2 0 0 1-2 2h-3M9 20H6a2 2 0 0 1-2-2v-3" }, null, -1 /* CACHED */)),
+                                  _cache[17] || (_cache[17] = _createElementVNode("path", { d: "M8 12h8M12 8v8" }, null, -1 /* CACHED */))
+                                ], 64 /* STABLE_FRAGMENT */))
+                              : ($props.name === 'link')
+                                ? (_openBlock(), _createElementBlock("path", _hoisted_7))
+                                : ($props.name === 'close')
+                                  ? (_openBlock(), _createElementBlock("path", _hoisted_8))
+                                  : ($props.name === 'login')
+                                    ? (_openBlock(), _createElementBlock("path", _hoisted_9))
+                                    : ($props.name === 'home')
+                                      ? (_openBlock(), _createElementBlock("path", _hoisted_10))
+                                      : ($props.name === 'advantage')
+                                        ? (_openBlock(), _createElementBlock(_Fragment, { key: 17 }, [
+                                            _cache[18] || (_cache[18] = _createElementVNode("path", { d: "M6 16V8M18 16V8M9 12h6" }, null, -1 /* CACHED */)),
+                                            _cache[19] || (_cache[19] = _createElementVNode("circle", {
+                                              cx: "6",
+                                              cy: "6",
+                                              r: "1.5"
+                                            }, null, -1 /* CACHED */)),
+                                            _cache[20] || (_cache[20] = _createElementVNode("circle", {
+                                              cx: "18",
+                                              cy: "18",
+                                              r: "1.5"
+                                            }, null, -1 /* CACHED */))
+                                          ], 64 /* STABLE_FRAGMENT */))
+                                        : ($props.name === 'no-ad')
+                                          ? (_openBlock(), _createElementBlock(_Fragment, { key: 18 }, [
+                                              _cache[21] || (_cache[21] = _createElementVNode("path", { d: "M5 12h14M12 5l7 7-7 7" }, null, -1 /* CACHED */)),
+                                              _cache[22] || (_cache[22] = _createElementVNode("circle", {
+                                                cx: "5",
+                                                cy: "12",
+                                                r: "2"
+                                              }, null, -1 /* CACHED */))
+                                            ], 64 /* STABLE_FRAGMENT */))
+                                          : ($props.name === 'sets')
+                                            ? (_openBlock(), _createElementBlock(_Fragment, { key: 19 }, [
+                                                _cache[23] || (_cache[23] = _createElementVNode("path", { d: "M5 6h14M5 12h14M5 18h14" }, null, -1 /* CACHED */)),
+                                                _cache[24] || (_cache[24] = _createElementVNode("path", { d: "M8 4v4M12 10v4M16 16v4" }, null, -1 /* CACHED */))
+                                              ], 64 /* STABLE_FRAGMENT */))
+                                            : ($props.name === 'one-set')
+                                              ? (_openBlock(), _createElementBlock(_Fragment, { key: 20 }, [
+                                                  _cache[25] || (_cache[25] = _createElementVNode("rect", {
+                                                    x: "5",
+                                                    y: "6",
+                                                    width: "14",
+                                                    height: "12",
+                                                    rx: "2"
+                                                  }, null, -1 /* CACHED */)),
+                                                  _cache[26] || (_cache[26] = _createElementVNode("path", { d: "M9 12h6" }, null, -1 /* CACHED */))
+                                                ], 64 /* STABLE_FRAGMENT */))
+                                              : ($props.name === 'tiebreak')
+                                                ? (_openBlock(), _createElementBlock(_Fragment, { key: 21 }, [
+                                                    _cache[27] || (_cache[27] = _createElementVNode("circle", {
+                                                      cx: "8",
+                                                      cy: "12",
+                                                      r: "4"
+                                                    }, null, -1 /* CACHED */)),
+                                                    _cache[28] || (_cache[28] = _createElementVNode("circle", {
+                                                      cx: "16",
+                                                      cy: "12",
+                                                      r: "4"
+                                                    }, null, -1 /* CACHED */)),
+                                                    _cache[29] || (_cache[29] = _createElementVNode("path", { d: "M10.5 9h3M10.5 15h3" }, null, -1 /* CACHED */))
+                                                  ], 64 /* STABLE_FRAGMENT */))
+                                                : ($props.name === 'bookmark')
+                                                  ? (_openBlock(), _createElementBlock("path", _hoisted_11))
+                                                  : ($props.name === 'sliders')
+                                                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 23 }, [
+                                                        _cache[30] || (_cache[30] = _createElementVNode("path", { d: "M4 7h5M15 7h5M4 17h9M17 17h3" }, null, -1 /* CACHED */)),
+                                                        _cache[31] || (_cache[31] = _createElementVNode("circle", {
+                                                          cx: "12",
+                                                          cy: "7",
+                                                          r: "3"
+                                                        }, null, -1 /* CACHED */)),
+                                                        _cache[32] || (_cache[32] = _createElementVNode("circle", {
+                                                          cx: "15",
+                                                          cy: "17",
+                                                          r: "2"
+                                                        }, null, -1 /* CACHED */))
+                                                      ], 64 /* STABLE_FRAGMENT */))
+                                                    : ($props.name === 'send')
+                                                      ? (_openBlock(), _createElementBlock(_Fragment, { key: 24 }, [
+                                                          _cache[33] || (_cache[33] = _createElementVNode("path", { d: "m4 5 16 7-16 7 3-7-3-7Z" }, null, -1 /* CACHED */)),
+                                                          _cache[34] || (_cache[34] = _createElementVNode("path", { d: "M7 12h13" }, null, -1 /* CACHED */))
+                                                        ], 64 /* STABLE_FRAGMENT */))
+                                                      : ($props.name === 'check')
+                                                        ? (_openBlock(), _createElementBlock("path", _hoisted_12))
+                                                        : ($props.name === 'plus')
+                                                          ? (_openBlock(), _createElementBlock("path", _hoisted_13))
+                                                          : ($props.name === 'challenge')
+                                                            ? (_openBlock(), _createElementBlock(_Fragment, { key: 27 }, [
+                                                                _cache[35] || (_cache[35] = _createElementVNode("path", { d: "M4 18 17 5M13 5h4v4M5 10v8h8" }, null, -1 /* CACHED */)),
+                                                                _cache[36] || (_cache[36] = _createElementVNode("circle", {
+                                                                  cx: "7",
+                                                                  cy: "7",
+                                                                  r: "3"
+                                                                }, null, -1 /* CACHED */))
+                                                              ], 64 /* STABLE_FRAGMENT */))
+                                                            : ($props.name === 'search')
+                                                              ? (_openBlock(), _createElementBlock(_Fragment, { key: 28 }, [
+                                                                  _cache[37] || (_cache[37] = _createElementVNode("circle", {
+                                                                    cx: "10.5",
+                                                                    cy: "10.5",
+                                                                    r: "6"
+                                                                  }, null, -1 /* CACHED */)),
+                                                                  _cache[38] || (_cache[38] = _createElementVNode("path", { d: "m15 15 4.5 4.5" }, null, -1 /* CACHED */))
+                                                                ], 64 /* STABLE_FRAGMENT */))
+                                                              : ($props.name === 'chart')
+                                                                ? (_openBlock(), _createElementBlock("path", _hoisted_14))
+                                                                : ($props.name === 'profile')
+                                                                  ? (_openBlock(), _createElementBlock(_Fragment, { key: 30 }, [
+                                                                      _cache[39] || (_cache[39] = _createElementVNode("circle", {
+                                                                        cx: "12",
+                                                                        cy: "8",
+                                                                        r: "4"
+                                                                      }, null, -1 /* CACHED */)),
+                                                                      _cache[40] || (_cache[40] = _createElementVNode("path", { d: "M4 20c1.4-3.5 4.8-5 8-5s6.6 1.5 8 5" }, null, -1 /* CACHED */))
+                                                                    ], 64 /* STABLE_FRAGMENT */))
+                                                                  : ($props.name === 'notifications')
+                                                                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 31 }, [
+                                                                        _cache[41] || (_cache[41] = _createElementVNode("path", { d: "M12 4.5A4.5 4.5 0 0 1 16.5 9v3.5l1.7 2v.7H5.8v-.7l1.7-2V9A4.5 4.5 0 0 1 12 4.5Z" }, null, -1 /* CACHED */)),
+                                                                        _cache[42] || (_cache[42] = _createElementVNode("path", { d: "M10 18a2 2 0 0 0 4 0" }, null, -1 /* CACHED */))
+                                                                      ], 64 /* STABLE_FRAGMENT */))
+                                                                    : ($props.name === 'scoreboard')
+                                                                      ? (_openBlock(), _createElementBlock(_Fragment, { key: 32 }, [
+                                                                          _cache[43] || (_cache[43] = _createElementVNode("rect", {
+                                                                            x: "4",
+                                                                            y: "5",
+                                                                            width: "16",
+                                                                            height: "14",
+                                                                            rx: "2"
+                                                                          }, null, -1 /* CACHED */)),
+                                                                          _cache[44] || (_cache[44] = _createElementVNode("path", { d: "M8 9h3M14 9h2M8 14h2M13 14h3" }, null, -1 /* CACHED */))
+                                                                        ], 64 /* STABLE_FRAGMENT */))
+                                                                      : ($props.name === 'fixtures')
+                                                                        ? (_openBlock(), _createElementBlock(_Fragment, { key: 33 }, [
+                                                                            _cache[45] || (_cache[45] = _createElementVNode("rect", {
+                                                                              x: "4",
+                                                                              y: "5.5",
+                                                                              width: "16",
+                                                                              height: "14",
+                                                                              rx: "2"
+                                                                            }, null, -1 /* CACHED */)),
+                                                                            _cache[46] || (_cache[46] = _createElementVNode("path", { d: "M8 3.5v4M16 3.5v4M4 10h16M8 14h3" }, null, -1 /* CACHED */))
+                                                                          ], 64 /* STABLE_FRAGMENT */))
+                                                                        : ($props.name === 'matches')
+                                                                          ? (_openBlock(), _createElementBlock(_Fragment, { key: 34 }, [
+                                                                              _cache[47] || (_cache[47] = _createElementVNode("circle", {
+                                                                                cx: "12",
+                                                                                cy: "12",
+                                                                                r: "7.5"
+                                                                              }, null, -1 /* CACHED */)),
+                                                                              _cache[48] || (_cache[48] = _createElementVNode("path", { d: "M6.4 8.5c3.5 1 6.9 4.4 8.9 8.7M17.6 7c-2.3.8-4.5 2.7-5.8 5" }, null, -1 /* CACHED */))
+                                                                            ], 64 /* STABLE_FRAGMENT */))
+                                                                          : (['players', 'members'].includes($props.name))
+                                                                            ? (_openBlock(), _createElementBlock(_Fragment, { key: 35 }, [
+                                                                                _cache[49] || (_cache[49] = _createElementVNode("circle", {
+                                                                                  cx: "9",
+                                                                                  cy: "9",
+                                                                                  r: "3"
+                                                                                }, null, -1 /* CACHED */)),
+                                                                                _cache[50] || (_cache[50] = _createElementVNode("path", { d: "M3.5 20c.5-3.4 2.3-5 5.5-5s5 1.6 5.5 5M15.5 6.5a3 3 0 0 1 0 5.8M16 15c2.7.2 4.1 1.8 4.5 5" }, null, -1 /* CACHED */))
+                                                                              ], 64 /* STABLE_FRAGMENT */))
+                                                                            : ($props.name === 'club')
+                                                                              ? (_openBlock(), _createElementBlock("path", _hoisted_15))
+                                                                              : _createCommentVNode("v-if", true)
+  ]))
+}
+
+import "/src/components/friendly/FlowIcon.vue?vue&type=style&index=0&scoped=9348747a&lang.css"
+
+_sfc_main.__hmrId = "9348747a"
+typeof __VUE_HMR_RUNTIME__ !== 'undefined' && __VUE_HMR_RUNTIME__.createRecord(_sfc_main.__hmrId, _sfc_main)
+import.meta.hot.accept(mod => {
+  if (!mod) return
+  const { default: updated, _rerender_only } = mod
+  if (_rerender_only) {
+    __VUE_HMR_RUNTIME__.rerender(updated.__hmrId, updated.render)
+  } else {
+    __VUE_HMR_RUNTIME__.reload(updated.__hmrId, updated)
+  }
+})
+import _export_sfc from "/@id/__x00__plugin-vue:export-helper"
+export default /*#__PURE__*/_export_sfc(_sfc_main, [['render',_sfc_render],['__scopeId',"data-v-9348747a"],['__file',"C:/Users/HP/sportsproject/src/components/friendly/FlowIcon.vue"]])
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRmxvd0ljb24udnVlIl0sInNvdXJjZXNDb250ZW50IjpbIjxzY3JpcHQgc2V0dXA+XHJcbmRlZmluZVByb3BzKHtcclxuICBuYW1lOiB7IHR5cGU6IFN0cmluZywgcmVxdWlyZWQ6IHRydWUgfSxcclxufSlcclxuPC9zY3JpcHQ+XHJcblxyXG48dGVtcGxhdGU+XHJcbiAgPHN2ZyBjbGFzcz1cImZsb3ctaWNvblwiIHZpZXdCb3g9XCIwIDAgMjQgMjRcIiBhcmlhLWhpZGRlbj1cInRydWVcIj5cclxuICAgIDx0ZW1wbGF0ZSB2LWlmPVwibmFtZSA9PT0gJ2ZyaWVuZGx5J1wiPlxyXG4gICAgICA8Y2lyY2xlIGN4PVwiMTJcIiBjeT1cIjEyXCIgcj1cIjcuNVwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJNNi40IDguNWMzLjUgMSA2LjkgNC40IDguOSA4LjdNMTcuNiA3Yy0yLjMuOC00LjUgMi43LTUuOCA1XCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ2xhZGRlcidcIj5cclxuICAgICAgPHBhdGggZD1cIk03IDIwVjRNMTcgMjBWNE03IDhoMTBNNyAxM2gxME03IDE4aDEwXCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ3Ryb3BoeSdcIj5cclxuICAgICAgPHBhdGggZD1cIk04IDRoOHYzLjVjMCAzLTEuNSA1LTQgNXMtNC0yLTQtNVY0WlwiIC8+XHJcbiAgICAgIDxwYXRoXHJcbiAgICAgICAgZD1cIk04IDZINXYxLjVjMCAyIDEuMiAzLjIgMy40IDMuNE0xNiA2aDN2MS41YzAgMi0xLjIgMy4yLTMuNCAzLjRNMTIgMTIuNVYxN004LjUgMjBoN00xMCAxN2g0XCJcclxuICAgICAgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ3BsYXknXCI+XHJcbiAgICAgIDxwYXRoIGQ9XCJtOSA3IDggNS04IDVWN1pcIiAvPlxyXG4gICAgPC90ZW1wbGF0ZT5cclxuICAgIDx0ZW1wbGF0ZSB2LWVsc2UtaWY9XCJuYW1lID09PSAnY2FsZW5kYXInXCI+XHJcbiAgICAgIDxyZWN0IHg9XCI0XCIgeT1cIjUuNVwiIHdpZHRoPVwiMTZcIiBoZWlnaHQ9XCIxNFwiIHJ4PVwiMlwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJNOCAzLjV2NE0xNiAzLjV2NE00IDEwaDE2TTggMTRoM1wiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICd1c2VycydcIj5cclxuICAgICAgPGNpcmNsZSBjeD1cIjlcIiBjeT1cIjlcIiByPVwiM1wiIC8+XHJcbiAgICAgIDxwYXRoXHJcbiAgICAgICAgZD1cIk0zLjUgMjBjLjUtMy40IDIuMy01IDUuNS01czUgMS42IDUuNSA1TTE1LjUgNi41YTMgMyAwIDAgMSAwIDUuOE0xNiAxNWMyLjcuMiA0LjEgMS44IDQuNSA1XCJcclxuICAgICAgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ2NvcHknXCI+XHJcbiAgICAgIDxyZWN0IHg9XCI4XCIgeT1cIjhcIiB3aWR0aD1cIjExXCIgaGVpZ2h0PVwiMTFcIiByeD1cIjJcIiAvPlxyXG4gICAgICA8cGF0aCBkPVwiTTE2IDhWNmEyIDIgMCAwIDAtMi0ySDZhMiAyIDAgMCAwLTIgMnY4YTIgMiAwIDAgMCAyIDJoMlwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdzcGFyaydcIj5cclxuICAgICAgPHBhdGggZD1cIm0xMiAzIDEuNSA0LjVMMTggOWwtNC41IDEuNUwxMiAxNWwtMS41LTQuNUw2IDlsNC41LTEuNUwxMiAzWlwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJtMTguNSAxNSAuNyAyLjEgMi4xLjctMi4xLjctLjcgMi4xLS43LTIuMS0yLjEtLjcgMi4xLS43LjctMi4xWlwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdhcnJvdy1yaWdodCdcIj5cclxuICAgICAgPHBhdGggZD1cIk01IDEyaDE0TTE0IDdsNSA1LTUgNVwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdzaGFyZSdcIj5cclxuICAgICAgPGNpcmNsZSBjeD1cIjE4XCIgY3k9XCI1XCIgcj1cIjIuNVwiIC8+XHJcbiAgICAgIDxjaXJjbGUgY3g9XCI2XCIgY3k9XCIxMlwiIHI9XCIyLjVcIiAvPlxyXG4gICAgICA8Y2lyY2xlIGN4PVwiMThcIiBjeT1cIjE5XCIgcj1cIjIuNVwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJtOC4yIDEwLjggNy42LTQuNU04LjIgMTMuMmw3LjYgNC41XCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ2Rvd25sb2FkJ1wiPlxyXG4gICAgICA8cGF0aCBkPVwiTTEyIDR2MTFNOCAxMWw0IDQgNC00TTUgMjBoMTRcIiAvPlxyXG4gICAgPC90ZW1wbGF0ZT5cclxuICAgIDx0ZW1wbGF0ZSB2LWVsc2UtaWY9XCJuYW1lID09PSAndXBsb2FkJ1wiPlxyXG4gICAgICA8cGF0aCBkPVwiTTEyIDIwVjlNOCAxM2w0LTQgNCA0TTUgNGgxNFwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdzY2FuJ1wiPlxyXG4gICAgICA8cGF0aFxyXG4gICAgICAgIGQ9XCJNNCA5VjZhMiAyIDAgMCAxIDItMmgzTTE1IDRoM2EyIDIgMCAwIDEgMiAydjNNMjAgMTV2M2EyIDIgMCAwIDEtMiAyaC0zTTkgMjBINmEyIDIgMCAwIDEtMi0ydi0zXCJcclxuICAgICAgLz5cclxuICAgICAgPHBhdGggZD1cIk04IDEyaDhNMTIgOHY4XCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ2xpbmsnXCI+XHJcbiAgICAgIDxwYXRoXHJcbiAgICAgICAgZD1cIm0xMCAxNCA0LTRNOC41IDE3LjVsLTEgMWEzLjUgMy41IDAgMCAxLTUtNWwzLTNhMy41IDMuNSAwIDAgMSA1IDBNMTUuNSA2LjVsMS0xYTMuNSAzLjUgMCAwIDEgNSA1bC0zIDNhMy41IDMuNSAwIDAgMS01IDBcIlxyXG4gICAgICAvPlxyXG4gICAgPC90ZW1wbGF0ZT5cclxuICAgIDx0ZW1wbGF0ZSB2LWVsc2UtaWY9XCJuYW1lID09PSAnY2xvc2UnXCI+XHJcbiAgICAgIDxwYXRoIGQ9XCJtNyA3IDEwIDEwTTE3IDcgNyAxN1wiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdsb2dpbidcIj5cclxuICAgICAgPHBhdGggZD1cIk0xMCA1SDZhMiAyIDAgMCAwLTIgMnYxMGEyIDIgMCAwIDAgMiAyaDRNMTMgOGw0IDQtNCA0TTggMTJoOVwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdob21lJ1wiPlxyXG4gICAgICA8cGF0aCBkPVwibTQgMTEgOC03IDggN002LjUgOS41VjIwaDExVjkuNU0xMCAyMHYtNmg0djZcIiAvPlxyXG4gICAgPC90ZW1wbGF0ZT5cclxuICAgIDx0ZW1wbGF0ZSB2LWVsc2UtaWY9XCJuYW1lID09PSAnYWR2YW50YWdlJ1wiPlxyXG4gICAgICA8cGF0aCBkPVwiTTYgMTZWOE0xOCAxNlY4TTkgMTJoNlwiIC8+XHJcbiAgICAgIDxjaXJjbGUgY3g9XCI2XCIgY3k9XCI2XCIgcj1cIjEuNVwiIC8+XHJcbiAgICAgIDxjaXJjbGUgY3g9XCIxOFwiIGN5PVwiMThcIiByPVwiMS41XCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ25vLWFkJ1wiPlxyXG4gICAgICA8cGF0aCBkPVwiTTUgMTJoMTRNMTIgNWw3IDctNyA3XCIgLz5cclxuICAgICAgPGNpcmNsZSBjeD1cIjVcIiBjeT1cIjEyXCIgcj1cIjJcIiAvPlxyXG4gICAgPC90ZW1wbGF0ZT5cclxuICAgIDx0ZW1wbGF0ZSB2LWVsc2UtaWY9XCJuYW1lID09PSAnc2V0cydcIj5cclxuICAgICAgPHBhdGggZD1cIk01IDZoMTRNNSAxMmgxNE01IDE4aDE0XCIgLz5cclxuICAgICAgPHBhdGggZD1cIk04IDR2NE0xMiAxMHY0TTE2IDE2djRcIiAvPlxyXG4gICAgPC90ZW1wbGF0ZT5cclxuICAgIDx0ZW1wbGF0ZSB2LWVsc2UtaWY9XCJuYW1lID09PSAnb25lLXNldCdcIj5cclxuICAgICAgPHJlY3QgeD1cIjVcIiB5PVwiNlwiIHdpZHRoPVwiMTRcIiBoZWlnaHQ9XCIxMlwiIHJ4PVwiMlwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJNOSAxMmg2XCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ3RpZWJyZWFrJ1wiPlxyXG4gICAgICA8Y2lyY2xlIGN4PVwiOFwiIGN5PVwiMTJcIiByPVwiNFwiIC8+XHJcbiAgICAgIDxjaXJjbGUgY3g9XCIxNlwiIGN5PVwiMTJcIiByPVwiNFwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJNMTAuNSA5aDNNMTAuNSAxNWgzXCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ2Jvb2ttYXJrJ1wiPlxyXG4gICAgICA8cGF0aCBkPVwiTTcgNGgxMHYxNmwtNS0zLTUgM1Y0WlwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdzbGlkZXJzJ1wiPlxyXG4gICAgICA8cGF0aCBkPVwiTTQgN2g1TTE1IDdoNU00IDE3aDlNMTcgMTdoM1wiIC8+XHJcbiAgICAgIDxjaXJjbGUgY3g9XCIxMlwiIGN5PVwiN1wiIHI9XCIzXCIgLz5cclxuICAgICAgPGNpcmNsZSBjeD1cIjE1XCIgY3k9XCIxN1wiIHI9XCIyXCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ3NlbmQnXCI+XHJcbiAgICAgIDxwYXRoIGQ9XCJtNCA1IDE2IDctMTYgNyAzLTctMy03WlwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJNNyAxMmgxM1wiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdjaGVjaydcIj5cclxuICAgICAgPHBhdGggZD1cIm01IDEyIDQgNEwxOSA2XCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ3BsdXMnXCI+XHJcbiAgICAgIDxwYXRoIGQ9XCJNMTIgNXYxNE01IDEyaDE0XCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ2NoYWxsZW5nZSdcIj5cclxuICAgICAgPHBhdGggZD1cIk00IDE4IDE3IDVNMTMgNWg0djRNNSAxMHY4aDhcIiAvPlxyXG4gICAgICA8Y2lyY2xlIGN4PVwiN1wiIGN5PVwiN1wiIHI9XCIzXCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ3NlYXJjaCdcIj5cclxuICAgICAgPGNpcmNsZSBjeD1cIjEwLjVcIiBjeT1cIjEwLjVcIiByPVwiNlwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJtMTUgMTUgNC41IDQuNVwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdjaGFydCdcIj5cclxuICAgICAgPHBhdGggZD1cIk01IDE5VjExTTEyIDE5VjVNMTkgMTl2LTZNMyAxOWgxOFwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdwcm9maWxlJ1wiPlxyXG4gICAgICA8Y2lyY2xlIGN4PVwiMTJcIiBjeT1cIjhcIiByPVwiNFwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJNNCAyMGMxLjQtMy41IDQuOC01IDgtNXM2LjYgMS41IDggNVwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdub3RpZmljYXRpb25zJ1wiPlxyXG4gICAgICA8cGF0aCBkPVwiTTEyIDQuNUE0LjUgNC41IDAgMCAxIDE2LjUgOXYzLjVsMS43IDJ2LjdINS44di0uN2wxLjctMlY5QTQuNSA0LjUgMCAwIDEgMTIgNC41WlwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJNMTAgMThhMiAyIDAgMCAwIDQgMFwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdzY29yZWJvYXJkJ1wiPlxyXG4gICAgICA8cmVjdCB4PVwiNFwiIHk9XCI1XCIgd2lkdGg9XCIxNlwiIGhlaWdodD1cIjE0XCIgcng9XCIyXCIgLz5cclxuICAgICAgPHBhdGggZD1cIk04IDloM00xNCA5aDJNOCAxNGgyTTEzIDE0aDNcIiAvPlxyXG4gICAgPC90ZW1wbGF0ZT5cclxuICAgIDx0ZW1wbGF0ZSB2LWVsc2UtaWY9XCJuYW1lID09PSAnZml4dHVyZXMnXCI+XHJcbiAgICAgIDxyZWN0IHg9XCI0XCIgeT1cIjUuNVwiIHdpZHRoPVwiMTZcIiBoZWlnaHQ9XCIxNFwiIHJ4PVwiMlwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJNOCAzLjV2NE0xNiAzLjV2NE00IDEwaDE2TTggMTRoM1wiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gICAgPHRlbXBsYXRlIHYtZWxzZS1pZj1cIm5hbWUgPT09ICdtYXRjaGVzJ1wiPlxyXG4gICAgICA8Y2lyY2xlIGN4PVwiMTJcIiBjeT1cIjEyXCIgcj1cIjcuNVwiIC8+XHJcbiAgICAgIDxwYXRoIGQ9XCJNNi40IDguNWMzLjUgMSA2LjkgNC40IDguOSA4LjdNMTcuNiA3Yy0yLjMuOC00LjUgMi43LTUuOCA1XCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwiWydwbGF5ZXJzJywgJ21lbWJlcnMnXS5pbmNsdWRlcyhuYW1lKVwiPlxyXG4gICAgICA8Y2lyY2xlIGN4PVwiOVwiIGN5PVwiOVwiIHI9XCIzXCIgLz5cclxuICAgICAgPHBhdGggZD1cIk0zLjUgMjBjLjUtMy40IDIuMy01IDUuNS01czUgMS42IDUuNSA1TTE1LjUgNi41YTMgMyAwIDAgMSAwIDUuOE0xNiAxNWMyLjcuMiA0LjEgMS44IDQuNSA1XCIgLz5cclxuICAgIDwvdGVtcGxhdGU+XHJcbiAgICA8dGVtcGxhdGUgdi1lbHNlLWlmPVwibmFtZSA9PT0gJ2NsdWInXCI+XHJcbiAgICAgIDxwYXRoIGQ9XCJtNCAxMSA4LTcgOCA3TTYuNSA5LjVWMjBoMTFWOS41TTEwIDIwdi02aDR2NlwiIC8+XHJcbiAgICA8L3RlbXBsYXRlPlxyXG4gIDwvc3ZnPlxyXG48L3RlbXBsYXRlPlxyXG5cclxuPHN0eWxlIHNjb3BlZD5cclxuLmZsb3ctaWNvbiB7XHJcbiAgZGlzcGxheTogYmxvY2s7XHJcbiAgd2lkdGg6IDIycHg7XHJcbiAgaGVpZ2h0OiAyMnB4O1xyXG4gIGZsZXg6IDAgMCBhdXRvO1xyXG4gIGZpbGw6IG5vbmU7XHJcbiAgc3Ryb2tlOiBjdXJyZW50Q29sb3I7XHJcbiAgc3Ryb2tlLXdpZHRoOiAxLjc1O1xyXG4gIHN0cm9rZS1saW5lY2FwOiByb3VuZDtcclxuICBzdHJva2UtbGluZWpvaW46IHJvdW5kO1xyXG59XHJcbjwvc3R5bGU+XHJcbiJdLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7QUFBYztBQUdaOzs7Ozs7Ozs7OztFQUlLLEtBQUssRUFBQyxXQUFX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

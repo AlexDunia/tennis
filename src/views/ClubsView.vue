@@ -10,6 +10,7 @@ import {
   createDefaultClubSetup,
 } from '../config/admin'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
+import AppLogo from '../components/AppLogo.vue'
 import { useAdminStore } from '../stores/admin'
 import { useNotificationStore } from '../stores/notification'
 import {
@@ -484,7 +485,10 @@ onMounted(async () => {
       <button class="flow-back" type="button" aria-label="Go back" @click="goBack">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
       </button>
-      <strong>{{ routeView === 'wizard' ? activeStep.label : 'Clubs' }}</strong>
+      <div class="flow-header__identity">
+        <AppLogo class="flow-header__logo" />
+        <strong>{{ routeView === 'wizard' ? activeStep.label : 'Clubs' }}</strong>
+      </div>
       <span v-if="routeView === 'wizard'">{{ stepIndex + 1 }} of 3</span>
     </header>
 
@@ -1003,6 +1007,17 @@ progress {
   color: var(--color-text-soft, #425044);
   font-size: 0.9rem;
   font-weight: var(--font-weight-semibold, 600);
+}
+.flow-header__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+.flow-header__logo {
+  flex: 0 0 auto;
+  width: 106px;
+  max-height: 38px;
 }
 .flow-back {
   display: grid;

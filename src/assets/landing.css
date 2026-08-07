@@ -73,9 +73,9 @@ body:has(.marketing-home) {
   font-size: 14px;
   font-weight: var(--font-weight-bold);
 }
-.public-nav .brand i {
-  background: var(--lime);
-  color: var(--deep);
+.public-nav .brand__logo {
+  width: clamp(108px, 11vw, 136px);
+  max-height: 44px;
 }
 .public-nav nav a,
 .public-nav .member-link {
@@ -93,17 +93,6 @@ body:has(.marketing-home) {
   font-size: 13px;
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.13em;
-}
-.brand i {
-  font-style: normal;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--g);
-  color: #fff;
-  letter-spacing: 0;
 }
 .public-nav nav,
 .public-footer nav {
@@ -1000,6 +989,10 @@ body:has(.marketing-home) {
 .public-footer .brand {
   color: #fff;
 }
+.public-footer .brand__logo {
+  width: 122px;
+  max-height: 42px;
+}
 .public-footer p,
 .public-footer small {
   font-size: 10px;
@@ -1668,11 +1661,6 @@ body:has(.marketing-home) {
 
 .public-nav--docked :is(.brand, nav a, .member-link) {
   color: var(--deep);
-}
-
-.public-nav--docked .brand i {
-  background: var(--g);
-  color: #fff;
 }
 
 .public-nav--docked .member-link {
