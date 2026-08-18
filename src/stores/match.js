@@ -17,8 +17,8 @@ export const useMatchStore = defineStore('match', () => {
     matches.value.filter((match) => match.status === 'pending_review'),
   )
   const openChallenges = computed(() =>
-    matches.value.filter(
-      (match) => match.status === 'scheduled' || match.status === 'pending_review',
+    matches.value.filter((match) =>
+      ['accepted', 'scheduled', 'live', 'pending_review'].includes(match.status),
     ),
   )
 

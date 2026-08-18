@@ -19,7 +19,9 @@ const hasLoaded = ref(false)
 
 const tournamentId = computed(() => route.params.tournamentId)
 const tournament = computed(() =>
-  tournamentStore.activeTournament?.id === tournamentId.value ? tournamentStore.activeTournament : null,
+  tournamentStore.activeTournament?.id === tournamentId.value
+    ? tournamentStore.activeTournament
+    : null,
 )
 const tournamentMatches = computed(() =>
   matchStore.matches.filter((match) => match.tournamentId === tournamentId.value),
@@ -28,11 +30,19 @@ const playableTournamentMatches = computed(() =>
   tournamentMatches.value.filter((match) => !match.isBye),
 )
 const completedCount = computed(
-  () => playableTournamentMatches.value.filter((match) => ['completed', 'walkover'].includes(match.status)).length,
+  () =>
+    playableTournamentMatches.value.filter((match) =>
+      ['completed', 'walkover'].includes(match.status),
+    ).length,
 )
-const pendingCount = computed(() => playableTournamentMatches.value.filter((match) => match.status === 'pending').length)
+const pendingCount = computed(
+  () => playableTournamentMatches.value.filter((match) => match.status === 'pending').length,
+)
 const liveMatchCount = computed(
-  () => playableTournamentMatches.value.filter((match) => match.liveState?.startedAt && match.status === 'pending').length,
+  () =>
+    playableTournamentMatches.value.filter(
+      (match) => match.liveState?.startedAt && match.status === 'pending',
+    ).length,
 )
 const currentPlayer = computed(() => playerStore.currentPlayer)
 const currentPlayerId = computed(() => currentPlayer.value?.id || '')
@@ -51,6 +61,9 @@ const currentPlayerPlacements = computed(() => {
 })
 const overviewPersonalCopy = computed(() => {
   const name = currentPlayerFirstName.value
+  if (tournament.value?.rules?.registrationStage) {
+    return `${name}, registration is open for this tournament. The draw will be created after sign-up closes.`
+  }
   const completed = completedCount.value
   const pending = pendingCount.value
   const live = liveMatchCount.value
@@ -73,11 +86,19 @@ function matchesForCategory(categoryId) {
   return tournamentMatches.value.filter((match) => match.categoryId === categoryId)
 }
 
-watch(tournamentId, async (nextTournamentId) => {
-  hasLoaded.value = false
-  await Promise.all([tournamentStore.fetchTournament(nextTournamentId), matchStore.loadMatches(), playerStore.loadPlayers()])
-  hasLoaded.value = true
-}, { immediate: true })
+watch(
+  tournamentId,
+  async (nextTournamentId) => {
+    hasLoaded.value = false
+    await Promise.all([
+      tournamentStore.fetchTournament(nextTournamentId),
+      matchStore.loadMatches(),
+      playerStore.loadPlayers(),
+    ])
+    hasLoaded.value = true
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -93,10 +114,17 @@ watch(tournamentId, async (nextTournamentId) => {
           <RouterLink class="t-button t-button--secondary" to="/tournaments">
             Back to Tournaments
           </RouterLink>
-          <RouterLink class="t-button t-button--secondary" :to="`/tournaments/${tournament.id}/gallery`">
+          <RouterLink
+            class="t-button t-button--secondary"
+            :to="`/tournaments/${tournament.id}/gallery`"
+          >
             View Gallery
           </RouterLink>
-          <RouterLink class="t-button t-button--primary" :to="`/tournaments/${tournament.id}/schedule`">
+          <RouterLink
+            v-if="!tournament.rules?.registrationStage"
+            class="t-button t-button--primary"
+            :to="`/tournaments/${tournament.id}/schedule`"
+          >
             View Schedule
           </RouterLink>
         </div>
@@ -123,25 +151,45 @@ watch(tournamentId, async (nextTournamentId) => {
     </header>
 
     <section class="t-shell-card tournament-overview__info">
-      <div>
-        <span class="t-section-kicker">Group Stage</span>
-        <strong>{{ formatAppDateRange(tournament.roundRobinStart, tournament.roundRobinEnd) }}</strong>
-      </div>
-      <div>
-        <span class="t-section-kicker">Knockout</span>
-        <strong>{{ formatAppDateRange(tournament.knockoutStart, tournament.finalDate) }}</strong>
-      </div>
-      <div>
-        <span class="t-section-kicker">Managed by</span>
-        <strong>{{ tournament.officials.join(', ') }}</strong>
-      </div>
+      <template v-if="tournament.rules?.registrationStage">
+        <div>
+          <span class="t-section-kicker">Tournament dates</span>
+          <strong>{{ formatAppDateRange(tournament.startDate, tournament.endDate) }}</strong>
+        </div>
+        <div>
+          <span class="t-section-kicker">Registration</span>
+          <strong>{{ formatAppDateRange(tournament.signupOpen, tournament.signupClose) }}</strong>
+        </div>
+        <div>
+          <span class="t-section-kicker">Venue</span>
+          <strong>{{ tournament.venue?.name || 'Club venue' }}</strong>
+        </div>
+      </template>
+      <template v-else>
+        <div>
+          <span class="t-section-kicker">Group Stage</span>
+          <strong>{{
+            formatAppDateRange(tournament.roundRobinStart, tournament.roundRobinEnd)
+          }}</strong>
+        </div>
+        <div>
+          <span class="t-section-kicker">Knockout</span>
+          <strong>{{ formatAppDateRange(tournament.knockoutStart, tournament.finalDate) }}</strong>
+        </div>
+        <div>
+          <span class="t-section-kicker">Managed by</span>
+          <strong>{{ tournament.officials.join(', ') }}</strong>
+        </div>
+      </template>
     </section>
 
     <section class="t-shell-card tournament-overview__pulse">
       <span class="t-section-kicker">Your tournament view</span>
       <strong>{{ overviewPersonalCopy }}</strong>
       <p v-if="currentPlayerPlacements.length > 1">
-        You also appear in {{ currentPlayerPlacements.length - 1 }} other division{{ currentPlayerPlacements.length - 1 === 1 ? '' : 's' }}.
+        You also appear in {{ currentPlayerPlacements.length - 1 }} other division{{
+          currentPlayerPlacements.length - 1 === 1 ? '' : 's'
+        }}.
       </p>
       <p v-else-if="!currentPlayerPlacements.length">
         You are not listed in this tournament draw yet.
@@ -152,9 +200,19 @@ watch(tournamentId, async (nextTournamentId) => {
       <div class="t-section-header">
         <div>
           <h3 class="t-section-title">Divisions</h3>
-          <p class="t-muted">Open a category to see matches, standings, and knockout.</p>
+          <p class="t-muted">
+            {{
+              tournament.rules?.registrationStage
+                ? 'Events are ready for registration. Draws are created later.'
+                : 'Open a category to see matches, standings, and knockout.'
+            }}
+          </p>
         </div>
-        <RouterLink class="t-button t-button--ghost" :to="`/tournaments/${tournament.id}/schedule`">
+        <RouterLink
+          v-if="!tournament.rules?.registrationStage"
+          class="t-button t-button--ghost"
+          :to="`/tournaments/${tournament.id}/schedule`"
+        >
           Full schedule
         </RouterLink>
       </div>

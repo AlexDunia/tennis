@@ -7,9 +7,8 @@ import {
   declineChallenge as declineChallengeRequest,
   getChallenges,
   reviewChallenge as reviewChallengeRequest,
-} from '../services/ChallengeService'
-import {
-  // ...your existing imports
+  scheduleChallenge as scheduleChallengeRequest,
+  startChallenge as startChallengeRequest,
   withdrawChallenge as withdrawChallengeRequest,
 } from '../services/ChallengeService'
 
@@ -101,6 +100,46 @@ export const useChallengeStore = defineStore('challenge', () => {
     return null
   }
 
+  const scheduleChallenge = async (challengeId, payload) => {
+    error.value = ''
+    isLoading.value = true
+
+    try {
+      const response = await scheduleChallengeRequest(challengeId, payload)
+      if (response.success) {
+        const challengeIndex = challenges.value.findIndex((item) => item.id === challengeId)
+        if (challengeIndex !== -1) challenges.value[challengeIndex] = response.data.challenge
+        return response.data
+      }
+      error.value = response.message || 'Unable to schedule this challenge.'
+    } catch (scheduleError) {
+      error.value = scheduleError?.message || 'Unable to schedule this challenge.'
+    } finally {
+      isLoading.value = false
+    }
+    return null
+  }
+
+  const startChallenge = async (challengeId, actorId) => {
+    error.value = ''
+    isLoading.value = true
+
+    try {
+      const response = await startChallengeRequest(challengeId, actorId)
+      if (response.success) {
+        const challengeIndex = challenges.value.findIndex((item) => item.id === challengeId)
+        if (challengeIndex !== -1) challenges.value[challengeIndex] = response.data.challenge
+        return response.data
+      }
+      error.value = response.message || 'Unable to start this challenge.'
+    } catch (startError) {
+      error.value = startError?.message || 'Unable to start this challenge.'
+    } finally {
+      isLoading.value = false
+    }
+    return null
+  }
+
   const reviewChallenge = async (challengeId, actorId) => {
     error.value = ''
     isLoading.value = true
@@ -166,8 +205,8 @@ export const useChallengeStore = defineStore('challenge', () => {
       const response = await withdrawChallengeRequest(challengeId, actorId)
       if (response.success) {
         const challengeIndex = challenges.value.findIndex((item) => item.id === challengeId)
-        if (challengeIndex !== -1) {
-          challenges.value.splice(challengeIndex, 1)
+        if (challengeIndex !== -1 && response.data?.id) {
+          challenges.value[challengeIndex] = response.data
         }
         return response.data
       }
@@ -196,6 +235,8 @@ export const useChallengeStore = defineStore('challenge', () => {
     loadChallenges,
     createChallenge,
     acceptChallenge,
+    scheduleChallenge,
+    startChallenge,
     declineChallenge,
     withdrawChallenge,
     reviewChallenge,

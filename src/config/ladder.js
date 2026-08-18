@@ -58,6 +58,7 @@ export function getActiveLadderConfig() {
 
 export const ACTIVE_LADDER_CHALLENGE_STATUSES = Object.freeze([
   'awaiting',
+  'accepted',
   'scheduled',
   'pending_review',
   'ready',

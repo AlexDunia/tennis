@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { calculateGroupStandings } from '../composables/useTournamentStandings'
 import { useNotificationStore } from './notification'
 import { useMatchStore } from './match'
+import { useAdminStore } from './admin'
 import { usePlayerStore } from './player'
 import {
   closeRoundRobinRequest,
@@ -131,6 +132,16 @@ export const useTournamentStore = defineStore('tournament', () => {
   }
 
   const createTournament = async (payload) => {
+    const adminStore = useAdminStore()
+    if (!adminStore.hasActiveClubPermission('tournaments.manage')) {
+      error.value = 'You do not have permission to create tournaments for this club.'
+      return null
+    }
+    if (!payload?.clubId || payload.clubId !== adminStore.activeClubId) {
+      error.value = 'The tournament must belong to the active club.'
+      return null
+    }
+
     loading.value = true
     error.value = null
 

@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import RankingsView from '../views/compete/LadderView.vue'
 import ChallengesView from '../views/compete/ChallengesQueueView.vue'
+import ChallengeDetailsView from '../views/ChallengeDetailsView.vue'
+import CompeteChallengeCreateView from '../views/compete/CompeteChallengeCreateView.vue'
 import MatchDetailsView from '../views/MatchDetailsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
@@ -90,6 +92,8 @@ const routes = [
     meta: {
       title: 'Tournaments',
       subtitle: 'Active and completed events.',
+      headerTitle: 'Compete',
+      headerSubtitle: 'Ladder, challenges, and tournaments.',
       primarySection: 'compete',
     },
   },
@@ -103,6 +107,7 @@ const routes = [
       permission: 'tournaments.manage',
       activeClubPermission: true,
       primarySection: 'compete',
+      hideBottomNav: true,
     },
   },
   {
@@ -376,6 +381,17 @@ const routes = [
     },
   },
   {
+    path: '/challenges/:challengeId',
+    name: 'ChallengeDetails',
+    component: ChallengeDetailsView,
+    props: true,
+    meta: {
+      title: 'Challenge Details',
+      subtitle: 'Track the next action, match schedule, score, and Ladder result.',
+      primarySection: 'compete',
+    },
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: ProfileView,
@@ -418,10 +434,14 @@ const routes = [
   {
     path: '/create-challenge',
     name: 'CreateChallenge',
-    redirect: (to) => ({
-      path: '/ladder-match/type',
-      query: { ...to.query, mode: 'ladder' },
-    }),
+    component: CompeteChallengeCreateView,
+    meta: {
+      title: 'Create Challenge',
+      subtitle: 'Choose an eligible opponent using your club’s fixed Ladder rules.',
+      permission: 'challenges.create',
+      activeClubPermission: true,
+      primarySection: 'compete',
+    },
   },
   {
     path: '/notifications',

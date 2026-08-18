@@ -82,19 +82,39 @@
           class="primary-nav__motion"
           aria-hidden="true"
         ></span>
-        <a
-          v-for="item in navigationItems"
-          :key="item.section"
-          :href="getNavigationHref(item.to)"
-          class="nav-link"
-          :class="{ active: isNavigationActive(item.section) }"
-          :aria-current="isNavigationActive(item.section) ? 'page' : undefined"
-          :title="item.label"
-          @click="handleNavigationClick(item.to, $event)"
-        >
-          <span class="icon" v-html="item.icon"></span>
-          <span class="label">{{ item.label }}</span>
-        </a>
+        <template v-for="item in navigationItems" :key="item.section">
+          <a
+            :href="getNavigationHref(item.to)"
+            class="nav-link"
+            :class="{ active: isNavigationActive(item.section) }"
+            :aria-current="isNavigationActive(item.section) ? 'page' : undefined"
+            :title="item.label"
+            @click="handleNavigationClick(item.to, $event)"
+          >
+            <span class="icon" v-html="item.icon"></span>
+            <span class="label">{{ item.label }}</span>
+          </a>
+
+          <nav
+            v-if="item.section === 'compete'"
+            class="nav-submenu"
+            aria-label="Compete navigation"
+          >
+            <a
+              v-for="subItem in competeNavigationItems"
+              :key="subItem.key"
+              :href="getNavigationHref(subItem.to)"
+              class="nav-sub-link"
+              :class="{ active: isContextItemActive(subItem) }"
+              :aria-current="isContextItemActive(subItem) ? 'page' : undefined"
+              :title="subItem.label"
+              @click="handleNavigationClick(subItem.to, $event)"
+            >
+              <TennisNavIcon :kind="subItem.icon" :size="16" />
+              <span>{{ subItem.label }}</span>
+            </a>
+          </nav>
+        </template>
       </nav>
     </aside>
 
@@ -115,121 +135,109 @@
           'app-header--compete': showCompeteSectionShell,
         }"
       >
-        <a
-          class="global-identity"
-          :href="getNavigationHref({ name: 'Dashboard' })"
-          aria-label="GORRA Home"
-          @click="handleNavigationClick({ name: 'Dashboard' }, $event)"
-        >
-          <AppLogo class="global-identity__logo" />
-        </a>
-
-        <div class="header-main">
-          <button
-            v-if="headerBackLabel"
-            class="header-back"
-            type="button"
-            :aria-label="headerBackLabel"
-            :title="headerBackLabel"
-            @click="handleHeaderBack"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
-          </button>
-
-          <ol
-            v-if="isTournamentCreate"
-            class="header-steps"
-            aria-label="Tournament creation progress"
-          >
-            <li
-              v-for="(step, index) in tournamentCreateSteps"
-              :key="step"
-              :class="{
-                'header-step--done': index < tournamentCreateStepIndex,
-                'header-step--active': index === tournamentCreateStepIndex,
-              }"
-            >
-              <span>{{ index < tournamentCreateStepIndex ? 'OK' : index + 1 }}</span>
-              <strong>{{ tournamentCreateTitles[step] }}</strong>
-            </li>
-          </ol>
-
-          <div v-else class="page-context">
-            <h1>{{ currentTitle }}</h1>
-            <p>{{ currentSubtitle }}</p>
-          </div>
-        </div>
-
-        <div class="header-actions">
+        <div class="header-content">
           <a
-            v-if="isCompeteTournaments && canCreateTournament"
-            :href="getNavigationHref({ name: 'TournamentCreate' })"
-            class="header-create-button"
-            aria-label="New tournament"
-            title="New tournament"
-            @click="handleNavigationClick({ name: 'TournamentCreate' }, $event)"
+            class="global-identity"
+            :href="getNavigationHref({ name: 'Dashboard' })"
+            aria-label="GORRA Home"
+            @click="handleNavigationClick({ name: 'Dashboard' }, $event)"
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 4v12M4 10h12" />
-            </svg>
-            <span>New tournament</span>
+            <AppLogo class="global-identity__logo" />
           </a>
 
-          <a
-            :href="getNavigationHref({ name: 'Notifications' })"
-            class="header-icon-button"
-            :aria-label="unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'"
-            title="Notifications"
-            @click="handleNavigationClick({ name: 'Notifications' }, $event)"
-          >
-            <span class="icon" v-html="bellIcon"></span>
-            <span v-if="unreadCount" class="notification-dot" aria-hidden="true"></span>
-          </a>
-
-          <div ref="accountMenuRoot" class="account">
+          <div class="header-main">
             <button
-              class="account-trigger"
+              v-if="headerBackLabel"
+              class="header-back"
               type="button"
-              :aria-expanded="accountMenuOpen"
-              aria-haspopup="menu"
-              aria-label="Open account menu"
-              @click="accountMenuOpen = !accountMenuOpen"
+              :aria-label="headerBackLabel"
+              :title="headerBackLabel"
+              @click="handleHeaderBack"
             >
-              <span class="account-avatar" aria-hidden="true">{{ accountInitials }}</span>
-              <span class="account-copy">
-                <strong>{{ currentPlayer?.name || authStore.user?.name || 'Player' }}</strong>
-                <small>{{ adminStore.activeClubRoleLabel }}</small>
-              </span>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
             </button>
 
-            <Transition name="menu">
-              <div v-if="accountMenuOpen" class="account-menu" role="menu" aria-label="Account">
-                <div class="account-menu__identity">
-                  <span class="account-avatar" aria-hidden="true">{{ accountInitials }}</span>
-                  <span>
-                    <strong>{{ currentPlayer?.name || authStore.user?.name || 'Player' }}</strong>
-                    <small>{{ authStore.user?.email || adminStore.activeClubRoleLabel }}</small>
-                  </span>
+            <ol
+              v-if="isTournamentCreate"
+              class="header-steps"
+              aria-label="Tournament creation progress"
+            >
+              <li
+                v-for="(step, index) in tournamentCreateSteps"
+                :key="step"
+                :class="{
+                  'header-step--done': index < tournamentCreateStepIndex,
+                  'header-step--active': index === tournamentCreateStepIndex,
+                }"
+              >
+                <span>{{ index < tournamentCreateStepIndex ? 'OK' : index + 1 }}</span>
+                <strong>{{ tournamentCreateTitles[step] }}</strong>
+              </li>
+            </ol>
+
+            <div v-else class="page-context">
+              <h1>{{ currentTitle }}</h1>
+              <p>{{ currentSubtitle }}</p>
+            </div>
+          </div>
+
+          <div class="header-actions">
+            <a
+              :href="getNavigationHref({ name: 'Notifications' })"
+              class="header-icon-button"
+              :aria-label="unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'"
+              title="Notifications"
+              @click="handleNavigationClick({ name: 'Notifications' }, $event)"
+            >
+              <span class="icon" v-html="bellIcon"></span>
+              <span v-if="unreadCount" class="notification-dot" aria-hidden="true"></span>
+            </a>
+
+            <div ref="accountMenuRoot" class="account">
+              <button
+                class="account-trigger"
+                type="button"
+                :aria-expanded="accountMenuOpen"
+                aria-haspopup="menu"
+                aria-label="Open account menu"
+                @click="accountMenuOpen = !accountMenuOpen"
+              >
+                <span class="account-avatar" aria-hidden="true">{{ accountInitials }}</span>
+                <span class="account-copy">
+                  <strong>{{ currentPlayer?.name || authStore.user?.name || 'Player' }}</strong>
+                  <small>{{ adminStore.activeClubRoleLabel }}</small>
+                </span>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+              </button>
+
+              <Transition name="menu">
+                <div v-if="accountMenuOpen" class="account-menu" role="menu" aria-label="Account">
+                  <div class="account-menu__identity">
+                    <span class="account-avatar" aria-hidden="true">{{ accountInitials }}</span>
+                    <span>
+                      <strong>{{ currentPlayer?.name || authStore.user?.name || 'Player' }}</strong>
+                      <small>{{ authStore.user?.email || adminStore.activeClubRoleLabel }}</small>
+                    </span>
+                  </div>
+
+                  <a
+                    v-for="item in accountItems"
+                    :key="item.label"
+                    :href="getNavigationHref(item.to)"
+                    role="menuitem"
+                    @click="handleNavigationClick(item.to, $event)"
+                  >
+                    <span class="icon" v-html="item.icon"></span>
+                    <span>{{ item.label }}</span>
+                  </a>
+
+                  <button type="button" role="menuitem" @click="signOut">
+                    <span class="icon" v-html="logoutIcon"></span>
+                    <span>Sign out</span>
+                  </button>
                 </div>
-
-                <a
-                  v-for="item in accountItems"
-                  :key="item.label"
-                  :href="getNavigationHref(item.to)"
-                  role="menuitem"
-                  @click="handleNavigationClick(item.to, $event)"
-                >
-                  <span class="icon" v-html="item.icon"></span>
-                  <span>{{ item.label }}</span>
-                </a>
-
-                <button type="button" role="menuitem" @click="signOut">
-                  <span class="icon" v-html="logoutIcon"></span>
-                  <span>Sign out</span>
-                </button>
-              </div>
-            </Transition>
+              </Transition>
+            </div>
           </div>
         </div>
       </header>
@@ -240,7 +248,6 @@
           'content--wide': isWideWorkspace,
           'content--fullscreen': isImmersiveRoute || isFocusedFlow,
           'content--public': isPublicRoute,
-          'content--tournament-rail': usesTournamentCreateRail,
         }"
       >
         <nav
@@ -268,7 +275,7 @@
           </a>
         </nav>
 
-        <CompeteSectionShell v-if="showCompeteSectionShell" />
+        <CompeteSectionShell v-if="showCompeteSectionShell && isMobileViewport" />
 
         <div class="watch-only">
           <strong>Rank #{{ currentPlayer?.rank || '-' }}</strong>
@@ -316,7 +323,12 @@
       </div>
     </main>
 
-    <nav v-if="showBottomNav" class="bottom-nav" aria-label="Primary navigation" :style="primaryMotionStyle">
+    <nav
+      v-if="showBottomNav"
+      class="bottom-nav"
+      aria-label="Primary navigation"
+      :style="primaryMotionStyle"
+    >
       <span
         v-if="primaryMotion.active"
         :key="`bottom-motion-${primaryMotion.revision}`"
@@ -354,6 +366,7 @@ import { useAdminStore } from '../stores/admin'
 import ToastShelf from '../components/ToastShelf.vue'
 import RoutePageSkeleton from '../components/RoutePageSkeleton.vue'
 import CompeteSectionShell from '../components/compete/CompeteSectionShell.vue'
+import TennisNavIcon from '../components/compete/TennisNavIcon.vue'
 import AppLogo from '../components/AppLogo.vue'
 
 const route = useRoute()
@@ -415,6 +428,12 @@ const navigationItems = Object.freeze([
   { to: { name: 'Club' }, section: 'club', label: 'Club', icon: clubIcon },
 ])
 
+const competeNavigationItems = Object.freeze([
+  { label: 'Ladder', to: { name: 'Rankings' }, key: 'ladder', icon: 'ladder' },
+  { label: 'Challenges', to: { name: 'Challenges' }, key: 'challenges', icon: 'challenge' },
+  { label: 'Tournaments', to: { name: 'Tournaments' }, key: 'tournaments', icon: 'trophy' },
+])
+
 const accountItems = computed(() => {
   const items = [
     { to: { name: 'Profile' }, label: 'View profile', icon: profileIcon },
@@ -440,26 +459,21 @@ const accountInitials = computed(() => {
   return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : name.slice(0, 2)).toUpperCase()
 })
 
-const tournamentCreateSteps = ['basics', 'categories', 'players', 'review']
+const tournamentCreateSteps = ['details', 'where', 'events', 'review']
 const tournamentCreateTitles = {
-  basics: 'Basics',
-  categories: 'Categories',
-  players: 'Players',
+  details: 'Details',
+  where: 'Where & When',
+  events: 'Events',
   review: 'Review',
 }
 const tournamentCreateSubtitles = {
-  basics: 'Name the event and set the tournament dates.',
-  categories: 'Choose the categories this tournament will use.',
-  players: 'Select players and let the ladder help with placement.',
-  review: 'Pick formats, check groups, then generate the tournament.',
+  details: 'Name the event and set its dates.',
+  where: 'Choose the venue, hours, and usable courts.',
+  events: 'Choose events, formats, scoring, and seeding policy.',
+  review: 'Check the tournament and derived registration form.',
 }
 
 const isTournamentCreate = computed(() => route.name === 'TournamentCreate')
-const usesTournamentCreateRail = computed(
-  () =>
-    isTournamentCreate.value &&
-    ['players', 'review'].includes(String(route.query.step || 'basics')),
-)
 const isTournamentViewer = computed(
   () => route.path.startsWith('/tournaments/') && route.name !== 'TournamentCreate',
 )
@@ -472,11 +486,11 @@ const isWideWorkspace = computed(() => isTournamentCreate.value || isTournamentV
 const showAppChrome = computed(
   () => !isPublicRoute.value && !isFocusedFlow.value && !isImmersiveRoute.value,
 )
-const showSidebar = computed(
-  () => showAppChrome.value && !usesTournamentCreateRail.value && !isMobileViewport.value,
-)
+const showSidebar = computed(() => showAppChrome.value && !isMobileViewport.value)
 const showHeader = computed(() => showAppChrome.value)
-const showBottomNav = computed(() => showAppChrome.value && isMobileViewport.value)
+const showBottomNav = computed(
+  () => showAppChrome.value && isMobileViewport.value && route.meta.hideBottomNav !== true,
+)
 
 const activePrimarySection = computed(() => {
   if (route.meta.primarySection) return String(route.meta.primarySection)
@@ -504,10 +518,15 @@ const activePrimarySection = computed(() => {
   return ''
 })
 const showCompeteSectionShell = computed(() =>
-  ['Rankings', 'Challenges', 'Tournaments'].includes(String(route.name || '')),
+  [
+    'Rankings',
+    'Challenges',
+    'ChallengeDetails',
+    'CreateChallenge',
+    'MatchDetails',
+    'Tournaments',
+  ].includes(String(route.name || '')),
 )
-const isCompeteTournaments = computed(() => route.name === 'Tournaments')
-const canCreateTournament = computed(() => adminStore.hasActiveClubPermission('tournaments.manage'))
 const activePrimaryLabel = computed(
   () => navigationItems.find((item) => item.section === activePrimarySection.value)?.label || '',
 )
@@ -551,9 +570,15 @@ const activeContextKey = computed(() => {
 const contextIndex = computed(() =>
   contextualItems.value.findIndex((item) => item.key === activeContextKey.value),
 )
+function primaryNavigationOffset(index) {
+  return index * 51 + (index > 2 ? 119 : 0)
+}
+
 const primaryMotionStyle = computed(() => ({
   '--motion-from': primaryMotion.value.from,
   '--motion-to': primaryMotion.value.to,
+  '--motion-from-offset': `${primaryNavigationOffset(primaryMotion.value.from)}px`,
+  '--motion-to-offset': `${primaryNavigationOffset(primaryMotion.value.to)}px`,
   '--motion-count': navigationItems.length,
 }))
 const contextMotionStyle = computed(() => ({
@@ -594,8 +619,8 @@ watch(contextIndex, (to, from) => {
 })
 
 const tournamentCreateStep = computed(() => {
-  const step = String(route.query.step || 'basics')
-  return tournamentCreateSteps.includes(step) ? step : 'basics'
+  const step = String(route.query.step || 'details')
+  return tournamentCreateSteps.includes(step) ? step : 'details'
 })
 const tournamentCreateStepIndex = computed(() =>
   Math.max(0, tournamentCreateSteps.indexOf(tournamentCreateStep.value)),
@@ -630,7 +655,7 @@ const currentTitle = computed(() => {
         }`
       : 'Tournament Match'
   }
-  return route.meta.title || 'GORRA'
+  return route.meta.headerTitle || route.meta.title || 'GORRA'
 })
 const currentSubtitle = computed(() => {
   if (isTournamentCreate.value) {
@@ -655,12 +680,12 @@ const currentSubtitle = computed(() => {
   if (route.name === 'TournamentMatchDetails') {
     return 'Review match status, score, schedule, and tournament context.'
   }
-  return route.meta.subtitle || ''
+  return route.meta.headerSubtitle || route.meta.subtitle || ''
 })
 const headerBackLabel = computed(() => {
   if (isTournamentViewer.value) return 'Go back'
   if (!isTournamentCreate.value) return ''
-  return tournamentCreateStep.value === 'basics' ? 'Back to tournaments' : 'Previous step'
+  return tournamentCreateStep.value === 'details' ? 'Back to tournaments' : 'Previous step'
 })
 
 function schedulePageSkeleton(targetRoute = route) {
@@ -704,7 +729,9 @@ function isNavigationActive(section) {
 function isContextItemActive(item) {
   if (item.key === 'ladder') return route.name === 'Rankings'
   if (item.key === 'challenges') {
-    return ['Challenges', 'MatchDetails'].includes(String(route.name || ''))
+    return ['Challenges', 'ChallengeDetails', 'CreateChallenge', 'MatchDetails'].includes(
+      String(route.name || ''),
+    )
   }
   if (item.key === 'tournaments') return route.path.startsWith('/tournaments')
   if (item.key === 'manage') return route.name === 'Settings'
@@ -817,6 +844,7 @@ onUnmounted(() => {
 .layout {
   --app-header-height: 76px;
   --app-bottom-nav-height: 66px;
+  --app-shell-content-width: min(92%, 1280px);
   min-height: 100vh;
   background: var(--color-bg);
   color: var(--color-text);
@@ -1018,7 +1046,12 @@ onUnmounted(() => {
   height: 46px;
   border-radius: var(--app-inner-radius);
   pointer-events: none;
-  background: linear-gradient(90deg, rgba(0, 181, 26, 0.03), rgba(0, 181, 26, 0.16), rgba(0, 181, 26, 0.03));
+  background: linear-gradient(
+    90deg,
+    rgba(0, 181, 26, 0.03),
+    rgba(0, 181, 26, 0.16),
+    rgba(0, 181, 26, 0.03)
+  );
   animation: primaryNavTrack 580ms var(--motion-curve) both;
 }
 
@@ -1049,17 +1082,53 @@ onUnmounted(() => {
   color: var(--color-primary-strong);
 }
 
+.nav-submenu {
+  display: grid;
+  gap: 2px;
+  min-height: 114px;
+  margin: -1px 0 5px 23px;
+  padding-left: 16px;
+  border-left: 1px solid var(--color-border);
+}
+
+.nav-sub-link {
+  display: flex;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: var(--app-inner-radius);
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transition:
+    background var(--motion-short) var(--motion-curve),
+    color var(--motion-short) var(--motion-curve);
+}
+
+.nav-sub-link:hover {
+  background: var(--color-surface-soft);
+  color: var(--color-text);
+}
+
+.nav-sub-link.active {
+  background: color-mix(in srgb, var(--color-primary) 8%, white);
+  color: var(--color-primary-strong);
+}
+
 @keyframes primaryNavTrack {
   from {
     opacity: 0.18;
-    transform: translateY(calc(var(--motion-from) * 51px));
+    transform: translateY(var(--motion-from-offset));
   }
   48% {
     opacity: 0.68;
   }
   to {
     opacity: 0;
-    transform: translateY(calc(var(--motion-to) * 51px));
+    transform: translateY(var(--motion-to-offset));
   }
 }
 
@@ -1182,16 +1251,22 @@ onUnmounted(() => {
   position: fixed;
   inset: 0 0 auto 0;
   z-index: 40;
-  display: grid;
-  grid-template-columns: minmax(170px, auto) minmax(0, 1fr) auto;
-  align-items: center;
   min-height: var(--app-header-height);
-  gap: 24px;
-  padding: 12px 30px;
   border-bottom: 1px solid var(--color-border);
   background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 4px 18px rgba(15, 34, 24, 0.035);
   backdrop-filter: blur(14px);
+}
+
+.header-content {
+  display: grid;
+  width: var(--app-shell-content-width);
+  min-height: var(--app-header-height);
+  grid-template-columns: minmax(170px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  margin: 0 auto;
+  padding: 14px 0;
 }
 
 .app-header--with-sidebar {
@@ -1199,7 +1274,7 @@ onUnmounted(() => {
 }
 
 @media (min-width: 768px) {
-  .app-header--with-sidebar {
+  .app-header--with-sidebar .header-content {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
@@ -1571,13 +1646,14 @@ onUnmounted(() => {
 
 .content {
   position: relative;
+  width: var(--app-shell-content-width);
   min-width: 0;
-  padding: 26px 30px 36px;
+  margin: 0 auto;
+  padding: 26px 0 36px;
 }
 
 .content--wide {
-  width: min(100%, 1440px);
-  margin: 0 auto;
+  width: var(--app-shell-content-width);
 }
 
 .content--fullscreen,
@@ -1794,6 +1870,22 @@ onUnmounted(() => {
     padding-inline: 0;
   }
 
+  .nav-submenu {
+    min-height: 114px;
+    margin-inline: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .nav-sub-link {
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .nav-sub-link span {
+    display: none;
+  }
+
   .club-switcher__trigger {
     min-height: 44px;
     justify-content: center;
@@ -1849,10 +1941,15 @@ onUnmounted(() => {
   .app-header,
   .app-header--with-sidebar {
     left: 0;
-    grid-template-columns: minmax(0, 1fr) auto;
     min-height: var(--app-header-height);
+  }
+
+  .header-content,
+  .app-header--with-sidebar .header-content {
+    width: var(--app-shell-content-width);
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
-    padding: 9px 7vw;
+    padding: 10px 0;
   }
 
   .global-identity {
@@ -1921,7 +2018,7 @@ onUnmounted(() => {
   }
 
   .content {
-    width: 86%;
+    width: var(--app-shell-content-width);
     margin-inline: auto;
     padding: 18px 0 28px;
   }
@@ -1957,6 +2054,22 @@ onUnmounted(() => {
     padding-inline: 12px;
   }
 
+  .nav-submenu {
+    min-height: 114px;
+    margin-inline: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .nav-sub-link {
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .nav-sub-link span {
+    display: none;
+  }
+
   .bottom-nav {
     position: fixed;
     inset: auto 0 0;
@@ -1964,7 +2077,7 @@ onUnmounted(() => {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     min-height: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px));
-    padding: 3px 7vw env(safe-area-inset-bottom, 0px);
+    padding: 3px 7.5vw env(safe-area-inset-bottom, 0px);
     border-top: 1px solid var(--color-border);
     background: rgba(255, 255, 255, 0.98);
     box-shadow: 0 -5px 18px rgba(15, 34, 24, 0.04);
@@ -1974,8 +2087,8 @@ onUnmounted(() => {
 
   .bottom-nav__motion {
     position: absolute;
-    inset: 3px auto env(safe-area-inset-bottom, 0px) 7vw;
-    width: calc(86% / var(--motion-count));
+    inset: 3px auto env(safe-area-inset-bottom, 0px) 7.5vw;
+    width: calc(85% / var(--motion-count));
     pointer-events: none;
     background: linear-gradient(100deg, transparent, rgba(0, 181, 26, 0.15), transparent);
     animation: horizontalNavTrack 580ms var(--motion-curve) both;

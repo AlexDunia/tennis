@@ -773,8 +773,14 @@ function getStatusLabel(status) {
   switch (status) {
     case 'awaiting':
       return 'Awaiting Acceptance'
+    case 'accepted':
+      return 'Accepted · Schedule Needed'
     case 'scheduled':
       return 'Scheduled'
+    case 'ready':
+      return 'Ready to Play'
+    case 'live':
+      return 'In Progress'
     case 'pending_review':
       return 'Pending Review'
     case 'completed':
@@ -1216,7 +1222,8 @@ const mockAdapter = async (config) => {
       ...body,
       updatedAt: new Date().toISOString(),
     }
-    saveTournamentState()
+    if (mockDatabase.matches[matchIndex].type === 'tournament') saveTournamentState()
+    else saveLadderState()
 
     return {
       data: buildResponse(buildMatchResponse(mockDatabase.matches[matchIndex])),
@@ -1768,9 +1775,10 @@ const mockAdapter = async (config) => {
         request: {},
       }
     }
-    challenge.status = 'scheduled'
+    const acceptedSchedule = body?.scheduledAt || challenge.scheduledAt || null
+    challenge.status = acceptedSchedule ? 'scheduled' : 'accepted'
     challenge.acceptedAt = new Date().toISOString()
-    challenge.scheduledAt = body?.scheduledAt || challenge.scheduledAt || new Date().toISOString()
+    challenge.scheduledAt = acceptedSchedule
     const existingMatch = mockDatabase.matches.find((item) => item.challengeId === challenge.id)
     const matchId =
       existingMatch?.id || `match-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -1782,7 +1790,7 @@ const mockAdapter = async (config) => {
         accountScope: challenge.accountScope || 'demo',
         challengerId: challenge.challengerId,
         defenderId: challenge.defenderId,
-        status: 'scheduled',
+        status: challenge.status,
         scheduledAt: challenge.scheduledAt,
         score: null,
         winnerId: null,
@@ -1792,7 +1800,163 @@ const mockAdapter = async (config) => {
         playDeadline: challenge.playDeadline,
         court: challenge.court || '',
       })
-    if (!existingMatch) mockDatabase.matches.push(match)
+    if (existingMatch) {
+      match.status = challenge.status
+      match.scheduledAt = challenge.scheduledAt
+    } else {
+      mockDatabase.matches.push(match)
+    }
+    saveLadderState()
+    return {
+      data: buildResponse({
+        challenge: buildChallengeResponse(challenge),
+        match: buildMatchResponse(match),
+      }),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  if (method === 'post' && path.match(/^\/challenges\/[^/]+\/schedule$/)) {
+    const challengeId = path.split('/')[2]
+    const challenge = mockDatabase.challenges.find((item) => item.id === challengeId)
+    if (!challenge)
+      return {
+        data: { success: false, data: null, message: 'Challenge not found' },
+        status: 404,
+        statusText: 'Not Found',
+        headers: {},
+        config,
+        request: {},
+      }
+    if (![challenge.challengerId, challenge.defenderId].includes(body?.actorId))
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'Only a challenge player can schedule this match.',
+        },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config,
+        request: {},
+      }
+    if (!['accepted', 'scheduled'].includes(challenge.status))
+      return {
+        data: { success: false, data: null, message: 'This challenge is not ready to schedule.' },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    const scheduledTime = new Date(body?.scheduledAt || 0).getTime()
+    if (!Number.isFinite(scheduledTime) || scheduledTime <= Date.now())
+      return {
+        data: { success: false, data: null, message: 'Choose a future match date and time.' },
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        headers: {},
+        config,
+        request: {},
+      }
+    challenge.status = 'scheduled'
+    challenge.scheduledAt = new Date(scheduledTime).toISOString()
+    challenge.court = sanitizePlainText(body?.court, 80)
+    challenge.scheduledBy = body.actorId
+    challenge.scheduleUpdatedAt = new Date().toISOString()
+    let match = mockDatabase.matches.find((item) => item.challengeId === challenge.id)
+    if (!match) {
+      match = ensureMatchDefaults({
+        id: `match-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        challengeId: challenge.id,
+        accountScope: challenge.accountScope || 'demo',
+        challengerId: challenge.challengerId,
+        defenderId: challenge.defenderId,
+        score: null,
+        winnerId: null,
+        matchConfig: challenge.matchConfig,
+        ladderConfigSnapshot: challenge.ladderConfigSnapshot,
+        preMatchPositions: challenge.preMatchPositions,
+        playDeadline: challenge.playDeadline,
+      })
+      mockDatabase.matches.push(match)
+    }
+    match.status = 'scheduled'
+    match.scheduledAt = challenge.scheduledAt
+    match.court = challenge.court
+    saveLadderState()
+    return {
+      data: buildResponse({
+        challenge: buildChallengeResponse(challenge),
+        match: buildMatchResponse(match),
+      }),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  if (method === 'post' && path.match(/^\/challenges\/[^/]+\/start$/)) {
+    const challengeId = path.split('/')[2]
+    const challenge = mockDatabase.challenges.find((item) => item.id === challengeId)
+    const match = mockDatabase.matches.find((item) => item.challengeId === challengeId)
+    if (!challenge || !match)
+      return {
+        data: { success: false, data: null, message: 'Scheduled match not found' },
+        status: 404,
+        statusText: 'Not Found',
+        headers: {},
+        config,
+        request: {},
+      }
+    if (![challenge.challengerId, challenge.defenderId].includes(body?.actorId))
+      return {
+        data: { success: false, data: null, message: 'Only a match player can start this match.' },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config,
+        request: {},
+      }
+    if (!['scheduled', 'ready'].includes(challenge.status))
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'This match cannot be started from its current state.',
+        },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    const scheduledTime = new Date(challenge.scheduledAt || 0).getTime()
+    if (Number.isFinite(scheduledTime) && scheduledTime > Date.now() + 30 * 60 * 1000)
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'This match can be started thirty minutes before its scheduled time.',
+        },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    const startedAt = new Date().toISOString()
+    challenge.status = 'live'
+    challenge.startedAt = startedAt
+    match.status = 'live'
+    match.startedAt = startedAt
     saveLadderState()
     return {
       data: buildResponse({
@@ -2061,7 +2225,7 @@ const mockAdapter = async (config) => {
         request: {},
       }
     }
-    if (!['awaiting', 'scheduled'].includes(challenge.status)) {
+    if (!['awaiting', 'accepted', 'scheduled'].includes(challenge.status)) {
       return {
         data: { success: false, data: null, message: 'This challenge can no longer be withdrawn.' },
         status: 409,
@@ -2073,6 +2237,11 @@ const mockAdapter = async (config) => {
     }
     challenge.status = 'cancelled'
     challenge.cancelledAt = new Date().toISOString()
+    const cancelledMatch = mockDatabase.matches.find((item) => item.challengeId === challenge.id)
+    if (cancelledMatch) {
+      cancelledMatch.status = 'cancelled'
+      cancelledMatch.cancelledAt = challenge.cancelledAt
+    }
     saveLadderState()
     return {
       data: buildResponse(buildChallengeResponse(challenge)),

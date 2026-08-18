@@ -4,23 +4,15 @@ import { useRouter } from 'vue-router'
 import PersonAvatar from '../../components/PersonAvatar.vue'
 import TennisNavIcon from '../../components/compete/TennisNavIcon.vue'
 import { useChallengeStore } from '../../stores/challenge'
-import { useMatchStore } from '../../stores/match'
-import { useNotificationStore } from '../../stores/notification'
 import { usePlayerStore } from '../../stores/player'
 
 const router = useRouter()
 const challengeStore = useChallengeStore()
-const matchStore = useMatchStore()
-const notificationStore = useNotificationStore()
 const playerStore = usePlayerStore()
-
 const queue = ref('received')
 const currentPlayer = computed(() => playerStore.currentPlayer)
-const isLoading = computed(
-  () => challengeStore.isLoading || matchStore.isLoading || playerStore.isLoading,
-)
-const error = computed(() => challengeStore.error || matchStore.error || playerStore.error)
-
+const isLoading = computed(() => challengeStore.isLoading || playerStore.isLoading)
+const error = computed(() => challengeStore.error || playerStore.error)
 const receivedChallenges = computed(() =>
   challengeStore.challenges.filter((challenge) => challenge.defenderId === currentPlayer.value?.id),
 )
@@ -36,12 +28,9 @@ const visibleChallenges = computed(() =>
 function otherPlayerId(challenge) {
   return queue.value === 'received' ? challenge.challengerId : challenge.defenderId
 }
-
 function otherPlayer(challenge) {
-  const id = otherPlayerId(challenge)
-  return playerStore.players.find((player) => player.id === id) || null
+  return playerStore.players.find((player) => player.id === otherPlayerId(challenge)) || null
 }
-
 function otherPlayerName(challenge) {
   return (
     otherPlayer(challenge)?.name ||
@@ -49,12 +38,13 @@ function otherPlayerName(challenge) {
     'Club player'
   )
 }
-
 function statusLine(challenge) {
-  if (challenge.status === 'awaiting') {
-    return queue.value === 'received' ? 'wants to play you' : 'waiting for a response'
-  }
+  if (challenge.status === 'awaiting')
+    return queue.value === 'received' ? 'response needed' : 'waiting for a response'
+  if (challenge.status === 'accepted') return 'schedule needs to be agreed'
   if (challenge.status === 'scheduled') return 'match confirmed'
+  if (challenge.status === 'ready') return 'ready to start'
+  if (challenge.status === 'live') return 'match in progress'
   if (challenge.status === 'pending_review') return 'result ready for review'
   if (challenge.status === 'completed') return 'match completed'
   if (challenge.status === 'declined') return 'challenge declined'
@@ -62,54 +52,23 @@ function statusLine(challenge) {
   if (challenge.status === 'expired') return 'challenge expired'
   return String(challenge.status || 'challenge updated').replaceAll('_', ' ')
 }
-
-function matchFor(challenge) {
-  return matchStore.matches.find((match) => match.challengeId === challenge.id) || null
+function openChallenge(challenge) {
+  router.push({ name: 'ChallengeDetails', params: { challengeId: challenge.id } })
 }
-
-function canOpenResult(challenge) {
-  return ['scheduled', 'pending_review'].includes(challenge.status) && Boolean(matchFor(challenge))
-}
-
-function resultActionLabel(challenge) {
-  return challenge.status === 'pending_review' ? 'Review result' : 'Report result'
-}
-
-async function accept(challenge) {
-  const result = await challengeStore.acceptChallenge(challenge.id, null, currentPlayer.value?.id)
-  if (!result) return
-  await matchStore.loadMatches()
-  notificationStore.addToast({
-    message: 'Challenge accepted. Your match is confirmed.',
-    type: 'success',
-  })
-}
-
-async function decline(challenge) {
-  const result = await challengeStore.declineChallenge(challenge.id, currentPlayer.value?.id)
-  if (!result) return
-  notificationStore.addToast({ message: 'Challenge declined.', type: 'warning' })
-}
-
-function openResult(challenge) {
-  const match = matchFor(challenge)
-  if (!match) return
-  router.push({ name: 'MatchDetails', params: { matchId: match.id } })
-}
-
 async function loadView() {
-  await Promise.all([
-    playerStore.loadPlayers(),
-    challengeStore.loadChallenges(),
-    matchStore.loadMatches(),
-  ])
+  await Promise.all([playerStore.loadPlayers(), challengeStore.loadChallenges()])
 }
-
 onMounted(loadView)
 </script>
 
 <template>
   <section class="challenge-queues">
+    <div class="queue-topline">
+      <p>Open a challenge to see its next action, schedule, score, and Ladder outcome.</p>
+      <RouterLink class="button-primary" :to="{ name: 'CreateChallenge' }"
+        >New challenge</RouterLink
+      >
+    </div>
     <div class="queue-toggle" role="tablist" aria-label="Challenge queue">
       <button
         type="button"
@@ -158,37 +117,12 @@ onMounted(loadView)
           <span>{{ statusLine(challenge) }}</span>
         </div>
 
-        <div
-          v-if="queue === 'received' && challenge.status === 'awaiting'"
-          class="challenge-row__icon-actions"
-        >
-          <button
-            class="icon-action icon-action--neutral"
-            type="button"
-            :aria-label="`Decline challenge from ${otherPlayerName(challenge)}`"
-            title="Decline"
-            @click="decline(challenge)"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
-          </button>
-          <button
-            class="icon-action icon-action--accept"
-            type="button"
-            :aria-label="`Accept challenge from ${otherPlayerName(challenge)}`"
-            title="Accept"
-            @click="accept(challenge)"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9" /></svg>
-          </button>
-        </div>
-
         <button
-          v-else-if="canOpenResult(challenge)"
           class="button-secondary challenge-row__action"
           type="button"
-          @click="openResult(challenge)"
+          @click="openChallenge(challenge)"
         >
-          {{ resultActionLabel(challenge) }}
+          View details
         </button>
       </article>
     </div>
@@ -211,6 +145,19 @@ onMounted(loadView)
 .challenge-queues {
   display: grid;
   gap: 18px;
+}
+
+.queue-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.queue-topline p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
 }
 
 .queue-toggle {
@@ -316,7 +263,7 @@ onMounted(loadView)
 .challenge-row__copy {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: 6px;
 }
 
 .challenge-row__copy strong,

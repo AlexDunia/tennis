@@ -26,15 +26,26 @@ const playerCount = computed(() =>
     : props.category.players?.filter((player) => !player.isBye).length || 0,
 )
 const completedCount = computed(
-  () => props.matches.filter((match) => !match.isBye && ['completed', 'walkover'].includes(match.status)).length,
+  () =>
+    props.matches.filter(
+      (match) => !match.isBye && ['completed', 'walkover'].includes(match.status),
+    ).length,
 )
-const groupMatches = computed(() => props.matches.filter((match) => match.round === 'group' && !match.isBye))
+const groupMatches = computed(() =>
+  props.matches.filter((match) => match.round === 'group' && !match.isBye),
+)
 const groupCompletedCount = computed(
-  () => groupMatches.value.filter((match) => ['completed', 'walkover'].includes(match.status)).length,
+  () =>
+    groupMatches.value.filter((match) => ['completed', 'walkover'].includes(match.status)).length,
 )
-const pendingCount = computed(() => props.matches.filter((match) => !match.isBye && match.status === 'pending').length)
+const pendingCount = computed(
+  () => props.matches.filter((match) => !match.isBye && match.status === 'pending').length,
+)
 const liveCount = computed(
-  () => props.matches.filter((match) => !match.isBye && match.liveState?.startedAt && match.status === 'pending').length,
+  () =>
+    props.matches.filter(
+      (match) => !match.isBye && match.liveState?.startedAt && match.status === 'pending',
+    ).length,
 )
 const currentPlayerEntry = computed(() => {
   if (!props.currentPlayerId) {
@@ -67,6 +78,10 @@ const cardStatusSummary = computed(() => {
   return `${completedCount.value} completed`
 })
 const knockoutSummary = computed(() => {
+  if (props.category.settings?.registrationStage) {
+    return 'Draw not created'
+  }
+
   if (props.category.knockout?.championName) {
     return `Champion: ${props.category.knockout.championName}`
   }
@@ -76,7 +91,8 @@ const knockoutSummary = computed(() => {
   }
 
   const quarterFinalsComplete =
-    props.category.knockout?.quarterFinals?.filter((match) => match.status === 'completed').length || 0
+    props.category.knockout?.quarterFinals?.filter((match) => match.status === 'completed')
+      .length || 0
   const semiFinalsComplete =
     props.category.knockout?.semiFinals?.filter((match) => match.status === 'completed').length || 0
   if (props.category.knockout?.quarterFinals?.length) {
@@ -107,7 +123,13 @@ const knockoutSummary = computed(() => {
 
     <div class="category-card__meta">
       <span>{{ playerCount }} players</span>
-      <span>{{ category.groups.length ? `${category.groups.length} match groups` : 'Straight draw' }}</span>
+      <span>{{
+        category.settings?.registrationStage
+          ? 'Registration stage'
+          : category.groups.length
+            ? `${category.groups.length} match groups`
+            : 'Straight draw'
+      }}</span>
       <span>{{ cardStatusSummary }}</span>
     </div>
 
@@ -115,7 +137,10 @@ const knockoutSummary = computed(() => {
       {{ currentPlayerEntry.group.name }} - seed #{{ currentPlayerEntry.player.seed }}
     </p>
 
-    <div>
+    <div v-if="category.settings?.registrationStage">
+      <p class="category-card__progress-copy">The draw is created after registration closes.</p>
+    </div>
+    <div v-else>
       <p class="category-card__progress-copy">
         Group stage: {{ groupCompletedCount }} of {{ groupMatches.length }}
       </p>

@@ -31,6 +31,8 @@ const matchId = computed(() => route.params.matchId)
 const form = reactive({ winnerId: '', score: '' })
 const hasSubmitted = reactive({ value: false })
 const selectedTournamentMatch = ref(null)
+const resultPreviewOpen = ref(false)
+const submissionError = ref('')
 const hasLoaded = ref(false)
 
 // 7. COMPUTED PROPERTIES
@@ -42,7 +44,10 @@ const defender = computed(
   () => playerStore.players.find((player) => player.id === match.value?.defenderId) || null,
 )
 const canSubmitScore = computed(
-  () => match.value?.type !== 'tournament' && match.value?.status === 'scheduled',
+  () =>
+    match.value?.type !== 'tournament' &&
+    ['scheduled', 'live'].includes(match.value?.status) &&
+    [match.value?.challengerId, match.value?.defenderId].includes(playerStore.currentPlayer?.id),
 )
 const tournament = computed(() => tournamentStore.activeTournament)
 const tournamentId = computed(() => route.params.tournamentId || match.value?.tournamentId || '')
@@ -106,17 +111,37 @@ const initializeForm = () => {
     return
   }
 
-  form.winnerId = match.value.challengerId
-  form.score = '6-4, 6-4'
+  const requestedWinner = String(route.query.winnerId || '')
+  const playerIds = [match.value.challengerId, match.value.defenderId]
+  form.winnerId = playerIds.includes(requestedWinner)
+    ? requestedWinner
+    : match.value.winnerId || match.value.challengerId
+  form.score = String(route.query.score || match.value.score || '6-4, 6-4')
+  if (route.query.preview === '1' && canSubmitScore.value) resultPreviewOpen.value = true
 }
 
-const handleResultSubmit = async () => {
-  if (!form.winnerId || !form.score) {
+const handleResultSubmit = () => {
+  submissionError.value = ''
+  if (!form.winnerId || !form.score.trim()) {
+    submissionError.value = 'Choose the winner and enter the final score.'
     return
   }
+  resultPreviewOpen.value = true
+}
 
-  await matchStore.submitResult(matchId.value, { winnerId: form.winnerId, score: form.score })
+const confirmResultSubmit = async () => {
+  submissionError.value = ''
+  const submitted = await matchStore.submitResult(matchId.value, {
+    winnerId: form.winnerId,
+    score: form.score.trim(),
+    submittedBy: playerStore.currentPlayer?.id,
+  })
+  if (!submitted) {
+    submissionError.value = matchStore.error || 'Unable to submit this result.'
+    return
+  }
   hasSubmitted.value = true
+  resultPreviewOpen.value = false
 }
 
 const openTournamentScoreModal = () => {
@@ -224,13 +249,15 @@ onMounted(() => {
           <input v-model="form.score" class="field__input" placeholder="6-4, 6-4" />
         </label>
 
+        <p v-if="submissionError" class="submission-error" role="alert">{{ submissionError }}</p>
+
         <button
           class="submit-button"
           type="button"
           :disabled="!canSubmitScore || hasSubmitted.value"
           @click="handleResultSubmit"
         >
-          {{ hasSubmitted.value ? 'Result submitted' : 'Submit result' }}
+          {{ hasSubmitted.value ? 'Result submitted' : 'Preview result' }}
         </button>
       </div>
 
@@ -277,6 +304,56 @@ onMounted(() => {
           <p class="panel-copy">The official tournament result is shown in the match summary.</p>
         </template>
       </div>
+    </div>
+
+    <div
+      v-if="resultPreviewOpen"
+      class="result-preview"
+      role="presentation"
+      @click.self="resultPreviewOpen = false"
+    >
+      <section
+        class="result-preview__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="result-preview-title"
+      >
+        <p class="match-summary__status">Review before submitting</p>
+        <h2 id="result-preview-title">Confirm the final result</h2>
+        <p class="result-preview__match">{{ playerOneName }} vs {{ playerTwoName }}</p>
+        <dl>
+          <div>
+            <dt>Winner</dt>
+            <dd>{{ form.winnerId === match.challengerId ? playerOneName : playerTwoName }}</dd>
+          </div>
+          <div>
+            <dt>Final score</dt>
+            <dd>{{ form.score }}</dd>
+          </div>
+        </dl>
+        <p class="result-preview__note">
+          The other player will be asked to confirm this result before the Ladder changes.
+        </p>
+        <p v-if="submissionError" class="submission-error" role="alert">{{ submissionError }}</p>
+        <div class="result-preview__actions">
+          <button
+            class="button-secondary"
+            type="button"
+            :disabled="matchStore.isLoading"
+            @click="resultPreviewOpen = false"
+          >
+            Edit result
+          </button>
+          <button
+            class="button-primary"
+            type="button"
+            :disabled="matchStore.isLoading"
+            @click="confirmResultSubmit"
+          >
+            {{ matchStore.isLoading ? 'Submitting…' : 'Submit final result' }}
+          </button>
+        </div>
+      </section>
     </div>
 
     <TournamentMatchModal
@@ -406,6 +483,74 @@ onMounted(() => {
 .submit-button:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: var(--shadow-soft);
+}
+
+.submission-error {
+  margin: 0.8rem 0 0;
+  color: #9a554f;
+  font-size: 0.78rem;
+}
+.result-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 34, 24, 0.48);
+  backdrop-filter: blur(4px);
+}
+.result-preview__dialog {
+  width: min(480px, 100%);
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-card-radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-strong);
+}
+.result-preview__dialog h2,
+.result-preview__dialog p {
+  margin: 0;
+}
+.result-preview__match {
+  margin-top: 8px !important;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+.result-preview__dialog dl {
+  display: grid;
+  gap: 9px;
+  margin: 20px 0;
+}
+.result-preview__dialog dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 11px 12px;
+  border-radius: var(--app-inner-radius);
+  background: var(--color-surface-soft);
+}
+.result-preview__dialog dt {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+.result-preview__dialog dd {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.82rem;
+  font-weight: var(--font-weight-bold);
+  text-align: right;
+}
+.result-preview__note {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+.result-preview__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
 }
 
 .empty-state {

@@ -28,7 +28,8 @@ const matchId = computed(() => route.params.matchId)
 const currentMatch = computed(() => matchStore.matchById(matchId.value))
 const isFullscreen = computed(() => route.query.fullscreen === '1')
 const challenger = computed(
-  () => playerStore.players.find((player) => player.id === currentMatch.value?.challengerId) || null,
+  () =>
+    playerStore.players.find((player) => player.id === currentMatch.value?.challengerId) || null,
 )
 const defender = computed(
   () => playerStore.players.find((player) => player.id === currentMatch.value?.defenderId) || null,
@@ -60,8 +61,12 @@ const matchLabel = computed(() => {
 })
 const serverKey = computed(() => scoreboard.value.currentServer || 'playerA')
 const elapsedSeconds = computed(() => {
-  const startedAt = scoreboard.value.startedAt ? new Date(scoreboard.value.startedAt).getTime() : null
-  const completedAt = scoreboard.value.completedAt ? new Date(scoreboard.value.completedAt).getTime() : null
+  const startedAt = scoreboard.value.startedAt
+    ? new Date(scoreboard.value.startedAt).getTime()
+    : null
+  const completedAt = scoreboard.value.completedAt
+    ? new Date(scoreboard.value.completedAt).getTime()
+    : null
 
   if (!startedAt) {
     return 0
@@ -89,6 +94,7 @@ const scoreboardStatus = computed(() => {
     return 'Finished'
   }
 
+  if (currentMatch.value.status === 'live') return 'Match in progress'
   return ['pending', 'scheduled'].includes(currentMatch.value.status)
     ? 'Live scoreboard ready'
     : 'Score review'
@@ -96,8 +102,8 @@ const scoreboardStatus = computed(() => {
 const finalScoreSubmitted = computed(() =>
   ['completed', 'walkover'].includes(currentMatch.value?.status),
 )
-const canSubmitFinal = computed(
-  () => Boolean(currentMatch.value && scoreboard.value.matchWinner && !finalScoreSubmitted.value),
+const canSubmitFinal = computed(() =>
+  Boolean(currentMatch.value && scoreboard.value.matchWinner && !finalScoreSubmitted.value),
 )
 
 function formatDateTime(value) {
@@ -278,9 +284,14 @@ async function submitFinalScore() {
     return
   }
 
-  await matchStore.submitResult(matchId.value, {
-    winnerId,
-    score: formatFinalScore() || `${calculateSetWins('playerA')}-${calculateSetWins('playerB')}`,
+  router.push({
+    name: 'MatchDetails',
+    params: { matchId: matchId.value },
+    query: {
+      preview: '1',
+      winnerId,
+      score: formatFinalScore() || `${calculateSetWins('playerA')}-${calculateSetWins('playerB')}`,
+    },
   })
 }
 
@@ -296,7 +307,9 @@ async function loadPlayView() {
   try {
     loadError.value = ''
     await Promise.all([playerStore.loadPlayers(), matchStore.loadMatches()])
-    const hadLiveState = Boolean(currentMatch.value?.liveState?.sets && currentMatch.value?.liveState?.currentGame)
+    const hadLiveState = Boolean(
+      currentMatch.value?.liveState?.sets && currentMatch.value?.liveState?.currentGame,
+    )
     syncScoreboard()
     if (currentMatch.value && !hadLiveState) {
       await persistScoreboard()
@@ -348,9 +361,7 @@ onUnmounted(() => {
       </div>
 
       <div v-if="currentMatch" class="play__actions">
-        <button class="play__details" type="button" @click="openMatchDetails">
-          Match details
-        </button>
+        <button class="play__details" type="button" @click="openMatchDetails">Match details</button>
         <button
           v-if="!isFullscreen"
           class="play__details play__details--primary"
@@ -359,12 +370,7 @@ onUnmounted(() => {
         >
           Full screen
         </button>
-        <button
-          v-else
-          class="play__details"
-          type="button"
-          @click="exitFullscreen"
-        >
+        <button v-else class="play__details" type="button" @click="exitFullscreen">
           Exit full screen
         </button>
       </div>
@@ -374,7 +380,12 @@ onUnmounted(() => {
       <button class="play__details" type="button" @click="toggleTheme">
         {{ scoreboardTheme === 'dark' ? 'Light mode' : 'Dark mode' }}
       </button>
-      <button v-if="!scoreboard.matchWinner" class="play__details" type="button" @click="toggleServer">
+      <button
+        v-if="!scoreboard.matchWinner"
+        class="play__details"
+        type="button"
+        @click="toggleServer"
+      >
         Switch server
       </button>
     </div>
@@ -411,7 +422,12 @@ onUnmounted(() => {
     </div>
 
     <div v-if="currentMatch && !isFullscreen" class="play__controls section-card">
-      <button v-if="!scoreboard.matchWinner" class="play__details" type="button" @click="toggleServer">
+      <button
+        v-if="!scoreboard.matchWinner"
+        class="play__details"
+        type="button"
+        @click="toggleServer"
+      >
         Switch server
       </button>
       <button
@@ -420,7 +436,7 @@ onUnmounted(() => {
         :disabled="!canSubmitFinal && !finalScoreSubmitted"
         @click="submitFinalScore"
       >
-        {{ finalScoreSubmitted ? 'View match summary' : 'Submit final score' }}
+        {{ finalScoreSubmitted ? 'View match summary' : 'Review final score' }}
       </button>
     </div>
   </section>

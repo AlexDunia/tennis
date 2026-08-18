@@ -1,7 +1,8 @@
-import { ACTIVE_LADDER_CHALLENGE_STATUSES, LADDER_CONFIG } from '../config/ladder'
+import { ACTIVE_LADDER_CHALLENGE_STATUSES, getActiveLadderConfig } from '../config/ladder'
 
 function localAccessDecision({ player, challenges = [] }) {
-  if (LADDER_CONFIG.seasonStatus !== 'active') {
+  const ladderConfig = getActiveLadderConfig()
+  if (ladderConfig.seasonStatus !== 'active') {
     return { allowed: false, message: 'This Ladder is not accepting challenges right now.' }
   }
 
@@ -18,7 +19,7 @@ function localAccessDecision({ player, challenges = [] }) {
       [challenge.challengerId, challenge.defenderId].includes(player.id),
   )
 
-  if (activeChallenges.length >= LADDER_CONFIG.maxActiveChallenges) {
+  if (activeChallenges.length >= ladderConfig.maxActiveChallenges) {
     return {
       allowed: false,
       message: 'Finish your active challenge before creating another one.',
@@ -57,7 +58,8 @@ export async function verifyLadderCreationAccess(context) {
     const result = await response.json()
     return {
       allowed: result.allowed === true,
-      message: result.allowed === true ? '' : result.message || 'This Ladder action is unavailable.',
+      message:
+        result.allowed === true ? '' : result.message || 'This Ladder action is unavailable.',
       source: 'backend',
     }
   } catch {
@@ -68,4 +70,3 @@ export async function verifyLadderCreationAccess(context) {
     }
   }
 }
-

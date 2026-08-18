@@ -11,8 +11,8 @@ import { useNotificationStore } from '../stores/notification'
 import { verifyLadderCreationAccess } from '../services/LadderAccessService'
 import {
   ACTIVE_LADDER_CHALLENGE_STATUSES,
-  LADDER_CONFIG,
   deadlineFromNow,
+  getActiveLadderConfig,
   isEligibleLadderOpponent,
   ladderMatchConfig,
   ladderMovementFor,
@@ -65,7 +65,10 @@ const currentIdentity = computed(() => ({
   rank: playerStore.currentPlayer?.rank || null,
   category: playerStore.currentPlayer?.category || 'Club Member',
 }))
-const ladderWindow = computed(() => ladderWindowFor(currentIdentity.value))
+const activeLadderConfig = computed(() => getActiveLadderConfig())
+const ladderWindow = computed(() =>
+  ladderWindowFor(currentIdentity.value, activeLadderConfig.value),
+)
 const activeLadderChallenges = computed(() =>
   challengeStore.challenges.filter(
     (challenge) =>
@@ -73,11 +76,12 @@ const activeLadderChallenges = computed(() =>
       [challenge.challengerId, challenge.defenderId].includes(currentIdentity.value.id),
   ),
 )
+const activeLadderChallenge = computed(() => activeLadderChallenges.value[0] || null)
 const hasActiveChallengeBlock = computed(
-  () => activeLadderChallenges.value.length >= LADDER_CONFIG.maxActiveChallenges,
+  () => activeLadderChallenges.value.length >= activeLadderConfig.value.maxActiveChallenges,
 )
 const ladderAccessMessage = computed(() => {
-  if (LADDER_CONFIG.seasonStatus !== 'active')
+  if (activeLadderConfig.value.seasonStatus !== 'active')
     return 'This Ladder is not accepting challenges right now.'
   if (!currentIdentity.value.rank)
     return 'You must be placed on the active Ladder before creating a challenge.'
@@ -485,11 +489,11 @@ async function completeReview() {
       timing: friendlyMatchStore.draft.timing,
       scheduledAt,
       court: schedule.court || '',
-      responseDeadline: deadlineFromNow(LADDER_CONFIG.responseHours),
-      playDeadline: deadlineFromNow(LADDER_CONFIG.completionDays, 'days'),
+      responseDeadline: deadlineFromNow(activeLadderConfig.value.responseHours),
+      playDeadline: deadlineFromNow(activeLadderConfig.value.completionDays, 'days'),
       preMatchPositions: { challenger: challenger.rank, defender: defender.rank },
-      ladderConfigSnapshot: { ...LADDER_CONFIG },
-      matchConfig: ladderMatchConfig(),
+      ladderConfigSnapshot: { ...activeLadderConfig.value },
+      matchConfig: ladderMatchConfig(activeLadderConfig.value),
     })
     if (!challenge) {
       inlineNote.value = challengeStore.error || 'The challenge could not be created.'
@@ -773,7 +777,10 @@ watch(
             <RouterLink
               v-if="hasActiveChallengeBlock"
               class="friendly-flow__notice-link"
-              :to="{ name: 'Challenges' }"
+              :to="{
+                name: 'ChallengeDetails',
+                params: { challengeId: activeLadderChallenge.id },
+              }"
             >
               <span>View active challenge</span><FlowIcon name="arrow-right" />
             </RouterLink>
@@ -945,7 +952,7 @@ watch(
             {{ isLadder ? 'Choose an eligible opponent.' : 'Choose opponent from club.' }}
           </h2>
           <p v-if="isLadder">
-            Only active players within {{ LADDER_CONFIG.challengeRangeUp }} positions above you
+            Only active players within {{ activeLadderConfig.challengeRangeUp }} positions above you
             appear here.
           </p>
           <p v-else>
@@ -964,7 +971,10 @@ watch(
             <RouterLink
               v-if="hasActiveChallengeBlock"
               class="friendly-flow__notice-link"
-              :to="{ name: 'Challenges' }"
+              :to="{
+                name: 'ChallengeDetails',
+                params: { challengeId: activeLadderChallenge.id },
+              }"
             >
               <span>View active challenge</span><FlowIcon name="arrow-right" />
             </RouterLink>
@@ -1280,11 +1290,11 @@ watch(
             </div>
             <div class="review-row">
               <span>Match format</span
-              ><strong>{{ LADDER_CONFIG.matchFormatLabel }} <small>Club rule</small></strong>
+              ><strong>{{ activeLadderConfig.matchFormatLabel }} <small>Club rule</small></strong>
             </div>
             <div class="review-row">
               <span>Tie-break</span
-              ><strong>{{ LADDER_CONFIG.tieBreakLabel }} <small>Club rule</small></strong>
+              ><strong>{{ activeLadderConfig.tieBreakLabel }} <small>Club rule</small></strong>
             </div>
             <div class="review-row">
               <span>Timing</span><strong>{{ isPlayNow ? 'Play now' : formattedSchedule }}</strong>
@@ -1292,8 +1302,8 @@ watch(
           </div>
           <div class="setup-default-note">
             <FlowIcon name="lock" /><span
-              >Respond within {{ LADDER_CONFIG.responseHours }} hours · Play within
-              {{ LADDER_CONFIG.completionDays }} days</span
+              >Respond within {{ activeLadderConfig.responseHours }} hours · Play within
+              {{ activeLadderConfig.completionDays }} days</span
             >
           </div>
           <button
@@ -1527,7 +1537,7 @@ watch(
           <span>Match status</span><strong>Waiting for acceptance</strong
           ><small>{{
             isLadder
-              ? `They have ${LADDER_CONFIG.responseHours} hours to respond. Rankings move only after both players confirm the result.`
+              ? `They have ${activeLadderConfig.responseHours} hours to respond. Rankings move only after both players confirm the result.`
               : 'You can change the details or cancel the invitation before it is accepted.'
           }}</small>
         </div>
