@@ -33,9 +33,9 @@ function startMatch(mode) {
     return
   }
 
-  router.push({ name: 'FriendlyMatchType' })
+  friendlyMatchStore.chooseMatchType('friendly')
+  router.push({ name: 'FriendlyMatchScoring' })
 }
-
 function continueMatch(match) {
   router.push({ name: 'PlayMatch', params: { matchId: match.id } })
 }

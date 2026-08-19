@@ -323,16 +323,21 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
 
     draft.value.timing = timing
     draft.value.ownerId = normalizeIdentity(creator).id
-
-    // Friendly still chooses its opponent later.
-    // Ladder has already chosen its opponent before this step,
-    // so preserve that player.
-    if (draft.value.matchType !== 'ladder') {
-      draft.value.opponent = null
-    }
-
     draft.value.status = 'draft'
 
+    // Friendly Match:
+    // Timing is chosen before an opponent/invitation exists.
+    // Do not generate a join token yet.
+    if (draft.value.matchType === 'friendly') {
+      draft.value.opponent = null
+      draft.value.matchId = ''
+      draft.value.joinToken = ''
+      return null
+    }
+
+    // Ladder Match:
+    // The opponent was already selected before timing,
+    // so preserve the existing Ladder flow.
     if (timing === 'later') {
       draft.value.matchId = ''
       draft.value.joinToken = ''
@@ -353,10 +358,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     const now = Date.now()
     const token = createToken()
 
-    const expectedOpponent =
-      draft.value.matchType === 'ladder' && draft.value.opponent
-        ? normalizeIdentity(draft.value.opponent)
-        : null
+    const expectedOpponent = draft.value.opponent ? normalizeIdentity(draft.value.opponent) : null
 
     const invitation = {
       id: `${draft.value.matchType || 'friendly'}-${now}-${token.slice(0, 6)}`,
@@ -484,13 +486,18 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       return { ok: false, message: 'This match invitation was cancelled.' }
     if (!actor.id) return { ok: false, message: 'Sign in before joining this match.' }
     if (actor.id === invitation.creator?.id)
-      return { ok: false, message: 'This invitation belongs to the player who created the match.' }
+      return {
+        ok: false,
+        message: 'This invitation belongs to the player who created the match.',
+      }
+
     if (invitation.expectedOpponent?.id && actor.id !== invitation.expectedOpponent.id) {
       return {
         ok: false,
         message: `This Ladder invitation is for ${invitation.expectedOpponent.name}.`,
       }
     }
+
     if (invitation.opponent?.id) {
       if (invitation.opponent.id === actor.id) return { ok: true, invitation }
       return { ok: false, message: 'Another player has already joined this match.' }

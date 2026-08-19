@@ -136,7 +136,7 @@ const pageTitle = computed(
 )
 const stepText = computed(() => {
   if (isLadder.value) {
-    if (isPlayNow.value)
+    if (isPlayNow.value) {
       return (
         {
           type: '1 of 5',
@@ -146,6 +146,8 @@ const stepText = computed(() => {
           format: '4 of 5',
         }[step.value] || ''
       )
+    }
+
     return (
       {
         type: '1 of 6',
@@ -157,27 +159,13 @@ const stepText = computed(() => {
       }[step.value] || ''
     )
   }
-  if (isPlayNow.value)
-    return (
-      {
-        type: '1 of 5',
-        timing: '2 of 5',
-        join: '3 of 5',
-        clubOpponent: '3 of 5',
-        scoring: '4 of 5',
-        format: '5 of 5',
-        customFormat: '5 of 5',
-      }[step.value] || ''
-    )
+
   return (
     {
-      type: '1 of 6',
-      timing: '2 of 6',
-      clubOpponent: '3 of 6',
-      schedule: '4 of 6',
-      scoring: '5 of 6',
-      format: '6 of 6',
-      customFormat: '6 of 6',
+      scoring: '1 of 3',
+      format: '2 of 3',
+      customFormat: '2 of 3',
+      timing: '3 of 3',
     }[step.value] || ''
   )
 })
@@ -292,94 +280,190 @@ const backRoute = computed(() => {
 
   const routeName =
     {
-      type: 'Dashboard',
-      timing: 'FriendlyMatchType',
-      join: 'FriendlyMatchTiming',
-      clubOpponent: isPlayNow.value ? 'FriendlyMatchJoin' : 'FriendlyMatchTiming',
-      schedule: 'FriendlyMatchClubOpponent',
-      opponent: 'FriendlyMatchTiming',
-      scoring: isPlayNow.value ? 'FriendlyMatchJoin' : 'FriendlyMatchSchedule',
+      scoring: 'Play',
       format: 'FriendlyMatchScoring',
       customFormat: 'FriendlyMatchFormat',
-      scheduled: 'Dashboard',
+      timing: 'FriendlyMatchFormat',
+
+      join: 'FriendlyMatchTiming',
+      clubOpponent: 'FriendlyMatchJoin',
+      opponent: 'FriendlyMatchJoin',
+      schedule: 'FriendlyMatchTiming',
+
+      scheduled: 'Play',
       externalJoin: 'Dashboard',
       live: 'FriendlyMatchFormat',
-    }[step.value] || 'Dashboard'
+
+      type: 'Play',
+    }[step.value] || 'Play'
 
   return routeName.startsWith('FriendlyMatch') ? flowLocation(routeName) : { name: routeName }
 })
 
 function guardStep() {
-  if (step.value === 'externalJoin') return
+  // /friendly-match/join/:token is the OTHER PLAYER'S screen.
+  // If the creator somehow opens their own invitation URL,
+  // return them to the creator-side join flow instead.
+  if (step.value === 'externalJoin') {
+    const token = String(route.params.token || '')
+    const invitation = friendlyMatchStore.invitationByToken(token)
+
+    if (invitation?.creator?.id && invitation.creator.id === currentIdentity.value.id) {
+      router.replace(flowLocation('FriendlyMatchJoin'))
+    }
+
+    return
+  }
+
+  // Only the creator should manage their own Friendly draft.
   if (isFriendly.value && friendlyMatchStore.draft.ownerId && !canManageDraft.value) {
     router.replace({ name: 'Dashboard' })
     return
   }
-  if (step.value === 'timing' && !friendlyMatchStore.draft.matchType) {
-    router.replace(flowLocation('FriendlyMatchType'))
+
+  // A focused flow should have a known match type.
+  if (!friendlyMatchStore.draft.matchType) {
+    if (step.value === 'type') return
+
+    router.replace({ name: 'Play' })
     return
   }
 
-  if (step.value === 'timing' && isLadder.value && !friendlyMatchStore.draft.opponent) {
-    router.replace(flowLocation('FriendlyMatchClubOpponent'))
+  /*
+   * FRIENDLY MATCH
+   *
+   * Play
+   * → Scoring
+   * → Format / Custom format
+   * → Timing
+   */
+  if (isFriendly.value) {
+    // The old Type screen is no longer part of this Play entry.
+    if (step.value === 'type') {
+      router.replace(flowLocation('FriendlyMatchScoring'))
+      return
+    }
+
+    // You cannot choose a match format until scoring is chosen.
+    if (
+      ['format', 'customFormat', 'timing'].includes(step.value) &&
+      !friendlyMatchStore.draft.format
+    ) {
+      router.replace(flowLocation('FriendlyMatchScoring'))
+      return
+    }
+
+    // The steps below Timing belong to the next piece of work.
+    if (step.value === 'join' && !friendlyMatchStore.draft.timing) {
+      router.replace(flowLocation('FriendlyMatchTiming'))
+      return
+    }
+
+    if (step.value === 'clubOpponent' && !friendlyMatchStore.draft.timing) {
+      router.replace(flowLocation('FriendlyMatchTiming'))
+      return
+    }
+
+    if (step.value === 'schedule' && friendlyMatchStore.draft.timing !== 'later') {
+      router.replace(flowLocation('FriendlyMatchTiming'))
+      return
+    }
+
+    if (
+      step.value === 'live' &&
+      (!friendlyMatchStore.draft.format || !friendlyMatchStore.draft.opponent)
+    ) {
+      router.replace(flowLocation('FriendlyMatchTiming'))
+    }
+
     return
-  } else if (step.value === 'opponent') router.replace(flowLocation('FriendlyMatchClubOpponent'))
-  else if (step.value === 'clubOpponent' && isFriendly.value && !friendlyMatchStore.draft.timing) {
-    router.replace(flowLocation('FriendlyMatchTiming'))
-  } else if (step.value === 'schedule' && (isPlayNow.value || !friendlyMatchStore.draft.opponent))
-    router.replace(flowLocation('FriendlyMatchClubOpponent'))
-  else if (step.value === 'join' && (!isPlayNow.value || !friendlyMatchStore.draft.matchId))
-    router.replace(flowLocation('FriendlyMatchTiming'))
-  else if (step.value === 'scoring' && isLadder.value)
-    router.replace(flowLocation('FriendlyMatchFormat'))
-  else if (step.value === 'scoring' && isPlayNow.value && !playNowReady.value)
-    router.replace(flowLocation('FriendlyMatchJoin'))
-  else if (step.value === 'scoring' && !isPlayNow.value && !friendlyMatchStore.draft.opponent)
-    router.replace(flowLocation('FriendlyMatchClubOpponent'))
-  else if (step.value === 'format' && isLadder.value && !friendlyMatchStore.draft.opponent)
-    router.replace(flowLocation('FriendlyMatchClubOpponent'))
-  else if (step.value === 'format' && isLadder.value && isPlayNow.value && !playNowReady.value)
-    router.replace(flowLocation('FriendlyMatchJoin'))
-  else if (step.value === 'format' && isFriendly.value && isPlayNow.value && !playNowReady.value)
-    router.replace(flowLocation('FriendlyMatchJoin'))
-  else if (
-    step.value === 'format' &&
-    isFriendly.value &&
-    !isPlayNow.value &&
-    !friendlyMatchStore.draft.opponent
-  )
-    router.replace(flowLocation('FriendlyMatchClubOpponent'))
-  else if (step.value === 'format' && isFriendly.value && !friendlyMatchStore.draft.format)
-    router.replace(flowLocation('FriendlyMatchScoring'))
-  else if (step.value === 'customFormat' && !isFriendly.value)
-    router.replace(flowLocation('FriendlyMatchType'))
-  else if (step.value === 'customFormat' && isPlayNow.value && !playNowReady.value)
-    router.replace(flowLocation('FriendlyMatchJoin'))
-  else if (step.value === 'customFormat' && !isPlayNow.value && !friendlyMatchStore.draft.opponent)
-    router.replace(flowLocation('FriendlyMatchClubOpponent'))
-  else if (step.value === 'customFormat' && !friendlyMatchStore.draft.format)
-    router.replace(flowLocation('FriendlyMatchScoring'))
-  else if (
-    step.value === 'live' &&
-    (!friendlyMatchStore.draft.format || !friendlyMatchStore.draft.opponent)
-  )
-    router.replace(flowLocation('FriendlyMatchFormat'))
+  }
+
+  /*
+   * LADDER
+   *
+   * Preserve the Ladder architecture we already fixed:
+   * Opponent → Timing → Join/Schedule → Format.
+   */
+  if (isLadder.value) {
+    if (step.value === 'timing' && !friendlyMatchStore.draft.opponent) {
+      router.replace(flowLocation('FriendlyMatchClubOpponent'))
+      return
+    }
+
+    if (step.value === 'opponent') {
+      router.replace(flowLocation('FriendlyMatchClubOpponent'))
+      return
+    }
+
+    if (step.value === 'schedule' && (isPlayNow.value || !friendlyMatchStore.draft.opponent)) {
+      router.replace(flowLocation('FriendlyMatchClubOpponent'))
+      return
+    }
+
+    if (step.value === 'join' && (!isPlayNow.value || !friendlyMatchStore.draft.matchId)) {
+      router.replace(flowLocation('FriendlyMatchTiming'))
+      return
+    }
+
+    if (step.value === 'scoring') {
+      router.replace(flowLocation('FriendlyMatchFormat'))
+      return
+    }
+
+    if (step.value === 'format' && !friendlyMatchStore.draft.opponent) {
+      router.replace(flowLocation('FriendlyMatchClubOpponent'))
+      return
+    }
+
+    if (step.value === 'format' && isPlayNow.value && !playNowReady.value) {
+      router.replace(flowLocation('FriendlyMatchJoin'))
+      return
+    }
+
+    if (step.value === 'customFormat') {
+      router.replace(flowLocation('FriendlyMatchFormat'))
+      return
+    }
+
+    if (
+      step.value === 'live' &&
+      (!friendlyMatchStore.draft.format || !friendlyMatchStore.draft.opponent)
+    ) {
+      router.replace(flowLocation('FriendlyMatchFormat'))
+    }
+  }
 }
 
 function goBack() {
+  // The token route belongs to the invited player,
+  // not to the person creating the match.
+  if (step.value === 'externalJoin') {
+    router.push({ name: 'Dashboard' })
+    return
+  }
+
   router.push(backRoute.value)
 }
 function chooseMatchType(type) {
   inlineNote.value = ''
   friendlyMatchStore.chooseMatchType(type)
 
-  router.push(flowLocation(type === 'ladder' ? 'FriendlyMatchClubOpponent' : 'FriendlyMatchTiming'))
+  router.push(
+    flowLocation(type === 'ladder' ? 'FriendlyMatchClubOpponent' : 'FriendlyMatchScoring'),
+  )
 }
 function showTournamentNotice() {
   inlineNote.value =
     'No tournament is running at Emerald Courts right now. You can still create a friendly match or ladder challenge.'
 }
 async function chooseTiming(timing) {
+  /*
+   * LADDER
+   *
+   * Preserve the existing Ladder order:
+   * opponent → timing → join/schedule
+   */
   if (isLadder.value) {
     ladderAccessChecking.value = true
 
@@ -401,22 +485,32 @@ async function chooseTiming(timing) {
     }
 
     friendlyMatchStore.applyLadderRules()
-  }
+    friendlyMatchStore.chooseTiming(timing, currentIdentity.value)
 
-  friendlyMatchStore.chooseTiming(timing, currentIdentity.value)
+    if (timing === 'now') {
+      await router.push(flowLocation('FriendlyMatchJoin'))
+      await generateQrCode()
+      return
+    }
 
-  if (timing === 'now') {
-    await router.push(flowLocation('FriendlyMatchJoin'))
-    await generateQrCode()
-    return
-  }
-
-  if (isLadder.value) {
     router.push(flowLocation('FriendlyMatchSchedule'))
     return
   }
 
-  router.push(flowLocation('FriendlyMatchClubOpponent'))
+  /*
+   * FRIENDLY
+   *
+   * The match format already exists.
+   * Timing now decides which invitation branch comes next.
+   */
+  friendlyMatchStore.chooseTiming(timing, currentIdentity.value)
+
+  if (timing === 'now') {
+    router.push(flowLocation('FriendlyMatchJoin'))
+    return
+  }
+
+  router.push(flowLocation('FriendlyMatchSchedule'))
 }
 function chooseOpponent(opponent) {
   friendlyMatchStore.chooseOpponent(opponent)
@@ -447,18 +541,24 @@ async function continueWithClubOpponent() {
     return
   }
 
-  if (isPlayNow.value) {
-    const joined = friendlyMatchStore.addOpponentToPlayNow(friendlyMatchStore.draft.opponent)
+  // Friendly · Play now
+  //
+  // Selecting the club member does NOT mean they joined.
+  // It now creates an invitation specifically intended for them.
+  if (isFriendly.value && isPlayNow.value) {
+    const invitation = friendlyMatchStore.createPlayNowInvitation(currentIdentity.value)
 
-    if (joined) {
-      announceJoined(joined.name)
-    } else {
-      inlineNote.value = 'That player could not be added to this match.'
+    if (!invitation) {
+      inlineNote.value = 'The invitation could not be created.'
+      return
     }
 
+    await router.push(flowLocation('FriendlyMatchJoin'))
+    await generateQrCode()
     return
   }
 
+  // Friendly · Schedule later
   router.push(flowLocation('FriendlyMatchSchedule'))
 }
 function continueFromSchedule() {
@@ -476,6 +576,14 @@ function chooseMatchFormat(matchFormat) {
 }
 function chooseSavedFormat(format) {
   friendlyMatchStore.selectCustomFormat(format)
+}
+function continueFromFriendlyFormat() {
+  if (!friendlyMatchStore.draft.format) {
+    router.replace(flowLocation('FriendlyMatchScoring'))
+    return
+  }
+
+  router.push(flowLocation('FriendlyMatchTiming'))
 }
 function openCustomFormat() {
   customFormatError.value = ''
@@ -663,9 +771,8 @@ async function copyJoinLink() {
 }
 function simulatePlayerJoining() {
   const simulated =
-    isLadder.value && friendlyMatchStore.draft.opponent
-      ? friendlyMatchStore.draft.opponent
-      : availableOpponents.value.find((player) => player.id !== currentIdentity.value.id)
+    friendlyMatchStore.draft.opponent ||
+    availableOpponents.value.find((player) => player.id !== currentIdentity.value.id)
 
   if (!simulated) return
 
@@ -677,11 +784,23 @@ function simulatePlayerJoining() {
 }
 function announceJoined(name) {
   joinedNotice.value = `${name} joined the match.`
-  if (autoRouteTimer) window.clearTimeout(autoRouteTimer)
-  autoRouteTimer = window.setTimeout(() => {
-    if (step.value === 'join' || step.value === 'clubOpponent')
-      router.push(flowLocation(isLadder.value ? 'FriendlyMatchFormat' : 'FriendlyMatchScoring'))
-  }, 1100)
+
+  if (autoRouteTimer) {
+    window.clearTimeout(autoRouteTimer)
+    autoRouteTimer = null
+  }
+
+  // Ladder keeps its existing continuation.
+  if (isLadder.value) {
+    autoRouteTimer = window.setTimeout(() => {
+      if (step.value === 'join' || step.value === 'clubOpponent') {
+        router.push(flowLocation('FriendlyMatchFormat'))
+      }
+    }, 1100)
+  }
+
+  // Friendly stays here for now.
+  // We will design the post-join Start Match state next.
 }
 function refreshInvitation() {
   const wasReady = playNowReady.value
@@ -836,7 +955,7 @@ watch(
             Play immediately with an eligible opponent, or send a challenge for later.
           </p>
           <p v-else>
-            Use a quick QR join when both players are together, or send an invitation for later.
+            Your match setup is ready. Choose whether you are playing now or arranging it for later.
           </p>
           <p
             v-if="isLadder && ladderAccessMessage"
@@ -866,8 +985,8 @@ watch(
             @click="chooseTiming('now')"
           >
             <span class="flow-choice-icon"><FlowIcon name="play" /></span>
-            <strong>Play now</strong
-            ><small>Show a QR code so the opponent can join immediately.</small>
+            <small>Continue with this setup and bring your opponent into the match.</small>
+            <small>Show a QR code so the opponent can join immediately.</small>
           </button>
           <button
             type="button"
@@ -879,7 +998,7 @@ watch(
             <strong>{{ isLadder ? 'Challenge for later' : 'Schedule for later' }}</strong
             ><small>{{
               isLadder
-                ? 'Choose an eligible Ladder player. Match timing is optional.'
+                ? 'Use this setup for a match you want to arrange for another time.'
                 : 'Choose a club member now. Match timing is optional.'
             }}</small>
           </button>
@@ -945,67 +1064,132 @@ watch(
         class="friendly-flow__screen friendly-flow__screen--invitation"
         aria-labelledby="join-title"
       >
-        <div class="friendly-flow__intro">
-          <p class="friendly-flow__eyebrow">{{ isLadder ? 'Ladder · Play now' : 'Play now' }}</p>
-          <h2 id="join-title">Let your opponent join.</h2>
-          <p>
-            They scan this code and confirm their identity. The scoreboard stays locked until they
-            join.
-          </p>
-        </div>
-        <div class="invitation-action-row">
-          <div>
-            <strong>{{
-              invitationExpired
-                ? 'Invitation unavailable'
-                : playNowReady
-                  ? `${opponentName} joined`
-                  : isLadder && friendlyMatchStore.draft.opponent
-                    ? `Waiting for ${opponentName}`
-                    : 'Waiting for opponent'
-            }}</strong>
-            ><small>{{
-              playNowReady
-                ? 'Opening match setup.'
-                : 'Keep this screen open while your opponent scans.'
-            }}</small>
+        <!-- FRIENDLY: no invitation exists yet -->
+        <template v-if="isFriendly && !activeInvitation">
+          <div class="friendly-flow__intro">
+            <p class="friendly-flow__eyebrow">Play now</p>
+            <h2 id="join-title">Who are you playing with?</h2>
+            <p>
+              Choose whether your opponent is already part of your club or someone joining as a
+              guest.
+            </p>
           </div>
+
+          <div class="friendly-flow__choices friendly-flow__choices--formats">
+            <button type="button" class="format-card" @click="openClubOpponents">
+              <span class="flow-choice-icon">
+                <FlowIcon name="users" />
+              </span>
+
+              <strong>Club member</strong>
+
+              <small> Choose someone who already belongs to your club. </small>
+            </button>
+
+            <button type="button" class="format-card" @click="inlineNote = 'external-guest'">
+              <span class="flow-choice-icon">
+                <FlowIcon name="user-plus" />
+              </span>
+
+              <strong>External guest</strong>
+
+              <small> Invite someone who isn't currently part of your club. </small>
+            </button>
+          </div>
+
+          <p v-if="inlineNote === 'external-guest'" class="friendly-flow__notice" role="status">
+            External guest setup is the next step we're wiring.
+          </p>
+        </template>
+
+        <!-- LADDER or FRIENDLY invitation already created -->
+        <template v-else>
+          <div class="friendly-flow__intro">
+            <p class="friendly-flow__eyebrow">
+              {{ isLadder ? 'Ladder · Play now' : 'Friendly match · Play now' }}
+            </p>
+
+            <h2 id="join-title">
+              {{
+                friendlyMatchStore.draft.opponent
+                  ? `Let ${opponentName} join.`
+                  : 'Let your opponent join.'
+              }}
+            </h2>
+
+            <p>
+              {{
+                friendlyMatchStore.draft.opponent
+                  ? `This invitation is for ${opponentName}. They can scan the QR code or open the same match link.`
+                  : 'They can scan the QR code or open the match link.'
+              }}
+            </p>
+          </div>
+
+          <div class="invitation-action-row">
+            <div>
+              <strong>
+                {{
+                  invitationExpired
+                    ? 'Invitation unavailable'
+                    : playNowReady
+                      ? `${opponentName} joined`
+                      : friendlyMatchStore.draft.opponent
+                        ? `Waiting for ${opponentName}`
+                        : 'Waiting for opponent'
+                }}
+              </strong>
+
+              <small>
+                {{
+                  playNowReady
+                    ? 'Both players are connected.'
+                    : 'Keep this screen open while your opponent joins.'
+                }}
+              </small>
+            </div>
+          </div>
+
+          <div class="qr-panel qr-panel--single">
+            <img
+              v-if="qrDataUrl"
+              :src="qrDataUrl"
+              :alt="`QR code for this ${isLadder ? 'Ladder challenge' : 'friendly match'} invitation`"
+            />
+
+            <div v-else class="qr-panel__placeholder" aria-label="QR code loading"></div>
+
+            <button
+              type="button"
+              class="button-primary copy-link-action"
+              :disabled="!joinUrl"
+              @click="copyJoinLink"
+            >
+              <FlowIcon name="copy" />
+              <span>Copy match link</span>
+            </button>
+
+            <p v-if="copyStatus" role="status">
+              {{ copyStatus }}
+            </p>
+
+            <a class="join-link" :href="joinUrl">
+              {{ joinUrl }}
+            </a>
+          </div>
+
           <button
-            v-if="!playNowReady && !invitationExpired && !isLadder"
+            v-if="!playNowReady && !invitationExpired"
             type="button"
-            class="button-secondary"
-            @click="openClubOpponents"
+            class="simulate-join"
+            @click="simulatePlayerJoining"
           >
-            <FlowIcon name="users" />
-            <span>Add opponent from club</span>
+            <FlowIcon name="spark" />
+            <span>
+              Simulate {{ friendlyMatchStore.draft.opponent?.name || 'player' }} joining
+            </span>
           </button>
-        </div>
-        <div class="qr-panel qr-panel--single">
-          <img
-            v-if="qrDataUrl"
-            :src="qrDataUrl"
-            :alt="`QR code for this ${isLadder ? 'Ladder challenge' : 'friendly match'} invitation`"
-          />
-          <div v-else class="qr-panel__placeholder" aria-label="QR code loading"></div>
-          <button
-            type="button"
-            class="button-primary copy-link-action"
-            :disabled="!joinUrl"
-            @click="copyJoinLink"
-          >
-            <FlowIcon name="copy" /><span>Copy match link</span>
-          </button>
-          <p v-if="copyStatus" role="status">{{ copyStatus }}</p>
-          <a class="join-link" :href="joinUrl">{{ joinUrl }}</a>
-        </div>
-        <button
-          v-if="!playNowReady && !invitationExpired"
-          type="button"
-          class="simulate-join"
-          @click="simulatePlayerJoining"
-        >
-          <FlowIcon name="spark" /><span>Simulate player joining</span>
-        </button>
+        </template>
       </section>
 
       <section
@@ -1250,7 +1434,7 @@ watch(
           <div class="friendly-flow__intro">
             <p class="friendly-flow__eyebrow">Match setup</p>
             <h2 id="format-title">Choose a match format.</h2>
-            <p>Select the club default, a shorter format or one of your saved custom rules.</p>
+            <p>Choose a standard format, one of your saved formats, or customise your own.</p>
           </div>
           <div
             class="friendly-flow__choices friendly-flow__choices--stacked match-format-list"
@@ -1337,10 +1521,10 @@ watch(
           <button
             type="button"
             class="button-primary friendly-flow__continue"
-            @click="completeReview"
+            @click="continueFromFriendlyFormat"
           >
-            <FlowIcon :name="isPlayNow ? 'play' : 'send'" />
-            <span>{{ isPlayNow ? 'Start match' : 'Send invitation' }}</span>
+            <FlowIcon name="arrow-right" />
+            <span>Continue</span>
           </button>
         </template>
         <template v-else>
