@@ -320,15 +320,25 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
 
   function chooseTiming(timing, creator) {
     if (!['now', 'later'].includes(timing)) return null
+
     draft.value.timing = timing
     draft.value.ownerId = normalizeIdentity(creator).id
-    draft.value.opponent = null
+
+    // Friendly still chooses its opponent later.
+    // Ladder has already chosen its opponent before this step,
+    // so preserve that player.
+    if (draft.value.matchType !== 'ladder') {
+      draft.value.opponent = null
+    }
+
     draft.value.status = 'draft'
+
     if (timing === 'later') {
       draft.value.matchId = ''
       draft.value.joinToken = ''
       return null
     }
+
     return createPlayNowInvitation(creator)
   }
 
@@ -336,25 +346,43 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (
       activeInvitation.value &&
       ['waiting_for_opponent', 'ready'].includes(activeInvitation.value.status)
-    )
+    ) {
       return activeInvitation.value
+    }
+
     const now = Date.now()
     const token = createToken()
+
+    const expectedOpponent =
+      draft.value.matchType === 'ladder' && draft.value.opponent
+        ? normalizeIdentity(draft.value.opponent)
+        : null
+
     const invitation = {
       id: `${draft.value.matchType || 'friendly'}-${now}-${token.slice(0, 6)}`,
       token,
       type: draft.value.matchType || 'friendly',
       timing: 'now',
       status: 'waiting_for_opponent',
+
       creator: normalizeIdentity(creator),
+
+      // The player selected before Play Now.
+      expectedOpponent,
+
+      // Remains null until that player actually joins.
       opponent: null,
+
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + PLAY_NOW_TTL_MS).toISOString(),
     }
+
     invitations.value = [invitation, ...invitations.value]
+
     draft.value.matchId = invitation.id
     draft.value.joinToken = token
     draft.value.status = invitation.status
+
     return invitation
   }
 
@@ -367,6 +395,9 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (!invitation || !['waiting_for_opponent', 'ready'].includes(invitation.status)) return null
     const identity = normalizeIdentity(opponent)
     if (!identity.id || identity.id === invitation.creator?.id) return null
+    if (invitation.expectedOpponent?.id && identity.id !== invitation.expectedOpponent.id) {
+      return null
+    }
     if (invitation.type === 'ladder' && !isEligibleLadderOpponent(invitation.creator, identity))
       return null
     invitation.opponent = identity
@@ -454,6 +485,12 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (!actor.id) return { ok: false, message: 'Sign in before joining this match.' }
     if (actor.id === invitation.creator?.id)
       return { ok: false, message: 'This invitation belongs to the player who created the match.' }
+    if (invitation.expectedOpponent?.id && actor.id !== invitation.expectedOpponent.id) {
+      return {
+        ok: false,
+        message: `This Ladder invitation is for ${invitation.expectedOpponent.name}.`,
+      }
+    }
     if (invitation.opponent?.id) {
       if (invitation.opponent.id === actor.id) return { ok: true, invitation }
       return { ok: false, message: 'Another player has already joined this match.' }

@@ -26,10 +26,14 @@ const readyMatches = computed(() =>
 
 function startMatch(mode) {
   friendlyMatchStore.beginMatch()
-  router.push({
-    name: 'FriendlyMatchType',
-    query: mode === 'ladder' ? { mode: 'ladder' } : {},
-  })
+
+  if (mode === 'ladder') {
+    friendlyMatchStore.chooseMatchType('ladder')
+    router.push('/ladder-match/opponent')
+    return
+  }
+
+  router.push({ name: 'FriendlyMatchType' })
 }
 
 function continueMatch(match) {

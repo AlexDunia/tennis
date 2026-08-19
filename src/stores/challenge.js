@@ -7,6 +7,7 @@ import {
   declineChallenge as declineChallengeRequest,
   getChallenges,
   reviewChallenge as reviewChallengeRequest,
+  resolveChallengeResult as resolveChallengeResultRequest,
   scheduleChallenge as scheduleChallengeRequest,
   startChallenge as startChallengeRequest,
   withdrawChallenge as withdrawChallengeRequest,
@@ -171,6 +172,40 @@ export const useChallengeStore = defineStore('challenge', () => {
 
     return null
   }
+  const resolveChallengeResult = async (challengeId, payload) => {
+    error.value = ''
+    isLoading.value = true
+
+    const playerStore = usePlayerStore()
+
+    try {
+      const response = await resolveChallengeResultRequest(challengeId, payload)
+
+      if (response.success) {
+        const challengeIndex = challenges.value.findIndex((item) => item.id === challengeId)
+
+        if (challengeIndex !== -1) {
+          challenges.value[challengeIndex] = response.data.challenge
+        }
+
+        if (response.data.players) {
+          playerStore.players = response.data.players
+        } else {
+          await playerStore.loadPlayers()
+        }
+
+        return response.data
+      }
+
+      error.value = response.message || 'Unable to finalize this result.'
+    } catch (resolveError) {
+      error.value = resolveError?.message || 'Unable to finalize this result.'
+    } finally {
+      isLoading.value = false
+    }
+
+    return null
+  }
 
   const declineChallenge = async (challengeId, actorId) => {
     error.value = ''
@@ -240,6 +275,7 @@ export const useChallengeStore = defineStore('challenge', () => {
     declineChallenge,
     withdrawChallenge,
     reviewChallenge,
+    resolveChallengeResult,
     setFilter,
   }
 })

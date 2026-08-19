@@ -17,6 +17,17 @@ export async function acceptChallenge(challengeId, scheduledAt, actorId) {
   })
   return response.data
 }
+// export async function resolveChallengeResult(challengeId, payload) {
+//   const response = await api.post(`/challenges/${challengeId}/resolve-result`, payload)
+
+//   return response.data
+// }
+
+export async function resolveChallengeResult(challengeId, payload) {
+  const response = await ApiService.post(`/challenges/${challengeId}/resolve-result`, payload)
+
+  return response.data
+}
 
 export async function scheduleChallenge(challengeId, payload) {
   const response = await ApiService.post(`/challenges/${challengeId}/schedule`, payload)

@@ -2143,6 +2143,119 @@ const mockAdapter = async (config) => {
     }
   }
 
+  if (method === 'post' && path.match(/^\/challenges\/[^/]+\/resolve-result$/)) {
+    const challengeId = path.split('/')[2]
+
+    const challenge = mockDatabase.challenges.find((item) => item.id === challengeId)
+
+    if (!challenge) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'Challenge not found',
+        },
+        status: 404,
+        statusText: 'Not Found',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    const match = mockDatabase.matches.find((item) => item.challengeId === challenge.id)
+
+    if (!match) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'Match not found',
+        },
+        status: 404,
+        statusText: 'Not Found',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    const actorIsAdmin = ['club_admin', 'super_admin'].includes(body?.actorRole)
+
+    if (!actorIsAdmin) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'Only a club administrator can finalize this result.',
+        },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    if (challenge.status !== 'pending_review' || match.status !== 'pending_review') {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'This result is not waiting to be finalized.',
+        },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    if (!match.winnerId || !match.score) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'Record the match outcome before finalizing it.',
+        },
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    const finalizedAt = new Date().toISOString()
+
+    challenge.status = 'completed'
+    challenge.confirmedAt = finalizedAt
+    challenge.resolvedByAdmin = body?.actorId || null
+    challenge.resolutionType = 'admin_result'
+
+    match.status = 'completed'
+    match.confirmedAt = finalizedAt
+    match.resolvedByAdmin = body?.actorId || null
+    match.resolutionType = 'admin_result'
+
+    updateRankingsForResult(match)
+    saveLadderState()
+
+    return {
+      data: buildResponse({
+        challenge: buildChallengeResponse(challenge),
+        match: buildMatchResponse(match),
+        players: mockDatabase.players,
+      }),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
   if (method === 'post' && path.match(/^\/challenges\/[^/]+\/decline$/)) {
     const challengeId = path.split('/')[2]
     const challengeIndex = mockDatabase.challenges.findIndex((item) => item.id === challengeId)

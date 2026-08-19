@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { useAuthStore } from '../stores/auth'
 import { useRoute, useRouter } from 'vue-router'
 import EmptyState from '../components/EmptyState.vue'
 import PersonAvatar from '../components/PersonAvatar.vue'
@@ -18,6 +19,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const challengeStore = useChallengeStore()
 const matchStore = useMatchStore()
 const notificationStore = useNotificationStore()
@@ -42,6 +44,25 @@ const isParticipant = computed(() =>
   isChallengeParticipant(challenge.value, currentPlayer.value?.id),
 )
 const isChallenger = computed(() => challenge.value?.challengerId === currentPlayer.value?.id)
+
+const openedFromLadderCreate = computed(() => route.query.context === 'ladder-create')
+
+const isAdmin = computed(() => authStore.isAdmin)
+
+const backTarget = computed(() =>
+  openedFromLadderCreate.value ? { path: '/ladder-match/opponent' } : { name: 'Challenges' },
+)
+
+async function resumeLadderCreation() {
+  if (!openedFromLadderCreate.value) return
+
+  await router.replace('/ladder-match/opponent')
+}
+
+const canWithdraw = computed(
+  () =>
+    isChallenger.value && ['awaiting', 'accepted', 'scheduled'].includes(challenge.value?.status),
+)
 const opponentId = computed(() =>
   isChallenger.value ? challenge.value?.defenderId : challenge.value?.challengerId,
 )
@@ -67,6 +88,13 @@ const canConfirmResult = computed(
     state.value === 'pending_review' &&
     match.value?.resultSubmittedBy &&
     match.value.resultSubmittedBy !== currentPlayer.value?.id,
+)
+const canAdminFinalizeResult = computed(
+  () =>
+    isAdmin.value &&
+    state.value === 'pending_review' &&
+    Boolean(match.value?.winnerId) &&
+    Boolean(match.value?.score),
 )
 const winnerName = computed(() => {
   if (!match.value?.winnerId) return ''
@@ -120,17 +148,41 @@ async function acceptChallenge() {
 }
 
 async function declineChallenge() {
-  await runAction(
+  const result = await runAction(
     () => challengeStore.declineChallenge(challengeId.value, currentPlayer.value?.id),
     'Challenge declined.',
   )
+
+  if (result) {
+    await resumeLadderCreation()
+  }
+}
+
+async function finalizeResultAsAdmin() {
+  const result = await runAction(
+    () =>
+      challengeStore.resolveChallengeResult(challengeId.value, {
+        actorId: currentPlayer.value?.id,
+        actorRole: authStore.user?.roleKey,
+      }),
+    'Result finalized. Ladder positions are updated.',
+  )
+
+  if (!result) return
+
+  await playerStore.loadPlayers()
+  await resumeLadderCreation()
 }
 
 async function withdrawChallenge() {
-  await runAction(
+  const result = await runAction(
     () => challengeStore.withdrawChallenge(challengeId.value, currentPlayer.value?.id),
     'Challenge cancelled.',
   )
+
+  if (result) {
+    await resumeLadderCreation()
+  }
 }
 
 async function scheduleChallenge() {
@@ -159,11 +211,15 @@ async function startChallenge() {
 }
 
 async function confirmResult() {
-  await runAction(
+  const result = await runAction(
     () => challengeStore.reviewChallenge(challengeId.value, currentPlayer.value?.id),
     'Result confirmed. Ladder positions are updated.',
   )
+
+  if (!result) return
+
   await playerStore.loadPlayers()
+  await resumeLadderCreation()
 }
 
 function openMatchDetails() {
@@ -225,8 +281,7 @@ onUnmounted(() => {
     />
 
     <template v-else>
-      <RouterLink class="details-back" :to="{ name: 'Challenges' }">← All challenges</RouterLink>
-
+      <RouterLink class="details-back" :to="backTarget"> ← {{ backLabel }} </RouterLink>
       <section class="challenge-hero">
         <div class="challenge-hero__identity">
           <PersonAvatar
@@ -375,23 +430,39 @@ onUnmounted(() => {
             <h2>Agree the match schedule</h2>
             <p>Either player can enter the date, time, and optional court you agreed.</p>
           </div>
+
           <div class="schedule-fields">
-            <label
-              ><span>Date and time</span
-              ><input v-model="scheduleForm.scheduledAt" type="datetime-local" required
-            /></label>
-            <label
-              ><span>Court (optional)</span
-              ><input
+            <label>
+              <span>Date and time</span>
+              <input v-model="scheduleForm.scheduledAt" type="datetime-local" required />
+            </label>
+
+            <label>
+              <span>Court (optional)</span>
+              <input
                 v-model="scheduleForm.court"
                 type="text"
                 maxlength="80"
                 placeholder="For example, Court 3"
-            /></label>
+              />
+            </label>
           </div>
-          <button class="button-primary" type="submit" :disabled="actionPending">
-            Confirm schedule
-          </button>
+
+          <div class="action-buttons schedule-actions">
+            <button
+              v-if="canWithdraw"
+              class="button-secondary danger-action"
+              type="button"
+              :disabled="actionPending"
+              @click="withdrawChallenge"
+            >
+              Cancel challenge
+            </button>
+
+            <button class="button-primary" type="submit" :disabled="actionPending">
+              Confirm schedule
+            </button>
+          </div>
         </form>
 
         <div v-else-if="state === 'scheduled'" class="action-layout">
@@ -399,22 +470,47 @@ onUnmounted(() => {
             <h2>Scheduled for {{ formatAppDateTime(challenge.scheduledAt) }}</h2>
             <p>Start becomes available thirty minutes before your match.</p>
           </div>
-          <span class="quiet-action">Waiting for match time</span>
-        </div>
 
+          <div class="action-buttons">
+            <span class="quiet-action">Waiting for match time</span>
+
+            <button
+              v-if="canWithdraw"
+              class="button-secondary danger-action"
+              type="button"
+              :disabled="actionPending"
+              @click="withdrawChallenge"
+            >
+              Cancel challenge
+            </button>
+          </div>
+        </div>
         <div v-else-if="state === 'ready'" class="action-layout">
           <div>
             <h2>Both players are ready</h2>
             <p>Start the shared live scoreboard when you are together on court.</p>
           </div>
-          <button
-            class="button-primary"
-            type="button"
-            :disabled="actionPending || !canStart"
-            @click="startChallenge"
-          >
-            Start match
-          </button>
+
+          <div class="action-buttons">
+            <button
+              v-if="canWithdraw"
+              class="button-secondary danger-action"
+              type="button"
+              :disabled="actionPending"
+              @click="withdrawChallenge"
+            >
+              Cancel challenge
+            </button>
+
+            <button
+              class="button-primary"
+              type="button"
+              :disabled="actionPending || !canStart"
+              @click="startChallenge"
+            >
+              Start match
+            </button>
+          </div>
         </div>
 
         <div v-else-if="state === 'live'" class="action-layout">
@@ -436,22 +532,37 @@ onUnmounted(() => {
           <div>
             <p class="type-eyebrow">Submitted result</p>
             <h2>{{ winnerName }} won</h2>
-            <p class="final-score">{{ match?.score || 'Score awaiting review' }}</p>
+            <p class="final-score">
+              {{ match?.score || 'Score awaiting review' }}
+            </p>
           </div>
+
           <div class="action-buttons">
             <button class="button-secondary" type="button" @click="openMatchDetails">
               View result
             </button>
+
             <button
-              v-if="canConfirmResult"
+              v-if="canAdminFinalizeResult"
+              class="button-primary"
+              type="button"
+              :disabled="actionPending"
+              @click="finalizeResultAsAdmin"
+            >
+              Finalize result
+            </button>
+
+            <button
+              v-else-if="canConfirmResult"
               class="button-primary"
               type="button"
               :disabled="actionPending"
               @click="confirmResult"
             >
-              Confirm result
+              Looks right
             </button>
-            <span v-else class="quiet-action">Waiting for {{ opponentName }} to confirm</span>
+
+            <span v-else class="quiet-action"> Result is waiting for review </span>
           </div>
         </div>
 
