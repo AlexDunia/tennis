@@ -39,6 +39,7 @@ function createDraft() {
   return {
     matchType: '',
     timing: '',
+    invitationAudience: '',
     opponent: null,
     format: '',
     matchFormat: 'best-of-3',
@@ -289,14 +290,32 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   watch(invitations, (value) => persist(INVITATION_STORAGE_KEY, value), { deep: true })
   watch(savedFormats, (value) => persist(CUSTOM_FORMAT_STORAGE_KEY, value), { deep: true })
 
-  function beginMatch() {
-    if (
-      activeInvitation.value &&
-      ['waiting_for_opponent', 'ready'].includes(activeInvitation.value.status)
-    ) {
-      activeInvitation.value.status = 'cancelled'
-      activeInvitation.value.cancelledAt = new Date().toISOString()
+  function cancelActiveInvitation() {
+    const invitation = activeInvitation.value
+
+    if (invitation && ['waiting_for_opponent', 'ready'].includes(invitation.status)) {
+      const cancelled = {
+        ...invitation,
+        status: 'cancelled',
+        cancelledAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      invitations.value = invitations.value.map((item) =>
+        item.id === invitation.id ? cancelled : item,
+      )
     }
+
+    draft.value.matchId = ''
+    draft.value.joinToken = ''
+
+    if (draft.value.status !== 'live') {
+      draft.value.status = 'draft'
+    }
+  }
+
+  function beginMatch() {
+    cancelActiveInvitation()
     draft.value = createDraft()
   }
 
@@ -319,25 +338,34 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function chooseTiming(timing, creator) {
-    if (!['now', 'later'].includes(timing)) return null
+    if (!['now', 'later'].includes(timing)) {
+      return null
+    }
+
+    // If the creator previously generated a Friendly invitation
+    // and then changes the journey, revoke the old invitation.
+    if (draft.value.matchType === 'friendly' && activeInvitation.value) {
+      cancelActiveInvitation()
+    }
 
     draft.value.timing = timing
     draft.value.ownerId = normalizeIdentity(creator).id
     draft.value.status = 'draft'
 
-    // Friendly Match:
-    // Timing is chosen before an opponent/invitation exists.
-    // Do not generate a join token yet.
+    /*
+     * Friendly:
+     * Timing is now known, but the opponent/invitation is not.
+     */
     if (draft.value.matchType === 'friendly') {
+      draft.value.invitationAudience = ''
       draft.value.opponent = null
-      draft.value.matchId = ''
-      draft.value.joinToken = ''
       return null
     }
 
-    // Ladder Match:
-    // The opponent was already selected before timing,
-    // so preserve the existing Ladder flow.
+    /*
+     * Ladder:
+     * Opponent is already known before this stage.
+     */
     if (timing === 'later') {
       draft.value.matchId = ''
       draft.value.joinToken = ''
@@ -348,48 +376,120 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function createPlayNowInvitation(creator) {
-    if (
-      activeInvitation.value &&
-      ['waiting_for_opponent', 'ready'].includes(activeInvitation.value.status)
-    ) {
-      return activeInvitation.value
+    if (draft.value.timing !== 'now') {
+      return null
+    }
+
+    const creatorIdentity = normalizeIdentity(creator)
+
+    if (!creatorIdentity.id) {
+      return null
+    }
+
+    const audience =
+      draft.value.matchType === 'ladder' ? 'targeted' : draft.value.invitationAudience
+
+    if (!['targeted', 'open'].includes(audience)) {
+      return null
+    }
+
+    const expectedOpponent =
+      audience === 'targeted' && draft.value.opponent
+        ? normalizeIdentity(draft.value.opponent)
+        : null
+
+    if (audience === 'targeted' && !expectedOpponent?.id) {
+      return null
+    }
+
+    if (expectedOpponent?.id === creatorIdentity.id) {
+      return null
+    }
+
+    const existing = activeInvitation.value
+
+    if (existing && ['waiting_for_opponent', 'ready'].includes(existing.status)) {
+      const existingAudience =
+        existing.audience || (existing.expectedOpponent?.id ? 'targeted' : 'open')
+
+      const existingOpponentId = existing.expectedOpponent?.id || ''
+      const nextOpponentId = expectedOpponent?.id || ''
+
+      if (existingAudience === audience && existingOpponentId === nextOpponentId) {
+        return existing
+      }
+
+      cancelActiveInvitation()
     }
 
     const now = Date.now()
     const token = createToken()
 
-    const expectedOpponent = draft.value.opponent ? normalizeIdentity(draft.value.opponent) : null
-
     const invitation = {
       id: `${draft.value.matchType || 'friendly'}-${now}-${token.slice(0, 6)}`,
       token,
+
       type: draft.value.matchType || 'friendly',
       timing: 'now',
+
+      /*
+       * targeted = a known club member.
+       * open = whoever legitimately claims the invitation.
+       */
+      audience,
+
       status: 'waiting_for_opponent',
 
-      creator: normalizeIdentity(creator),
+      creator: creatorIdentity,
 
-      // The player selected before Play Now.
+      // Set only for a targeted invitation.
       expectedOpponent,
 
-      // Remains null until that player actually joins.
+      // Populated only after the invited player actually joins.
       opponent: null,
 
+      // Snapshot of the setup the recipient is being invited to.
+      matchSetup: {
+        scoring: draft.value.format,
+        matchFormat: draft.value.matchFormat,
+        customFormat: draft.value.customFormat ? { ...draft.value.customFormat } : null,
+        tieBreak: draft.value.tieBreak,
+      },
+
       createdAt: new Date(now).toISOString(),
+      updatedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + PLAY_NOW_TTL_MS).toISOString(),
     }
 
     invitations.value = [invitation, ...invitations.value]
 
+    draft.value.invitationAudience = audience
     draft.value.matchId = invitation.id
     draft.value.joinToken = token
     draft.value.status = invitation.status
 
     return invitation
   }
-
   function chooseOpponent(opponent) {
     draft.value.opponent = opponent ? normalizeIdentity(opponent) : null
+  }
+
+  function setInvitationAudience(audience = '') {
+    if (!['', 'targeted', 'open'].includes(audience)) {
+      return false
+    }
+
+    if (draft.value.matchType !== 'friendly' && audience) {
+      return false
+    }
+
+    draft.value.invitationAudience = audience
+
+    if (audience === 'open') {
+      draft.value.opponent = null
+    }
+
+    return true
   }
 
   function addOpponentToPlayNow(opponent) {
@@ -404,7 +504,9 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       return null
     invitation.opponent = identity
     invitation.status = 'ready'
+    invitation.status = 'ready'
     invitation.joinedAt = new Date().toISOString()
+    invitation.updatedAt = invitation.joinedAt
     invitations.value = invitations.value.map((item) =>
       item.id === invitation.id ? { ...invitation } : item,
     )
@@ -494,7 +596,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (invitation.expectedOpponent?.id && actor.id !== invitation.expectedOpponent.id) {
       return {
         ok: false,
-        message: `This Ladder invitation is for ${invitation.expectedOpponent.name}.`,
+        message: `This invitation is for ${invitation.expectedOpponent.name}.`,
       }
     }
 
@@ -512,6 +614,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     invitation.opponent = actor
     invitation.status = 'ready'
     invitation.joinedAt = new Date().toISOString()
+    invitation.updatedAt = invitation.joinedAt
     invitations.value = invitations.value.map((item) =>
       item.id === invitation.id ? { ...invitation } : item,
     )
@@ -787,11 +890,13 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     opponentReady,
     scheduleComplete,
     beginMatch,
+    cancelActiveInvitation,
     chooseMatchType,
     applyLadderRules,
     chooseTiming,
     createPlayNowInvitation,
     chooseOpponent,
+    setInvitationAudience,
     addOpponentToPlayNow,
     updateSchedule,
     chooseFormat,

@@ -99,6 +99,12 @@ const canManageDraft = computed(
 )
 const playNowReady = computed(() => friendlyMatchStore.opponentReady)
 const activeInvitation = computed(() => friendlyMatchStore.activeInvitation)
+const invitationIsOpen = computed(() => activeInvitation.value?.audience === 'open')
+
+const invitationTargetName = computed(
+  () =>
+    activeInvitation.value?.expectedOpponent?.name || friendlyMatchStore.draft.opponent?.name || '',
+)
 const invitationExpired = computed(() =>
   ['expired', 'cancelled'].includes(activeInvitation.value?.status),
 )
@@ -436,8 +442,23 @@ function guardStep() {
 }
 
 function goBack() {
-  // The token route belongs to the invited player,
-  // not to the person creating the match.
+  /*
+   * If the creator leaves an unclaimed Play Now invitation,
+   * revoke that invitation first.
+   */
+  if (
+    isFriendly.value &&
+    step.value === 'join' &&
+    activeInvitation.value?.status === 'waiting_for_opponent'
+  ) {
+    friendlyMatchStore.cancelActiveInvitation()
+    qrDataUrl.value = ''
+  }
+
+  /*
+   * /join/:token belongs to the invited participant,
+   * not to the creator setup flow.
+   */
   if (step.value === 'externalJoin') {
     router.push({ name: 'Dashboard' })
     return
@@ -445,6 +466,7 @@ function goBack() {
 
   router.push(backRoute.value)
 }
+
 function chooseMatchType(type) {
   inlineNote.value = ''
   friendlyMatchStore.chooseMatchType(type)
@@ -516,12 +538,44 @@ function chooseOpponent(opponent) {
   friendlyMatchStore.chooseOpponent(opponent)
 }
 function openClubOpponents() {
+  if (isFriendly.value) {
+    friendlyMatchStore.cancelActiveInvitation()
+    friendlyMatchStore.setInvitationAudience('targeted')
+    qrDataUrl.value = ''
+  }
+
   friendlyMatchStore.chooseOpponent(null)
   router.push(flowLocation('FriendlyMatchClubOpponent'))
 }
+
+async function createOpenFriendlyInvitation() {
+  if (!isFriendly.value || !isPlayNow.value) {
+    return
+  }
+
+  inlineNote.value = ''
+  qrDataUrl.value = ''
+
+  friendlyMatchStore.cancelActiveInvitation()
+  friendlyMatchStore.chooseOpponent(null)
+  friendlyMatchStore.setInvitationAudience('open')
+
+  const invitation = friendlyMatchStore.createPlayNowInvitation(currentIdentity.value)
+
+  if (!invitation) {
+    inlineNote.value = 'The match invitation could not be created.'
+    return
+  }
+
+  await generateQrCode()
+}
+
 async function continueWithClubOpponent() {
   if (!friendlyMatchStore.draft.opponent) return
 
+  /*
+   * LADDER
+   */
   if (isLadder.value) {
     ladderAccessChecking.value = true
 
@@ -541,11 +595,15 @@ async function continueWithClubOpponent() {
     return
   }
 
-  // Friendly · Play now
-  //
-  // Selecting the club member does NOT mean they joined.
-  // It now creates an invitation specifically intended for them.
+  /*
+   * FRIENDLY · PLAY NOW
+   *
+   * The player has been selected, but has NOT joined.
+   * Create an invitation that only that player may claim.
+   */
   if (isFriendly.value && isPlayNow.value) {
+    friendlyMatchStore.setInvitationAudience('targeted')
+
     const invitation = friendlyMatchStore.createPlayNowInvitation(currentIdentity.value)
 
     if (!invitation) {
@@ -558,7 +616,11 @@ async function continueWithClubOpponent() {
     return
   }
 
-  // Friendly · Schedule later
+  /*
+   * FRIENDLY · SCHEDULE LATER
+   *
+   * Leave the existing schedule branch for the later scheduling pass.
+   */
   router.push(flowLocation('FriendlyMatchSchedule'))
 }
 function continueFromSchedule() {
@@ -597,6 +659,29 @@ function describeCustomFormat(format) {
     ? `Tie-break at ${format.tieBreakAt}–${format.tieBreakAt} (${format.tieBreakPoints} points)`
     : 'No tie-break'
   return `${matchStyle} · ${format.gamesPerSet} games per set · ${tieBreak}`
+}
+function invitationScoringLabel(invitation) {
+  return invitation?.matchSetup?.scoring === 'noad' ? 'No-Ad' : 'Advantage'
+}
+
+function invitationMatchFormatLabel(invitation) {
+  const setup = invitation?.matchSetup
+
+  if (!setup) {
+    return 'Friendly match'
+  }
+
+  if (setup.matchFormat === 'custom') {
+    return setup.customFormat?.name || 'Custom format'
+  }
+
+  return (
+    {
+      'best-of-3': 'Best of 3 sets',
+      'one-set': 'One set',
+      'match-tiebreak': '10-point match tie-break',
+    }[setup.matchFormat] || 'Friendly match'
+  )
 }
 function selectCustomMatchStyle(style) {
   customFormatError.value = ''
@@ -769,19 +854,47 @@ async function copyJoinLink() {
     copyStatus.value = ''
   }, 2400)
 }
+
 function simulatePlayerJoining() {
-  const simulated =
-    friendlyMatchStore.draft.opponent ||
-    availableOpponents.value.find((player) => player.id !== currentIdentity.value.id)
+  if (!friendlyMatchStore.draft.joinToken) {
+    return
+  }
 
-  if (!simulated) return
+  let simulated = null
 
-  const joined = friendlyMatchStore.addOpponentToPlayNow(simulated)
+  if (activeInvitation.value?.audience === 'targeted') {
+    simulated = activeInvitation.value.expectedOpponent || friendlyMatchStore.draft.opponent
+  } else {
+    /*
+     * Simulates a real GORRA account outside this club.
+     * In production, this identity will come from the person
+     * who authenticated before claiming the invitation.
+     */
+    simulated = {
+      id: 'external-demo-player',
+      name: 'External player',
+      division: 'GORRA Player',
+    }
+  }
 
-  if (joined) {
-    announceJoined(joined.name)
+  if (!simulated) {
+    return
+  }
+
+  const result = friendlyMatchStore.joinInvitation(friendlyMatchStore.draft.joinToken, simulated)
+
+  if (!result.ok) {
+    inlineNote.value = result.message || 'This player could not join the match.'
+    return
+  }
+
+  const joinedPlayer = result.invitation?.opponent
+
+  if (joinedPlayer?.name) {
+    announceJoined(joinedPlayer.name)
   }
 }
+
 function announceJoined(name) {
   joinedNotice.value = `${name} joined the match.`
 
@@ -790,7 +903,9 @@ function announceJoined(name) {
     autoRouteTimer = null
   }
 
-  // Ladder keeps its existing continuation.
+  /*
+   * Ladder keeps its existing progression.
+   */
   if (isLadder.value) {
     autoRouteTimer = window.setTimeout(() => {
       if (step.value === 'join' || step.value === 'clubOpponent') {
@@ -799,9 +914,12 @@ function announceJoined(name) {
     }, 1100)
   }
 
-  // Friendly stays here for now.
-  // We will design the post-join Start Match state next.
+  /*
+   * Friendly stays on the Ready state.
+   * We will wire Start Match after this invitation phase.
+   */
 }
+
 function refreshInvitation() {
   const wasReady = playNowReady.value
   friendlyMatchStore.refreshInvitations()
@@ -1068,12 +1186,15 @@ watch(
         <template v-if="isFriendly && !activeInvitation">
           <div class="friendly-flow__intro">
             <p class="friendly-flow__eyebrow">Play now</p>
+
             <h2 id="join-title">Who are you playing with?</h2>
-            <p>
-              Choose whether your opponent is already part of your club or someone joining as a
-              guest.
-            </p>
+
+            <p>Choose someone from your club, or share the match with someone else.</p>
           </div>
+
+          <p v-if="inlineNote" class="friendly-flow__notice" role="status">
+            {{ inlineNote }}
+          </p>
 
           <div class="friendly-flow__choices friendly-flow__choices--formats">
             <button type="button" class="format-card" @click="openClubOpponents">
@@ -1083,23 +1204,19 @@ watch(
 
               <strong>Club member</strong>
 
-              <small> Choose someone who already belongs to your club. </small>
+              <small> Choose someone who already belongs to this club. </small>
             </button>
 
-            <button type="button" class="format-card" @click="inlineNote = 'external-guest'">
+            <button type="button" class="format-card" @click="createOpenFriendlyInvitation">
               <span class="flow-choice-icon">
-                <FlowIcon name="user-plus" />
+                <FlowIcon name="users" />
               </span>
 
-              <strong>External guest</strong>
+              <strong>Someone else</strong>
 
-              <small> Invite someone who isn't currently part of your club. </small>
+              <small> Share a secure invitation with someone outside this club. </small>
             </button>
           </div>
-
-          <p v-if="inlineNote === 'external-guest'" class="friendly-flow__notice" role="status">
-            External guest setup is the next step we're wiring.
-          </p>
         </template>
 
         <!-- LADDER or FRIENDLY invitation already created -->
@@ -1111,18 +1228,18 @@ watch(
 
             <h2 id="join-title">
               {{
-                friendlyMatchStore.draft.opponent
-                  ? `Let ${opponentName} join.`
-                  : 'Let your opponent join.'
+                invitationIsOpen ? 'Let your opponent join.' : `Let ${invitationTargetName} join.`
               }}
             </h2>
 
-            <p>
-              {{
-                friendlyMatchStore.draft.opponent
-                  ? `This invitation is for ${opponentName}. They can scan the QR code or open the same match link.`
-                  : 'They can scan the QR code or open the match link.'
-              }}
+            <p v-if="invitationIsOpen">
+              Share this QR code or match link with the person you're playing. Once they identify
+              themselves and join, they'll become the opponent for this match.
+            </p>
+
+            <p v-else>
+              This invitation is for {{ invitationTargetName }}. They can scan the QR code or open
+              the same match link.
             </p>
           </div>
 
@@ -1134,9 +1251,9 @@ watch(
                     ? 'Invitation unavailable'
                     : playNowReady
                       ? `${opponentName} joined`
-                      : friendlyMatchStore.draft.opponent
-                        ? `Waiting for ${opponentName}`
-                        : 'Waiting for opponent'
+                      : invitationIsOpen
+                        ? 'Waiting for someone to join'
+                        : `Waiting for ${invitationTargetName}`
                 }}
               </strong>
 
@@ -1185,8 +1302,13 @@ watch(
             @click="simulatePlayerJoining"
           >
             <FlowIcon name="spark" />
+
             <span>
-              Simulate {{ friendlyMatchStore.draft.opponent?.name || 'player' }} joining
+              {{
+                invitationIsOpen
+                  ? 'Simulate someone joining'
+                  : `Simulate ${invitationTargetName} joining`
+              }}
             </span>
           </button>
         </template>
@@ -1382,6 +1504,31 @@ watch(
                 ? 'Both players are ready.'
                 : 'This invitation is not accepting players.'
           }}</small>
+        </div>
+        <div v-if="externalInvitation" class="review-list">
+          <div class="review-row">
+            <span>Match</span>
+            <strong>Friendly match</strong>
+          </div>
+
+          <div class="review-row">
+            <span>Format</span>
+            <strong>
+              {{ invitationMatchFormatLabel(externalInvitation) }}
+            </strong>
+          </div>
+
+          <div class="review-row">
+            <span>Scoring</span>
+            <strong>
+              {{ invitationScoringLabel(externalInvitation) }}
+            </strong>
+          </div>
+
+          <div class="review-row">
+            <span>Timing</span>
+            <strong>Play now</strong>
+          </div>
         </div>
         <p v-if="joinMessage" class="friendly-flow__notice" role="status">{{ joinMessage }}</p>
         <button
