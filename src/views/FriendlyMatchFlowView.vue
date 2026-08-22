@@ -413,6 +413,21 @@ function flowLocation(name, options = {}) {
   return Object.keys(query).length ? { path, query } : { path }
 }
 
+const liveScoreboardHref = computed(() => {
+  const matchId = getLiveScoreboardMatchId(friendlyMatchStore.draft)
+
+  if (!matchId) {
+    return ''
+  }
+
+  return router.resolve({
+    name: 'LiveScoreboard',
+    params: {
+      matchId,
+    },
+  }).href
+})
+
 const joinUrl = computed(() => {
   if (!friendlyMatchStore.draft.joinToken || typeof window === 'undefined') return ''
   const href = router.resolve(
@@ -3288,6 +3303,7 @@ watch(
         :announcement="liveAnnouncement"
         :announcements-enabled="voiceAnnouncementsEnabled"
         :announcements-supported="voiceAnnouncementsSupported"
+        :scoreboard-href="liveScoreboardHref"
         :last-point-winner="lastPointWinner"
         @point="recordLivePoint"
         @undo="undoLivePoint"

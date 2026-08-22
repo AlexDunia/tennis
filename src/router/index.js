@@ -7,6 +7,7 @@ import CompeteChallengeCreateView from '../views/compete/CompeteChallengeCreateV
 import MatchDetailsView from '../views/MatchDetailsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
+import LiveScoreboardView from '../views/LiveScoreboardView.vue'
 import PlayHubView from '../views/PlayHubView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import HistoryView from '../views/HistoryView.vue'
@@ -449,6 +450,17 @@ const routes = [
       permission: 'matches.live_score',
       activeClubPermission: true,
       primarySection: 'play',
+      immersive: true,
+    },
+  },
+  {
+    path: '/live-scoreboard/:matchId',
+    name: 'LiveScoreboard',
+    component: LiveScoreboardView,
+    props: true,
+    meta: {
+      title: 'Live scoreboard',
+      subtitle: 'Read-only match display.',
       immersive: true,
     },
   },

@@ -128,6 +128,11 @@ const props = defineProps({
     default: true,
   },
 
+  scoreboardHref: {
+    type: String,
+    default: '',
+  },
+
   lastPointWinner: {
     type: String,
     default: '',
@@ -546,6 +551,24 @@ onUnmounted(() => {
         </div>
 
         <div class="match-control__state-actions">
+          <a
+            v-if="scoreboardHref"
+            class="match-control__scoreboard-link"
+            :href="scoreboardHref"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open the read-only live scoreboard in a new tab"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="13" rx="2" />
+
+              <path d="M8 21h8" />
+              <path d="M12 18v3" />
+            </svg>
+
+            <span>Scoreboard</span>
+          </a>
+
           <button
             v-if="canScore && !finished"
             type="button"
@@ -1355,6 +1378,60 @@ onUnmounted(() => {
   justify-content: flex-end;
   gap: 8px;
 }
+
+.match-control__scoreboard-link {
+  min-height: 44px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 0 13px;
+
+  border: 1px solid rgba(20, 58, 38, 0.12);
+  border-radius: 9px;
+
+  color: #31523f;
+  background: #fff;
+  text-decoration: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  touch-action: manipulation;
+
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 90ms ease;
+}
+
+.match-control__scoreboard-link:hover {
+  border-color: rgba(0, 143, 21, 0.22);
+  background: #f8fbf9;
+}
+
+.match-control__scoreboard-link:active {
+  transform: scale(0.98);
+}
+
+.match-control__scoreboard-link:focus-visible {
+  outline: 3px solid rgba(0, 181, 26, 0.22);
+  outline-offset: 3px;
+}
+
+.match-control__scoreboard-link svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .match-control__correction-button {
   min-height: 44px;
   padding: 0 11px;
@@ -2126,6 +2203,16 @@ onUnmounted(() => {
     padding: 0;
 
     justify-content: center;
+  }
+
+  .match-control__scoreboard-link {
+    width: 44px;
+    min-width: 44px;
+    padding-inline: 0;
+  }
+
+  .match-control__scoreboard-link span {
+    display: none;
   }
 
   .match-correction__server-options {
