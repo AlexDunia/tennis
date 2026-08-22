@@ -28,6 +28,12 @@ import {
   cancelTennisAnnouncements,
   speakTennisAnnouncement,
 } from '../utils/tennisAnnouncements'
+import {
+  createCompletedScoreboardSnapshot,
+  createLiveScoreboardSnapshot,
+  getLiveScoreboardMatchId,
+} from '../utils/liveScoreboardSnapshot'
+import { publishLiveMatchSnapshot } from '../services/liveMatchRealtime'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -1186,6 +1192,8 @@ async function completeReview() {
         return
       }
 
+      publishCurrentLiveScoreboard()
+
       router.push(flowLocation('FriendlyMatchLive'))
 
       return
@@ -1227,6 +1235,8 @@ async function completeReview() {
 
       return
     }
+
+    publishCurrentLiveScoreboard()
 
     router.push(flowLocation('FriendlyMatchLive'))
 
@@ -1287,6 +1297,22 @@ function handleReadyAction() {
    * start implementations.
    */
   completeReview()
+}
+
+function publishCurrentLiveScoreboard() {
+  const snapshot = createLiveScoreboardSnapshot({
+    draft: friendlyMatchStore.draft,
+    playerAPoint: friendlyMatchStore.pointLabel('you'),
+    playerBPoint: friendlyMatchStore.pointLabel('opponent'),
+    matchFormatLabel: friendlyMatchStore.matchFormatLabel,
+    scoringFormatLabel: friendlyMatchStore.formatLabel,
+  })
+
+  if (!snapshot) {
+    return false
+  }
+
+  return publishLiveMatchSnapshot(snapshot)
 }
 
 function captureLiveAnnouncementState() {
@@ -1478,6 +1504,8 @@ async function recordLivePoint(side) {
    */
   showPointConfirmation(side)
 
+  publishCurrentLiveScoreboard()
+
   announceLiveScore({
     before,
     after,
@@ -1511,6 +1539,8 @@ async function finalizeFriendlyMatch() {
 
   friendlyFinalizing.value = true
 
+  const completedLiveMatchId = getLiveScoreboardMatchId(friendlyMatchStore.draft)
+
   /*
    * At this point the tennis engine has already
    * decided the match.
@@ -1532,6 +1562,15 @@ async function finalizeFriendlyMatch() {
     inlineNote.value = 'The match finished, but Gorra could not finalize the result.'
 
     return
+  }
+
+  const completedSnapshot = createCompletedScoreboardSnapshot({
+    result,
+    matchId: completedLiveMatchId,
+  })
+
+  if (completedSnapshot) {
+    publishLiveMatchSnapshot(completedSnapshot)
   }
 
   /*
@@ -1592,6 +1631,8 @@ function undoLivePoint() {
 
     return
   }
+
+  publishCurrentLiveScoreboard()
 
   /*
    * Any point-success animation now refers to a
@@ -1686,6 +1727,8 @@ function setLiveServer(side) {
 
     return
   }
+
+  publishCurrentLiveScoreboard()
 
   const message = `Correction. ${requestedName} to serve.`
 
@@ -1999,6 +2042,14 @@ function handleStorage(event) {
   if (key.includes('friendlyMatchDraft')) {
     friendlyMatchStore.refreshDraft()
 
+    /*
+     * Another tab may have completed or reset the match.
+     * Refreshing state alone must not leave an obsolete live route mounted.
+     */
+    if (step.value === 'live') {
+      guardStep()
+    }
+
     return
   }
 
@@ -2046,10 +2097,18 @@ function handleVisibilityChange() {
   }
 
   recoverCurrentMatchState()
+
+  if (step.value === 'live') {
+    guardStep()
+  }
 }
 
 function handleWindowFocus() {
   recoverCurrentMatchState()
+
+  if (step.value === 'live') {
+    guardStep()
+  }
 }
 
 function configureStep() {

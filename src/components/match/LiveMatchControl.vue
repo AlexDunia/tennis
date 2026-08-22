@@ -723,7 +723,7 @@ onUnmounted(() => {
           :class="{
             'score-action--confirmed': lastPointWinner === 'you',
           }"
-          :disabled="!canScore"
+          :disabled="!canScore || pointInputLocked"
           :aria-label="`Add point for ${playerAName}`"
           @click="awardPoint('you')"
         >
@@ -744,7 +744,7 @@ onUnmounted(() => {
           :class="{
             'score-action--confirmed': lastPointWinner === 'opponent',
           }"
-          :disabled="!canScore"
+          :disabled="!canScore || pointInputLocked"
           :aria-label="`Add point for ${playerBName}`"
           @click="awardPoint('opponent')"
         >
@@ -1356,7 +1356,7 @@ onUnmounted(() => {
   gap: 8px;
 }
 .match-control__correction-button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 11px;
 
   border: 0.5px solid var(--control-line);
@@ -1405,7 +1405,7 @@ onUnmounted(() => {
 }
 .match-control__server-button,
 .match-control__voice-button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 11px;
 
   border: 0.5px solid var(--control-line);
@@ -1807,6 +1807,13 @@ onUnmounted(() => {
 .score-action {
   padding: 10px 15px;
 
+  touch-action: manipulation;
+
+  user-select: none;
+  -webkit-user-select: none;
+
+  -webkit-tap-highlight-color: transparent;
+
   border: 0.5px solid rgba(7, 63, 48, 0.12);
 
   color: var(--control-dark-green);
@@ -2111,7 +2118,11 @@ onUnmounted(() => {
 
   .match-control__correction-button,
   .match-control__voice-button {
-    width: 38px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+
     padding: 0;
 
     justify-content: center;
@@ -2120,7 +2131,56 @@ onUnmounted(() => {
   .match-correction__server-options {
     grid-template-columns: 1fr;
   }
-  @media (prefers-reduced-motion: reduce) {
+.match-control button:focus-visible {
+  outline:
+    3px solid
+    rgba(0, 181, 26, 0.2);
+
+  outline-offset: 2px;
+}
+
+@media (max-width: 350px) {
+  .match-control {
+    --control-page-padding: 10px;
+  }
+
+  .match-control__state-actions {
+    gap: 6px;
+  }
+
+  .match-control__dock-inner {
+    gap: 6px;
+
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .score-action {
+    min-width: 0;
+
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .match-control__correction-button,
+  .match-control__voice-button {
+    flex: 0 0 44px;
+  }
+
+  .match-correction {
+    border-radius: 8px;
+  }
+
+  .match-correction__options {
+    padding: 9px;
+  }
+
+  .match-correction__server-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
     .match-control *,
     .match-control *::before,
     .match-control *::after {

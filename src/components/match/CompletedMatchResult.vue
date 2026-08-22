@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   createResultShareImage,
   resultShareFilename,
@@ -27,6 +27,13 @@ const shareOpen = ref(false)
 const shareWorking = ref(false)
 
 const shareMessage = ref('')
+
+const shareTriggerRef = ref(null)
+const shareSheetRef = ref(null)
+const shareCloseRef = ref(null)
+
+const issueTriggerRef = ref(null)
+const issueTextareaRef = ref(null)
 
 const playerA = computed(() => {
   return (
@@ -130,18 +137,74 @@ function initials(name = '') {
     .toUpperCase()
 }
 
-function openShare() {
+async function openShare() {
   shareMessage.value = ''
   shareOpen.value = true
+
+  await nextTick()
+
+  shareCloseRef.value?.focus()
 }
 
-function closeShare() {
+async function closeShare() {
   if (shareWorking.value) {
     return
   }
 
   shareOpen.value = false
   shareMessage.value = ''
+
+  await nextTick()
+
+  shareTriggerRef.value?.focus()
+}
+
+function handleShareKeydown(event) {
+  if (!shareOpen.value || !shareSheetRef.value) {
+    return
+  }
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeShare()
+    return
+  }
+
+  if (event.key !== 'Tab') {
+    return
+  }
+
+  const focusable = Array.from(
+    shareSheetRef.value.querySelectorAll(
+      [
+        'button:not([disabled])',
+        '[href]',
+        'input:not([disabled])',
+        'textarea:not([disabled])',
+        'select:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])',
+      ].join(','),
+    ),
+  ).filter((element) => element.getAttribute('aria-hidden') !== 'true')
+
+  if (!focusable.length) {
+    event.preventDefault()
+    return
+  }
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+    return
+  }
+
+  if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 
 async function createShareFile() {
@@ -326,17 +389,25 @@ async function shareResultText() {
   }
 }
 
-function openIssueForm() {
+async function openIssueForm() {
   if (currentIssue.value) {
     return
   }
 
   issueOpen.value = true
+
+  await nextTick()
+
+  issueTextareaRef.value?.focus()
 }
 
-function closeIssueForm() {
+async function closeIssueForm() {
   issueOpen.value = false
   issueMessage.value = ''
+
+  await nextTick()
+
+  issueTriggerRef.value?.focus()
 }
 
 function submitIssue() {
@@ -506,6 +577,7 @@ watch(currentIssue, (issue) => {
           v-if="issueOpen && !currentIssue"
           class="completed-result__issue-form"
           @submit.prevent="submitIssue"
+          @keydown.esc.prevent="closeIssueForm"
         >
           <header>
             <div>
@@ -514,7 +586,11 @@ watch(currentIssue, (issue) => {
               <strong> What looks wrong? </strong>
             </div>
 
-            <button type="button" aria-label="Close result review" @click="closeIssueForm">
+            <button
+              type="button"
+              aria-label="Close result review"
+              @click="closeIssueForm"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M7 7l10 10M17 7 7 17" />
               </svg>
@@ -527,6 +603,7 @@ watch(currentIssue, (issue) => {
             <span>What should be checked?</span>
 
             <textarea
+              ref="issueTextareaRef"
               v-model="issueMessage"
               maxlength="280"
               rows="4"
@@ -546,10 +623,13 @@ watch(currentIssue, (issue) => {
         <Transition name="share-backdrop">
           <div v-if="shareOpen" class="result-share-backdrop" @click.self="closeShare">
             <section
+              ref="shareSheetRef"
               class="result-share-sheet"
               role="dialog"
               aria-modal="true"
               aria-labelledby="result-share-title"
+              tabindex="-1"
+              @keydown="handleShareKeydown"
             >
               <header class="result-share-sheet__header">
                 <div>
@@ -559,6 +639,7 @@ watch(currentIssue, (issue) => {
                 </div>
 
                 <button
+                  ref="shareCloseRef"
                   type="button"
                   class="result-share-sheet__close"
                   :disabled="shareWorking"
@@ -653,7 +734,12 @@ watch(currentIssue, (issue) => {
           </div>
         </Transition>
 
-        <button type="button" class="completed-result__secondary" @click="openShare">
+        <button
+          ref="shareTriggerRef"
+          type="button"
+          class="completed-result__secondary"
+          @click="openShare"
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="18" cy="5" r="2.5" />
 
@@ -667,6 +753,7 @@ watch(currentIssue, (issue) => {
           <span> Share </span>
         </button>
         <button
+          ref="issueTriggerRef"
           type="button"
           class="completed-result__secondary"
           :disabled="Boolean(currentIssue)"
@@ -1169,8 +1256,8 @@ watch(currentIssue, (issue) => {
 }
 
 .completed-result__issue-form header button {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
 
   border: 0.5px solid var(--result-line);
 
@@ -1338,8 +1425,8 @@ watch(currentIssue, (issue) => {
 }
 
 .result-share-sheet__close {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
 
   flex: 0 0 auto;
 
@@ -1666,6 +1753,15 @@ watch(currentIssue, (issue) => {
   opacity: 0.55;
 }
 
+.completed-result button:focus-visible,
+.completed-result textarea:focus-visible {
+  outline:
+    3px solid
+    rgba(0, 181, 26, 0.18);
+
+  outline-offset: 2px;
+}
+
 .result-panel-enter-active,
 .result-panel-leave-active {
   transition:
@@ -1803,8 +1899,8 @@ watch(currentIssue, (issue) => {
   }
 
   .result-share-sheet__close {
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
 
     flex: 0 0 auto;
 
@@ -2068,6 +2164,61 @@ watch(currentIssue, (issue) => {
   .completed-result__secondary {
     flex: 1;
     width: auto;
+  }
+}
+
+@media (max-width: 350px) {
+  .completed-result {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .completed-result__score {
+    padding-left: 7px;
+    padding-right: 7px;
+
+    gap: 4px;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(90px, 0.75fr)
+      minmax(0, 1fr);
+  }
+
+  .completed-player__avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .completed-player strong {
+    max-width: 92px;
+  }
+
+  .completed-result__actions {
+    gap: 7px;
+
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .completed-result__secondary {
+    min-width: 0;
+
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+
+  .result-share-sheet {
+    padding: 12px;
+
+    border-radius: 14px;
+  }
+
+  .result-share-preview {
+    min-height: 175px;
+
+    padding-left: 10px;
+    padding-right: 10px;
   }
 }
 
