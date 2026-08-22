@@ -19,6 +19,7 @@ import TournamentOverviewView from '../views/TournamentOverview.vue'
 import TournamentScheduleView from '../views/TournamentSchedule.vue'
 import TournamentGalleryView from '../views/TournamentGallery.vue'
 import LandingView from '../views/LandingView.vue'
+import LegacyLandingView from '../views/LandingView.legacy-2026-08.vue'
 import LoginView from '../views/LoginView.vue'
 import FriendlyMatchFlowView from '../views/FriendlyMatchFlowView.vue'
 import ClubsView from '../views/ClubsView.vue'
@@ -40,6 +41,13 @@ const routes = [
     name: 'SignIn',
     component: LoginView,
     meta: { title: 'Sign in to GORRA', public: true, authPage: true, authMode: 'signin' },
+  },
+  {
+    path: '/landing-legacy',
+    alias: '/old-landing',
+    name: 'LegacyLanding',
+    component: LegacyLandingView,
+    meta: { title: 'Previous GORRA landing page', public: true },
   },
   {
     path: '/signup',

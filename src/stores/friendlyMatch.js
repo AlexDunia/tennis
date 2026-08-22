@@ -14,9 +14,24 @@ import {
   toggleServer as toggleTennisServer,
   undoLastPoint,
 } from '../utils/tennisScoring'
-const RESULT_STORAGE_KEY = 'gorra.friendlyMatchResults.v1'
-const DRAFT_STORAGE_KEY = 'gorra.friendlyMatchDraft.v3'
-const INVITATION_STORAGE_KEY = 'gorra.friendlyMatchInvitations.v1'
+/*
+ * Separation 1E storage schema.
+ *
+ * We deliberately move the development storage versions
+ * forward because the Friendly lifecycle has changed:
+ *
+ * - completed matches no longer remain inside draft
+ * - results now contain participantIds
+ * - invitations have explicit targeted/open ownership
+ * - liveState is authoritative
+ *
+ * In production Laravel this would be a real migration.
+ * During the frontend/mock stage, using a new version prevents
+ * old development state from corrupting the current flow.
+ */
+const RESULT_STORAGE_KEY = 'gorra.friendlyMatchResults.v2'
+const DRAFT_STORAGE_KEY = 'gorra.friendlyMatchDraft.v4'
+const INVITATION_STORAGE_KEY = 'gorra.friendlyMatchInvitations.v2'
 const CUSTOM_FORMAT_STORAGE_KEY = 'gorra.friendlyMatchCustomFormats.v1'
 const PLAY_NOW_TTL_MS = 30 * 60 * 1000
 
@@ -453,10 +468,48 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function chooseMatchType(matchType) {
-    if (!['friendly', 'ladder'].includes(matchType)) return
-    if (draft.value.matchType !== matchType) draft.value = { ...createDraft(), matchType }
-    else draft.value.matchType = matchType
-    if (matchType === 'ladder') applyLadderRules()
+    if (!['friendly', 'ladder'].includes(matchType)) {
+      return false
+    }
+
+    /*
+     * Selecting a match type here means:
+     *
+     * "I am creating a NEW match."
+     *
+     * Never reuse the previous Friendly setup simply because
+     * its matchType happened to also be "friendly".
+     *
+     * This prevents stale:
+     * - opponent
+     * - timing
+     * - invitation
+     * - join token
+     * - scorer
+     * - live state
+     *
+     * from leaking into the next match.
+     */
+    cancelActiveInvitation()
+
+    draft.value = {
+      ...createDraft(),
+      matchType,
+    }
+
+    if (matchType === 'ladder') {
+      applyLadderRules()
+    }
+
+    /*
+     * Persist this boundary immediately.
+     *
+     * Creating a fresh match is a lifecycle transaction,
+     * not merely a visual change.
+     */
+    persist(DRAFT_STORAGE_KEY, draft.value)
+
+    return true
   }
 
   function applyLadderRules() {
@@ -601,6 +654,16 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     draft.value.joinToken = token
     draft.value.status = invitation.status
 
+    /*
+     * Invitation creation is a cross-device/cross-tab boundary.
+     *
+     * Persist immediately instead of waiting for Vue's watcher.
+     * This prevents somebody opening the generated URL before
+     * the invitation has actually reached localStorage.
+     */
+    persist(INVITATION_STORAGE_KEY, invitations.value)
+    persist(DRAFT_STORAGE_KEY, draft.value)
+
     return invitation
   }
   function chooseOpponent(opponent) {
@@ -729,6 +792,19 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     return results.value.find((result) => result.id === id) || null
   }
 
+  function refreshResults() {
+    /*
+     * Completed results are immutable records.
+     *
+     * Unlike the active scoring draft, there is no revision
+     * conflict to resolve here. The persisted result collection
+     * can safely refresh the in-memory collection.
+     */
+    results.value = readArray(RESULT_STORAGE_KEY)
+
+    return results.value
+  }
+
   function joinInvitation(token, identity) {
     const actor = normalizeIdentity(identity)
     const invitation = invitationByToken(token)
@@ -769,21 +845,20 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     invitations.value = invitations.value.map((item) =>
       item.id === invitation.id ? { ...invitation } : item,
     )
+
     if (draft.value.matchId === invitation.id) {
       draft.value.opponent = actor
       draft.value.status = 'ready'
     }
 
     /*
-     * READY is an important lifecycle boundary.
+     * Joining is a real lifecycle transition:
      *
-     * Do not depend only on Vue's asynchronous watch
-     * cycle before another tab/device-like surface can
-     * observe the state.
+     * waiting_for_opponent
+     * → ready
      *
-     * In Laravel later this becomes one database
-     * transaction. For today's frontend implementation,
-     * commit both sides immediately.
+     * Commit it synchronously so the creator's other tab can
+     * immediately observe the authoritative Ready state.
      */
     persist(INVITATION_STORAGE_KEY, invitations.value)
     persist(DRAFT_STORAGE_KEY, draft.value)
@@ -957,6 +1032,20 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
         item.id === invitation.id ? updatedInvitation : item,
       )
     }
+
+    /*
+     * Starting the match is another lifecycle transaction.
+     *
+     * At this moment:
+     *
+     * ready
+     * → live
+     *
+     * Both the draft and invitation must already agree before
+     * the application navigates to Match Control.
+     */
+    persist(DRAFT_STORAGE_KEY, draft.value)
+    persist(INVITATION_STORAGE_KEY, invitations.value)
 
     return true
   }
@@ -1515,7 +1604,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     createScheduledInvitation,
     linkLadderRecords,
     startLiveMatch,
-
+    refreshResults,
     canManageMatch,
     canScoreMatch,
 

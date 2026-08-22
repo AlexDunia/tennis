@@ -185,6 +185,118 @@ const modalScoringFormat = computed(
 )
 
 /*
+ * ROUTE PRESENTATION GATE
+ *
+ * guardStep() decides where invalid routes should go.
+ *
+ * This computed controls whether the current route is even
+ * allowed to paint the match UI before that redirect occurs.
+ *
+ * This is what prevents:
+ *
+ * /friendly-match/live
+ *
+ * from briefly flashing an old/empty scoreboard when there
+ * is no real active match.
+ */
+const canViewCompletedResult = computed(() => {
+  const result = completedResult.value
+  const actorId = currentIdentity.value.id
+
+  if (!result || !actorId) {
+    return false
+  }
+
+  const participantIds = Array.isArray(result.participantIds) ? result.participantIds : []
+
+  return participantIds.includes(actorId)
+})
+
+const canRenderCurrentRoute = computed(() => {
+  /*
+   * COMPLETED RESULT
+   *
+   * Only actual participants can paint the result.
+   */
+  if (step.value === 'result') {
+    return canViewCompletedResult.value
+  }
+
+  /*
+   * LIVE CONTROL
+   *
+   * A Live URL is not enough.
+   * There must actually be a valid live match.
+   */
+  if (step.value === 'live') {
+    const draft = friendlyMatchStore.draft
+
+    const hasScoring = Boolean(draft.format)
+    const hasOpponent = Boolean(draft.opponent)
+    const hasLiveState = Boolean(draft.liveState)
+
+    if (!hasScoring || !hasOpponent || !hasLiveState) {
+      return false
+    }
+
+    /*
+     * Friendly Live exists ONLY while actively scoring.
+     *
+     * The instant the winner exists, Friendly is finalized
+     * and moves to the immutable Result route.
+     */
+    if (draft.matchType === 'friendly') {
+      return draft.status === 'live' && canAccessLiveMatch.value
+    }
+
+    /*
+     * Ladder temporarily keeps its finished-live state
+     * because its confirmation lifecycle is separate.
+     */
+    if (draft.matchType === 'ladder') {
+      return ['live', 'finished'].includes(draft.status)
+    }
+
+    return false
+  }
+
+  /*
+   * INVITATION RECIPIENT
+   *
+   * Do not briefly display the invited-player interface
+   * before validating/loading its token.
+   */
+  if (step.value === 'externalJoin') {
+    if (!externalInvitation.value) {
+      return false
+    }
+
+    return externalInvitation.value.creator?.id !== currentIdentity.value.id
+  }
+
+  /*
+   * CREATOR JOIN HUB
+   *
+   * It only belongs to Play Now.
+   */
+  if (step.value === 'join') {
+    if (!['friendly', 'ladder'].includes(friendlyMatchStore.draft.matchType)) {
+      return false
+    }
+
+    if (friendlyMatchStore.draft.timing !== 'now') {
+      return false
+    }
+
+    if (isLadder.value && !friendlyMatchStore.draft.matchId) {
+      return false
+    }
+  }
+
+  return true
+})
+
+/*
  * The same fixed action area is used in two places:
  *
  * JOIN READY
@@ -546,6 +658,22 @@ function guardStep() {
    * → Live
    */
   if (isFriendly.value) {
+    /*
+     * A terminal invitation belongs to history.
+     *
+     * It may remain in the invitation collection for audit/history,
+     * but it must not remain attached to the active draft.
+     *
+     * This prevents a new Friendly flow from opening an old
+     * "Waiting for someone to join" screen.
+     */
+    if (
+      step.value === 'join' &&
+      activeInvitation.value &&
+      ['completed', 'cancelled', 'expired'].includes(activeInvitation.value.status)
+    ) {
+      friendlyMatchStore.cancelActiveInvitation()
+    }
     /*
      * Old Friendly Type screen is no longer
      * part of the normal Play entry.
@@ -1563,6 +1691,7 @@ function handleStorage(event) {
    * Refresh both boundaries.
    */
   friendlyMatchStore.refreshDraft()
+  friendlyMatchStore.refreshResults()
   refreshInvitation()
 }
 
@@ -1573,6 +1702,13 @@ function configureStep() {
   joinedNotice.value = ''
   customFormatError.value = ''
   showTieBreakDetails.value = false
+  /*
+   * A completed result may have been committed by another
+   * tab immediately before this route was entered.
+   */
+  if (step.value === 'result') {
+    friendlyMatchStore.refreshResults()
+  }
   if (step.value === 'customFormat') {
     const selected = friendlyMatchStore.draft.customFormat
     Object.assign(customFormatForm, {
@@ -1657,6 +1793,7 @@ watch(
 <template>
   <div class="friendly-flow-route">
     <main
+      v-if="canRenderCurrentRoute"
       class="friendly-flow"
       :class="{
         'friendly-flow--picker': step === 'clubOpponent',
@@ -2867,6 +3004,7 @@ watch(
       </section>
     </main>
     <MatchResultModal
+      v-if="canRenderCurrentRoute"
       :open="resultModalOpen"
       :winner="modalWinner"
       :current-player-name="modalCurrentPlayerName"
