@@ -9,6 +9,7 @@ import { useChallengeStore } from '../stores/challenge'
 import { useMatchStore } from '../stores/match'
 import { useNotificationStore } from '../stores/notification'
 import { verifyLadderCreationAccess } from '../services/LadderAccessService'
+import CompletedMatchResult from '../components/match/CompletedMatchResult.vue'
 import {
   ACTIVE_LADDER_CHALLENGE_STATUSES,
   deadlineFromNow,
@@ -20,7 +21,13 @@ import {
 } from '../config/ladder'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
 import MatchResultModal from '../components/friendly/MatchResultModal.vue'
-
+import LiveMatchControl from '../components/match/LiveMatchControl.vue'
+import {
+  buildTennisAnnouncement,
+  buildTennisCorrectionAnnouncement,
+  cancelTennisAnnouncements,
+  speakTennisAnnouncement,
+} from '../utils/tennisAnnouncements'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -40,6 +47,20 @@ const customFormatError = ref('')
 const showTieBreakDetails = ref(false)
 const resultModalOpen = ref(false)
 const friendlyFinalizing = ref(false)
+
+const liveAnnouncement = ref('')
+
+/*
+ * Presentation-only feedback.
+ *
+ * This does NOT determine who won the point.
+ * It only remembers which successful scoring
+ * action should receive visual confirmation.
+ */
+const lastPointWinner = ref('')
+
+const voiceAnnouncementsEnabled = ref(readVoiceAnnouncementPreference())
+
 const ladderAccessChecking = ref(false)
 const customFormatForm = reactive({
   id: '',
@@ -53,6 +74,26 @@ const customFormatForm = reactive({
 })
 let invitationTimer = null
 let autoRouteTimer = null
+let liveAnnouncementTimer = null
+let pointFeedbackTimer = null
+
+const VOICE_ANNOUNCEMENT_STORAGE_KEY = 'gorra.matchVoiceAnnouncements.v1'
+
+function readVoiceAnnouncementPreference() {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return true
+  }
+
+  const stored = window.localStorage.getItem(VOICE_ANNOUNCEMENT_STORAGE_KEY)
+
+  /*
+   * Default is ON.
+   *
+   * Only an explicit stored "false"
+   * turns announcements off.
+   */
+  return stored !== 'false'
+}
 
 const step = computed(() => String(route.meta.friendlyStep || 'type'))
 const isLadder = computed(() => friendlyMatchStore.draft.matchType === 'ladder')
@@ -103,85 +144,10 @@ const canScoreLiveMatch = computed(() => friendlyMatchStore.canScoreMatch(curren
 
 const canAccessLiveMatch = computed(() => canManageDraft.value || canScoreLiveMatch.value)
 
-const liveServerName = computed(() => {
-  const server = friendlyMatchStore.draft.liveState?.currentServer
-
-  return server === 'playerB' ? opponentName.value : currentIdentity.value.name
-})
-
 const completedResultId = computed(() => String(route.params.resultId || ''))
 
 const completedResult = computed(() =>
   step.value === 'result' ? friendlyMatchStore.resultById(completedResultId.value) : null,
-)
-
-const completedResultPresentation = computed(() => {
-  const result = completedResult.value
-
-  if (!result) {
-    return null
-  }
-
-  const playerA = result.players?.playerA || {
-    id: result.ownerId || '',
-    name: 'Player 1',
-  }
-
-  const playerB = result.players?.playerB || {
-    id: result.opponentId || '',
-
-    name: result.opponentName || 'Opponent',
-  }
-
-  const currentPlayerIsA = playerA.id === currentIdentity.value.id
-
-  const currentPlayer = currentPlayerIsA ? playerA : playerB
-
-  const opponent = currentPlayerIsA ? playerB : playerA
-
-  return {
-    winner: result.winnerId === currentIdentity.value.id ? 'you' : 'opponent',
-
-    currentPlayerName: currentPlayer?.name || currentIdentity.value.name,
-
-    opponentName: opponent?.name || 'Opponent',
-
-    score: result.score || '0–0',
-
-    setScores: Array.isArray(result.setScores) ? result.setScores : [],
-
-    matchFormat: result.matchFormatLabel || 'Friendly match',
-
-    scoringFormat: result.scoringFormat || (result.scoring === 'noad' ? 'No-Ad' : 'Advantage'),
-  }
-})
-
-const modalWinner = computed(
-  () => completedResultPresentation.value?.winner ?? friendlyMatchStore.draft.winner,
-)
-
-const modalCurrentPlayerName = computed(
-  () => completedResultPresentation.value?.currentPlayerName ?? currentIdentity.value.name,
-)
-
-const modalOpponentName = computed(
-  () => completedResultPresentation.value?.opponentName ?? opponentName.value,
-)
-
-const modalScore = computed(
-  () => completedResultPresentation.value?.score ?? friendlyMatchStore.scoreSummary,
-)
-
-const modalSetScores = computed(
-  () => completedResultPresentation.value?.setScores ?? friendlyMatchStore.draft.setScores,
-)
-
-const modalMatchFormat = computed(
-  () => completedResultPresentation.value?.matchFormat ?? friendlyMatchStore.matchFormatLabel,
-)
-
-const modalScoringFormat = computed(
-  () => completedResultPresentation.value?.scoringFormat ?? friendlyMatchStore.formatLabel,
 )
 
 /*
@@ -1315,13 +1281,141 @@ function handleReadyAction() {
   completeReview()
 }
 
+function captureLiveAnnouncementState() {
+  const draft = friendlyMatchStore.draft
+
+  const setScores = Array.isArray(draft.setScores) ? draft.setScores : []
+
+  return {
+    over: Boolean(draft.over),
+
+    winner: draft.winner || '',
+
+    pointsA: Number(draft.pointsA || 0),
+
+    pointsB: Number(draft.pointsB || 0),
+
+    gamesA: Number(draft.gamesA || 0),
+
+    gamesB: Number(draft.gamesB || 0),
+
+    setsA: Number(draft.setsA || 0),
+
+    setsB: Number(draft.setsB || 0),
+
+    format: draft.format || 'ad',
+
+    isTiebreak: Boolean(draft.isTiebreak),
+
+    isMatchTiebreak: Boolean(draft.isMatchTiebreak),
+
+    standaloneTieBreak: draft.liveState?.config?.mode === 'tiebreak',
+
+    currentServer: draft.liveState?.currentServer || 'playerA',
+
+    playerAPoint: friendlyMatchStore.pointLabel('you'),
+
+    playerBPoint: friendlyMatchStore.pointLabel('opponent'),
+
+    setScoresLength: setScores.length,
+
+    lastCompletedSet: setScores.length
+      ? {
+          ...setScores[setScores.length - 1],
+        }
+      : null,
+  }
+}
+
+function showLiveAnnouncement(message) {
+  if (!message) {
+    return
+  }
+
+  liveAnnouncement.value = message
+
+  if (liveAnnouncementTimer) {
+    window.clearTimeout(liveAnnouncementTimer)
+  }
+
+  liveAnnouncementTimer = window.setTimeout(() => {
+    if (liveAnnouncement.value === message) {
+      liveAnnouncement.value = ''
+    }
+
+    liveAnnouncementTimer = null
+  }, 2400)
+}
+
+function showPointConfirmation(side) {
+  if (!['you', 'opponent'].includes(side)) {
+    return
+  }
+
+  lastPointWinner.value = side
+
+  if (pointFeedbackTimer) {
+    window.clearTimeout(pointFeedbackTimer)
+  }
+
+  /*
+   * Enough time for the scorer to perceive the
+   * confirmation, but short enough that the UI
+   * returns immediately to rest.
+   */
+  pointFeedbackTimer = window.setTimeout(() => {
+    if (lastPointWinner.value === side) {
+      lastPointWinner.value = ''
+    }
+
+    pointFeedbackTimer = null
+  }, 520)
+}
+
+function announceLiveScore({ before, after, pointWinnerSide }) {
+  const message = buildTennisAnnouncement({
+    before,
+    after,
+
+    pointWinnerSide,
+
+    playerAName: friendlyMatchStore.draft.liveState?.players?.playerA || currentIdentity.value.name,
+
+    playerBName: friendlyMatchStore.draft.liveState?.players?.playerB || opponentName.value,
+  })
+
+  if (!message) {
+    return
+  }
+
+  showLiveAnnouncement(message)
+
+  speakTennisAnnouncement(message, {
+    enabled: voiceAnnouncementsEnabled.value,
+  })
+}
+
+function toggleVoiceAnnouncements() {
+  voiceAnnouncementsEnabled.value = !voiceAnnouncementsEnabled.value
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem(
+      VOICE_ANNOUNCEMENT_STORAGE_KEY,
+      String(voiceAnnouncementsEnabled.value),
+    )
+  }
+
+  if (!voiceAnnouncementsEnabled.value) {
+    cancelTennisAnnouncements()
+  }
+}
+
 async function recordLivePoint(side) {
   inlineNote.value = ''
 
   /*
-   * Prevent another point from being entered
-   * while the completed Friendly match is
-   * being committed and routed away.
+   * Prevent a duplicate winning point while
+   * Friendly completion is being committed.
    */
   if (friendlyFinalizing.value) {
     return
@@ -1334,6 +1428,18 @@ async function recordLivePoint(side) {
     return
   }
 
+  /*
+   * Snapshot BEFORE asking the tennis engine
+   * to process the rally.
+   */
+  const before = captureLiveAnnouncementState()
+
+  /*
+   * AUTHORITATIVE STATE CHANGE.
+   *
+   * The announcement system does not calculate
+   * this point.
+   */
   const recorded = friendlyMatchStore.recordPoint(side, currentIdentity.value.id)
 
   if (!recorded) {
@@ -1343,11 +1449,39 @@ async function recordLivePoint(side) {
   }
 
   /*
-   * recordPoint() is where the tennis engine
-   * determines whether the winning rally ended
-   * the match.
+   * Snapshot AFTER the tennis engine has
+   * completely resolved:
    *
-   * We do NOT wait for a modal button anymore.
+   * point
+   * game
+   * set
+   * server
+   * tie-break
+   * match winner
+   */
+  const after = captureLiveAnnouncementState()
+
+  /*
+   * The engine accepted the point.
+   *
+   * Only now may the UI visually confirm the action.
+   * A failed/rejected score mutation never receives
+   * a successful-looking animation.
+   */
+  showPointConfirmation(side)
+
+  announceLiveScore({
+    before,
+    after,
+    pointWinnerSide: side,
+  })
+
+  /*
+   * Friendly matches are committed immediately
+   * when the scoring engine declares a winner.
+   *
+   * Voice/result presentation is not responsible
+   * for deciding whether the match ended.
    */
   if (isFriendly.value && friendlyMatchStore.draft.over) {
     await finalizeFriendlyMatch()
@@ -1428,17 +1562,85 @@ function undoLivePoint() {
     return
   }
 
-  const undone = friendlyMatchStore.undoPoint(currentIdentity.value.id)
-
-  if (!undone) {
+  if (!friendlyMatchStore.canUndo) {
     inlineNote.value = 'There is no recorded point to undo.'
 
     return
   }
+
+  /*
+   * Stop the previous score call before changing
+   * what the official score now says.
+   *
+   * We must never have Gorra speaking an obsolete
+   * score while the scorer is correcting it.
+   */
+  cancelTennisAnnouncements()
+
+  const undone = friendlyMatchStore.undoPoint(currentIdentity.value.id)
+
+  if (!undone) {
+    inlineNote.value = 'The previous score could not be restored.'
+
+    return
+  }
+
+  /*
+   * Any point-success animation now refers to a
+   * state which has been corrected.
+   */
+  lastPointWinner.value = ''
+
+  if (pointFeedbackTimer) {
+    window.clearTimeout(pointFeedbackTimer)
+
+    pointFeedbackTimer = null
+  }
+
+  liveAnnouncement.value = ''
+
+  if (liveAnnouncementTimer) {
+    window.clearTimeout(liveAnnouncementTimer)
+
+    liveAnnouncementTimer = null
+  }
+
+  /*
+   * Undo has already restored:
+   *
+   * - point score
+   * - games
+   * - sets
+   * - server
+   * - tie-break state
+   *
+   * from the engine history.
+   *
+   * We now merely announce that restored truth.
+   */
+  const correctedState = captureLiveAnnouncementState()
+
+  const correctionMessage = buildTennisCorrectionAnnouncement({
+    state: correctedState,
+
+    playerAName: friendlyMatchStore.draft.liveState?.players?.playerA || currentIdentity.value.name,
+
+    playerBName: friendlyMatchStore.draft.liveState?.players?.playerB || opponentName.value,
+  })
+
+  showLiveAnnouncement(correctionMessage)
+
+  speakTennisAnnouncement(correctionMessage, {
+    enabled: voiceAnnouncementsEnabled.value,
+  })
 }
 
-function toggleLiveServer() {
+function setLiveServer(side) {
   inlineNote.value = ''
+
+  if (!['you', 'opponent'].includes(side)) {
+    return
+  }
 
   if (!canScoreLiveMatch.value) {
     inlineNote.value = 'Only the assigned scorer can correct the server.'
@@ -1446,13 +1648,76 @@ function toggleLiveServer() {
     return
   }
 
-  const changed = friendlyMatchStore.toggleServer(currentIdentity.value.id)
+  if (friendlyMatchStore.draft.over) {
+    return
+  }
 
-  if (!changed) {
-    inlineNote.value = 'The server could not be changed.'
+  const requestedPlayerKey = side === 'opponent' ? 'playerB' : 'playerA'
+
+  const requestedName = side === 'opponent' ? opponentName.value : currentIdentity.value.name
+
+  /*
+   * Selecting the player who is already serving
+   * is not an error.
+   *
+   * It simply means the requested correction is
+   * already true.
+   */
+  if (friendlyMatchStore.draft.liveState?.currentServer === requestedPlayerKey) {
+    showLiveAnnouncement(`${requestedName} is already serving.`)
 
     return
   }
+
+  cancelTennisAnnouncements()
+
+  const changed = friendlyMatchStore.setServer(side, currentIdentity.value.id)
+
+  if (!changed) {
+    inlineNote.value = 'The server could not be corrected.'
+
+    return
+  }
+
+  const message = `Correction. ${requestedName} to serve.`
+
+  showLiveAnnouncement(message)
+
+  speakTennisAnnouncement(message, {
+    enabled: voiceAnnouncementsEnabled.value,
+  })
+}
+
+function reportCompletedResultIssue(message) {
+  const result = completedResult.value
+
+  if (!result) {
+    notificationStore.addToast({
+      message: 'This completed result could not be found.',
+
+      type: 'warning',
+    })
+
+    return
+  }
+
+  const issue = friendlyMatchStore.reportResultIssue(result.id, currentIdentity.value.id, message)
+
+  if (!issue) {
+    notificationStore.addToast({
+      message: 'Gorra could not create this review request.',
+
+      type: 'warning',
+    })
+
+    return
+  }
+
+  notificationStore.addToast({
+    message: 'Issue reported. The recorded result has not been changed.',
+
+    type: 'success',
+  })
 }
 
 async function finishMatch() {
@@ -1466,6 +1731,7 @@ async function finishMatch() {
    *
    * This button is now navigation only.
    */
+
   if (step.value === 'result') {
     resultModalOpen.value = false
 
@@ -1544,20 +1810,8 @@ async function finishMatch() {
   })
 }
 
-function closeResultPresentation() {
+function closeLadderResultModal() {
   resultModalOpen.value = false
-
-  /*
-   * Closing a completed result means leaving
-   * the completed-result presentation.
-   *
-   * It never returns to Match Control.
-   */
-  if (step.value === 'result') {
-    router.replace({
-      name: 'Dashboard',
-    })
-  }
 }
 
 function initials(name = '') {
@@ -1747,41 +2001,39 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   window.removeEventListener('storage', handleStorage)
-  if (invitationTimer) window.clearInterval(invitationTimer)
-  if (autoRouteTimer) window.clearTimeout(autoRouteTimer)
+
+  if (invitationTimer) {
+    window.clearInterval(invitationTimer)
+  }
+
+  if (autoRouteTimer) {
+    window.clearTimeout(autoRouteTimer)
+  }
+
+  if (liveAnnouncementTimer) {
+    window.clearTimeout(liveAnnouncementTimer)
+  }
+
+  if (pointFeedbackTimer) {
+    window.clearTimeout(pointFeedbackTimer)
+  }
+
+  cancelTennisAnnouncements()
 })
+
 watch(step, configureStep)
 watch(
-  [step, () => friendlyMatchStore.draft.over, completedResult],
+  [step, () => friendlyMatchStore.draft.over],
 
-  ([currentStep, matchOver, result]) => {
+  ([currentStep, matchOver]) => {
     /*
-     * FRIENDLY RESULT
+     * Friendly completed matches have their own
+     * dedicated immutable Result route now.
      *
-     * The result presentation opens on its own
-     * completed-result route.
+     * Only Ladder temporarily retains the old modal
+     * submission experience.
      */
-    if (currentStep === 'result') {
-      resultModalOpen.value = Boolean(result)
-
-      return
-    }
-
-    /*
-     * LADDER temporarily retains today's
-     * finished-live result workflow.
-     */
-    if (currentStep === 'live' && isLadder.value) {
-      resultModalOpen.value = Boolean(matchOver)
-
-      return
-    }
-
-    /*
-     * Friendly Live never owns a completed
-     * result presentation anymore.
-     */
-    resultModalOpen.value = false
+    resultModalOpen.value = Boolean(currentStep === 'live' && isLadder.value && matchOver)
   },
 
   {
@@ -1804,7 +2056,7 @@ watch(
       <div v-if="joinedNotice" class="join-notification" role="status">
         <span aria-hidden="true">✓</span>{{ joinedNotice }}
       </div>
-      <header v-if="step !== 'result'" class="friendly-flow__header">
+      <header v-if="!['live', 'result'].includes(step)" class="friendly-flow__header">
         <button type="button" class="friendly-flow__back" aria-label="Go back" @click="goBack">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg>
         </button>
@@ -2826,201 +3078,66 @@ watch(
         </button>
       </section>
 
-      <section v-if="step === 'live'" class="friendly-live" aria-labelledby="live-match-title">
-        <div class="friendly-live__title-row">
-          <div>
-            <p class="friendly-flow__eyebrow">{{ friendlyMatchStore.matchFormatLabel }}</p>
-            <h1 id="live-match-title">You vs {{ opponentName }}</h1>
-          </div>
-          <span
-            class="friendly-live__live"
-            :class="{ 'friendly-live__live--finished': friendlyMatchStore.draft.over }"
-            >{{ friendlyMatchStore.draft.over ? 'Finished' : 'Live' }}</span
-          >
-        </div>
+      <CompletedMatchResult
+        v-if="step === 'result' && completedResult"
+        :result="completedResult"
+        :current-player-id="currentIdentity.id"
+        @done="finishMatch"
+        @report-issue="reportCompletedResultIssue"
+      />
 
-        <div
-          class="friendly-live__scoreline"
-          :class="{ 'friendly-live__scoreline--finished': friendlyMatchStore.draft.over }"
-        >
-          <template v-if="friendlyMatchStore.draft.over">
-            <div>
-              <span>Sets won</span>
-              <strong
-                >{{ friendlyMatchStore.draft.setsA }}–{{ friendlyMatchStore.draft.setsB }}</strong
-              >
-            </div>
-            <div>
-              <span>Final score</span>
-              <strong>{{ friendlyMatchStore.scoreSummary }}</strong>
-            </div>
-          </template>
-          <template v-else>
-            <div v-if="friendlyMatchStore.draft.matchFormat !== 'match-tiebreak'">
-              <span>Sets</span>
-              <strong
-                >{{ friendlyMatchStore.draft.setsA }}–{{ friendlyMatchStore.draft.setsB }}</strong
-              >
-            </div>
-            <div v-if="friendlyMatchStore.draft.matchFormat !== 'match-tiebreak'">
-              <span
-                >Games · Set
-                {{ friendlyMatchStore.draft.setsA + friendlyMatchStore.draft.setsB + 1 }}</span
-              >
-              <strong
-                >{{ friendlyMatchStore.draft.gamesA }}–{{ friendlyMatchStore.draft.gamesB }}</strong
-              >
-            </div>
-            <div>
-              <span>
-                {{
-                  friendlyMatchStore.draft.liveState?.currentGame?.isMatchTieBreak
-                    ? 'Match tie-break'
-                    : friendlyMatchStore.draft.liveState?.currentGame?.inTieBreak
-                      ? 'Tie-break'
-                      : 'Points · Current game'
-                }}
-              </span>
-              <strong>{{ friendlyMatchStore.currentPointScore }}</strong>
-            </div>
-          </template>
-        </div>
-
-        <div v-if="!friendlyMatchStore.draft.over" class="friendly-live__status">
-          <strong>{{ friendlyMatchStore.statusText }}</strong>
-          <span>{{
-            friendlyMatchStore.draft.matchFormat === 'match-tiebreak'
-              ? 'Win by two'
-              : friendlyMatchStore.formatLabel
-          }}</span>
-          <button
-            type="button"
-            aria-label="Undo last point"
-            title="Undo last point"
-            :disabled="!canScoreLiveMatch || !friendlyMatchStore.canUndo"
-            @click="undoLivePoint"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m9 7-5 5 5 5M5 12h8a6 6 0 0 1 6 6" />
-            </svg>
-          </button>
-        </div>
-
-        <div v-else class="friendly-live__finished" aria-live="polite">
-          <div class="friendly-live__finished-copy">
-            <span>Match result</span>
-            <strong>{{ friendlyMatchStore.statusText }}</strong>
-            <small>{{ currentIdentity.name }} vs {{ opponentName }}</small>
-          </div>
-          <div class="friendly-live__finished-facts">
-            <span
-              ><small>Final set scores</small
-              ><strong>{{ friendlyMatchStore.scoreSummary }}</strong></span
-            >
-            <span
-              ><small>Total points played</small>
-              <strong>
-                {{ friendlyMatchStore.draft.liveState?.pointsPlayed || 0 }}
-              </strong></span
-            >
-          </div>
-          <button
-            type="button"
-            class="friendly-live__finished-undo"
-            aria-label="Undo last point"
-            title="Undo last point"
-            :disabled="!canScoreLiveMatch || !friendlyMatchStore.canUndo"
-            @click="undoLivePoint"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m9 7-5 5 5 5M5 12h8a6 6 0 0 1 6 6" />
-            </svg>
-            <span>Undo last point</span>
-          </button>
-        </div>
-
-        <div v-if="!friendlyMatchStore.draft.over" class="friendly-live__players">
-          <p
-            v-if="!friendlyMatchStore.draft.over && !canScoreLiveMatch"
-            class="friendly-live__authority-note"
-            role="status"
-          >
-            View only — only the assigned scorer can change this match.
-          </p>
-
-          <div v-if="!friendlyMatchStore.draft.over" class="friendly-live__foundation-tools">
-            <div>
-              <span>Serving</span>
-
-              <strong>
-                {{ liveServerName }}
-              </strong>
-            </div>
-
-            <button
-              v-if="canScoreLiveMatch"
-              type="button"
-              class="button-secondary"
-              @click="toggleLiveServer"
-            >
-              <span>Switch server</span>
-            </button>
-          </div>
-          <button
-            type="button"
-            class="friendly-live__player friendly-live__player--you"
-            aria-label="Add point for you"
-            :disabled="!canScoreLiveMatch"
-            @click="recordLivePoint('you')"
-          >
-            <span>You</span><strong>{{ friendlyMatchStore.pointLabel('you') }}</strong>
-            <small>Tap when you win the rally</small>
-          </button>
-          <button
-            type="button"
-            class="friendly-live__player"
-            :aria-label="`Add point for ${opponentName}`"
-            :disabled="!canScoreLiveMatch"
-            @click="recordLivePoint('opponent')"
-          >
-            <span>{{ opponentName }}</span>
-            <strong>{{ friendlyMatchStore.pointLabel('opponent') }}</strong>
-            <small>Tap when {{ opponentName }} wins</small>
-          </button>
-        </div>
-
-        <p v-if="!friendlyMatchStore.draft.over" class="friendly-live__count">
-          Points played:
-          {{ friendlyMatchStore.draft.liveState?.pointsPlayed || 0 }}
-        </p>
-        <button
-          v-if="friendlyMatchStore.draft.over"
-          type="button"
-          class="button-primary friendly-live__result"
-          @click="resultModalOpen = true"
-        >
-          <FlowIcon name="trophy" /><span>View final result</span>
-        </button>
-      </section>
+      <LiveMatchControl
+        v-if="step === 'live'"
+        :player-a-name="
+          friendlyMatchStore.draft.liveState?.players?.playerA || currentIdentity.name
+        "
+        :player-b-name="friendlyMatchStore.draft.liveState?.players?.playerB || opponentName"
+        :player-a-point="friendlyMatchStore.pointLabel('you')"
+        :player-b-point="friendlyMatchStore.pointLabel('opponent')"
+        :sets-a="friendlyMatchStore.draft.setsA"
+        :sets-b="friendlyMatchStore.draft.setsB"
+        :games-a="friendlyMatchStore.draft.gamesA"
+        :games-b="friendlyMatchStore.draft.gamesB"
+        :set-scores="friendlyMatchStore.draft.setScores"
+        :current-set-number="Number(friendlyMatchStore.draft.liveState?.currentSetIndex || 0) + 1"
+        :match-format-label="friendlyMatchStore.matchFormatLabel"
+        :scoring-format-label="friendlyMatchStore.formatLabel"
+        :status-text="friendlyMatchStore.statusText"
+        :current-server="friendlyMatchStore.draft.liveState?.currentServer || 'playerA'"
+        :points-played="Number(friendlyMatchStore.draft.liveState?.pointsPlayed || 0)"
+        :revision="Number(friendlyMatchStore.draft.liveState?.revision || 0)"
+        :started-at="friendlyMatchStore.draft.startedAt"
+        :can-score="canScoreLiveMatch"
+        :can-undo="friendlyMatchStore.canUndo"
+        :in-tie-break="Boolean(friendlyMatchStore.draft.liveState?.currentGame?.inTieBreak)"
+        :is-match-tie-break="
+          Boolean(friendlyMatchStore.draft.liveState?.currentGame?.isMatchTieBreak)
+        "
+        :standalone-tie-break="friendlyMatchStore.draft.liveState?.config?.mode === 'tiebreak'"
+        :finished="friendlyMatchStore.draft.over"
+        :announcement="liveAnnouncement"
+        :announcements-enabled="voiceAnnouncementsEnabled"
+        :last-point-winner="lastPointWinner"
+        @point="recordLivePoint"
+        @undo="undoLivePoint"
+        @set-server="setLiveServer"
+        @toggle-announcements="toggleVoiceAnnouncements"
+      />
     </main>
     <MatchResultModal
-      v-if="canRenderCurrentRoute"
+      v-if="canRenderCurrentRoute && isLadder && step === 'live'"
       :open="resultModalOpen"
-      :winner="modalWinner"
-      :current-player-name="modalCurrentPlayerName"
-      :opponent-name="modalOpponentName"
-      :score="modalScore"
-      :set-scores="modalSetScores"
-      :match-format="modalMatchFormat"
-      :scoring-format="modalScoringFormat"
-      :primary-action-label="
-        step === 'result'
-          ? 'Return to dashboard'
-          : isLadder
-            ? 'Submit result for confirmation'
-            : 'Return to dashboard'
-      "
-      @close="closeResultPresentation"
+      :winner="friendlyMatchStore.draft.winner"
+      :current-player-name="currentIdentity.name"
+      :opponent-name="opponentName"
+      :score="friendlyMatchStore.scoreSummary"
+      :set-scores="friendlyMatchStore.draft.setScores"
+      :match-format="friendlyMatchStore.matchFormatLabel"
+      :scoring-format="friendlyMatchStore.formatLabel"
+      primary-action-label="
+    Submit result for confirmation
+  "
+      @close="closeLadderResultModal"
       @finish="finishMatch"
     />
   </div>

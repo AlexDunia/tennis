@@ -792,6 +792,126 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     return results.value.find((result) => result.id === id) || null
   }
 
+  function reportResultIssue(resultId = '', actorId = '', message = '') {
+    const id = String(resultId || '')
+    const actor = String(actorId || '')
+
+    if (!id || !actor) {
+      return null
+    }
+
+    const result = results.value.find((item) => item.id === id)
+
+    if (!result) {
+      return null
+    }
+
+    /*
+     * Only terminal results can receive a review request.
+     *
+     * A live match has its own Undo/correction workflow.
+     */
+    if (result.status !== 'completed') {
+      return null
+    }
+
+    const participantIds = Array.isArray(result.participantIds) ? result.participantIds : []
+
+    /*
+     * Frontend authorization boundary.
+     *
+     * Knowing a result ID must never be enough to create
+     * a review request.
+     *
+     * Laravel will later derive the authenticated actor
+     * from the session/token instead of trusting actorId
+     * supplied by the browser.
+     */
+    if (!participantIds.includes(actor)) {
+      return null
+    }
+
+    /*
+     * Keep review payloads bounded and predictable.
+     *
+     * This is still not a substitute for backend validation.
+     */
+    const normalizedMessage = String(message || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .slice(0, 280)
+
+    if (normalizedMessage.length < 6) {
+      return null
+    }
+
+    const issues = Array.isArray(result.issues) ? result.issues : []
+
+    /*
+     * One unresolved request per participant/result.
+     *
+     * This prevents repeated taps or refreshes from creating
+     * duplicate review records.
+     */
+    const existingOpenIssue = issues.find(
+      (issue) => issue.reportedBy === actor && issue.status === 'open',
+    )
+
+    if (existingOpenIssue) {
+      return existingOpenIssue
+    }
+
+    const now = new Date().toISOString()
+
+    const issue = {
+      id: `issue-${createToken()}`,
+
+      type: 'result_review',
+
+      status: 'open',
+
+      reportedBy: actor,
+
+      message: normalizedMessage,
+
+      createdAt: now,
+    }
+
+    const updatedResult = {
+      ...result,
+
+      /*
+       * IMPORTANT:
+       *
+       * The tennis result itself remains unchanged.
+       *
+       * This metadata describes a review workflow around the
+       * result. It does not silently modify winner/score/sets.
+       */
+      reviewStatus: 'issue_reported',
+
+      issues: [issue, ...issues],
+
+      updatedAt: now,
+    }
+
+    results.value = results.value.map((item) => (item.id === id ? updatedResult : item))
+
+    /*
+     * Important lifecycle metadata is committed immediately.
+     *
+     * Future backend equivalent:
+     *
+     * POST /matches/{match}/result-issues
+     *
+     * The server will authorize the authenticated user,
+     * validate the completed result and create an audit event.
+     */
+    persist(RESULT_STORAGE_KEY, results.value)
+
+    return issue
+  }
+
   function refreshResults() {
     /*
      * Completed results are immutable records.
@@ -1597,21 +1717,24 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     chooseMatchFormat,
     selectCustomFormat,
     saveCustomFormat,
-    refreshInvitations,
-    invitationByToken,
-    resultById,
-    joinInvitation,
+
     createScheduledInvitation,
     linkLadderRecords,
     startLiveMatch,
-    refreshResults,
     canManageMatch,
     canScoreMatch,
 
     pointLabel,
     recordPoint,
     undoPoint,
+    refreshInvitations,
+    invitationByToken,
 
+    resultById,
+    refreshResults,
+    reportResultIssue,
+
+    joinInvitation,
     setServer,
     toggleServer,
 
