@@ -305,6 +305,19 @@ const routes = [
     },
   },
   {
+    path: '/friendly-match/result/:resultId',
+    alias: '/ladder-match/live',
+    name: 'FriendlyMatchResult',
+    component: FriendlyMatchFlowView,
+    meta: {
+      title: 'Live friendly match',
+      friendlyFlow: true,
+      friendlyStep: 'result',
+      primarySection: 'play',
+      immersive: true,
+    },
+  },
+  {
     path: '/onboarding/join-club',
     name: 'PlayerClubJoin',
     component: MemberOnboardingView,

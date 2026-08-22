@@ -5,7 +5,15 @@ import {
   isEligibleLadderOpponent,
   ladderMatchConfig,
 } from '../config/ladder'
-
+import {
+  createScoreboard,
+  describePoint,
+  normalizeScoreboard,
+  recordPoint as recordTennisPoint,
+  setServer as setTennisServer,
+  toggleServer as toggleTennisServer,
+  undoLastPoint,
+} from '../utils/tennisScoring'
 const RESULT_STORAGE_KEY = 'gorra.friendlyMatchResults.v1'
 const DRAFT_STORAGE_KEY = 'gorra.friendlyMatchDraft.v3'
 const INVITATION_STORAGE_KEY = 'gorra.friendlyMatchInvitations.v1'
@@ -53,6 +61,37 @@ function createDraft() {
     preMatchPositions: null,
     joinToken: '',
     ownerId: '',
+
+    /*
+     * Ownership and scoring authority are separate.
+     *
+     * ownerId:
+     * Who owns/manages this match.
+     *
+     * scorerId:
+     * Who currently has permission to alter
+     * the live score.
+     *
+     * They begin as the same person for a normal
+     * Friendly match, but the architecture must not
+     * assume they stay the same.
+     */
+    scorerId: '',
+
+    /*
+     * The immutable start time of this live session.
+     */
+    startedAt: '',
+
+    /*
+     * Source of truth once the match becomes live.
+     *
+     * The older pointsA / gamesA / setsA fields below
+     * remain temporarily as a compatibility layer for
+     * the existing Vue UI.
+     */
+    liveState: null,
+
     status: 'draft',
     pointsA: 0,
     pointsB: 0,
@@ -94,6 +133,42 @@ function readDraft() {
     }
   } catch {
     return createDraft()
+  }
+}
+
+function engineConfigForDraft(value) {
+  const rules = rulesForDraft(value)
+
+  const useDecidingMatchTieBreak =
+    value.matchType === 'ladder' &&
+    (value.ladderConfigSnapshot?.matchPreset === 'time-smart' ||
+      value.ladderConfigSnapshot?.decidingMatchTieBreak === true)
+
+  return {
+    mode: rules.mode,
+
+    scoring: value.format === 'noad' ? 'noad' : 'ad',
+
+    setsToWin: rules.setsToWin,
+
+    /*
+     * Gorra's existing custom-format model stores
+     * setsToWin rather than bestOfSets.
+     *
+     * Convert it once here instead of teaching the
+     * tennis engine about FriendlyMatchStore.
+     */
+    bestOfSets: rules.mode === 'sets' ? Math.max(1, rules.setsToWin * 2 - 1) : 1,
+
+    gamesPerSet: rules.gamesPerSet,
+
+    tieBreakAt: rules.tieBreakAt,
+
+    tieBreakPoints: rules.tieBreakPoints,
+
+    decidingMatchTieBreak: useDecidingMatchTieBreak,
+
+    decidingTieBreakPoints: 10,
   }
 }
 
@@ -242,10 +317,36 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   const activeInvitation = computed(
     () => invitations.value.find((item) => item.id === draft.value.matchId) || null,
   )
-  const opponentReady = computed(
-    () =>
-      activeInvitation.value?.status === 'ready' && Boolean(activeInvitation.value.opponent?.id),
-  )
+  const opponentReady = computed(() => {
+    const invitation = activeInvitation.value
+
+    /*
+     * Primary source:
+     * the invitation itself says that an opponent
+     * successfully claimed the slot.
+     */
+    if (invitation?.opponent?.id && ['ready', 'live'].includes(invitation.status)) {
+      return true
+    }
+
+    /*
+     * Compatibility fallback while draft + invitation
+     * state still coexist in the frontend architecture.
+     *
+     * joinInvitation() deliberately synchronizes the
+     * joined player into the active draft as well.
+     *
+     * This prevents a temporary invitation snapshot
+     * mismatch from making the UI say:
+     *
+     * "Player joined"
+     *
+     * while simultaneously rendering:
+     *
+     * "Waiting for someone to join".
+     */
+    return Boolean(draft.value.opponent?.id && ['ready', 'live'].includes(draft.value.status))
+  })
   const scheduleComplete = computed(() => Boolean(draft.value.opponent))
   const scoreSummary = computed(() => {
     if (currentRules.value.mode === 'tiebreak')
@@ -290,6 +391,18 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   watch(invitations, (value) => persist(INVITATION_STORAGE_KEY, value), { deep: true })
   watch(savedFormats, (value) => persist(CUSTOM_FORMAT_STORAGE_KEY, value), { deep: true })
 
+  function canManageMatch(actorId = '') {
+    return Boolean(actorId && draft.value.ownerId && actorId === draft.value.ownerId)
+  }
+
+  function canScoreMatch(actorId = '') {
+    return Boolean(actorId && draft.value.scorerId && actorId === draft.value.scorerId)
+  }
+
+  function canFinalizeMatch(actorId = '') {
+    return canManageMatch(actorId) || canScoreMatch(actorId)
+  }
+
   function cancelActiveInvitation() {
     const invitation = activeInvitation.value
 
@@ -315,8 +428,28 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function beginMatch() {
+    /*
+     * A new match is a hard lifecycle boundary.
+     *
+     * No opponent, invitation, live score, old result
+     * state or previous match session is allowed to
+     * leak into the next match.
+     */
     cancelActiveInvitation()
+
     draft.value = createDraft()
+
+    /*
+     * Persist immediately rather than waiting for the
+     * deep watcher.
+     *
+     * This is today's frontend equivalent of beginning
+     * a fresh server-side match session.
+     */
+    persist(DRAFT_STORAGE_KEY, draft.value)
+    persist(INVITATION_STORAGE_KEY, invitations.value)
+
+    return draft.value
   }
 
   function chooseMatchType(matchType) {
@@ -504,7 +637,6 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       return null
     invitation.opponent = identity
     invitation.status = 'ready'
-    invitation.status = 'ready'
     invitation.joinedAt = new Date().toISOString()
     invitation.updatedAt = invitation.joinedAt
     invitations.value = invitations.value.map((item) =>
@@ -512,6 +644,15 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     )
     draft.value.opponent = identity
     draft.value.status = 'ready'
+
+    /*
+     * Same READY transaction as joinInvitation().
+     * Keep simulator/testing behavior identical to the
+     * real invitation-claim path.
+     */
+    persist(INVITATION_STORAGE_KEY, invitations.value)
+    persist(DRAFT_STORAGE_KEY, draft.value)
+
     return identity
   }
 
@@ -578,6 +719,16 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     return invitations.value.find((invitation) => invitation.token === token) || null
   }
 
+  function resultById(resultId = '') {
+    const id = String(resultId || '')
+
+    if (!id) {
+      return null
+    }
+
+    return results.value.find((result) => result.id === id) || null
+  }
+
   function joinInvitation(token, identity) {
     const actor = normalizeIdentity(identity)
     const invitation = invitationByToken(token)
@@ -622,7 +773,25 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       draft.value.opponent = actor
       draft.value.status = 'ready'
     }
-    return { ok: true, invitation }
+
+    /*
+     * READY is an important lifecycle boundary.
+     *
+     * Do not depend only on Vue's asynchronous watch
+     * cycle before another tab/device-like surface can
+     * observe the state.
+     *
+     * In Laravel later this becomes one database
+     * transaction. For today's frontend implementation,
+     * commit both sides immediately.
+     */
+    persist(INVITATION_STORAGE_KEY, invitations.value)
+    persist(DRAFT_STORAGE_KEY, draft.value)
+
+    return {
+      ok: true,
+      invitation,
+    }
   }
 
   function createScheduledInvitation(creator) {
@@ -660,214 +829,650 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function startLiveMatch(actorId = '') {
-    if (draft.value.ownerId && actorId !== draft.value.ownerId) return false
-    if (!draft.value.opponent || !draft.value.format) return false
+    if (!actorId) {
+      return false
+    }
+
+    /*
+     * Starting the match is a management action.
+     *
+     * For today's Friendly flow, the creator owns
+     * the match.
+     */
+    if (draft.value.ownerId && actorId !== draft.value.ownerId) {
+      return false
+    }
+
+    if (!draft.value.opponent || !draft.value.format) {
+      return false
+    }
+
+    /*
+     * A Play-now match may not start until somebody
+     * has legitimately claimed the opponent slot.
+     */
     if (
       draft.value.timing === 'now' &&
       (!activeInvitation.value || !['ready', 'live'].includes(activeInvitation.value.status))
-    )
+    ) {
       return false
-    draft.value.status = 'live'
-    if (activeInvitation.value) {
-      activeInvitation.value.status = 'live'
-      activeInvitation.value.startedAt = new Date().toISOString()
     }
+
+    /*
+     * Migration-friendly:
+     * if an older flow reaches here without ownerId,
+     * the authenticated starter becomes the owner.
+     */
+    if (!draft.value.ownerId) {
+      draft.value.ownerId = actorId
+    }
+
+    /*
+     * Normal Friendly match:
+     * creator begins as the scorer.
+     *
+     * IMPORTANT:
+     * if scorerId was already deliberately assigned
+     * to somebody else, starting the match must NOT
+     * overwrite that authority.
+     */
+    if (!draft.value.scorerId) {
+      draft.value.scorerId = actorId
+    }
+
+    const startedAt = draft.value.startedAt || new Date().toISOString()
+
+    const creatorName = activeInvitation.value?.creator?.name || 'You'
+
+    const opponentName = draft.value.opponent?.name || 'Opponent'
+
+    /*
+     * Never recreate a score merely because Start
+     * Match is triggered again.
+     *
+     * Idempotence matters here:
+     * duplicate taps must not erase the match.
+     */
+    if (draft.value.liveState) {
+      draft.value.liveState = normalizeScoreboard(draft.value.liveState, {
+        players: {
+          playerA: creatorName,
+          playerB: opponentName,
+        },
+
+        config: engineConfigForDraft(draft.value),
+
+        startedAt,
+        status: 'live',
+      })
+    } else {
+      draft.value.liveState = createScoreboard({
+        players: {
+          playerA: creatorName,
+          playerB: opponentName,
+        },
+
+        config: engineConfigForDraft(draft.value),
+
+        startedAt,
+
+        status: 'live',
+
+        /*
+         * Default only.
+         * Separation Two will make the real first
+         * server interaction explicit in the UI.
+         */
+        currentServer: 'playerA',
+      })
+    }
+
+    draft.value.startedAt = startedAt
+
+    draft.value.status = draft.value.liveState.matchWinner ? 'finished' : 'live'
+
+    /*
+     * Existing UI still reads pointsA/gamesA/etc.
+     * Keep it working while liveState becomes the
+     * source of truth.
+     */
+    syncLegacyScoreFields()
+
+    const invitation = activeInvitation.value
+
+    if (invitation) {
+      const now = new Date().toISOString()
+
+      const updatedInvitation = {
+        ...invitation,
+
+        status: draft.value.status,
+
+        startedAt: invitation.startedAt || startedAt,
+
+        updatedAt: now,
+      }
+
+      invitations.value = invitations.value.map((item) =>
+        item.id === invitation.id ? updatedInvitation : item,
+      )
+    }
+
     return true
   }
 
   function linkLadderRecords(challenge, match = null) {
     draft.value.challengeId = challenge?.id || draft.value.challengeId
+
     draft.value.ladderMatchId = match?.id || draft.value.ladderMatchId
+
     draft.value.preMatchPositions = challenge?.preMatchPositions || {
       challenger: Number(challenge?.challengerRank || 0) || null,
+
       defender: Number(challenge?.defenderRank || 0) || null,
     }
-    if (challenge?.status) draft.value.status = challenge.status
-  }
 
-  function pointLabel(side) {
-    const own = side === 'you' ? draft.value.pointsA : draft.value.pointsB
-    const other = side === 'you' ? draft.value.pointsB : draft.value.pointsA
-    if (draft.value.over) return draft.value.winner === side ? 'Won' : 'Match'
-    if (draft.value.isTiebreak || currentRules.value.mode === 'tiebreak') return String(own)
-    if (draft.value.format === 'ad' && own >= 3 && other >= 3) {
-      if (own === other) return '40'
-      if (own === other + 1) return 'Ad'
-      if (other === own + 1) return '40'
+    /*
+     * Ownership and scoring authority can come
+     * from the shared match/challenge domain.
+     */
+    const ownerId = match?.ownerId || challenge?.challengerId || ''
+
+    const scorerId = match?.scorerId || challenge?.scorerId || ''
+
+    if (ownerId) {
+      draft.value.ownerId = ownerId
     }
-    return ['Love', '15', '30', '40'][Math.min(own, 3)]
-  }
 
-  function snapshotScore() {
-    return {
-      pointsA: draft.value.pointsA,
-      pointsB: draft.value.pointsB,
-      gamesA: draft.value.gamesA,
-      gamesB: draft.value.gamesB,
-      setsA: draft.value.setsA,
-      setsB: draft.value.setsB,
-      setScores: draft.value.setScores.map((set) => ({ ...set })),
-      isTiebreak: draft.value.isTiebreak,
-      isMatchTiebreak: draft.value.isMatchTiebreak,
-      over: draft.value.over,
-      winner: draft.value.winner,
-      status: draft.value.status,
+    if (scorerId) {
+      draft.value.scorerId = scorerId
+    }
+
+    if (challenge?.status) {
+      draft.value.status = challenge.status
     }
   }
 
-  function awardSet(side, a, b) {
-    draft.value.setScores.push({ a, b })
-    if (side === 'you') draft.value.setsA += 1
-    else draft.value.setsB += 1
+  function sideToPlayerKey(side) {
+    return side === 'opponent' ? 'playerB' : 'playerA'
+  }
 
-    draft.value.gamesA = a
-    draft.value.gamesB = b
-    const targetSets = currentRules.value.setsToWin
-    const winnerSets = side === 'you' ? draft.value.setsA : draft.value.setsB
-    if (winnerSets >= targetSets) {
-      draft.value.over = true
-      draft.value.winner = side
-      draft.value.status = 'finished'
+  function syncLegacyScoreFields() {
+    const liveState = draft.value.liveState
+
+    if (!liveState) {
       return
     }
 
-    draft.value.gamesA = 0
-    draft.value.gamesB = 0
-    draft.value.pointsA = 0
-    draft.value.pointsB = 0
-    draft.value.isTiebreak = false
-    draft.value.isMatchTiebreak = false
+    const currentSet = liveState.sets?.[liveState.currentSetIndex] || null
 
-    if (
-      draft.value.matchType === 'ladder' &&
-      draft.value.ladderConfigSnapshot?.matchPreset === 'time-smart' &&
-      draft.value.setsA === 1 &&
-      draft.value.setsB === 1
-    ) {
-      draft.value.isTiebreak = true
-      draft.value.isMatchTiebreak = true
+    const currentGame = liveState.currentGame || {}
+
+    const isTieBreak = Boolean(currentGame.inTieBreak)
+
+    const points = isTieBreak ? currentGame.tieBreakPoints : currentGame.points
+
+    draft.value.pointsA = Number(points?.playerA || 0)
+
+    draft.value.pointsB = Number(points?.playerB || 0)
+
+    draft.value.gamesA = Number(currentSet?.games?.playerA || 0)
+
+    draft.value.gamesB = Number(currentSet?.games?.playerB || 0)
+
+    draft.value.setsA = liveState.completedSets.filter((set) => set.winner === 'playerA').length
+
+    draft.value.setsB = liveState.completedSets.filter((set) => set.winner === 'playerB').length
+
+    /*
+     * Keep the existing MatchResultModal contract
+     * alive during migration.
+     */
+    draft.value.setScores = liveState.completedSets.map((set) => {
+      const score = set.isMatchTieBreak && set.tieBreak?.score ? set.tieBreak.score : set.games
+
+      return {
+        a: Number(score?.playerA || 0),
+
+        b: Number(score?.playerB || 0),
+
+        tieBreak: set.tieBreak
+          ? {
+              ...set.tieBreak,
+            }
+          : null,
+
+        isMatchTieBreak: Boolean(set.isMatchTieBreak),
+      }
+    })
+
+    draft.value.isTiebreak = isTieBreak
+
+    draft.value.isMatchTiebreak = Boolean(currentGame.isMatchTieBreak)
+
+    draft.value.pointHistory = Array.isArray(liveState.history) ? liveState.history : []
+
+    draft.value.over = Boolean(liveState.matchWinner)
+
+    if (liveState.matchWinner === 'playerA') {
+      draft.value.winner = 'you'
+    } else if (liveState.matchWinner === 'playerB') {
+      draft.value.winner = 'opponent'
+    } else {
+      draft.value.winner = ''
     }
+
+    draft.value.status = liveState.matchWinner ? 'finished' : 'live'
+  }
+
+  function pointLabel(side) {
+    if (!['you', 'opponent'].includes(side)) {
+      return ''
+    }
+
+    /*
+     * New authoritative path.
+     */
+    if (draft.value.liveState) {
+      if (draft.value.over) {
+        return draft.value.winner === side ? 'Won' : 'Match'
+      }
+
+      const label = describePoint(draft.value.liveState, sideToPlayerKey(side))
+
+      return label === 'Advantage' ? 'Ad' : label
+    }
+
+    /*
+     * Setup/legacy fallback before liveState exists.
+     *
+     * This is presentation only.
+     * No tennis state is mutated here.
+     */
+    const own = side === 'you' ? draft.value.pointsA : draft.value.pointsB
+
+    const other = side === 'you' ? draft.value.pointsB : draft.value.pointsA
+
+    if (draft.value.over) {
+      return draft.value.winner === side ? 'Won' : 'Match'
+    }
+
+    if (draft.value.isTiebreak || currentRules.value.mode === 'tiebreak') {
+      return String(own)
+    }
+
+    if (draft.value.format === 'ad' && own >= 3 && other >= 3) {
+      if (own === other) {
+        return '40'
+      }
+
+      if (own === other + 1) {
+        return 'Ad'
+      }
+
+      if (other === own + 1) {
+        return '40'
+      }
+    }
+
+    return ['Love', '15', '30', '40'][Math.min(own, 3)]
   }
 
   function recordPoint(side, actorId = '') {
-    if (draft.value.ownerId && actorId !== draft.value.ownerId) return false
-    if (draft.value.status !== 'live') return false
-    if (draft.value.over || !['you', 'opponent'].includes(side)) return false
-    draft.value.pointHistory.push(snapshotScore())
-    if (side === 'you') draft.value.pointsA += 1
-    else draft.value.pointsB += 1
-    const own = side === 'you' ? draft.value.pointsA : draft.value.pointsB
-    const other = side === 'you' ? draft.value.pointsB : draft.value.pointsA
-
-    const rules = currentRules.value
-    if (rules.mode === 'tiebreak') {
-      if (own >= rules.tieBreakPoints && own - other >= 2) {
-        draft.value.setScores = [{ a: draft.value.pointsA, b: draft.value.pointsB }]
-        draft.value.setsA = side === 'you' ? 1 : 0
-        draft.value.setsB = side === 'opponent' ? 1 : 0
-        draft.value.over = true
-        draft.value.winner = side
-        draft.value.status = 'finished'
-      }
-      return true
+    if (!['you', 'opponent'].includes(side)) {
+      return false
     }
 
-    if (draft.value.isTiebreak) {
-      const tieBreakTarget = draft.value.isMatchTiebreak ? 10 : rules.tieBreakPoints
-      if (own >= tieBreakTarget && own - other >= 2) {
-        if (draft.value.isMatchTiebreak) {
-          awardSet(side, draft.value.pointsA, draft.value.pointsB)
-          return true
-        }
-        const winningGames = rules.tieBreakAt + 1
-        awardSet(
-          side,
-          side === 'you' ? winningGames : rules.tieBreakAt,
-          side === 'you' ? rules.tieBreakAt : winningGames,
-        )
-      }
-      return true
+    /*
+     * This is now score authority,
+     * not ownership authority.
+     */
+    if (!canScoreMatch(actorId)) {
+      return false
     }
 
-    const margin = draft.value.format === 'noad' ? 1 : 2
-    if (own < 4 || own - other < margin) return true
-    if (side === 'you') draft.value.gamesA += 1
-    else draft.value.gamesB += 1
-    draft.value.pointsA = 0
-    draft.value.pointsB = 0
-    const gamesOwn = side === 'you' ? draft.value.gamesA : draft.value.gamesB
-    const gamesOther = side === 'you' ? draft.value.gamesB : draft.value.gamesA
-    if (gamesOwn >= rules.gamesPerSet && gamesOwn - gamesOther >= 2) {
-      awardSet(side, draft.value.gamesA, draft.value.gamesB)
-    } else if (
-      rules.tieBreakAt > 0 &&
-      draft.value.gamesA === rules.tieBreakAt &&
-      draft.value.gamesB === rules.tieBreakAt
-    ) {
-      draft.value.isTiebreak = true
+    if (draft.value.status !== 'live' || !draft.value.liveState || draft.value.over) {
+      return false
     }
+
+    const previousRevision = Number(draft.value.liveState.revision || 0)
+
+    const next = recordTennisPoint(draft.value.liveState, sideToPlayerKey(side))
+
+    if (!next || Number(next.revision || 0) <= previousRevision) {
+      return false
+    }
+
+    draft.value.liveState = next
+
+    syncLegacyScoreFields()
+
     return true
   }
 
   function undoPoint(actorId = '') {
-    if (draft.value.ownerId && actorId !== draft.value.ownerId) return false
-    const previous = draft.value.pointHistory.pop()
-    if (!previous) return false
-    Object.assign(draft.value, previous)
-    draft.value.status = previous.status || (previous.over ? 'finished' : 'live')
+    if (!canScoreMatch(actorId)) {
+      return false
+    }
+
+    if (!draft.value.liveState || !draft.value.liveState.history?.length) {
+      return false
+    }
+
+    const previousRevision = Number(draft.value.liveState.revision || 0)
+
+    const restored = undoLastPoint(draft.value.liveState)
+
+    if (!restored || Number(restored.revision || 0) <= previousRevision) {
+      return false
+    }
+
+    draft.value.liveState = restored
+
+    syncLegacyScoreFields()
+
     return true
+  }
+
+  function setServer(side, actorId = '') {
+    if (!['you', 'opponent'].includes(side)) {
+      return false
+    }
+
+    if (!canScoreMatch(actorId)) {
+      return false
+    }
+
+    if (!draft.value.liveState || draft.value.over) {
+      return false
+    }
+
+    const previousRevision = Number(draft.value.liveState.revision || 0)
+
+    const next = setTennisServer(draft.value.liveState, sideToPlayerKey(side))
+
+    if (!next || Number(next.revision || 0) <= previousRevision) {
+      /*
+       * Selecting the already-active server is
+       * harmless and intentionally treated as
+       * "no state change".
+       */
+      return false
+    }
+
+    draft.value.liveState = next
+
+    syncLegacyScoreFields()
+
+    return true
+  }
+
+  function toggleServer(actorId = '') {
+    if (!canScoreMatch(actorId)) {
+      return false
+    }
+
+    if (!draft.value.liveState || draft.value.over) {
+      return false
+    }
+
+    const previousRevision = Number(draft.value.liveState.revision || 0)
+
+    const next = toggleTennisServer(draft.value.liveState)
+
+    if (!next || Number(next.revision || 0) <= previousRevision) {
+      return false
+    }
+
+    draft.value.liveState = next
+
+    syncLegacyScoreFields()
+
+    return true
+  }
+
+  function refreshDraft() {
+    const stored = readDraft()
+
+    const currentRevision = Number(draft.value.liveState?.revision || 0)
+
+    const storedRevision = Number(stored.liveState?.revision || 0)
+
+    /*
+     * Never let an older tab overwrite a newer
+     * in-memory score merely because a storage
+     * event arrived late.
+     */
+    if (draft.value.liveState && stored.liveState && storedRevision < currentRevision) {
+      return draft.value
+    }
+
+    draft.value = stored
+
+    if (draft.value.liveState) {
+      syncLegacyScoreFields()
+    }
+
+    return draft.value
   }
 
   function resetScore() {
     Object.assign(draft.value, {
+      /*
+       * Do not clear ownerId/scorerId here.
+       *
+       * Score configuration and authority are
+       * different concerns.
+       */
+      startedAt: '',
+      liveState: null,
+
       pointsA: 0,
       pointsB: 0,
+
       gamesA: 0,
       gamesB: 0,
+
       setsA: 0,
       setsB: 0,
+
       setScores: [],
+
       isTiebreak: false,
       isMatchTiebreak: false,
+
       pointHistory: [],
+
       over: false,
       winner: '',
     })
   }
 
   function endMatch(actorId = '') {
-    if (draft.value.ownerId && actorId !== draft.value.ownerId) return null
-    if (!draft.value.over || !['you', 'opponent'].includes(draft.value.winner)) return null
-    const opponentName = draft.value.opponent?.name || 'Opponent'
-    const score = scoreSummary.value
-    let summary = `${matchTypeLabel.value} with ${opponentName} ended, ${score}`
-    if (draft.value.winner === 'you') summary = `You beat ${opponentName}, ${score}`
-    else if (draft.value.winner === 'opponent') summary = `${opponentName} beat you, ${score}`
+    if (!canFinalizeMatch(actorId)) {
+      return null
+    }
+
+    /*
+     * Completion must come from the scoring engine,
+     * not merely from somebody pressing a UI button.
+     */
+    if (!draft.value.over || !draft.value.winner || !draft.value.liveState?.matchWinner) {
+      return null
+    }
+
+    const finalLiveState = normalizeScoreboard(draft.value.liveState)
+
+    /*
+     * Undo snapshots are useful while playing.
+     * They are not the historical match record.
+     */
+    finalLiveState.history = []
+
+    finalLiveState.status = 'finished'
+
+    finalLiveState.completedAt = finalLiveState.completedAt || new Date().toISOString()
+
+    const playerAId = draft.value.ownerId || actorId
+
+    const playerBId = draft.value.opponent?.id || ''
+
+    /*
+     * Never create an anonymous completed result.
+     *
+     * Later Laravel will perform the same identity
+     * validation server-side.
+     */
+    if (!playerAId || !playerBId) {
+      return null
+    }
+
+    const playerAName = finalLiveState.players?.playerA || 'Player 1'
+
+    const playerBName = finalLiveState.players?.playerB || draft.value.opponent?.name || 'Opponent'
+
+    const winnerId = finalLiveState.matchWinner === 'playerA' ? playerAId : playerBId
+
+    const participantIds = [...new Set([playerAId, playerBId].filter(Boolean))]
+
+    /*
+     * Use the match/session id when possible so the
+     * same completed match cannot accidentally create
+     * several result records.
+     */
+    const sourceMatchId = draft.value.matchId || draft.value.ladderMatchId || createToken()
+
+    const resultId = `result-${sourceMatchId}`
+
     const result = {
-      id: draft.value.matchId || `match-result-${Date.now()}`,
-      opponent: opponentName,
-      opponentId: draft.value.opponent?.id || null,
-      matchType: draft.value.matchType,
-      matchTypeLabel: matchTypeLabel.value,
-      format: currentRules.value.mode === 'tiebreak' ? 'Win by two' : formatLabel.value,
-      matchFormat: draft.value.matchFormat,
-      customFormat: draft.value.customFormat ? { ...draft.value.customFormat } : null,
-      matchFormatLabel: matchFormatLabel.value,
-      score,
-      setScores: draft.value.setScores.map((set) => ({ ...set })),
-      pointsA: draft.value.pointsA,
-      pointsB: draft.value.pointsB,
-      winner: draft.value.winner,
-      summary,
+      resultVersion: 1,
+
+      id: resultId,
+
+      matchId: draft.value.matchId || '',
+
+      challengeId: draft.value.challengeId || '',
+
+      ladderMatchId: draft.value.ladderMatchId || '',
+
+      matchType: draft.value.matchType || 'friendly',
+
       status: 'completed',
-      completedAt: new Date().toISOString(),
+
+      ownerId: draft.value.ownerId || playerAId,
+
+      scorerId: draft.value.scorerId || '',
+
+      /*
+       * Backend-ready access boundary.
+       */
+      participantIds,
+
+      players: {
+        playerA: {
+          id: playerAId,
+          name: playerAName,
+        },
+
+        playerB: {
+          id: playerBId,
+          name: playerBName,
+        },
+      },
+
+      opponentId: playerBId,
+      opponentName: playerBName,
+
+      winner: draft.value.winner,
+
+      winnerId,
+
+      winnerName: winnerId === playerAId ? playerAName : playerBName,
+
+      score: scoreSummary.value,
+
+      setScores: draft.value.setScores.map((set) => ({
+        ...set,
+
+        tieBreak: set.tieBreak
+          ? {
+              ...set.tieBreak,
+            }
+          : null,
+      })),
+
+      scoring: draft.value.format,
+
+      scoringFormat: formatLabel.value,
+
+      matchFormat: draft.value.matchFormat,
+
+      matchFormatLabel: matchFormatLabel.value,
+
+      customFormat: draft.value.customFormat
+        ? {
+            ...draft.value.customFormat,
+          }
+        : null,
+
+      startedAt: draft.value.startedAt || finalLiveState.startedAt || null,
+
+      completedAt: finalLiveState.completedAt,
+
+      finalizedBy: actorId,
+
+      /*
+       * This is the authoritative frontend snapshot
+       * until Laravel becomes the server authority.
+       */
+      liveState: finalLiveState,
     }
-    results.value = [result, ...results.value]
-    if (activeInvitation.value) {
-      activeInvitation.value.status = 'completed'
-      activeInvitation.value.completedAt = result.completedAt
+
+    /*
+     * Idempotent local commit.
+     */
+    results.value = [result, ...results.value.filter((existing) => existing.id !== result.id)]
+
+    /*
+     * Persist synchronously BEFORE routing away.
+     *
+     * This localStorage layer is today's frontend
+     * stand-in for the future database transaction.
+     */
+    persist(RESULT_STORAGE_KEY, results.value)
+
+    const invitation = activeInvitation.value
+
+    if (invitation) {
+      invitations.value = invitations.value.map((item) =>
+        item.id === invitation.id
+          ? {
+              ...item,
+
+              status: 'completed',
+
+              completedAt: result.completedAt,
+
+              updatedAt: result.completedAt,
+            }
+          : item,
+      )
+
+      persist(INVITATION_STORAGE_KEY, invitations.value)
     }
+
+    /*
+     * Critical lifecycle boundary:
+     *
+     * The live session is now CLOSED.
+     *
+     * Result data lives in `results`.
+     * It must no longer live inside the active draft.
+     */
     draft.value = createDraft()
+
+    persist(DRAFT_STORAGE_KEY, draft.value)
+
     return result
   }
 
@@ -905,13 +1510,24 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     saveCustomFormat,
     refreshInvitations,
     invitationByToken,
+    resultById,
     joinInvitation,
     createScheduledInvitation,
     linkLadderRecords,
     startLiveMatch,
+
+    canManageMatch,
+    canScoreMatch,
+
     pointLabel,
     recordPoint,
     undoPoint,
+
+    setServer,
+    toggleServer,
+
+    refreshDraft,
+
     endMatch,
   }
 })

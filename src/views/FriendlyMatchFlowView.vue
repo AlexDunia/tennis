@@ -39,6 +39,7 @@ const externalInvitation = ref(null)
 const customFormatError = ref('')
 const showTieBreakDetails = ref(false)
 const resultModalOpen = ref(false)
+const friendlyFinalizing = ref(false)
 const ladderAccessChecking = ref(false)
 const customFormatForm = reactive({
   id: '',
@@ -98,6 +99,124 @@ const canManageDraft = computed(
     friendlyMatchStore.draft.ownerId === currentIdentity.value.id,
 )
 const playNowReady = computed(() => friendlyMatchStore.opponentReady)
+const canScoreLiveMatch = computed(() => friendlyMatchStore.canScoreMatch(currentIdentity.value.id))
+
+const canAccessLiveMatch = computed(() => canManageDraft.value || canScoreLiveMatch.value)
+
+const liveServerName = computed(() => {
+  const server = friendlyMatchStore.draft.liveState?.currentServer
+
+  return server === 'playerB' ? opponentName.value : currentIdentity.value.name
+})
+
+const completedResultId = computed(() => String(route.params.resultId || ''))
+
+const completedResult = computed(() =>
+  step.value === 'result' ? friendlyMatchStore.resultById(completedResultId.value) : null,
+)
+
+const completedResultPresentation = computed(() => {
+  const result = completedResult.value
+
+  if (!result) {
+    return null
+  }
+
+  const playerA = result.players?.playerA || {
+    id: result.ownerId || '',
+    name: 'Player 1',
+  }
+
+  const playerB = result.players?.playerB || {
+    id: result.opponentId || '',
+
+    name: result.opponentName || 'Opponent',
+  }
+
+  const currentPlayerIsA = playerA.id === currentIdentity.value.id
+
+  const currentPlayer = currentPlayerIsA ? playerA : playerB
+
+  const opponent = currentPlayerIsA ? playerB : playerA
+
+  return {
+    winner: result.winnerId === currentIdentity.value.id ? 'you' : 'opponent',
+
+    currentPlayerName: currentPlayer?.name || currentIdentity.value.name,
+
+    opponentName: opponent?.name || 'Opponent',
+
+    score: result.score || '0–0',
+
+    setScores: Array.isArray(result.setScores) ? result.setScores : [],
+
+    matchFormat: result.matchFormatLabel || 'Friendly match',
+
+    scoringFormat: result.scoringFormat || (result.scoring === 'noad' ? 'No-Ad' : 'Advantage'),
+  }
+})
+
+const modalWinner = computed(
+  () => completedResultPresentation.value?.winner ?? friendlyMatchStore.draft.winner,
+)
+
+const modalCurrentPlayerName = computed(
+  () => completedResultPresentation.value?.currentPlayerName ?? currentIdentity.value.name,
+)
+
+const modalOpponentName = computed(
+  () => completedResultPresentation.value?.opponentName ?? opponentName.value,
+)
+
+const modalScore = computed(
+  () => completedResultPresentation.value?.score ?? friendlyMatchStore.scoreSummary,
+)
+
+const modalSetScores = computed(
+  () => completedResultPresentation.value?.setScores ?? friendlyMatchStore.draft.setScores,
+)
+
+const modalMatchFormat = computed(
+  () => completedResultPresentation.value?.matchFormat ?? friendlyMatchStore.matchFormatLabel,
+)
+
+const modalScoringFormat = computed(
+  () => completedResultPresentation.value?.scoringFormat ?? friendlyMatchStore.formatLabel,
+)
+
+/*
+ * The same fixed action area is used in two places:
+ *
+ * JOIN READY
+ *   Opponent is connected.
+ *   If setup is incomplete → Continue setup.
+ *   If setup is already complete → Start match.
+ *
+ * FORMAT
+ *   Rules are complete → Start match.
+ */
+const showReadyActionFooter = computed(() => {
+  return Boolean(isFriendly.value && isPlayNow.value && step.value === 'join' && playNowReady.value)
+})
+
+const readyActionLabel = computed(() => {
+  const hasScoring = Boolean(friendlyMatchStore.draft.format)
+
+  const hasMatchFormat = Boolean(friendlyMatchStore.draft.matchFormat)
+
+  return hasScoring && hasMatchFormat ? 'Start match' : 'Continue setup'
+})
+const readyActionDescription = computed(() => {
+  if (!friendlyMatchStore.draft.format) {
+    return 'Opponent joined · Choose scoring next'
+  }
+
+  if (!friendlyMatchStore.draft.matchFormat) {
+    return `${friendlyMatchStore.formatLabel} · Choose match format next`
+  }
+
+  return `${friendlyMatchStore.formatLabel} · ${friendlyMatchStore.matchFormatLabel}`
+})
 const activeInvitation = computed(() => friendlyMatchStore.activeInvitation)
 const invitationIsOpen = computed(() => activeInvitation.value?.audience === 'open')
 
@@ -307,11 +426,17 @@ const backRoute = computed(() => {
 })
 
 function guardStep() {
-  // /friendly-match/join/:token is the OTHER PLAYER'S screen.
-  // If the creator somehow opens their own invitation URL,
-  // return them to the creator-side join flow instead.
+  /*
+   * INVITED PLAYER ROUTE
+   *
+   * /friendly-match/join/:token belongs to the
+   * person receiving the invitation.
+   *
+   * The creator must never claim their own invite.
+   */
   if (step.value === 'externalJoin') {
     const token = String(route.params.token || '')
+
     const invitation = friendlyMatchStore.invitationByToken(token)
 
     if (invitation?.creator?.id && invitation.creator.id === currentIdentity.value.id) {
@@ -321,65 +446,190 @@ function guardStep() {
     return
   }
 
-  // Only the creator should manage their own Friendly draft.
-  if (isFriendly.value && friendlyMatchStore.draft.ownerId && !canManageDraft.value) {
-    router.replace({ name: 'Dashboard' })
+  /*
+   * COMPLETED FRIENDLY RESULT
+   *
+   * This check MUST happen before checking the
+   * active draft.
+   *
+   * Why?
+   * Once a Friendly match is finalized, endMatch()
+   * closes and resets the live draft.
+   *
+   * The completed result now lives in `results`,
+   * not inside `draft`.
+   */
+  if (step.value === 'result') {
+    const result = completedResult.value
+
+    if (!result) {
+      router.replace({
+        name: 'Dashboard',
+      })
+
+      return
+    }
+
+    const participantIds = Array.isArray(result.participantIds) ? result.participantIds : []
+
+    /*
+     * Frontend access boundary.
+     *
+     * Knowing the result URL is not enough.
+     * The current authenticated player must
+     * actually belong to this result.
+     *
+     * Laravel will enforce the same rule later
+     * on the server.
+     */
+    if (!currentIdentity.value.id || !participantIds.includes(currentIdentity.value.id)) {
+      router.replace({
+        name: 'Dashboard',
+      })
+
+      return
+    }
+
     return
   }
 
-  // A focused flow should have a known match type.
-  if (!friendlyMatchStore.draft.matchType) {
-    if (step.value === 'type') return
+  /*
+   * FRIENDLY DRAFT OWNERSHIP
+   *
+   * The creator owns setup.
+   *
+   * Live Match Control is slightly different:
+   * an assigned scorer may control the score
+   * without becoming the match owner.
+   */
+  if (isFriendly.value && friendlyMatchStore.draft.ownerId && !canManageDraft.value) {
+    if (step.value !== 'live' || !canAccessLiveMatch.value) {
+      router.replace({
+        name: 'Dashboard',
+      })
 
-    router.replace({ name: 'Play' })
+      return
+    }
+  }
+
+  /*
+   * Every active setup route needs a known
+   * match type.
+   *
+   * The completed result route was already
+   * handled above because a completed result
+   * intentionally has no active draft.
+   */
+  if (!friendlyMatchStore.draft.matchType) {
+    if (step.value === 'type') {
+      return
+    }
+
+    router.replace({
+      name: 'Play',
+    })
+
     return
   }
 
   /*
    * FRIENDLY MATCH
    *
+   * Current setup:
+   *
    * Play
    * → Scoring
-   * → Format / Custom format
+   * → Match format
    * → Timing
+   * → Join / Schedule
+   * → Ready
+   * → Live
    */
   if (isFriendly.value) {
-    // The old Type screen is no longer part of this Play entry.
+    /*
+     * Old Friendly Type screen is no longer
+     * part of the normal Play entry.
+     */
     if (step.value === 'type') {
       router.replace(flowLocation('FriendlyMatchScoring'))
+
       return
     }
 
-    // You cannot choose a match format until scoring is chosen.
+    /*
+     * Format and Timing cannot exist before
+     * the scoring rule has been selected.
+     */
     if (
       ['format', 'customFormat', 'timing'].includes(step.value) &&
       !friendlyMatchStore.draft.format
     ) {
       router.replace(flowLocation('FriendlyMatchScoring'))
+
       return
     }
 
-    // The steps below Timing belong to the next piece of work.
+    /*
+     * Join belongs after Timing.
+     */
     if (step.value === 'join' && !friendlyMatchStore.draft.timing) {
       router.replace(flowLocation('FriendlyMatchTiming'))
+
       return
     }
 
+    /*
+     * Club opponent selection also belongs
+     * to the Play Now invitation branch.
+     */
     if (step.value === 'clubOpponent' && !friendlyMatchStore.draft.timing) {
       router.replace(flowLocation('FriendlyMatchTiming'))
+
       return
     }
 
+    /*
+     * Schedule screen only exists for the
+     * Schedule Later branch.
+     */
     if (step.value === 'schedule' && friendlyMatchStore.draft.timing !== 'later') {
       router.replace(flowLocation('FriendlyMatchTiming'))
+
       return
     }
 
-    if (
-      step.value === 'live' &&
-      (!friendlyMatchStore.draft.format || !friendlyMatchStore.draft.opponent)
-    ) {
-      router.replace(flowLocation('FriendlyMatchTiming'))
+    /*
+     * LIVE MATCH
+     *
+     * /friendly-match/live means:
+     *
+     * "There is an ACTIVE scoring session."
+     *
+     * A configured match is not enough.
+     * A finished match is not enough.
+     *
+     * We need:
+     * - scoring rules
+     * - opponent
+     * - real liveState
+     * - status === live
+     */
+    if (step.value === 'live') {
+      const hasScoring = Boolean(friendlyMatchStore.draft.format)
+
+      const hasOpponent = Boolean(friendlyMatchStore.draft.opponent)
+
+      const hasLiveState = Boolean(friendlyMatchStore.draft.liveState)
+
+      const isActuallyLive = friendlyMatchStore.draft.status === 'live'
+
+      if (!hasScoring || !hasOpponent || !hasLiveState || !isActuallyLive) {
+        router.replace({
+          name: 'Dashboard',
+        })
+
+        return
+      }
     }
 
     return
@@ -388,55 +638,80 @@ function guardStep() {
   /*
    * LADDER
    *
-   * Preserve the Ladder architecture we already fixed:
-   * Opponent → Timing → Join/Schedule → Format.
+   * Preserve the Ladder architecture:
+   *
+   * Opponent
+   * → Timing
+   * → Join / Schedule
+   * → Format
+   * → Live
    */
   if (isLadder.value) {
     if (step.value === 'timing' && !friendlyMatchStore.draft.opponent) {
       router.replace(flowLocation('FriendlyMatchClubOpponent'))
+
       return
     }
 
     if (step.value === 'opponent') {
       router.replace(flowLocation('FriendlyMatchClubOpponent'))
+
       return
     }
 
     if (step.value === 'schedule' && (isPlayNow.value || !friendlyMatchStore.draft.opponent)) {
       router.replace(flowLocation('FriendlyMatchClubOpponent'))
+
       return
     }
 
     if (step.value === 'join' && (!isPlayNow.value || !friendlyMatchStore.draft.matchId)) {
       router.replace(flowLocation('FriendlyMatchTiming'))
+
       return
     }
 
     if (step.value === 'scoring') {
       router.replace(flowLocation('FriendlyMatchFormat'))
+
       return
     }
 
     if (step.value === 'format' && !friendlyMatchStore.draft.opponent) {
       router.replace(flowLocation('FriendlyMatchClubOpponent'))
+
       return
     }
 
     if (step.value === 'format' && isPlayNow.value && !playNowReady.value) {
       router.replace(flowLocation('FriendlyMatchJoin'))
+
       return
     }
 
     if (step.value === 'customFormat') {
       router.replace(flowLocation('FriendlyMatchFormat'))
+
       return
     }
 
+    /*
+     * Ladder keeps its existing finished state
+     * temporarily because Ladder result submission
+     * still has its own confirmation lifecycle.
+     */
     if (
       step.value === 'live' &&
-      (!friendlyMatchStore.draft.format || !friendlyMatchStore.draft.opponent)
+      (!friendlyMatchStore.draft.format ||
+        !friendlyMatchStore.draft.opponent ||
+        !friendlyMatchStore.draft.liveState ||
+        !['live', 'finished'].includes(friendlyMatchStore.draft.status))
     ) {
-      router.replace(flowLocation('FriendlyMatchFormat'))
+      router.replace(
+        isPlayNow.value ? flowLocation('FriendlyMatchJoin') : flowLocation('FriendlyMatchFormat'),
+      )
+
+      return
     }
   }
 }
@@ -727,99 +1002,436 @@ function applyCustomFormat() {
   router.push(flowLocation('FriendlyMatchFormat'))
 }
 async function completeReview() {
+  inlineNote.value = ''
+
   if (isLadder.value) {
-    inlineNote.value = ''
     const challenger = playerStore.currentPlayer
+
     const defender = friendlyMatchStore.draft.opponent
+
     if (!challenger || !isEligibleLadderOpponent(challenger, defender)) {
       inlineNote.value = 'This opponent is no longer eligible. Choose another Ladder player.'
+
       return
     }
+
     friendlyMatchStore.applyLadderRules()
+
     const schedule = friendlyMatchStore.draft.schedule
+
     const scheduledAt = schedule.date
       ? new Date(`${schedule.date}T${schedule.time || '12:00'}`).toISOString()
       : null
+
     const challenge = await challengeStore.createChallenge({
       challengerId: challenger.id,
+
       defenderId: defender.id,
+
       scorerId: isPlayNow.value ? challenger.id : null,
+
       timing: friendlyMatchStore.draft.timing,
+
       scheduledAt,
+
       court: schedule.court || '',
+
       responseDeadline: deadlineFromNow(activeLadderConfig.value.responseHours),
+
       playDeadline: deadlineFromNow(activeLadderConfig.value.completionDays, 'days'),
-      preMatchPositions: { challenger: challenger.rank, defender: defender.rank },
-      ladderConfigSnapshot: { ...activeLadderConfig.value },
+
+      preMatchPositions: {
+        challenger: challenger.rank,
+
+        defender: defender.rank,
+      },
+
+      ladderConfigSnapshot: {
+        ...activeLadderConfig.value,
+      },
+
       matchConfig: ladderMatchConfig(activeLadderConfig.value),
     })
+
     if (!challenge) {
       inlineNote.value = challengeStore.error || 'The challenge could not be created.'
+
       return
     }
+
     friendlyMatchStore.linkLadderRecords(challenge)
+
     if (isPlayNow.value) {
       const accepted = await challengeStore.acceptChallenge(
         challenge.id,
         new Date().toISOString(),
         defender.id,
       )
+
       if (!accepted?.match) {
         inlineNote.value = challengeStore.error || 'The match could not be started.'
+
         return
       }
+
       friendlyMatchStore.linkLadderRecords(accepted.challenge, accepted.match)
-      if (friendlyMatchStore.startLiveMatch(currentIdentity.value.id))
-        router.push(flowLocation('FriendlyMatchLive'))
+
+      const started = friendlyMatchStore.startLiveMatch(currentIdentity.value.id)
+
+      if (!started) {
+        inlineNote.value = 'This Ladder match could not be started.'
+
+        return
+      }
+
+      router.push(flowLocation('FriendlyMatchLive'))
+
       return
     }
+
     router.push(flowLocation('FriendlyMatchScheduled'))
+
     return
   }
-  if (!friendlyMatchStore.draft.format) friendlyMatchStore.chooseFormat('ad')
+
+  /*
+   * FRIENDLY MATCH
+   */
+
+  if (!friendlyMatchStore.draft.format) {
+    inlineNote.value = 'Choose how deuce should be played before starting the match.'
+
+    return
+  }
+
   if (isPlayNow.value) {
-    if (!playNowReady.value) return
-    friendlyMatchStore.startLiveMatch(currentIdentity.value.id)
+    if (!playNowReady.value) {
+      inlineNote.value = 'Your opponent needs to join before this match can start.'
+
+      return
+    }
+
+    if (!friendlyMatchStore.draft.matchFormat) {
+      inlineNote.value = 'Choose a match format before starting the match.'
+
+      return
+    }
+
+    const started = friendlyMatchStore.startLiveMatch(currentIdentity.value.id)
+
+    if (!started) {
+      inlineNote.value =
+        'This match could not be started. Check that the match is still ready and that you have permission to manage it.'
+
+      return
+    }
+
     router.push(flowLocation('FriendlyMatchLive'))
-  } else {
-    const invitation = friendlyMatchStore.createScheduledInvitation(currentIdentity.value)
-    if (invitation) router.push(flowLocation('FriendlyMatchScheduled'))
+
+    return
+  }
+
+  /*
+   * FRIENDLY — SCHEDULE FOR LATER
+   */
+
+  const invitation = friendlyMatchStore.createScheduledInvitation(currentIdentity.value)
+
+  if (!invitation) {
+    inlineNote.value = 'The invitation could not be created.'
+
+    return
+  }
+
+  router.push(flowLocation('FriendlyMatchScheduled'))
+}
+
+function handleReadyAction() {
+  inlineNote.value = ''
+
+  if (!isFriendly.value || !isPlayNow.value) {
+    return
+  }
+
+  if (!playNowReady.value) {
+    inlineNote.value = 'Your opponent needs to join before you can continue.'
+
+    return
+  }
+
+  /*
+   * Do not silently invent missing match rules.
+   *
+   * If this draft came from an older/incomplete
+   * flow, guide the user to the missing decision.
+   */
+  if (!friendlyMatchStore.draft.format) {
+    router.push(flowLocation('FriendlyMatchScoring'))
+
+    return
+  }
+
+  if (!friendlyMatchStore.draft.matchFormat) {
+    router.push(flowLocation('FriendlyMatchFormat'))
+
+    return
+  }
+
+  /*
+   * Once opponent + scoring + format exist,
+   * completeReview owns the transition to live.
+   *
+   * One start path instead of multiple duplicate
+   * start implementations.
+   */
+  completeReview()
+}
+
+async function recordLivePoint(side) {
+  inlineNote.value = ''
+
+  /*
+   * Prevent another point from being entered
+   * while the completed Friendly match is
+   * being committed and routed away.
+   */
+  if (friendlyFinalizing.value) {
+    return
+  }
+
+  if (!canScoreLiveMatch.value) {
+    inlineNote.value =
+      'This match is view-only for your account. Only the assigned scorer can change the score.'
+
+    return
+  }
+
+  const recorded = friendlyMatchStore.recordPoint(side, currentIdentity.value.id)
+
+  if (!recorded) {
+    inlineNote.value = 'The score did not change. Refresh the match and try again.'
+
+    return
+  }
+
+  /*
+   * recordPoint() is where the tennis engine
+   * determines whether the winning rally ended
+   * the match.
+   *
+   * We do NOT wait for a modal button anymore.
+   */
+  if (isFriendly.value && friendlyMatchStore.draft.over) {
+    await finalizeFriendlyMatch()
   }
 }
+
+async function finalizeFriendlyMatch() {
+  if (friendlyFinalizing.value) {
+    return
+  }
+
+  if (!isFriendly.value) {
+    return
+  }
+
+  if (!friendlyMatchStore.draft.over) {
+    return
+  }
+
+  friendlyFinalizing.value = true
+
+  /*
+   * At this point the tennis engine has already
+   * decided the match.
+   *
+   * endMatch() now performs the local equivalent
+   * of the future backend completion transaction:
+   *
+   * - stores the result
+   * - stores participant IDs
+   * - stores winner/final score
+   * - closes the invitation
+   * - clears the active live draft
+   */
+  const result = friendlyMatchStore.endMatch(currentIdentity.value.id)
+
+  if (!result) {
+    friendlyFinalizing.value = false
+
+    inlineNote.value = 'The match finished, but Gorra could not finalize the result.'
+
+    return
+  }
+
+  /*
+   * The result was already persisted.
+   *
+   * We are now changing only the presentation
+   * destination.
+   */
+  resultModalOpen.value = false
+
+  try {
+    /*
+     * replace() is intentional.
+     *
+     * Pressing browser Back should not resurrect
+     * the completed live-control route.
+     */
+    await router.replace({
+      name: 'FriendlyMatchResult',
+
+      params: {
+        resultId: result.id,
+      },
+    })
+  } finally {
+    friendlyFinalizing.value = false
+  }
+}
+
+function undoLivePoint() {
+  inlineNote.value = ''
+
+  if (!canScoreLiveMatch.value) {
+    inlineNote.value = 'Only the assigned scorer can undo a point.'
+
+    return
+  }
+
+  const undone = friendlyMatchStore.undoPoint(currentIdentity.value.id)
+
+  if (!undone) {
+    inlineNote.value = 'There is no recorded point to undo.'
+
+    return
+  }
+}
+
+function toggleLiveServer() {
+  inlineNote.value = ''
+
+  if (!canScoreLiveMatch.value) {
+    inlineNote.value = 'Only the assigned scorer can correct the server.'
+
+    return
+  }
+
+  const changed = friendlyMatchStore.toggleServer(currentIdentity.value.id)
+
+  if (!changed) {
+    inlineNote.value = 'The server could not be changed.'
+
+    return
+  }
+}
+
 async function finishMatch() {
+  /*
+   * FRIENDLY COMPLETED RESULT
+   *
+   * Nothing is saved here.
+   *
+   * The match was already committed the moment
+   * the tennis engine declared a winner.
+   *
+   * This button is now navigation only.
+   */
+  if (step.value === 'result') {
+    resultModalOpen.value = false
+
+    await router.replace({
+      name: 'Dashboard',
+    })
+
+    return
+  }
+
+  /*
+   * LADDER
+   *
+   * Preserve the current Ladder confirmation
+   * lifecycle for now.
+   */
   if (isLadder.value) {
     const matchId = friendlyMatchStore.draft.ladderMatchId
+
     const winnerId =
       friendlyMatchStore.draft.winner === 'you'
         ? currentIdentity.value.id
         : friendlyMatchStore.draft.opponent?.id
+
     const submitted = await matchStore.submitResult(matchId, {
       score: friendlyMatchStore.scoreSummary,
+
       winnerId,
+
       submittedBy: currentIdentity.value.id,
-      sets: friendlyMatchStore.draft.setScores.map((set) => ({ ...set })),
+
+      sets: friendlyMatchStore.draft.setScores.map((set) => ({
+        ...set,
+      })),
     })
+
     if (!submitted) {
       notificationStore.addToast({
         message: matchStore.error || 'The Ladder result could not be submitted.',
+
         type: 'warning',
       })
+
       return
     }
+
     friendlyMatchStore.endMatch(currentIdentity.value.id)
+
     resultModalOpen.value = false
+
     notificationStore.addToast({
       message: 'Result submitted. Your opponent must confirm it before rankings move.',
+
       type: 'success',
     })
-    router.push({ name: 'Challenges' })
+
+    router.push({
+      name: 'Challenges',
+    })
+
     return
   }
-  const result = friendlyMatchStore.endMatch(currentIdentity.value.id)
-  if (!result) return
-  resultModalOpen.value = false
-  router.push({ name: 'Dashboard' })
+
+  /*
+   * Safety fallback for an old Friendly live
+   * state created before this lifecycle change.
+   */
+  if (friendlyMatchStore.draft.matchType === 'friendly' && friendlyMatchStore.draft.over) {
+    await finalizeFriendlyMatch()
+
+    return
+  }
+
+  router.replace({
+    name: 'Dashboard',
+  })
 }
+
+function closeResultPresentation() {
+  resultModalOpen.value = false
+
+  /*
+   * Closing a completed result means leaving
+   * the completed-result presentation.
+   *
+   * It never returns to Match Control.
+   */
+  if (step.value === 'result') {
+    router.replace({
+      name: 'Dashboard',
+    })
+  }
+}
+
 function initials(name = '') {
   return name
     .split(/\s+/)
@@ -904,20 +1516,21 @@ function announceJoined(name) {
   }
 
   /*
-   * Ladder keeps its existing progression.
+   * Friendly matches now stay on the Ready state.
+   *
+   * Joining the invitation and starting the match
+   * are two different real-world actions.
+   *
+   * Ladder keeps its current automatic continuation
+   * for now because its flow is handled separately.
    */
   if (isLadder.value) {
     autoRouteTimer = window.setTimeout(() => {
       if (step.value === 'join' || step.value === 'clubOpponent') {
         router.push(flowLocation('FriendlyMatchFormat'))
       }
-    }, 1100)
+    }, 900)
   }
-
-  /*
-   * Friendly stays on the Ready state.
-   * We will wire Start Match after this invitation phase.
-   */
 }
 
 function refreshInvitation() {
@@ -937,9 +1550,22 @@ function joinAsCurrentUser() {
   joinMessage.value = result.message || ''
   externalInvitation.value = result.invitation || externalInvitation.value
 }
+
 function handleStorage(event) {
-  if (!event.key || event.key.includes('friendlyMatch')) refreshInvitation()
+  if (!event.key || !event.key.includes('friendlyMatch')) {
+    return
+  }
+
+  /*
+   * Invitations and live scoring use different
+   * pieces of persisted state.
+   *
+   * Refresh both boundaries.
+   */
+  friendlyMatchStore.refreshDraft()
+  refreshInvitation()
 }
+
 function configureStep() {
   inlineNote.value = ''
   searchQuery.value = ''
@@ -990,22 +1616,58 @@ onUnmounted(() => {
 })
 watch(step, configureStep)
 watch(
-  [step, () => friendlyMatchStore.draft.over],
-  ([currentStep, matchOver]) => {
-    if (currentStep === 'live') resultModalOpen.value = Boolean(matchOver)
-    else resultModalOpen.value = false
+  [step, () => friendlyMatchStore.draft.over, completedResult],
+
+  ([currentStep, matchOver, result]) => {
+    /*
+     * FRIENDLY RESULT
+     *
+     * The result presentation opens on its own
+     * completed-result route.
+     */
+    if (currentStep === 'result') {
+      resultModalOpen.value = Boolean(result)
+
+      return
+    }
+
+    /*
+     * LADDER temporarily retains today's
+     * finished-live result workflow.
+     */
+    if (currentStep === 'live' && isLadder.value) {
+      resultModalOpen.value = Boolean(matchOver)
+
+      return
+    }
+
+    /*
+     * Friendly Live never owns a completed
+     * result presentation anymore.
+     */
+    resultModalOpen.value = false
   },
-  { immediate: true },
+
+  {
+    immediate: true,
+  },
 )
 </script>
 
 <template>
   <div class="friendly-flow-route">
-    <main class="friendly-flow" :class="{ 'friendly-flow--picker': step === 'clubOpponent' }">
+    <main
+      class="friendly-flow"
+      :class="{
+        'friendly-flow--picker': step === 'clubOpponent',
+
+        'friendly-flow--fixed-action': showReadyActionFooter,
+      }"
+    >
       <div v-if="joinedNotice" class="join-notification" role="status">
         <span aria-hidden="true">✓</span>{{ joinedNotice }}
       </div>
-      <header class="friendly-flow__header">
+      <header v-if="step !== 'result'" class="friendly-flow__header">
         <button type="button" class="friendly-flow__back" aria-label="Go back" @click="goBack">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg>
         </button>
@@ -1260,14 +1922,14 @@ watch(
               <small>
                 {{
                   playNowReady
-                    ? 'Both players are connected.'
+                    ? 'Both players are connected. Start when you are together on court.'
                     : 'Keep this screen open while your opponent joins.'
                 }}
               </small>
             </div>
           </div>
 
-          <div class="qr-panel qr-panel--single">
+          <div v-if="!playNowReady" class="qr-panel qr-panel--single">
             <img
               v-if="qrDataUrl"
               :src="qrDataUrl"
@@ -1311,6 +1973,50 @@ watch(
               }}
             </span>
           </button>
+          <div
+            v-if="isFriendly && playNowReady"
+            class="friendly-ready"
+            aria-labelledby="friendly-ready-title"
+          >
+            <div class="friendly-ready__status">
+              <span class="friendly-ready__check" aria-hidden="true"> ✓ </span>
+
+              <div>
+                <small>Ready to play</small>
+
+                <strong id="friendly-ready-title">
+                  {{ currentIdentity.name }}
+                  <span aria-hidden="true">vs</span>
+                  {{ opponentName }}
+                </strong>
+
+                <p>
+                  Your opponent is connected. Start the match when both of you are ready for the
+                  first point.
+                </p>
+              </div>
+            </div>
+
+            <div class="friendly-ready__setup" aria-label="Match setup">
+              <div>
+                <span>Scoring</span>
+                <strong>
+                  {{ friendlyMatchStore.formatLabel }}
+                </strong>
+              </div>
+
+              <div>
+                <span>Match format</span>
+                <strong>
+                  {{ friendlyMatchStore.matchFormatLabel }}
+                </strong>
+              </div>
+            </div>
+
+            <p v-if="inlineNote" class="friendly-flow__notice" role="status">
+              {{ inlineNote }}
+            </p>
+          </div>
         </template>
       </section>
 
@@ -1427,6 +2133,36 @@ watch(
         </div>
         <button type="button" class="button-primary" @click="continueWithClubOpponent">
           <FlowIcon name="arrow-right" /><span>Continue</span>
+        </button>
+      </footer>
+
+      <footer
+        v-if="showReadyActionFooter"
+        class="selection-footer selection-footer--match-ready"
+        aria-label="Match ready action"
+      >
+        <div>
+          <span class="opponent-row__avatar" aria-hidden="true">
+            {{ initials(opponentName) }}
+          </span>
+
+          <p>
+            <strong>
+              {{ opponentName }}
+            </strong>
+
+            <small>
+              {{ readyActionDescription }}
+            </small>
+          </p>
+        </div>
+
+        <button type="button" class="button-primary" @click="handleReadyAction">
+          <FlowIcon :name="readyActionLabel === 'Start match' ? 'play' : 'arrow-right'" />
+
+          <span>
+            {{ readyActionLabel }}
+          </span>
         </button>
       </footer>
 
@@ -1716,19 +2452,13 @@ watch(
             >
           </div>
           <button
+            v-if="!isPlayNow"
             type="button"
             class="button-primary friendly-flow__continue"
-            :disabled="challengeStore.isLoading"
             @click="completeReview"
           >
-            <FlowIcon :name="isPlayNow ? 'play' : 'send'" />
-            <span>{{
-              challengeStore.isLoading
-                ? 'Creating challenge…'
-                : isPlayNow
-                  ? 'Accept and start match'
-                  : 'Send challenge'
-            }}</span>
+            <FlowIcon name="send" />
+            <span>Send invitation</span>
           </button>
         </template>
       </section>
@@ -2005,7 +2735,15 @@ watch(
               >
             </div>
             <div>
-              <span>Points · Current game</span>
+              <span>
+                {{
+                  friendlyMatchStore.draft.liveState?.currentGame?.isMatchTieBreak
+                    ? 'Match tie-break'
+                    : friendlyMatchStore.draft.liveState?.currentGame?.inTieBreak
+                      ? 'Tie-break'
+                      : 'Points · Current game'
+                }}
+              </span>
               <strong>{{ friendlyMatchStore.currentPointScore }}</strong>
             </div>
           </template>
@@ -2022,8 +2760,8 @@ watch(
             type="button"
             aria-label="Undo last point"
             title="Undo last point"
-            :disabled="!friendlyMatchStore.canUndo"
-            @click="friendlyMatchStore.undoPoint(currentIdentity.id)"
+            :disabled="!canScoreLiveMatch || !friendlyMatchStore.canUndo"
+            @click="undoLivePoint"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m9 7-5 5 5 5M5 12h8a6 6 0 0 1 6 6" />
@@ -2043,8 +2781,10 @@ watch(
               ><strong>{{ friendlyMatchStore.scoreSummary }}</strong></span
             >
             <span
-              ><small>Total points played</small
-              ><strong>{{ friendlyMatchStore.draft.pointHistory.length }}</strong></span
+              ><small>Total points played</small>
+              <strong>
+                {{ friendlyMatchStore.draft.liveState?.pointsPlayed || 0 }}
+              </strong></span
             >
           </div>
           <button
@@ -2052,8 +2792,8 @@ watch(
             class="friendly-live__finished-undo"
             aria-label="Undo last point"
             title="Undo last point"
-            :disabled="!friendlyMatchStore.canUndo"
-            @click="friendlyMatchStore.undoPoint(currentIdentity.id)"
+            :disabled="!canScoreLiveMatch || !friendlyMatchStore.canUndo"
+            @click="undoLivePoint"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m9 7-5 5 5 5M5 12h8a6 6 0 0 1 6 6" />
@@ -2063,11 +2803,38 @@ watch(
         </div>
 
         <div v-if="!friendlyMatchStore.draft.over" class="friendly-live__players">
+          <p
+            v-if="!friendlyMatchStore.draft.over && !canScoreLiveMatch"
+            class="friendly-live__authority-note"
+            role="status"
+          >
+            View only — only the assigned scorer can change this match.
+          </p>
+
+          <div v-if="!friendlyMatchStore.draft.over" class="friendly-live__foundation-tools">
+            <div>
+              <span>Serving</span>
+
+              <strong>
+                {{ liveServerName }}
+              </strong>
+            </div>
+
+            <button
+              v-if="canScoreLiveMatch"
+              type="button"
+              class="button-secondary"
+              @click="toggleLiveServer"
+            >
+              <span>Switch server</span>
+            </button>
+          </div>
           <button
             type="button"
             class="friendly-live__player friendly-live__player--you"
             aria-label="Add point for you"
-            @click="friendlyMatchStore.recordPoint('you', currentIdentity.id)"
+            :disabled="!canScoreLiveMatch"
+            @click="recordLivePoint('you')"
           >
             <span>You</span><strong>{{ friendlyMatchStore.pointLabel('you') }}</strong>
             <small>Tap when you win the rally</small>
@@ -2076,7 +2843,8 @@ watch(
             type="button"
             class="friendly-live__player"
             :aria-label="`Add point for ${opponentName}`"
-            @click="friendlyMatchStore.recordPoint('opponent', currentIdentity.id)"
+            :disabled="!canScoreLiveMatch"
+            @click="recordLivePoint('opponent')"
           >
             <span>{{ opponentName }}</span>
             <strong>{{ friendlyMatchStore.pointLabel('opponent') }}</strong>
@@ -2085,7 +2853,8 @@ watch(
         </div>
 
         <p v-if="!friendlyMatchStore.draft.over" class="friendly-live__count">
-          Points played: {{ friendlyMatchStore.draft.pointHistory.length }}
+          Points played:
+          {{ friendlyMatchStore.draft.liveState?.pointsPlayed || 0 }}
         </p>
         <button
           v-if="friendlyMatchStore.draft.over"
@@ -2099,17 +2868,21 @@ watch(
     </main>
     <MatchResultModal
       :open="resultModalOpen"
-      :winner="friendlyMatchStore.draft.winner"
-      :current-player-name="currentIdentity.name"
-      :opponent-name="opponentName"
-      :score="friendlyMatchStore.scoreSummary"
-      :set-scores="friendlyMatchStore.draft.setScores"
-      :match-format="friendlyMatchStore.matchFormatLabel"
-      :scoring-format="friendlyMatchStore.formatLabel"
+      :winner="modalWinner"
+      :current-player-name="modalCurrentPlayerName"
+      :opponent-name="modalOpponentName"
+      :score="modalScore"
+      :set-scores="modalSetScores"
+      :match-format="modalMatchFormat"
+      :scoring-format="modalScoringFormat"
       :primary-action-label="
-        isLadder ? 'Submit result for confirmation' : 'Save result and return to dashboard'
+        step === 'result'
+          ? 'Return to dashboard'
+          : isLadder
+            ? 'Submit result for confirmation'
+            : 'Return to dashboard'
       "
-      @close="resultModalOpen = false"
+      @close="closeResultPresentation"
       @finish="finishMatch"
     />
   </div>
@@ -2130,6 +2903,10 @@ watch(
   font-family: inherit;
 }
 .friendly-flow--picker {
+  padding-bottom: 120px;
+}
+
+.friendly-flow--fixed-action {
   padding-bottom: 120px;
 }
 .friendly-flow__header {
@@ -3077,6 +3854,111 @@ watch(
   display: grid;
   gap: 4px;
 }
+
+.friendly-ready {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.friendly-ready__status {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 18px;
+  border: 1px solid #e2e9e4;
+  border-radius: 12px;
+  background: #f8fbf9;
+}
+
+.friendly-ready__check {
+  display: grid;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e7f7eb;
+  color: #087d19;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.friendly-ready__status small {
+  display: block;
+  color: #77857c;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.friendly-ready__status strong {
+  display: block;
+  margin-top: 4px;
+  color: #172319;
+  font-size: 18px;
+  font-weight: 680;
+  letter-spacing: -0.025em;
+}
+
+.friendly-ready__status strong span {
+  margin: 0 5px;
+  color: #89958e;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.friendly-ready__status p {
+  max-width: 520px;
+  margin: 6px 0 0;
+  color: #748078;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.friendly-ready__setup {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #e4eae6;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.friendly-ready__setup > div {
+  padding: 15px 17px;
+}
+
+.friendly-ready__setup > div + div {
+  border-left: 1px solid #e8ede9;
+}
+
+.friendly-ready__setup span,
+.friendly-ready__setup strong {
+  display: block;
+}
+
+.friendly-ready__setup span {
+  color: #8b9690;
+  font-size: 10px;
+}
+
+.friendly-ready__setup strong {
+  margin-top: 4px;
+  color: #28372f;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+@media (max-width: 560px) {
+  .friendly-ready__setup {
+    grid-template-columns: 1fr;
+  }
+
+  .friendly-ready__setup > div + div {
+    border-top: 1px solid #e8ede9;
+    border-left: 0;
+  }
+}
 .status-block--confirmation {
   width: 100%;
   max-width: none;
@@ -3090,6 +3972,53 @@ watch(
   display: grid;
   gap: 18px;
   padding-top: 18px;
+}
+
+.friendly-live__foundation-tools {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 13px;
+  border: 1px solid rgba(24, 63, 41, 0.1);
+  border-radius: var(--app-inner-radius);
+  background: var(--color-surface-soft);
+}
+
+.friendly-live__foundation-tools > div {
+  display: grid;
+  gap: 3px;
+}
+
+.friendly-live__foundation-tools span {
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.friendly-live__foundation-tools strong {
+  color: var(--color-text-soft);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.friendly-live__foundation-tools button {
+  min-height: 38px;
+}
+
+.friendly-live__authority-note {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: var(--app-inner-radius);
+  background: #f5f7f5;
+  color: var(--color-text-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.friendly-live__player:disabled {
+  cursor: default;
+  opacity: 0.58;
 }
 .friendly-live__title-row {
   display: flex;
