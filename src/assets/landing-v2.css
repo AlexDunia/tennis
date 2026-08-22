@@ -64,7 +64,8 @@ body:has(.gorra-landing) {
 }
 
 .lp-container {
-  width: min(1180px, calc(100% - 48px));
+  width: min(80vw, 1180px);
+  max-width: 1180px;
   margin-inline: auto;
 }
 
@@ -93,7 +94,7 @@ body:has(.gorra-landing) {
   gap: 12px;
   padding: 0 20px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
@@ -128,28 +129,54 @@ body:has(.gorra-landing) {
 }
 
 .lp-nav {
-  position: relative;
-  z-index: 30;
-  background: var(--lp-deep);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  width: 100%;
+  background: rgba(5, 46, 32, 0.12);
+  backdrop-filter: blur(10px);
+  transition:
+    background 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
+}
+
+.lp-nav--docked {
+  background: rgba(5, 46, 32, 0.94);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
 }
 
 .lp-nav__inner {
   display: flex;
+  width: min(80vw, 1180px);
   min-height: 84px;
   align-items: center;
   justify-content: space-between;
+  gap: 28px;
+  margin-inline: auto;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  transition: border-color 220ms ease;
+}
+
+.lp-nav--docked .lp-nav__inner {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
 .lp-brand {
   display: flex;
   width: 128px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .lp-brand__logo {
   width: 100%;
   max-height: 43px;
+  transition: filter 220ms ease;
+}
+
+.lp-brand__logo--light {
+  filter: brightness(0) invert(1) saturate(0) contrast(1000%);
 }
 
 .lp-nav__links,
@@ -160,7 +187,8 @@ body:has(.gorra-landing) {
 }
 
 .lp-nav__links {
-  gap: clamp(28px, 4vw, 58px);
+  flex: 1;
+  justify-content: center;
 }
 
 .lp-nav__links nav {
@@ -169,7 +197,7 @@ body:has(.gorra-landing) {
 
 .lp-nav__links nav a,
 .lp-text-link {
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.82);
   font-size: 12px;
   font-weight: 500;
   text-decoration: none;
@@ -182,29 +210,68 @@ body:has(.gorra-landing) {
 }
 
 .lp-nav__actions {
-  gap: 20px;
+  gap: 18px;
 }
 
-.lp-nav__actions .lp-button {
+.lp-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
   min-height: 42px;
-  padding-inline: 16px;
+  padding: 0 14px 0 18px;
+  border-radius: 999px;
+  background: var(--lp-lime);
+  color: var(--lp-deep);
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 12px 28px rgba(217, 247, 123, 0.22);
+  transition: transform 180ms ease;
+}
+
+.lp-cta:hover {
+  transform: translateY(-2px);
+}
+
+.lp-cta__arrow {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--lp-deep);
+  color: var(--lp-lime);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .lp-menu-button {
   display: none;
-  width: 44px;
-  height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 8px;
+  width: 36px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
   background: transparent;
+  cursor: pointer;
 }
 
 .lp-menu-button span {
   display: block;
-  width: 19px;
-  height: 1px;
-  margin: 5px auto;
+  width: 100%;
+  height: 2px;
+  margin: 0 auto 6px;
+  border-radius: 999px;
   background: #fff;
+}
+
+.lp-menu-button span:last-child {
+  margin-bottom: 0;
+}
+
+.lp-nav--docked .lp-menu-button {
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .lp-hero {
@@ -1103,6 +1170,164 @@ body:has(.gorra-landing) {
   align-items: center;
   gap: 27px;
   margin-top: 31px;
+}
+
+.lp-floating-cta {
+  position: fixed;
+  right: 26px;
+  bottom: 26px;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--lp-lime);
+  color: var(--lp-deep);
+  box-shadow: 0 18px 36px rgba(217, 247, 123, 0.3);
+  cursor: pointer;
+  animation: lp-float-in 260ms ease;
+}
+
+.lp-floating-cta__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--lp-deep);
+  color: var(--lp-lime);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+@keyframes lp-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lp-cookie {
+  position: fixed;
+  right: 26px;
+  bottom: 110px;
+  z-index: 95;
+  width: min(660px, calc(100% - 32px));
+}
+
+.lp-cookie__panel {
+  display: grid;
+  gap: 22px;
+  padding: 22px 22px 18px;
+  border: 1px solid rgba(5, 46, 32, 0.08);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 58px rgba(3, 29, 21, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.lp-cookie__label {
+  margin-bottom: 4px;
+  color: var(--lp-green-strong);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.lp-cookie__text h3 {
+  margin-bottom: 8px;
+  color: var(--lp-deep);
+  font-size: clamp(20px, 2vw, 28px);
+  line-height: 1.1;
+}
+
+.lp-cookie__text p {
+  margin: 0;
+  color: var(--lp-soft);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.lp-cookie__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.lp-cookie__primary,
+.lp-cookie__secondary {
+  min-height: 42px;
+}
+
+.lp-cookie__link {
+  border: 0;
+  background: transparent;
+  color: var(--lp-deep);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.lp-cookie__settings {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 18px 20px;
+  border: 1px solid rgba(5, 46, 32, 0.08);
+  border-radius: 16px;
+  background: rgba(5, 46, 32, 0.98);
+  color: #fff;
+}
+
+.lp-cookie__settings label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.lp-cookie__settings input {
+  accent-color: var(--lp-lime);
+}
+
+.lp-cookie-policy {
+  padding: 36px 0 72px;
+  background: #f8faf8;
+}
+
+.lp-cookie-policy .lp-container {
+  max-width: 900px;
+}
+
+.lp-cookie-policy h2 {
+  margin-bottom: 12px;
+  color: var(--lp-deep);
+  font-size: clamp(26px, 3vw, 38px);
+}
+
+.lp-cookie-policy p {
+  margin-bottom: 18px;
+  color: var(--lp-soft);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.lp-cookie-policy strong {
+  color: var(--lp-deep);
+  font-size: 12px;
 }
 
 .lp-footer {

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppLogo from '../components/AppLogo.vue'
 import '../assets/landing-v2.css'
@@ -10,6 +10,127 @@ import tournamentsImage from '../../docs/screenshots/compete-tournaments-admin.j
 
 const mobileMenuOpen = ref(false)
 const activePreviewKey = ref('dashboard')
+const navDocked = ref(false)
+const floatingCtaVisible = ref(false)
+const cookieSettingsOpen = ref(false)
+const consentKey = 'gorra-cookie-consent'
+const defaultCookiePreferences = {
+  necessary: true,
+  analytics: false,
+  marketing: false,
+  timestamp: null,
+}
+const cookiePreferences = ref({ ...defaultCookiePreferences })
+const showCookieBanner = ref(false)
+
+const cookieSummary = computed(() => {
+  if (cookiePreferences.value.analytics || cookiePreferences.value.marketing) {
+    return 'Cookies enabled for a smoother experience.'
+  }
+
+  return 'Optional cookies are currently off.'
+})
+
+function closeMobileMenu() {
+  mobileMenuOpen.value = false
+}
+
+function syncLandingHeaderState() {
+  navDocked.value = window.scrollY > 18
+  floatingCtaVisible.value = window.scrollY > 260
+}
+
+function persistCookieConsent(nextPreferences) {
+  const payload = {
+    ...defaultCookiePreferences,
+    ...nextPreferences,
+    timestamp: Date.now(),
+  }
+
+  cookiePreferences.value = payload
+  localStorage.setItem(consentKey, JSON.stringify(payload))
+  window.gorraCookieConsent = payload
+  document.body.dataset.cookieConsent =
+    payload.analytics || payload.marketing ? 'accepted' : 'rejected'
+  showCookieBanner.value = false
+  cookieSettingsOpen.value = false
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function acceptCookies() {
+  persistCookieConsent({
+    necessary: true,
+    analytics: true,
+    marketing: true,
+  })
+}
+
+function rejectCookies() {
+  persistCookieConsent({
+    necessary: true,
+    analytics: false,
+    marketing: false,
+  })
+}
+
+function toggleCookieSettings() {
+  cookieSettingsOpen.value = !cookieSettingsOpen.value
+}
+
+function readCookieConsent() {
+  try {
+    const stored = localStorage.getItem(consentKey)
+    if (!stored) {
+      showCookieBanner.value = true
+      window.gorraCookieConsent = { ...defaultCookiePreferences }
+      document.body.dataset.cookieConsent = 'unset'
+      return
+    }
+
+    const parsed = JSON.parse(stored)
+    cookiePreferences.value = { ...defaultCookiePreferences, ...parsed }
+    window.gorraCookieConsent = cookiePreferences.value
+    document.body.dataset.cookieConsent =
+      cookiePreferences.value.analytics || cookiePreferences.value.marketing
+        ? 'accepted'
+        : 'rejected'
+    showCookieBanner.value = false
+  } catch {
+    showCookieBanner.value = true
+    window.gorraCookieConsent = { ...defaultCookiePreferences }
+    document.body.dataset.cookieConsent = 'unset'
+  }
+}
+
+function setMeta(name, content) {
+  const selector = `meta[name=${name}]`
+  const meta =
+    document.querySelector(selector) || document.head.appendChild(document.createElement('meta'))
+  meta.setAttribute('name', name)
+  meta.setAttribute('content', content)
+}
+
+onMounted(() => {
+  document.title = 'GORRA | Run the club. Keep everyone playing.'
+  setMeta(
+    'description',
+    'GORRA connects tennis ladders, challenges, match schedules, live scoring, tournaments and club updates in one clear flow.',
+  )
+  setMeta('theme-color', '#052e20')
+  setMeta('apple-mobile-web-app-status-bar-style', 'black-translucent')
+  readCookieConsent()
+  syncLandingHeaderState()
+  window.addEventListener('scroll', syncLandingHeaderState, { passive: true })
+  window.addEventListener('resize', syncLandingHeaderState)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', syncLandingHeaderState)
+  window.removeEventListener('resize', syncLandingHeaderState)
+})
 
 const previews = [
   {
@@ -98,48 +219,17 @@ const audiences = [
     points: ['Flexible event setup', 'Schedules and standings', 'Live match context'],
   },
 ]
-
-function closeMobileMenu() {
-  mobileMenuOpen.value = false
-}
-
-function setMeta(name, content) {
-  const selector = `meta[name=${name}]`
-  const meta =
-    document.querySelector(selector) || document.head.appendChild(document.createElement('meta'))
-  meta.setAttribute('name', name)
-  meta.setAttribute('content', content)
-}
-
-onMounted(() => {
-  document.title = 'GORRA | Run the club. Keep everyone playing.'
-  setMeta(
-    'description',
-    'GORRA connects tennis ladders, challenges, match schedules, live scoring, tournaments and club updates in one clear flow.',
-  )
-  setMeta('theme-color', '#052e20')
-  setMeta('apple-mobile-web-app-status-bar-style', 'black-translucent')
-})
 </script>
 
 <template>
   <div class="gorra-landing">
     <a class="lp-skip" href="#landing-main">Skip to content</a>
-    <header class="lp-nav">
+    <header class="lp-nav" :class="{ 'lp-nav--docked': navDocked }">
       <div class="lp-container lp-nav__inner">
         <RouterLink class="lp-brand" to="/" aria-label="GORRA home" @click="closeMobileMenu">
-          <AppLogo class="lp-brand__logo" on-dark />
+          <AppLogo class="lp-brand__logo" :class="{ 'lp-brand__logo--light': navDocked }" on-dark />
         </RouterLink>
-        <button
-          class="lp-menu-button"
-          type="button"
-          :aria-expanded="mobileMenuOpen"
-          aria-controls="landing-navigation"
-          aria-label="Toggle navigation"
-          @click="mobileMenuOpen = !mobileMenuOpen"
-        >
-          <span></span><span></span>
-        </button>
+
         <div id="landing-navigation" class="lp-nav__links" :class="{ open: mobileMenuOpen }">
           <nav aria-label="Landing page navigation">
             <a href="#workflow" @click="closeMobileMenu">How it works</a>
@@ -147,14 +237,23 @@ onMounted(() => {
             <a href="#clubs" @click="closeMobileMenu">For your club</a>
             <a href="#faq" @click="closeMobileMenu">Questions</a>
           </nav>
-          <div class="lp-nav__actions">
-            <RouterLink class="lp-text-link" to="/signin" @click="closeMobileMenu"
-              >Member sign in</RouterLink
-            >
-            <RouterLink class="lp-button lp-button--light" to="/signup" @click="closeMobileMenu">
-              Start with GORRA <span aria-hidden="true">&rarr;</span>
-            </RouterLink>
-          </div>
+        </div>
+
+        <div class="lp-nav__actions">
+          <RouterLink class="lp-cta" to="/signup" @click="closeMobileMenu">
+            Play Tennis Now
+            <span class="lp-cta__arrow" aria-hidden="true">→</span>
+          </RouterLink>
+          <button
+            class="lp-menu-button"
+            type="button"
+            :aria-expanded="mobileMenuOpen"
+            aria-controls="landing-navigation"
+            aria-label="Toggle navigation"
+            @click="mobileMenuOpen = !mobileMenuOpen"
+          >
+            <span></span><span></span>
+          </button>
         </div>
       </div>
     </header>
@@ -461,6 +560,74 @@ onMounted(() => {
       </section>
     </main>
 
+    <button
+      v-if="floatingCtaVisible"
+      type="button"
+      class="lp-floating-cta"
+      aria-label="Scroll back to top"
+      @click="scrollToTop"
+    >
+      <span class="lp-floating-cta__icon" aria-hidden="true">↑</span>
+    </button>
+
+    <div
+      v-if="showCookieBanner"
+      class="lp-cookie"
+      role="dialog"
+      aria-live="polite"
+      aria-label="Cookie consent"
+    >
+      <div class="lp-cookie__panel">
+        <div class="lp-cookie__text">
+          <p class="lp-cookie__label">Cookies</p>
+          <h3>We keep it useful, not intrusive.</h3>
+          <p>
+            We use essential cookies to keep the app secure and functional. Optional analytics and
+            marketing cookies help us understand usage and improve the experience. You can change
+            your choice any time.
+          </p>
+        </div>
+
+        <div class="lp-cookie__actions">
+          <button
+            class="lp-button lp-button--lime lp-cookie__primary"
+            type="button"
+            @click="acceptCookies"
+          >
+            Accept cookies
+          </button>
+          <button
+            class="lp-button lp-button--light lp-cookie__secondary"
+            type="button"
+            @click="rejectCookies"
+          >
+            Reject
+          </button>
+          <button class="lp-cookie__link" type="button" @click="toggleCookieSettings">
+            Cookie settings
+          </button>
+        </div>
+      </div>
+
+      <div v-if="cookieSettingsOpen" class="lp-cookie__settings">
+        <label>
+          <input v-model="cookiePreferences.analytics" type="checkbox" />
+          <span>Analytics</span>
+        </label>
+        <label>
+          <input v-model="cookiePreferences.marketing" type="checkbox" />
+          <span>Marketing</span>
+        </label>
+        <button
+          class="lp-button lp-button--dark"
+          type="button"
+          @click="persistCookieConsent(cookiePreferences)"
+        >
+          Save preferences
+        </button>
+      </div>
+    </div>
+
     <footer class="lp-footer">
       <div class="lp-container lp-footer__grid">
         <div>
@@ -470,6 +637,7 @@ onMounted(() => {
         <nav aria-label="Footer navigation">
           <a href="#workflow">How it works</a><a href="#product">Product</a
           ><a href="#clubs">For your club</a>
+          <a href="#cookie-policy">Cookie policy</a>
           <RouterLink to="/landing-legacy">Previous landing page</RouterLink>
         </nav>
         <div class="lp-footer__meta">
@@ -480,5 +648,20 @@ onMounted(() => {
         </div>
       </div>
     </footer>
+
+    <section id="cookie-policy" class="lp-cookie-policy">
+      <div class="lp-container">
+        <p class="lp-eyebrow">Cookie policy</p>
+        <h2>Built with a clear consent flow.</h2>
+        <p>
+          Essential cookies keep the site stable and signed-in sessions running correctly. Optional
+          cookies help us measure engagement and improve the landing experience. If you reject
+          optional cookies, the site continues to work without the extra tracking layer. The consent
+          state is stored locally in the browser and is ready to be forwarded to a backend endpoint
+          once the API contract is in place.
+        </p>
+        <strong>{{ cookieSummary }}</strong>
+      </div>
+    </section>
   </div>
 </template>

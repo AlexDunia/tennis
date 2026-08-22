@@ -61,6 +61,14 @@ const lastPointWinner = ref('')
 
 const voiceAnnouncementsEnabled = ref(readVoiceAnnouncementPreference())
 
+const voiceAnnouncementsSupported = computed(() => {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  return 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function'
+})
+
 const ladderAccessChecking = ref(false)
 const customFormatForm = reactive({
   id: '',
@@ -1924,6 +1932,36 @@ function refreshInvitation() {
       String(route.params.token || ''),
     )
 }
+
+function stopInvitationPolling() {
+  if (!invitationTimer) {
+    return
+  }
+
+  window.clearInterval(invitationTimer)
+
+  invitationTimer = null
+}
+
+function syncInvitationPolling() {
+  stopInvitationPolling()
+
+  /*
+   * Only invitation screens need polling.
+   *
+   * Once Match Control opens there is absolutely no
+   * reason for a 1.2-second invitation timer to remain
+   * alive in the background.
+   */
+  if (!['join', 'externalJoin'].includes(step.value)) {
+    return
+  }
+
+  invitationTimer = window.setInterval(() => {
+    refreshInvitation()
+  }, 1200)
+}
+
 function joinAsCurrentUser() {
   const result = friendlyMatchStore.joinInvitation(
     String(route.params.token || ''),
@@ -1934,19 +1972,84 @@ function joinAsCurrentUser() {
 }
 
 function handleStorage(event) {
-  if (!event.key || !event.key.includes('friendlyMatch')) {
+  const key = String(event.key || '')
+
+  if (!key) {
     return
   }
 
   /*
-   * Invitations and live scoring use different
-   * pieces of persisted state.
+   * STORAGE EVENTS
    *
-   * Refresh both boundaries.
+   * Refresh only the state collection that actually
+   * changed.
+   *
+   * Previously every Friendly storage event caused:
+   *
+   * - draft refresh
+   * - result refresh
+   * - invitation refresh
+   *
+   * even when only one collection changed.
+   *
+   * That is harmless in a tiny demo but unnecessary
+   * work during a real live match.
    */
-  friendlyMatchStore.refreshDraft()
-  friendlyMatchStore.refreshResults()
-  refreshInvitation()
+
+  if (key.includes('friendlyMatchDraft')) {
+    friendlyMatchStore.refreshDraft()
+
+    return
+  }
+
+  if (key.includes('friendlyMatchResults')) {
+    friendlyMatchStore.refreshResults()
+
+    return
+  }
+
+  if (key.includes('friendlyMatchInvitations')) {
+    refreshInvitation()
+  }
+}
+
+function recoverCurrentMatchState() {
+  /*
+   * Browser backgrounding is common during club play.
+   *
+   * On return, refresh from persisted state rather than
+   * assuming the in-memory Vue state is still freshest.
+   *
+   * refreshDraft() already protects newer revisions from
+   * being overwritten by older persisted snapshots.
+   */
+  if (step.value === 'live') {
+    friendlyMatchStore.refreshDraft()
+
+    return
+  }
+
+  if (['join', 'externalJoin'].includes(step.value)) {
+    refreshInvitation()
+
+    return
+  }
+
+  if (step.value === 'result') {
+    friendlyMatchStore.refreshResults()
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState !== 'visible') {
+    return
+  }
+
+  recoverCurrentMatchState()
+}
+
+function handleWindowFocus() {
+  recoverCurrentMatchState()
 }
 
 function configureStep() {
@@ -1956,13 +2059,18 @@ function configureStep() {
   joinedNotice.value = ''
   customFormatError.value = ''
   showTieBreakDetails.value = false
+
   /*
-   * A completed result may have been committed by another
-   * tab immediately before this route was entered.
+   * Route changes can occur after another tab/device-side
+   * action changed our persisted mock state.
+   *
+   * Recover the state relevant to the destination before
+   * allowing guardStep() to judge the route.
    */
-  if (step.value === 'result') {
-    friendlyMatchStore.refreshResults()
-  }
+  recoverCurrentMatchState()
+
+  syncInvitationPolling()
+
   if (step.value === 'customFormat') {
     const selected = friendlyMatchStore.draft.customFormat
     Object.assign(customFormatForm, {
@@ -1993,18 +2101,22 @@ onMounted(async () => {
     friendlyMatchStore.chooseMatchType('ladder')
     await router.replace(flowLocation('FriendlyMatchClubOpponent'))
   }
-  configureStep()
-  window.addEventListener('storage', handleStorage)
-  invitationTimer = window.setInterval(() => {
-    if (['join', 'externalJoin'].includes(step.value)) refreshInvitation()
-  }, 1200)
 })
+configureStep()
+
+window.addEventListener('storage', handleStorage)
+
+window.addEventListener('focus', handleWindowFocus)
+
+document.addEventListener('visibilitychange', handleVisibilityChange)
 onUnmounted(() => {
   window.removeEventListener('storage', handleStorage)
 
-  if (invitationTimer) {
-    window.clearInterval(invitationTimer)
-  }
+  window.removeEventListener('focus', handleWindowFocus)
+
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+
+  stopInvitationPolling()
 
   if (autoRouteTimer) {
     window.clearTimeout(autoRouteTimer)
@@ -3105,7 +3217,6 @@ watch(
         :status-text="friendlyMatchStore.statusText"
         :current-server="friendlyMatchStore.draft.liveState?.currentServer || 'playerA'"
         :points-played="Number(friendlyMatchStore.draft.liveState?.pointsPlayed || 0)"
-        :revision="Number(friendlyMatchStore.draft.liveState?.revision || 0)"
         :started-at="friendlyMatchStore.draft.startedAt"
         :can-score="canScoreLiveMatch"
         :can-undo="friendlyMatchStore.canUndo"
@@ -3117,6 +3228,7 @@ watch(
         :finished="friendlyMatchStore.draft.over"
         :announcement="liveAnnouncement"
         :announcements-enabled="voiceAnnouncementsEnabled"
+        :announcements-supported="voiceAnnouncementsSupported"
         :last-point-winner="lastPointWinner"
         @point="recordLivePoint"
         @undo="undoLivePoint"

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const props = defineProps({
   playerAName: {
@@ -78,11 +78,6 @@ const props = defineProps({
     default: 0,
   },
 
-  revision: {
-    type: Number,
-    default: 0,
-  },
-
   startedAt: {
     type: String,
     default: '',
@@ -128,6 +123,11 @@ const props = defineProps({
     default: true,
   },
 
+  announcementsSupported: {
+    type: Boolean,
+    default: true,
+  },
+
   lastPointWinner: {
     type: String,
     default: '',
@@ -137,7 +137,6 @@ const props = defineProps({
 
 const emit = defineEmits(['point', 'undo', 'set-server', 'toggle-announcements'])
 const now = ref(Date.now())
-const scoreChanging = ref(false)
 
 /*
  * Correction UI is presentation state only.
@@ -156,7 +155,6 @@ const correctionOpen = ref(false)
 const pointInputLocked = ref(false)
 
 let clockTimer = null
-let scoreAnimationTimer = null
 let pointInputTimer = null
 
 const elapsedLabel = computed(() => {
@@ -306,29 +304,6 @@ function correctServer(side) {
   correctionOpen.value = false
 }
 
-watch(
-  () => props.revision,
-  (nextRevision, previousRevision) => {
-    if (nextRevision === previousRevision || !nextRevision) {
-      return
-    }
-
-    scoreChanging.value = false
-
-    if (scoreAnimationTimer) {
-      window.clearTimeout(scoreAnimationTimer)
-    }
-
-    window.requestAnimationFrame(() => {
-      scoreChanging.value = true
-
-      scoreAnimationTimer = window.setTimeout(() => {
-        scoreChanging.value = false
-      }, 260)
-    })
-  },
-)
-
 onMounted(() => {
   clockTimer = window.setInterval(() => {
     now.value = Date.now()
@@ -338,10 +313,6 @@ onMounted(() => {
 onUnmounted(() => {
   if (clockTimer) {
     window.clearInterval(clockTimer)
-  }
-
-  if (scoreAnimationTimer) {
-    window.clearTimeout(scoreAnimationTimer)
   }
 
   if (pointInputTimer) {
@@ -398,12 +369,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <article
-        class="match-control__hero"
-        :class="{
-          'match-control__hero--changing': scoreChanging,
-        }"
-      >
+      <article class="match-control__hero">
         <div class="match-player">
           <div
             class="match-player__avatar"
@@ -601,12 +567,17 @@ onUnmounted(() => {
           <button
             type="button"
             class="match-control__voice-button"
+            :disabled="!announcementsSupported"
             :class="{
               'match-control__voice-button--active': announcementsEnabled,
             }"
             :aria-pressed="announcementsEnabled"
             :aria-label="
-              announcementsEnabled ? 'Turn score announcements off' : 'Turn score announcements on'
+              !announcementsSupported
+                ? 'Voice announcements are unavailable on this device'
+                : announcementsEnabled
+                  ? 'Turn score announcements off'
+                  : 'Turn score announcements on'
             "
             @click="emit('toggle-announcements')"
           >
@@ -623,7 +594,13 @@ onUnmounted(() => {
             </svg>
 
             <span>
-              {{ announcementsEnabled ? 'Voice on' : 'Voice off' }}
+              {{
+                !announcementsSupported
+                  ? 'Voice unavailable'
+                  : announcementsEnabled
+                    ? 'Voice on'
+                    : 'Voice off'
+              }}
             </span>
           </button>
         </div>
@@ -1010,14 +987,6 @@ onUnmounted(() => {
     box-shadow 180ms ease;
 }
 
-.match-control__hero--changing {
-  transform: scale(1.002);
-
-  box-shadow:
-    0 1px 2px rgba(13, 45, 26, 0.025),
-    0 10px 26px rgba(13, 45, 26, 0.045);
-}
-
 .match-player {
   min-width: 0;
 
@@ -1169,10 +1138,6 @@ onUnmounted(() => {
   transition:
     transform 150ms ease,
     opacity 150ms ease;
-}
-
-.match-control__hero--changing .match-control__current-score strong {
-  transform: translateY(-2px);
 }
 
 .match-control__current-score i {
@@ -2162,14 +2127,6 @@ onUnmounted(() => {
       scroll-behavior: auto !important;
       transition: none !important;
       animation: none !important;
-    }
-
-    .match-control__hero--changing {
-      transform: none;
-    }
-
-    .match-control__hero--changing .match-control__current-score strong {
-      transform: none;
     }
   }
 
