@@ -135,7 +135,38 @@ function writeCollection(key, value) {
   }
 
   try {
-    window.localStorage.setItem(key, JSON.stringify(value))
+    const serialized =
+      JSON.stringify(value)
+
+    /*
+     * IMPORTANT:
+     *
+     * Getters such as getPairingSession()
+     * pass through loadCleanCollections().
+     *
+     * Without this no-op guard:
+     *
+     * subscriber
+     * → getter
+     * → cleanup
+     * → write
+     * → local event
+     * → subscriber
+     *
+     * can recursively call itself.
+     */
+    if (
+      window.localStorage.getItem(
+        key,
+      ) === serialized
+    ) {
+      return true
+    }
+
+    window.localStorage.setItem(
+      key,
+      serialized,
+    )
 
     dispatchChange(key)
 
@@ -338,8 +369,11 @@ function pairingByQrToken(token) {
  * It still does NOT replace an atomic backend transaction.
  */
 async function withClaimLock(key, action) {
-  if (browserAvailable() && navigator.locks?.request) {
-    return navigator.locks.request(
+  if (
+    browserAvailable() &&
+    window.navigator?.locks?.request
+  ) {
+    return window.navigator.locks.request(
       `gorra-tv-pairing-${key}`,
 
       {
@@ -360,19 +394,34 @@ function commitClaim(pairing) {
    * The session may have been claimed while this tab
    * was waiting for the lock.
    */
-  const { pairings, displays } = loadCleanCollections()
+  const {
+    pairings,
+    displays,
+  } = loadCleanCollections()
 
-  const fresh = pairings.find((session) => session.sessionId === pairing.sessionId)
+  const fresh =
+    pairings.find(
+      (session) =>
+        session.sessionId ===
+        pairing.sessionId,
+    )
 
-  if (!fresh || !pairingSessionCanBeClaimed(fresh)) {
+  if (
+    !fresh ||
+    !pairingSessionCanBeClaimed(
+      fresh,
+    )
+  ) {
     return null
   }
 
-  const displaySession = createTvDisplaySession({
-    pairingSession: fresh,
-  })
+  const displaySession =
+    createTvDisplaySession({
+      pairingSession: fresh,
+    })
 
-  const now = Date.now()
+  const now =
+    Date.now()
 
   const claimedPairing = {
     ...fresh,
@@ -386,27 +435,64 @@ function commitClaim(pairing) {
     displayExpiresAt: displaySession.expiresAt,
   }
 
-  const nextPairings = pairings.map((session) =>
-    session.sessionId === fresh.sessionId ? claimedPairing : session,
+  const nextPairings =
+    pairings.map(
+      (session) =>
+        session.sessionId ===
+        fresh.sessionId
+          ? claimedPairing
+          : session,
+    )
+
+  const nextDisplays = [
+    displaySession,
+    ...displays,
+  ].slice(
+    0,
+    MAX_DISPLAY_SESSIONS,
   )
 
-  const nextDisplays = [displaySession, ...displays].slice(0, MAX_DISPLAY_SESSIONS)
-
   /*
-   * localStorage cannot provide a true cross-key
-   * transaction.
+   * localStorage cannot make a true
+   * cross-key transaction.
    *
-   * Production Laravel will do this atomically.
+   * Write the display capability FIRST.
    *
-   * For the local prototype we restore Pairing state if
-   * display persistence fails.
+   * Why?
+   *
+   * Once the Pairing record says "claimed",
+   * cleanPairingSessions() requires its
+   * display session to already exist.
+   *
+   * Writing Pairing first creates a small
+   * window where cleanup can incorrectly
+   * delete the new claim.
    */
-  if (!writeCollection(PAIRING_STORAGE_KEY, nextPairings)) {
+  if (
+    !writeCollection(
+      DISPLAY_STORAGE_KEY,
+      nextDisplays,
+    )
+  ) {
     return null
   }
 
-  if (!writeCollection(DISPLAY_STORAGE_KEY, nextDisplays)) {
-    writeCollection(PAIRING_STORAGE_KEY, pairings)
+  if (
+    !writeCollection(
+      PAIRING_STORAGE_KEY,
+      nextPairings,
+    )
+  ) {
+    /*
+     * Best-effort rollback.
+     *
+     * Laravel will later perform the
+     * equivalent operation atomically.
+     */
+    writeCollection(
+      DISPLAY_STORAGE_KEY,
+      displays,
+    )
 
     return null
   }

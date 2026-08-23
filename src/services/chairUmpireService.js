@@ -21,10 +21,15 @@
 
 import {
   chairUmpireAcceptedExpiry,
+  chairUmpireAcceptedIdentityId,
+  chairUmpireCandidateActive,
   chairUmpireInvitationCanBeAccepted,
   chairUmpireInvitationIsActive,
+  CHAIR_UMPIRE_SCORER_SESSION_KIND,
   createChairUmpireCandidateId,
+  createChairUmpireControlGrantId,
   createChairUmpireInvitation,
+  createChairUmpireScorerSessionId,
   normalizeChairUmpireToken,
   sanitizeChairUmpireName,
   validChairUmpireName,
@@ -37,6 +42,12 @@ const LOCAL_EVENT = 'gorra:chair-umpire-change'
 const STORAGE_PROBE = 'gorra.chairUmpireStorageProbe'
 
 const MAX_INVITATIONS = 50
+
+const TAB_SCORER_SESSION_KEY =
+  'gorra.chairUmpireScorerSession.current.v1'
+
+const SESSION_STORAGE_PROBE =
+  'gorra.chairUmpireScorerSessionProbe'
 
 let storageCapability = null
 
@@ -64,6 +75,27 @@ function storageAvailable() {
   }
 
   return storageCapability
+}
+
+function sessionStorageAvailable() {
+  if (!browserAvailable()) {
+    return false
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      SESSION_STORAGE_PROBE,
+      '1',
+    )
+
+    window.sessionStorage.removeItem(
+      SESSION_STORAGE_PROBE,
+    )
+
+    return true
+  } catch {
+    return false
+  }
 }
 
 function readInvitations() {
@@ -349,6 +381,378 @@ export function declineChairUmpireInvitation({ token, actorId = '' }) {
   )
 }
 
+export function grantChairUmpireScoringControl(
+  invitationId,
+  actorId,
+) {
+  const invitation =
+    getChairUmpireInvitation(invitationId)
+
+  const actor = String(actorId || '')
+
+  if (
+    !invitation ||
+    invitation.status !== 'accepted' ||
+    invitation.createdBy !== actor ||
+    !chairUmpireCandidateActive(invitation)
+  ) {
+    return null
+  }
+
+  const scorerId =
+    chairUmpireAcceptedIdentityId(invitation)
+
+  if (!scorerId) {
+    return null
+  }
+
+  const currentGrant =
+    invitation.controlHandoff
+
+  /*
+   * Idempotent:
+   *
+   * pressing the handoff button twice must not
+   * mint competing control grants.
+   */
+  if (
+    currentGrant?.status === 'granted' &&
+    currentGrant.scorerId === scorerId &&
+    Number(currentGrant.expiresAt || 0) >
+      Date.now()
+  ) {
+    return invitation
+  }
+
+  const now = Date.now()
+
+  return replaceInvitation(
+    invitation.invitationId,
+
+    (current) => {
+      if (
+        current.status !== 'accepted' ||
+        current.createdBy !== actor ||
+        !chairUmpireCandidateActive(current)
+      ) {
+        return null
+      }
+
+      const currentScorerId =
+        chairUmpireAcceptedIdentityId(current)
+
+      if (!currentScorerId) {
+        return null
+      }
+
+      return {
+        ...current,
+
+        controlHandoff: {
+          grantId:
+            createChairUmpireControlGrantId(),
+
+          status: 'granted',
+
+          scorerId: currentScorerId,
+
+          grantedBy: actor,
+
+          grantedAt: now,
+
+          expiresAt: Number(
+            current.acceptedExpiresAt || 0,
+          ),
+
+          revokedAt: null,
+
+          revokeReason: '',
+        },
+
+        /*
+         * Still deliberately false.
+         *
+         * The match's scorerId remains the actual
+         * score-authority boundary.
+         */
+        scoringAuthority: false,
+      }
+    },
+  )
+}
+
+export function revokeChairUmpireScoringControl(
+  invitationId,
+  actorId,
+  reason = 'owner_reclaimed',
+) {
+  const invitation =
+    getChairUmpireInvitation(invitationId)
+
+  const actor = String(actorId || '')
+
+  if (
+    !invitation ||
+    invitation.createdBy !== actor
+  ) {
+    return null
+  }
+
+  if (!invitation.controlHandoff) {
+    return invitation
+  }
+
+  const now = Date.now()
+
+  return replaceInvitation(
+    invitation.invitationId,
+
+    (current) => ({
+      ...current,
+
+      controlHandoff: {
+        ...current.controlHandoff,
+
+        status: 'revoked',
+
+        revokedAt: now,
+
+        revokeReason: String(reason || '')
+          .trim()
+          .slice(0, 80),
+      },
+
+      scoringAuthority: false,
+    }),
+  )
+}
+
+/*
+ * The invitation holder claims the already-approved
+ * handoff into this browser tab.
+ *
+ * This does NOT decide who the scorer is.
+ *
+ * friendlyMatch.draft.scorerId already did that.
+ */
+export function claimChairUmpireScoringControl({
+  token,
+  actorId,
+}) {
+  const invitation =
+    getChairUmpireInvitationByToken(token)
+
+  if (
+    !invitation ||
+    invitation.status !== 'accepted' ||
+    !chairUmpireCandidateActive(invitation)
+  ) {
+    return null
+  }
+
+  const handoff =
+    invitation.controlHandoff
+
+  if (
+    !handoff ||
+    handoff.status !== 'granted' ||
+    Number(handoff.expiresAt || 0) <= Date.now()
+  ) {
+    return null
+  }
+
+  const scorerId =
+    chairUmpireAcceptedIdentityId(invitation)
+
+  const actor = String(actorId || '')
+
+  if (
+    !scorerId ||
+    !actor ||
+    scorerId !== actor ||
+    handoff.scorerId !== scorerId
+  ) {
+    return null
+  }
+
+  if (
+    invitation.audience === 'club_member' &&
+    String(invitation.expectedUserId || '') !==
+      actor
+  ) {
+    return null
+  }
+
+  const now = Date.now()
+
+  return {
+    kind:
+      CHAIR_UMPIRE_SCORER_SESSION_KIND,
+
+    schemaVersion: 1,
+
+    sessionId:
+      createChairUmpireScorerSessionId(),
+
+    invitationId:
+      invitation.invitationId,
+
+    /*
+     * This token is already known by this recipient.
+     * It stays in sessionStorage only after control
+     * begins and is never used as the score authority.
+     */
+    invitationToken:
+      normalizeChairUmpireToken(token),
+
+    audience:
+      invitation.audience,
+
+    matchId:
+      String(invitation.matchId || ''),
+
+    matchType:
+      invitation.matchType === 'ladder'
+        ? 'ladder'
+        : 'friendly',
+
+    scorerId,
+
+    scorerName:
+      sanitizeChairUmpireName(
+        invitation.acceptedIdentity?.name ||
+          'Chair umpire',
+      ),
+
+    grantId:
+      handoff.grantId,
+
+    scope: ['match:score'],
+
+    createdAt: now,
+
+    expiresAt: Math.min(
+      Number(
+        invitation.acceptedExpiresAt || 0,
+      ),
+
+      Number(handoff.expiresAt || 0),
+    ),
+  }
+}
+
+export function chairUmpireScorerSessionCanControl(
+  session,
+  matchId = '',
+  now = Date.now(),
+) {
+  if (
+    !session ||
+    session.kind !==
+      CHAIR_UMPIRE_SCORER_SESSION_KIND
+  ) {
+    return false
+  }
+
+  if (
+    Number(session.expiresAt || 0) <= now
+  ) {
+    return false
+  }
+
+  if (
+    !Array.isArray(session.scope) ||
+    !session.scope.includes('match:score')
+  ) {
+    return false
+  }
+
+  const expectedMatchId =
+    String(matchId || '')
+
+  if (
+    expectedMatchId &&
+    String(session.matchId || '') !==
+      expectedMatchId
+  ) {
+    return false
+  }
+
+  return Boolean(
+    session.scorerId &&
+      session.invitationId &&
+      session.grantId,
+  )
+}
+
+export function storeChairUmpireScorerSessionForThisTab(
+  session,
+) {
+  if (
+    !sessionStorageAvailable() ||
+    !chairUmpireScorerSessionCanControl(
+      session,
+    )
+  ) {
+    return false
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      TAB_SCORER_SESSION_KEY,
+      JSON.stringify(session),
+    )
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function readChairUmpireScorerSessionForThisTab() {
+  if (!sessionStorageAvailable()) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(
+      window.sessionStorage.getItem(
+        TAB_SCORER_SESSION_KEY,
+      ) || 'null',
+    )
+
+    if (
+      !chairUmpireScorerSessionCanControl(
+        parsed,
+      )
+    ) {
+      window.sessionStorage.removeItem(
+        TAB_SCORER_SESSION_KEY,
+      )
+
+      return null
+    }
+
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+export function clearChairUmpireScorerSessionForThisTab() {
+  if (!sessionStorageAvailable()) {
+    return
+  }
+
+  try {
+    window.sessionStorage.removeItem(
+      TAB_SCORER_SESSION_KEY,
+    )
+  } catch {
+    // no-op
+  }
+}
+
 /*
  * MATCH OWNER / MANAGER REMOVES THE INVITE OR
  * ACCEPTED CANDIDATE.
@@ -378,6 +782,19 @@ export function cancelChairUmpireInvitation(invitationId, actorId) {
         cancelledAt: Date.now(),
 
         acceptedIdentity: null,
+
+        controlHandoff: current.controlHandoff
+          ? {
+              ...current.controlHandoff,
+
+              status: 'revoked',
+
+              revokedAt: Date.now(),
+
+              revokeReason:
+                'invitation_cancelled',
+            }
+          : null,
 
         scoringAuthority: false,
       }),

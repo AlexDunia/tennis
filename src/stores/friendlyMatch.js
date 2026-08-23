@@ -30,7 +30,7 @@ import {
  * old development state from corrupting the current flow.
  */
 const RESULT_STORAGE_KEY = 'gorra.friendlyMatchResults.v2'
-const DRAFT_STORAGE_KEY = 'gorra.friendlyMatchDraft.v4'
+const DRAFT_STORAGE_KEY = 'gorra.friendlyMatchDraft.v5'
 const INVITATION_STORAGE_KEY = 'gorra.friendlyMatchInvitations.v2'
 const CUSTOM_FORMAT_STORAGE_KEY = 'gorra.friendlyMatchCustomFormats.v1'
 const PLAY_NOW_TTL_MS = 30 * 60 * 1000
@@ -69,6 +69,16 @@ function createDraft() {
     customFormat: null,
     tieBreak: '6-6',
     schedule: { date: '', time: '', court: '' },
+
+    /*
+     * Club boundary for live-match authorization.
+     *
+     * Admin authority must always be evaluated against
+     * the club that owns this match, not merely whichever
+     * club happens to be selected in the UI later.
+     */
+    clubId: '',
+
     matchId: '',
     challengeId: '',
     ladderMatchId: '',
@@ -92,6 +102,17 @@ function createDraft() {
      * assume they stay the same.
      */
     scorerId: '',
+
+    /*
+     * Authority has its own revision/history.
+     *
+     * Tennis score revision and scorer-authority revision
+     * are deliberately separate concerns.
+     */
+    scorerRevision: 0,
+    scorerChangedAt: '',
+    scorerChangedBy: '',
+    scorerHistory: [],
 
     /*
      * The immutable start time of this live session.
@@ -145,6 +166,7 @@ function readDraft() {
       customFormat: stored.customFormat ? normalizeCustomFormat(stored.customFormat) : null,
       setScores: Array.isArray(stored.setScores) ? stored.setScores : [],
       pointHistory: Array.isArray(stored.pointHistory) ? stored.pointHistory : [],
+      scorerHistory: Array.isArray(stored.scorerHistory) ? stored.scorerHistory.slice(0, 20) : [],
     }
   } catch {
     return createDraft()
@@ -255,6 +277,13 @@ function normalizeIdentity(identity = {}) {
     rank: Number(identity.rank || identity.ladderRank) || null,
     division: identity.category || identity.division || 'Club Member',
   }
+}
+
+function normalizeAuthorityId(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .slice(0, 120)
 }
 
 function clampInteger(value, minimum, maximum, fallback) {
@@ -416,6 +445,249 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
 
   function canFinalizeMatch(actorId = '') {
     return canManageMatch(actorId) || canScoreMatch(actorId)
+  }
+
+  function changeScorerAuthority({
+    actorId,
+    nextScorerId,
+    reason,
+    sourceId = '',
+
+    /*
+     * owner
+     * admin_override
+     */
+    authorization = 'owner',
+
+    clubId = '',
+    authorized = false,
+  }) {
+    const actor =
+      normalizeAuthorityId(actorId)
+
+    const next =
+      normalizeAuthorityId(
+        nextScorerId,
+      )
+
+    if (!actor || !next) {
+      return false
+    }
+
+    const ownerAuthorized =
+      canManageMatch(actor)
+
+    const requestedClubId =
+      normalizeAuthorityId(clubId)
+
+    /*
+     * Frontend/mock equivalent only.
+     *
+     * `authorized` is supplied by the active-club
+     * permission layer in FriendlyMatchFlowView.
+     *
+     * Laravel must later derive this permission
+     * server-side rather than trusting the client.
+     */
+    const adminOverrideAuthorized =
+      authorization ===
+        'admin_override' &&
+      authorized === true &&
+      Boolean(requestedClubId) &&
+      Boolean(draft.value.clubId) &&
+      requestedClubId ===
+        draft.value.clubId
+
+    if (
+      !ownerAuthorized &&
+      !adminOverrideAuthorized
+    ) {
+      return false
+    }
+
+    /*
+     * Authority can only change while a real live
+     * session exists.
+     */
+    if (
+      draft.value.status !== 'live' ||
+      !draft.value.liveState ||
+      draft.value.over
+    ) {
+      return false
+    }
+
+    const previous =
+      normalizeAuthorityId(
+        draft.value.scorerId,
+      )
+
+    /*
+     * Idempotent duplicate request.
+     */
+    if (previous === next) {
+      return true
+    }
+
+    const changedAt =
+      new Date().toISOString()
+
+    const revision =
+      Math.max(
+        0,
+        Number(
+          draft.value.scorerRevision ||
+            0,
+        ),
+      ) + 1
+
+    const historyEntry = {
+      revision,
+
+      from: previous,
+
+      to: next,
+
+      changedBy: actor,
+
+      reason: String(reason || '')
+        .trim()
+        .slice(0, 80),
+
+      sourceId:
+        normalizeAuthorityId(
+          sourceId,
+        ),
+
+      authorization:
+        adminOverrideAuthorized
+          ? 'admin_override'
+          : 'owner',
+
+      clubId:
+        draft.value.clubId || '',
+
+      changedAt,
+    }
+
+    draft.value.scorerId =
+      next
+
+    draft.value.scorerRevision =
+      revision
+
+    draft.value.scorerChangedAt =
+      changedAt
+
+    draft.value.scorerChangedBy =
+      actor
+
+    draft.value.scorerHistory = [
+      historyEntry,
+
+      ...(
+        Array.isArray(
+          draft.value.scorerHistory,
+        )
+          ? draft.value.scorerHistory
+          : []
+      ),
+    ].slice(0, 20)
+
+    /*
+     * Authority transfer is a security/lifecycle
+     * transaction. Commit immediately.
+     */
+    persist(
+      DRAFT_STORAGE_KEY,
+      draft.value,
+    )
+
+    return true
+  }
+
+  function transferScoringAuthority({ actorId, scorerId, sourceId = '' }) {
+    return changeScorerAuthority({
+      actorId,
+
+      nextScorerId: scorerId,
+
+      reason: 'chair_umpire_handoff',
+
+      sourceId,
+    })
+  }
+
+  function reclaimScoringAuthority(actorId = '') {
+    const actor = normalizeAuthorityId(actorId)
+
+    const owner = normalizeAuthorityId(draft.value.ownerId)
+
+    if (!actor || !owner || actor !== owner) {
+      return false
+    }
+
+    return changeScorerAuthority({
+      actorId: actor,
+
+      nextScorerId: owner,
+
+      reason: 'owner_reclaim',
+
+      sourceId: '',
+    })
+  }
+
+  function emergencyOverrideScoringAuthority({
+    actorId,
+    clubId,
+    authorized = false,
+  }) {
+    const actor =
+      normalizeAuthorityId(actorId)
+
+    const matchClubId =
+      normalizeAuthorityId(
+        draft.value.clubId,
+      )
+
+    const requestedClubId =
+      normalizeAuthorityId(clubId)
+
+    if (
+      !actor ||
+      !matchClubId ||
+      !requestedClubId ||
+      requestedClubId !== matchClubId ||
+      authorized !== true
+    ) {
+      return false
+    }
+
+    /*
+     * Being an admin does NOT automatically make
+     * somebody the scorer.
+     *
+     * This function represents the explicit
+     * "Take Match Control" action.
+     */
+    return changeScorerAuthority({
+      actorId: actor,
+
+      nextScorerId: actor,
+
+      reason:
+        'admin_emergency_override',
+
+      sourceId: '',
+
+      authorization:
+        'admin_override',
+
+      clubId: requestedClubId,
+
+      authorized: true,
+    })
   }
 
   function cancelActiveInvitation() {
@@ -1023,9 +1295,37 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     return invitation
   }
 
-  function startLiveMatch(actorId = '') {
+  function startLiveMatch(
+    actorId = '',
+    clubId = '',
+  ) {
     if (!actorId) {
       return false
+    }
+
+    const normalizedClubId =
+      normalizeAuthorityId(clubId)
+
+    /*
+     * Once a live session belongs to a club,
+     * another active-club selection may not
+     * silently rebind it.
+     */
+    if (
+      draft.value.clubId &&
+      normalizedClubId &&
+      draft.value.clubId !==
+        normalizedClubId
+    ) {
+      return false
+    }
+
+    if (
+      !draft.value.clubId &&
+      normalizedClubId
+    ) {
+      draft.value.clubId =
+        normalizedClubId
     }
 
     /*
@@ -1072,7 +1372,35 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
      * overwrite that authority.
      */
     if (!draft.value.scorerId) {
+      const assignedAt = new Date().toISOString()
+
       draft.value.scorerId = actorId
+
+      draft.value.scorerRevision = Math.max(1, Number(draft.value.scorerRevision || 0))
+
+      draft.value.scorerChangedAt = assignedAt
+
+      draft.value.scorerChangedBy = actorId
+
+      if (!draft.value.scorerHistory.length) {
+        draft.value.scorerHistory = [
+          {
+            revision: draft.value.scorerRevision,
+
+            from: '',
+
+            to: actorId,
+
+            changedBy: actorId,
+
+            reason: 'match_started',
+
+            sourceId: '',
+
+            changedAt: assignedAt,
+          },
+        ]
+      }
     }
 
     const startedAt = draft.value.startedAt || new Date().toISOString()
@@ -1554,7 +1882,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     const resultId = `result-${sourceMatchId}`
 
     const result = {
-      resultVersion: 1,
+      resultVersion: 2,
 
       id: resultId,
 
@@ -1566,11 +1894,30 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
 
       matchType: draft.value.matchType || 'friendly',
 
+      clubId:
+        draft.value.clubId || '',
+
       status: 'completed',
 
       ownerId: draft.value.ownerId || playerAId,
 
       scorerId: draft.value.scorerId || '',
+
+      scorerRevision:
+        Number(
+          draft.value.scorerRevision || 0,
+        ),
+
+      scorerHistory:
+        Array.isArray(
+          draft.value.scorerHistory,
+        )
+          ? draft.value.scorerHistory.map(
+              (entry) => ({
+                ...entry,
+              }),
+            )
+          : [],
 
       /*
        * Backend-ready access boundary.
@@ -1723,6 +2070,9 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     startLiveMatch,
     canManageMatch,
     canScoreMatch,
+    transferScoringAuthority,
+    reclaimScoringAuthority,
+    emergencyOverrideScoringAuthority,
 
     pointLabel,
     recordPoint,

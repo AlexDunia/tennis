@@ -8,6 +8,8 @@ import MatchDetailsView from '../views/MatchDetailsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
 import LiveScoreboardView from '../views/LiveScoreboardView.vue'
+import TvDisplayPairingView from '../views/TvDisplayPairingView.vue'
+import TvDisplayLiveView from '../views/TvDisplayLiveView.vue'
 import ChairUmpireInvitationView from '../views/ChairUmpireInvitationView.vue'
 import PlayHubView from '../views/PlayHubView.vue'
 import ProfileView from '../views/ProfileView.vue'
@@ -316,7 +318,6 @@ const routes = [
   },
   {
     path: '/friendly-match/result/:resultId',
-    alias: '/ladder-match/live',
     name: 'FriendlyMatchResult',
     component: FriendlyMatchFlowView,
     meta: {
@@ -466,6 +467,41 @@ const routes = [
     },
   },
   {
+    path: '/display',
+
+    name: 'TvDisplayPairing',
+
+    component: TvDisplayPairingView,
+
+    meta: {
+      public: true,
+
+      title: 'Pair live display',
+
+      immersive: true,
+
+      primarySection: 'play',
+    },
+  },
+
+  {
+    path: '/display/live',
+
+    name: 'TvDisplayLive',
+
+    component: TvDisplayLiveView,
+
+    meta: {
+      public: true,
+
+      title: 'Live display',
+
+      immersive: true,
+
+      primarySection: 'play',
+    },
+  },
+  {
     path: '/match-umpire/invite/:token',
 
     name: 'ChairUmpireInvite',
@@ -504,6 +540,29 @@ const routes = [
       public: true,
 
       title: 'Chair umpire invitation',
+
+      immersive: true,
+
+      primarySection: 'play',
+    },
+  },
+  {
+    path: '/match-umpire/control',
+
+    name: 'ChairUmpireMatchControl',
+
+    component: FriendlyMatchFlowView,
+
+    meta: {
+      public: true,
+
+      title: 'Chair umpire match control',
+
+      friendlyFlow: true,
+
+      friendlyStep: 'live',
+
+      umpireControl: true,
 
       immersive: true,
 

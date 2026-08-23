@@ -35,12 +35,22 @@ import {
   getLiveScoreboardMatchId,
 } from '../utils/liveScoreboardSnapshot'
 import { publishLiveMatchSnapshot, startLiveMatchHeartbeat } from '../services/liveMatchRealtime'
-import { createPairingSession } from '../services/tvPairingService'
+import {
+  cancelPairingSession,
+  createPairingSession,
+  revokePairedDisplay,
+  subscribeToPairingSession,
+} from '../services/tvPairingService'
 import { formatPairingCode } from '../utils/tvPairing'
 import {
   cancelChairUmpireInvitation,
+  chairUmpireScorerSessionCanControl,
+  clearChairUmpireScorerSessionForThisTab,
   createChairUmpireInvitationSession,
   getActiveChairUmpireInvitationForMatch,
+  grantChairUmpireScoringControl,
+  readChairUmpireScorerSessionForThisTab,
+  revokeChairUmpireScoringControl,
   subscribeToChairUmpireInvitation,
 } from '../services/chairUmpireService'
 const route = useRoute()
@@ -70,6 +80,11 @@ const chairUmpireInvitation = ref(null)
 
 const chairUmpireQrDataUrl = ref('')
 
+const chairUmpireScorerSession =
+  ref(
+    readChairUmpireScorerSessionForThisTab(),
+  )
+
 let stopChairUmpireSubscription = () => {}
 
 const tvPairingOpen = ref(false)
@@ -77,6 +92,12 @@ const tvPairingOpen = ref(false)
 const tvPairingSession = ref(null)
 
 const tvPairingMessage = ref('')
+
+const tvPairingQrDataUrl =
+  ref('')
+
+let stopTvPairingSubscription =
+  () => {}
 
 const liveAnnouncement = ref('')
 
@@ -135,17 +156,76 @@ function readVoiceAnnouncementPreference() {
 }
 
 const step = computed(() => String(route.meta.friendlyStep || 'type'))
+
+const isChairUmpireControlRoute =
+  computed(
+    () =>
+      route.meta.umpireControl ===
+      true,
+  )
+
+const currentLiveMatchId =
+  computed(() =>
+    getLiveScoreboardMatchId(
+      friendlyMatchStore.draft,
+    ),
+  )
+
 const isLadder = computed(() => friendlyMatchStore.draft.matchType === 'ladder')
 const isFriendly = computed(() => friendlyMatchStore.draft.matchType === 'friendly')
 const isPlayNow = computed(() => friendlyMatchStore.draft.timing === 'now')
 const selectedOpponentId = computed(() => friendlyMatchStore.draft.opponent?.id || '')
 const opponentName = computed(() => friendlyMatchStore.draft.opponent?.name || 'Opponent')
-const currentIdentity = computed(() => ({
-  id: authStore.user?.playerId || playerStore.currentPlayer?.id || '',
-  name: playerStore.currentPlayer?.name || authStore.user?.name || 'Club player',
-  rank: playerStore.currentPlayer?.rank || null,
-  category: playerStore.currentPlayer?.category || 'Club Member',
-}))
+const authenticatedIdentity =
+  computed(() => ({
+    id:
+      authStore.user?.playerId ||
+      playerStore.currentPlayer?.id ||
+      authStore.user?.id ||
+      '',
+
+    name:
+      playerStore.currentPlayer?.name ||
+      authStore.user?.name ||
+      'Club player',
+
+    rank:
+      playerStore.currentPlayer?.rank ||
+      null,
+
+    category:
+      playerStore.currentPlayer
+        ?.category ||
+      'Club Member',
+  }))
+
+const currentIdentity =
+  computed(() => {
+    const session =
+      chairUmpireScorerSession.value
+
+    if (
+      isChairUmpireControlRoute.value &&
+      chairUmpireScorerSessionCanControl(
+        session,
+        currentLiveMatchId.value,
+      )
+    ) {
+      return {
+        id: session.scorerId,
+
+        name:
+          session.scorerName ||
+          'Chair umpire',
+
+        rank: null,
+
+        category: 'Chair umpire',
+      }
+    }
+
+    return authenticatedIdentity.value
+  })
 const activeLadderConfig = computed(() => getActiveLadderConfig())
 const ladderWindow = computed(() =>
   ladderWindowFor(currentIdentity.value, activeLadderConfig.value),
@@ -182,6 +262,100 @@ const playNowReady = computed(() => friendlyMatchStore.opponentReady)
 const canManageLiveMatch = computed(() => {
   return friendlyMatchStore.canManageMatch(currentIdentity.value.id)
 })
+
+const canEmergencyOverrideLiveMatch =
+  computed(() => {
+    const actorId =
+      authenticatedIdentity.value.id
+
+    const draft =
+      friendlyMatchStore.draft
+
+    if (
+      !actorId ||
+      isChairUmpireControlRoute.value
+    ) {
+      return false
+    }
+
+    /*
+     * Admin override is for another authorized
+     * administrator intervening.
+     *
+     * The owner already has the normal
+     * reclaim-control path.
+     */
+    if (
+      friendlyMatchStore.canManageMatch(
+        actorId,
+      )
+    ) {
+      return false
+    }
+
+    /*
+     * Somebody who already controls scoring
+     * obviously does not need an override.
+     */
+    if (
+      friendlyMatchStore.canScoreMatch(
+        actorId,
+      )
+    ) {
+      return false
+    }
+
+    if (
+      draft.status !== 'live' ||
+      !draft.liveState ||
+      draft.over
+    ) {
+      return false
+    }
+
+    /*
+     * Critical club boundary.
+     */
+    if (
+      !draft.clubId ||
+      !adminStore.activeClubId ||
+      draft.clubId !==
+        adminStore.activeClubId
+    ) {
+      return false
+    }
+
+    /*
+     * Use active-club membership permission,
+     * NOT generic/global isAdmin.
+     */
+    return Boolean(
+      adminStore.hasActiveClubPermission(
+        'matches.live_score',
+      ),
+    )
+  })
+
+const acceptedChairUmpireScorerId =
+  computed(
+    () =>
+      chairUmpireInvitation.value
+        ?.acceptedIdentity?.userId ||
+      chairUmpireInvitation.value
+        ?.acceptedIdentity?.guestId ||
+      '',
+  )
+
+const chairUmpireHasControl =
+  computed(
+    () =>
+      Boolean(
+        acceptedChairUmpireScorerId.value &&
+          friendlyMatchStore.draft
+            .scorerId ===
+            acceptedChairUmpireScorerId.value,
+      ),
+  )
 
 function initialsForName(name) {
   return String(name || '')
@@ -275,6 +449,37 @@ const tvPairingCode = computed(() => {
   return formatPairingCode(tvPairingSession.value?.pairingCode || '')
 })
 
+const tvPairingInviteUrl =
+  computed(() => {
+    const session =
+      tvPairingSession.value
+
+    if (
+      !session?.qrClaimToken ||
+      session.status !== 'waiting' ||
+      typeof window ===
+        'undefined'
+    ) {
+      return ''
+    }
+
+    const href =
+      router.resolve({
+        name:
+          'TvDisplayPairing',
+
+        query: {
+          ticket:
+            session.qrClaimToken,
+        },
+      }).href
+
+    return new URL(
+      href,
+      window.location.href,
+    ).href
+  })
+
 const canScoreLiveMatch = computed(() => friendlyMatchStore.canScoreMatch(currentIdentity.value.id))
 
 const canAccessLiveMatch = computed(() => canManageDraft.value || canScoreLiveMatch.value)
@@ -331,6 +536,31 @@ const canRenderCurrentRoute = computed(() => {
    */
   if (step.value === 'live') {
     const draft = friendlyMatchStore.draft
+
+    if (
+      isChairUmpireControlRoute.value
+    ) {
+      const session =
+        chairUmpireScorerSession.value
+
+      const matchId =
+        getLiveScoreboardMatchId(
+          draft,
+        )
+
+      if (
+        !chairUmpireScorerSessionCanControl(
+          session,
+          matchId,
+        ) ||
+        !session?.scorerId ||
+        !friendlyMatchStore.canScoreMatch(
+          session.scorerId,
+        )
+      ) {
+        return false
+      }
+    }
 
     const hasScoring = Boolean(draft.format)
     const hasOpponent = Boolean(draft.opponent)
@@ -675,6 +905,71 @@ const backRoute = computed(() => {
 })
 
 function guardStep() {
+  /*
+   * CHAIR UMPIRE MATCH CONTROL
+   *
+   * This route is public at the router level because
+   * a guest umpire may not have a Gorra account.
+   *
+   * The route itself is NOT authority.
+   *
+   * It requires:
+   *
+   * - a valid tab-bound scorer capability
+   * - matching live match
+   * - matching authoritative scorerId
+   */
+  if (isChairUmpireControlRoute.value) {
+    const session =
+      refreshChairUmpireScorerSession()
+
+    const matchId =
+      getLiveScoreboardMatchId(
+        friendlyMatchStore.draft,
+      )
+
+    const sessionValid =
+      chairUmpireScorerSessionCanControl(
+        session,
+        matchId,
+      )
+
+    const matchExists =
+      Boolean(
+        friendlyMatchStore.draft
+          .liveState &&
+          ['live', 'finished'].includes(
+            friendlyMatchStore.draft
+              .status,
+          ),
+      )
+
+    const stillAssigned =
+      Boolean(
+        session?.scorerId &&
+          friendlyMatchStore.canScoreMatch(
+            session.scorerId,
+          ),
+      )
+
+    /*
+     * Finished Ladder matches remain viewable so the
+     * umpire sees the finished score.
+     *
+     * A completed Friendly match will have already
+     * closed/reset the active draft.
+     */
+    if (
+      !sessionValid ||
+      !matchExists ||
+      !stillAssigned
+    ) {
+      leaveChairUmpireControl()
+
+      return
+    }
+  }
+
   /*
    * INVITED PLAYER ROUTE
    *
@@ -1169,7 +1464,12 @@ function continueFromSchedule() {
 function chooseFormat(format) {
   friendlyMatchStore.chooseFormat(format)
   if (isLadder.value) {
-    friendlyMatchStore.startLiveMatch(currentIdentity.value.id)
+    friendlyMatchStore.startLiveMatch(
+      currentIdentity.value.id,
+
+      adminStore.activeClubId ||
+        '',
+    )
     router.push(flowLocation('FriendlyMatchLive'))
   } else if (isFriendly.value) router.push(flowLocation('FriendlyMatchFormat'))
 }
@@ -1341,7 +1641,12 @@ async function completeReview() {
 
       friendlyMatchStore.linkLadderRecords(accepted.challenge, accepted.match)
 
-      const started = friendlyMatchStore.startLiveMatch(currentIdentity.value.id)
+      const started = friendlyMatchStore.startLiveMatch(
+        currentIdentity.value.id,
+
+        adminStore.activeClubId ||
+          '',
+      )
 
       if (!started) {
         inlineNote.value = 'This Ladder match could not be started.'
@@ -1384,7 +1689,12 @@ async function completeReview() {
       return
     }
 
-    const started = friendlyMatchStore.startLiveMatch(currentIdentity.value.id)
+    const started = friendlyMatchStore.startLiveMatch(
+      currentIdentity.value.id,
+
+      adminStore.activeClubId ||
+        '',
+    )
 
     if (!started) {
       inlineNote.value =
@@ -1621,6 +1931,50 @@ function announceLiveScore({ before, after, pointWinnerSide }) {
   })
 }
 
+function refreshChairUmpireScorerSession() {
+  chairUmpireScorerSession.value =
+    readChairUmpireScorerSessionForThisTab()
+
+  return chairUmpireScorerSession.value
+}
+
+function chairUmpireInvitationLocation(
+  session =
+    chairUmpireScorerSession.value,
+) {
+  if (!session?.invitationToken) {
+    return {
+      name: 'Home',
+    }
+  }
+
+  return {
+    name:
+      session.audience === 'guest'
+        ? 'ChairUmpireGuestInvite'
+        : 'ChairUmpireInvite',
+
+    params: {
+      token:
+        session.invitationToken,
+    },
+  }
+}
+
+async function leaveChairUmpireControl() {
+  const destination =
+    chairUmpireInvitationLocation()
+
+  clearChairUmpireScorerSessionForThisTab()
+
+  chairUmpireScorerSession.value =
+    null
+
+  await router.replace(
+    destination,
+  )
+}
+
 function stopChairUmpireWatch() {
   stopChairUmpireSubscription()
 
@@ -1729,6 +2083,216 @@ function closeChairUmpire() {
   stopChairUmpireWatch()
 }
 
+function handoffChairUmpireControl() {
+  inlineNote.value = ''
+
+  if (!canManageLiveMatch.value) {
+    inlineNote.value =
+      'Only the match owner can hand over Match Control.'
+
+    return
+  }
+
+  /*
+   * Recover the newest score before changing authority.
+   *
+   * This reduces the chance of an older owner tab
+   * writing an old score snapshot during handoff.
+   */
+  friendlyMatchStore.refreshDraft()
+
+  const invitation =
+    chairUmpireInvitation.value
+
+  const scorerId =
+    invitation?.acceptedIdentity
+      ?.userId ||
+    invitation?.acceptedIdentity
+      ?.guestId ||
+    ''
+
+  if (
+    !invitation ||
+    invitation.status !==
+      'accepted' ||
+    !scorerId
+  ) {
+    inlineNote.value =
+      'The chair umpire must accept the invitation before Match Control can be handed over.'
+
+    return
+  }
+
+  /*
+   * First move the authoritative scorerId.
+   *
+   * The recipient is not notified until that succeeds.
+   */
+  const transferred =
+    friendlyMatchStore.transferScoringAuthority(
+      {
+        actorId:
+          currentIdentity.value.id,
+
+        scorerId,
+
+        sourceId:
+          invitation.invitationId,
+      },
+    )
+
+  if (!transferred) {
+    inlineNote.value =
+      'Match Control could not be handed over.'
+
+    return
+  }
+
+  /*
+   * Now tell the accepted recipient that the owner
+   * explicitly granted their already-existing
+   * scorer authority.
+   */
+  const granted =
+    grantChairUmpireScoringControl(
+      invitation.invitationId,
+
+      currentIdentity.value.id,
+    )
+
+  if (!granted) {
+    /*
+     * Fail closed.
+     *
+     * If the capability notification cannot be created,
+     * immediately return scoring to the owner.
+     */
+    friendlyMatchStore.reclaimScoringAuthority(
+      currentIdentity.value.id,
+    )
+
+    inlineNote.value =
+      'The umpire could not receive Match Control. You still control scoring.'
+
+    return
+  }
+
+  chairUmpireInvitation.value =
+    granted
+}
+
+function reclaimChairUmpireControl() {
+  inlineNote.value = ''
+
+  if (!canManageLiveMatch.value) {
+    inlineNote.value =
+      'Only the match owner can take Match Control back.'
+
+    return
+  }
+
+  friendlyMatchStore.refreshDraft()
+
+  const reclaimed =
+    friendlyMatchStore.reclaimScoringAuthority(
+      currentIdentity.value.id,
+    )
+
+  if (!reclaimed) {
+    inlineNote.value =
+      'Match Control could not be returned to you.'
+
+    return
+  }
+
+  const invitation =
+    chairUmpireInvitation.value
+
+  if (!invitation) {
+    return
+  }
+
+  const revoked =
+    revokeChairUmpireScoringControl(
+      invitation.invitationId,
+
+      currentIdentity.value.id,
+
+      'owner_reclaimed',
+    )
+
+  if (revoked) {
+    chairUmpireInvitation.value =
+      revoked
+  }
+}
+
+function emergencyTakeMatchControl() {
+  inlineNote.value = ''
+
+  /*
+   * Reload immediately before authorization/mutation
+   * so an older tab does not make the decision from
+   * stale scorer state.
+   */
+  friendlyMatchStore.refreshDraft()
+
+  const actorId =
+    authenticatedIdentity.value.id
+
+  const draft =
+    friendlyMatchStore.draft
+
+  const stillAuthorized =
+    Boolean(
+      actorId &&
+        draft.status === 'live' &&
+        !draft.over &&
+        draft.clubId &&
+        adminStore.activeClubId ===
+          draft.clubId &&
+        adminStore.hasActiveClubPermission(
+          'matches.live_score',
+        ) &&
+        !friendlyMatchStore.canManageMatch(
+          actorId,
+        ) &&
+        !friendlyMatchStore.canScoreMatch(
+          actorId,
+        ),
+    )
+
+  if (!stillAuthorized) {
+    inlineNote.value =
+      'You no longer have permission to take Match Control.'
+
+    return
+  }
+
+  const overridden =
+    friendlyMatchStore
+      .emergencyOverrideScoringAuthority(
+        {
+          actorId,
+
+          clubId:
+            adminStore.activeClubId,
+
+          authorized: true,
+        },
+      )
+
+  if (!overridden) {
+    inlineNote.value =
+      'Match Control could not be changed.'
+
+    return
+  }
+
+  inlineNote.value =
+    'You now have Match Control.'
+}
+
 function chairUmpireMatchSummary() {
   return {
     playerAName:
@@ -1749,6 +2313,9 @@ async function inviteClubChairUmpire(candidate) {
 
   const invitation = createChairUmpireInvitationSession({
     matchId,
+
+    matchType:
+      friendlyMatchStore.draft.matchType,
 
     clubId: adminStore.activeClubId,
 
@@ -1786,6 +2353,9 @@ async function inviteGuestChairUmpire() {
   const invitation = createChairUmpireInvitationSession({
     matchId,
 
+    matchType:
+      friendlyMatchStore.draft.matchType,
+
     clubId: adminStore.activeClubId,
 
     createdBy: currentIdentity.value.id,
@@ -1813,6 +2383,34 @@ function removeChairUmpireInvitation() {
     return
   }
 
+  /*
+   * Defense in depth:
+   *
+   * never remove a candidate while leaving them
+   * as the active scorer.
+   */
+  if (chairUmpireHasControl.value) {
+    const reclaimed =
+      friendlyMatchStore.reclaimScoringAuthority(
+        currentIdentity.value.id,
+      )
+
+    if (!reclaimed) {
+      inlineNote.value =
+        'Take Match Control back before removing this umpire.'
+
+      return
+    }
+
+    revokeChairUmpireScoringControl(
+      invitation.invitationId,
+
+      currentIdentity.value.id,
+
+      'umpire_removed',
+    )
+  }
+
   const cancelled = cancelChairUmpireInvitation(
     invitation.invitationId,
 
@@ -1832,43 +2430,308 @@ function removeChairUmpireInvitation() {
   chairUmpireQrDataUrl.value = ''
 }
 
-function openTvPairing() {
+function stopTvPairingWatch() {
+  stopTvPairingSubscription()
+
+  stopTvPairingSubscription =
+    () => {}
+}
+
+async function generateTvPairingQrCode() {
+  tvPairingQrDataUrl.value =
+    ''
+
+  const session =
+    tvPairingSession.value
+
+  if (
+    session?.status !==
+      'waiting' ||
+    !tvPairingInviteUrl.value
+  ) {
+    return
+  }
+
+  try {
+    tvPairingQrDataUrl.value =
+      await QRCode.toDataURL(
+        tvPairingInviteUrl.value,
+
+        {
+          width: 248,
+
+          margin: 2,
+
+          color: {
+            dark: '#172319',
+
+            light: '#ffffff',
+          },
+
+          errorCorrectionLevel:
+            'M',
+        },
+      )
+  } catch {
+    /*
+     * Human pairing code remains
+     * available if QR rendering fails.
+     */
+    tvPairingQrDataUrl.value =
+      ''
+  }
+}
+
+function watchTvPairingSession(
+  sessionId,
+) {
+  stopTvPairingWatch()
+
+  stopTvPairingSubscription =
+    subscribeToPairingSession(
+      sessionId,
+
+      async (nextSession) => {
+        if (!nextSession) {
+          tvPairingSession.value =
+            null
+
+          tvPairingQrDataUrl.value =
+            ''
+
+          if (
+            tvPairingOpen.value
+          ) {
+            tvPairingMessage.value =
+              'This pairing has ended or expired.'
+          }
+
+          return
+        }
+
+        tvPairingSession.value =
+          nextSession
+
+        if (
+          nextSession.status ===
+          'waiting'
+        ) {
+          tvPairingMessage.value =
+            ''
+
+          await generateTvPairingQrCode()
+
+          return
+        }
+
+        if (
+          nextSession.status ===
+          'claimed'
+        ) {
+          tvPairingQrDataUrl.value =
+            ''
+
+          tvPairingMessage.value =
+            'Display connected.'
+        }
+      },
+    )
+}
+
+async function activateTvPairing(
+  session,
+) {
+  tvPairingSession.value =
+    session
+
+  watchTvPairingSession(
+    session.sessionId,
+  )
+
+  if (
+    session.status === 'waiting'
+  ) {
+    await generateTvPairingQrCode()
+  }
+}
+
+async function openTvPairing() {
   if (!canManageLiveMatch.value) {
-    inlineNote.value = 'You do not have permission to pair a display for this match.'
+    inlineNote.value =
+      'You do not have permission to pair a display for this match.'
 
     return
   }
 
-  const matchId = getLiveScoreboardMatchId(friendlyMatchStore.draft)
+  const matchId =
+    getLiveScoreboardMatchId(
+      friendlyMatchStore.draft,
+    )
 
   if (!matchId) {
-    inlineNote.value = 'Gorra could not identify this live match.'
+    inlineNote.value =
+      'Gorra could not identify this live match.'
 
     return
   }
 
-  const session = createPairingSession({
-    matchId,
-    createdBy: currentIdentity.value.id,
-  })
+  const session =
+    createPairingSession({
+      matchId,
+
+      createdBy:
+        currentIdentity.value.id,
+    })
 
   if (!session) {
-    inlineNote.value = 'Gorra could not create a display pairing session.'
+    inlineNote.value =
+      'Gorra could not create a display pairing session.'
 
     return
   }
 
-  tvPairingSession.value = session
+  tvPairingMessage.value =
+    ''
 
-  tvPairingMessage.value = ''
+  tvPairingOpen.value =
+    true
 
-  tvPairingOpen.value = true
+  await activateTvPairing(
+    session,
+  )
 }
 
 function closeTvPairing() {
-  tvPairingOpen.value = false
+  tvPairingOpen.value =
+    false
 
-  tvPairingMessage.value = ''
+  tvPairingMessage.value =
+    ''
+
+  tvPairingQrDataUrl.value =
+    ''
+
+  /*
+   * Closing the sheet is NOT the same
+   * thing as cancelling or disconnecting.
+   */
+  stopTvPairingWatch()
+}
+
+function cancelTvPairing() {
+  const session =
+    tvPairingSession.value
+
+  if (
+    !session ||
+    session.status !==
+      'waiting'
+  ) {
+    return
+  }
+
+  stopTvPairingWatch()
+
+  const cancelled =
+    cancelPairingSession(
+      session.sessionId,
+
+      currentIdentity.value.id,
+    )
+
+  if (!cancelled) {
+    tvPairingMessage.value =
+      'This pairing could not be cancelled.'
+
+    return
+  }
+
+  tvPairingSession.value =
+    null
+
+  tvPairingQrDataUrl.value =
+    ''
+
+  tvPairingMessage.value =
+    'Pairing cancelled.'
+}
+
+function revokeTvDisplay() {
+  const session =
+    tvPairingSession.value
+
+  if (
+    !session ||
+    session.status !==
+      'claimed'
+  ) {
+    return
+  }
+
+  stopTvPairingWatch()
+
+  const revoked =
+    revokePairedDisplay(
+      session.sessionId,
+
+      currentIdentity.value.id,
+    )
+
+  if (!revoked) {
+    tvPairingMessage.value =
+      'The display could not be disconnected.'
+
+    return
+  }
+
+  tvPairingSession.value =
+    null
+
+  tvPairingQrDataUrl.value =
+    ''
+
+  tvPairingMessage.value =
+    'Display disconnected.'
+}
+
+async function restartTvPairing() {
+  const previous =
+    tvPairingSession.value
+
+  stopTvPairingWatch()
+
+  if (
+    previous?.status ===
+    'waiting'
+  ) {
+    cancelPairingSession(
+      previous.sessionId,
+
+      currentIdentity.value.id,
+    )
+  }
+
+  if (
+    previous?.status ===
+    'claimed'
+  ) {
+    revokePairedDisplay(
+      previous.sessionId,
+
+      currentIdentity.value.id,
+    )
+  }
+
+  tvPairingSession.value =
+    null
+
+  tvPairingQrDataUrl.value =
+    ''
+
+  tvPairingMessage.value =
+    ''
+
+  await openTvPairing()
 }
 
 function toggleVoiceAnnouncements() {
@@ -2028,6 +2891,31 @@ async function finalizeFriendlyMatch() {
    * destination.
    */
   resultModalOpen.value = false
+
+  /*
+   * A chair umpire can finish scoring but is not a
+   * match participant.
+   *
+   * The participant result route deliberately rejects
+   * non-participants, so do not send an umpire there.
+   */
+  if (
+    isChairUmpireControlRoute.value
+  ) {
+    clearChairUmpireScorerSessionForThisTab()
+
+    chairUmpireScorerSession.value =
+      null
+
+    friendlyFinalizing.value =
+      false
+
+    await router.replace({
+      name: 'Home',
+    })
+
+    return
+  }
 
   try {
     /*
@@ -2519,6 +3407,12 @@ function handleStorage(event) {
 }
 
 function recoverCurrentMatchState() {
+  if (
+    isChairUmpireControlRoute.value
+  ) {
+    refreshChairUmpireScorerSession()
+  }
+
   /*
    * Browser backgrounding is common during club play.
    *
@@ -2645,6 +3539,8 @@ onUnmounted(() => {
   }
 
   stopChairUmpireWatch()
+
+  stopTvPairingWatch()
 
   stopScoreboardHeartbeat()
   stopScoreboardHeartbeat = () => {}
@@ -3755,10 +4651,40 @@ watch(
         :chair-umpire-candidates="chairUmpireCandidates"
         :chair-umpire-qr-data-url="chairUmpireQrDataUrl"
         :chair-umpire-invite-url="chairUmpireInviteUrl"
+        :chair-umpire-current-scorer-id="
+          friendlyMatchStore.draft.scorerId
+        "
+        :chair-umpire-can-handoff-control="
+          canManageLiveMatch &&
+          chairUmpireInvitation?.status ===
+            'accepted'
+        "
+        :can-emergency-override-match="
+          canEmergencyOverrideLiveMatch
+        "
         :can-pair-display="canManageLiveMatch"
         :tv-pairing-open="tvPairingOpen"
         :tv-pairing-code="tvPairingCode"
         :tv-pairing-message="tvPairingMessage"
+        :tv-pairing-status="
+          tvPairingSession?.status || ''
+        "
+        :tv-pairing-qr-data-url="
+          tvPairingQrDataUrl
+        "
+        :tv-pairing-expires-at="
+          Number(
+            tvPairingSession?.expiresAt ||
+              0
+          )
+        "
+        :tv-display-expires-at="
+          Number(
+            tvPairingSession
+              ?.displayExpiresAt ||
+              0
+          )
+        "
         :last-point-winner="lastPointWinner"
         @point="recordLivePoint"
         @undo="undoLivePoint"
@@ -3766,11 +4692,29 @@ watch(
         @toggle-announcements="toggleVoiceAnnouncements"
         @open-tv-pairing="openTvPairing"
         @close-tv-pairing="closeTvPairing"
+        @cancel-tv-pairing="
+          cancelTvPairing
+        "
+        @revoke-tv-display="
+          revokeTvDisplay
+        "
+        @restart-tv-pairing="
+          restartTvPairing
+        "
         @open-chair-umpire="openChairUmpire"
         @close-chair-umpire="closeChairUmpire"
         @invite-chair-umpire-member="inviteClubChairUmpire"
         @invite-chair-umpire-guest="inviteGuestChairUmpire"
         @cancel-chair-umpire="removeChairUmpireInvitation"
+        @handoff-chair-umpire-control="
+          handoffChairUmpireControl
+        "
+        @reclaim-chair-umpire-control="
+          reclaimChairUmpireControl
+        "
+        @emergency-override-match="
+          emergencyTakeMatchControl
+        "
       />
     </main>
     <MatchResultModal

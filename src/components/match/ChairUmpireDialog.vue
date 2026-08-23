@@ -26,15 +26,34 @@ const props = defineProps({
     type: String,
     default: '',
   },
+
+  currentScorerId: {
+    type: String,
+    default: '',
+  },
+
+  canHandoffControl: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['close', 'invite-club-member', 'invite-guest', 'cancel-invitation'])
+const emit = defineEmits([
+  'close',
+  'invite-club-member',
+  'invite-guest',
+  'cancel-invitation',
+  'handoff-control',
+  'reclaim-control',
+])
 
 const mode = ref('choose')
 
 const searchQuery = ref('')
 
 const copyStatus = ref('')
+
+const authorityAction = ref('')
 
 const now = ref(Date.now())
 
@@ -95,6 +114,63 @@ const waitingForName = computed(() => {
 
 const acceptedName = computed(() => props.invitation?.acceptedIdentity?.name || 'Chair umpire')
 
+const acceptedScorerId =
+  computed(
+    () =>
+      props.invitation
+        ?.acceptedIdentity
+        ?.userId ||
+      props.invitation
+        ?.acceptedIdentity
+        ?.guestId ||
+      '',
+  )
+
+const umpireHasControl =
+  computed(
+    () =>
+      Boolean(
+        acceptedScorerId.value &&
+          props.currentScorerId ===
+            acceptedScorerId.value,
+      ),
+  )
+
+function beginAuthorityAction(
+  action,
+) {
+  if (
+    action === 'handoff' &&
+    !props.canHandoffControl
+  ) {
+    return
+  }
+
+  authorityAction.value = action
+}
+
+function cancelAuthorityAction() {
+  authorityAction.value = ''
+}
+
+function confirmAuthorityAction() {
+  if (
+    authorityAction.value ===
+    'handoff'
+  ) {
+    emit('handoff-control')
+  }
+
+  if (
+    authorityAction.value ===
+    'reclaim'
+  ) {
+    emit('reclaim-control')
+  }
+
+  authorityAction.value = ''
+}
+
 async function copyInviteLink() {
   if (!props.inviteUrl) {
     return
@@ -134,6 +210,7 @@ watch(
       mode.value = 'choose'
       searchQuery.value = ''
       copyStatus.value = ''
+      authorityAction.value = ''
 
       if (clockTimer) {
         window.clearInterval(clockTimer)
@@ -200,32 +277,146 @@ onBeforeUnmount(() => {
 
         <!-- ACCEPTED CANDIDATE -->
         <template v-if="accepted">
-          <div class="umpire-dialog__accepted">
-            <span class="umpire-dialog__accepted-mark" aria-hidden="true">
+          <div
+            class="umpire-dialog__accepted"
+          >
+            <span
+              class="umpire-dialog__accepted-mark"
+              aria-hidden="true"
+            >
               <svg viewBox="0 0 24 24">
-                <path d="m7 12 3 3 7-7" />
+                <path
+                  d="m7 12 3 3 7-7"
+                />
               </svg>
             </span>
 
-            <span> Invitation accepted </span>
+            <span>
+              Invitation accepted
+            </span>
 
             <strong>
               {{ acceptedName }}
             </strong>
 
-            <p>They are ready to umpire this match.</p>
+            <p>
+              They are ready to umpire this
+              match.
+            </p>
           </div>
 
-          <div class="umpire-dialog__authority">
-            <strong> You still control scoring. </strong>
+          <div
+            class="umpire-dialog__authority"
+          >
+            <strong>
+              {{
+                umpireHasControl
+                  ? `${acceptedName} has Match Control.`
+                  : 'You still control scoring.'
+              }}
+            </strong>
 
             <span>
-              Accepting an umpire invitation does not transfer Match Control. Gorra will ask you
-              explicitly before that happens.
+              {{
+                umpireHasControl
+                  ? 'You still own the match and can take Match Control back at any time.'
+                  : 'Accepting the invitation did not transfer Match Control.'
+              }}
             </span>
           </div>
 
-          <button type="button" class="umpire-dialog__remove" @click="emit('cancel-invitation')">
+          <template
+            v-if="!authorityAction"
+          >
+            <button
+              v-if="!umpireHasControl"
+              type="button"
+              class="umpire-dialog__primary"
+              :disabled="
+                !canHandoffControl
+              "
+              @click="
+                beginAuthorityAction(
+                  'handoff',
+                )
+              "
+            >
+              Hand Match Control to
+              {{ acceptedName }}
+            </button>
+
+            <button
+              v-else
+              type="button"
+              class="umpire-dialog__primary"
+              @click="
+                beginAuthorityAction(
+                  'reclaim',
+                )
+              "
+            >
+              Take back Match Control
+            </button>
+          </template>
+
+          <div
+            v-else
+            class="umpire-dialog__handoff-confirm"
+          >
+            <strong>
+              {{
+                authorityAction ===
+                'handoff'
+                  ? `Give ${acceptedName} Match Control?`
+                  : 'Take Match Control back?'
+              }}
+            </strong>
+
+            <p>
+              {{
+                authorityAction ===
+                'handoff'
+                  ? `${acceptedName} will be able to add points, undo the last point and correct the server. You will remain the match owner.`
+                  : `${acceptedName} will immediately lose scoring control. You will become the active scorer again.`
+              }}
+            </p>
+
+            <div>
+              <button
+                type="button"
+                @click="
+                  cancelAuthorityAction
+                "
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                @click="
+                  confirmAuthorityAction
+                "
+              >
+                {{
+                  authorityAction ===
+                  'handoff'
+                    ? 'Confirm handoff'
+                    : 'Take back control'
+                }}
+              </button>
+            </div>
+          </div>
+
+          <button
+            v-if="!umpireHasControl"
+            type="button"
+            class="umpire-dialog__remove"
+            @click="
+              emit(
+                'cancel-invitation',
+              )
+            "
+          >
             Remove umpire candidate
           </button>
         </template>
@@ -402,8 +593,6 @@ onBeforeUnmount(() => {
   justify-content: center;
 
   background: rgba(11, 31, 21, 0.22);
-
-  backdrop-filter: blur(4px);
 }
 
 .umpire-dialog {
@@ -948,6 +1137,60 @@ onBeforeUnmount(() => {
   outline: 3px solid rgba(0, 181, 26, 0.18);
 
   outline-offset: 2px;
+}
+
+.umpire-dialog__handoff-confirm {
+  margin-top: 13px;
+  padding: 13px;
+  border: 1px solid rgba(7, 63, 48, 0.09);
+  border-radius: 10px;
+  background: #f7faf7;
+}
+
+.umpire-dialog__handoff-confirm > strong {
+  display: block;
+  color: #173126;
+  font-size: 10px;
+}
+
+.umpire-dialog__handoff-confirm > p {
+  margin: 5px 0 0;
+  color: #708078;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.umpire-dialog__handoff-confirm > div {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.umpire-dialog__handoff-confirm button {
+  min-height: 43px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.umpire-dialog__handoff-confirm button:first-child {
+  border: 1px solid rgba(7, 63, 48, 0.1);
+  color: #596c61;
+  background: #fff;
+}
+
+.umpire-dialog__handoff-confirm button:last-child {
+  border: 0;
+  color: #fff;
+  background: #008f15;
+}
+
+.umpire-dialog__primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 @media (max-width: 440px) {

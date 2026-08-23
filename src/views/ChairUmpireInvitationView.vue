@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { useRouter } from 'vue-router'
 
@@ -10,8 +10,11 @@ import { usePlayerStore } from '../stores/player'
 import {
   acceptChairUmpireAsClubMember,
   acceptChairUmpireAsGuest,
+  claimChairUmpireScoringControl,
   declineChairUmpireInvitation,
   getChairUmpireInvitationByToken,
+  storeChairUmpireScorerSessionForThisTab,
+  subscribeToChairUmpireInvitation,
 } from '../services/chairUmpireService'
 
 import {
@@ -46,9 +49,20 @@ const actionPending = ref(false)
 
 const actionError = ref('')
 
-const accepted = ref(false)
+const accepted =
+  computed(
+    () =>
+      invitation.value
+        ?.status ===
+      'accepted',
+  )
 
 const declined = ref(false)
+
+let stopInvitationSubscription =
+  () => {}
+
+let controlRouting = false
 
 /*
  * Membership.userId represents the account identity.
@@ -92,6 +106,97 @@ const playerA = computed(() => invitation.value?.matchSummary?.playerAName || 'P
 
 const playerB = computed(() => invitation.value?.matchSummary?.playerBName || 'Player 2')
 
+function scorerIdentityForInvitation(
+  value,
+) {
+  if (
+    value?.audience ===
+    'club_member'
+  ) {
+    return currentIdentity.value.id
+  }
+
+  return (
+    value?.acceptedIdentity
+      ?.guestId || ''
+  )
+}
+
+async function enterGrantedMatchControl(
+  value,
+) {
+  if (
+    controlRouting ||
+    !value ||
+    value.status !== 'accepted' ||
+    value.controlHandoff?.status !==
+      'granted'
+  ) {
+    return
+  }
+
+  const actorId =
+    scorerIdentityForInvitation(
+      value,
+    )
+
+  if (!actorId) {
+    return
+  }
+
+  const session =
+    claimChairUmpireScoringControl({
+      token: props.token,
+      actorId,
+    })
+
+  if (!session) {
+    return
+  }
+
+  const stored =
+    storeChairUmpireScorerSessionForThisTab(
+      session,
+    )
+
+  if (!stored) {
+    actionError.value =
+      'This browser could not keep Match Control access.'
+
+    return
+  }
+
+  controlRouting = true
+
+  await router.replace({
+    name: 'ChairUmpireMatchControl',
+  })
+}
+
+function watchCurrentInvitation(
+  invitationId,
+) {
+  stopInvitationSubscription()
+
+  stopInvitationSubscription =
+    subscribeToChairUmpireInvitation(
+      invitationId,
+
+      async (nextInvitation) => {
+        if (!nextInvitation) {
+          return
+        }
+
+        invitation.value =
+          nextInvitation
+
+        await enterGrantedMatchControl(
+          nextInvitation,
+        )
+      },
+    )
+}
+
 async function acceptInvitation() {
   if (!canAccept.value) {
     return
@@ -124,8 +229,6 @@ async function acceptInvitation() {
     }
 
     invitation.value = result
-
-    accepted.value = true
   } finally {
     actionPending.value = false
   }
@@ -159,25 +262,41 @@ function declineInvitation() {
   }
 }
 
-async function goHome() {
-  await router.replace({
-    name: authStore.isAuthenticated ? 'Dashboard' : 'Home',
-  })
-}
-
 onMounted(async () => {
-  if (props.audience === 'club_member' && !playerStore.players.length) {
+  if (
+    props.audience ===
+      'club_member' &&
+    !playerStore.players.length
+  ) {
     try {
       await playerStore.loadPlayers()
     } catch {
-      /*
-       * Account identity remains enough
-       * to validate the invitation.
-       */
+      // Identity fallback still works.
     }
   }
 
-  invitation.value = getChairUmpireInvitationByToken(props.token)
+  invitation.value =
+    getChairUmpireInvitationByToken(
+      props.token,
+    )
+
+  if (
+    invitation.value
+      ?.invitationId
+  ) {
+    watchCurrentInvitation(
+      invitation.value
+        .invitationId,
+    )
+
+    await enterGrantedMatchControl(
+      invitation.value,
+    )
+  }
+})
+
+onBeforeUnmount(() => {
+  stopInvitationSubscription()
 })
 </script>
 
@@ -204,13 +323,12 @@ onMounted(async () => {
             {{ playerB }}
           </strong>
 
-          <div class="umpire-invite__authority">
-            <strong> No scoring control yet </strong>
-
-            <span>
-              The match owner still controls scoring. Gorra will require a separate handoff before
-              you can change the score.
-            </span>
+          <div>
+            You're ready to umpire.
+            Keep this page open.
+            If the match owner hands you
+            Match Control, Gorra will move
+            you into the live scoring screen.
           </div>
         </div>
       </template>
@@ -304,9 +422,6 @@ onMounted(async () => {
         </div>
       </template>
 
-      <button v-if="accepted || declined" type="button" class="umpire-invite__done" @click="goHome">
-        Done
-      </button>
     </section>
 
     <footer class="umpire-invite__footer">Umpire invitation only · no scoring authority</footer>

@@ -139,6 +139,11 @@ const props = defineProps({
     default: false,
   },
 
+  canEmergencyOverrideMatch: {
+    type: Boolean,
+    default: false,
+  },
+
   chairUmpireOpen: {
     type: Boolean,
     default: false,
@@ -164,6 +169,16 @@ const props = defineProps({
     default: '',
   },
 
+  chairUmpireCurrentScorerId: {
+    type: String,
+    default: '',
+  },
+
+  chairUmpireCanHandoffControl: {
+    type: Boolean,
+    default: false,
+  },
+
   canPairDisplay: {
     type: Boolean,
     default: false,
@@ -184,6 +199,26 @@ const props = defineProps({
     default: '',
   },
 
+  tvPairingStatus: {
+    type: String,
+    default: '',
+  },
+
+  tvPairingQrDataUrl: {
+    type: String,
+    default: '',
+  },
+
+  tvPairingExpiresAt: {
+    type: Number,
+    default: 0,
+  },
+
+  tvDisplayExpiresAt: {
+    type: Number,
+    default: 0,
+  },
+
   lastPointWinner: {
     type: String,
     default: '',
@@ -198,11 +233,17 @@ const emit = defineEmits([
   'toggle-announcements',
   'open-tv-pairing',
   'close-tv-pairing',
+  'cancel-tv-pairing',
+  'revoke-tv-display',
+  'restart-tv-pairing',
   'open-chair-umpire',
   'close-chair-umpire',
   'invite-chair-umpire-member',
   'invite-chair-umpire-guest',
   'cancel-chair-umpire',
+  'handoff-chair-umpire-control',
+  'reclaim-chair-umpire-control',
+  'emergency-override-match',
 ])
 const now = ref(Date.now())
 
@@ -210,6 +251,9 @@ const now = ref(Date.now())
  * Correction UI is presentation state only.
  */
 const correctionOpen = ref(false)
+
+const emergencyOverrideOpen =
+  ref(false)
 
 /*
  * Prevent a physical double tap from registering
@@ -254,6 +298,75 @@ const elapsedLabel = computed(() => {
 
   return [String(minutes).padStart(2, '0'), String(seconds).padStart(2, '0')].join(':')
 })
+
+function remainingTimeLabel(
+  expiresAt,
+) {
+  const remaining =
+    Math.max(
+      0,
+      Number(expiresAt || 0) -
+        now.value,
+    )
+
+  const totalSeconds =
+    Math.ceil(
+      remaining / 1000,
+    )
+
+  const hours =
+    Math.floor(
+      totalSeconds / 3600,
+    )
+
+  const minutes =
+    Math.floor(
+      (totalSeconds % 3600) /
+        60,
+    )
+
+  const seconds =
+    totalSeconds % 60
+
+  if (hours > 0) {
+    return [
+      String(hours),
+      String(minutes).padStart(
+        2,
+        '0',
+      ),
+      String(seconds).padStart(
+        2,
+        '0',
+      ),
+    ].join(':')
+  }
+
+  return [
+    String(minutes).padStart(
+      2,
+      '0',
+    ),
+    String(seconds).padStart(
+      2,
+      '0',
+    ),
+  ].join(':')
+}
+
+const tvPairingRemainingLabel =
+  computed(() =>
+    remainingTimeLabel(
+      props.tvPairingExpiresAt,
+    ),
+  )
+
+const tvDisplayRemainingLabel =
+  computed(() =>
+    remainingTimeLabel(
+      props.tvDisplayExpiresAt,
+    ),
+  )
 
 const gameContextLabel = computed(() => {
   if (props.isMatchTieBreak || props.standaloneTieBreak) {
@@ -350,6 +463,38 @@ function openCorrections() {
 
 function closeCorrections() {
   correctionOpen.value = false
+}
+
+function openEmergencyOverride() {
+  if (
+    !props.canEmergencyOverrideMatch
+  ) {
+    return
+  }
+
+  emergencyOverrideOpen.value =
+    true
+}
+
+function closeEmergencyOverride() {
+  emergencyOverrideOpen.value =
+    false
+}
+
+function confirmEmergencyOverride() {
+  if (
+    !props.canEmergencyOverrideMatch
+  ) {
+    emergencyOverrideOpen.value =
+      false
+
+    return
+  }
+
+  emit('emergency-override-match')
+
+  emergencyOverrideOpen.value =
+    false
 }
 
 function undoFromCorrections() {
@@ -520,12 +665,6 @@ onUnmounted(() => {
           role="status"
           aria-live="polite"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 9v6h4l5 4V5L9 9H5Z" />
-
-            <path d="M17 9.5c.7.7 1 1.5 1 2.5s-.3 1.8-1 2.5" />
-          </svg>
-
           <span>
             {{ announcement }}
           </span>
@@ -667,6 +806,17 @@ onUnmounted(() => {
           </button>
 
           <button
+            v-if="canEmergencyOverrideMatch"
+            type="button"
+            class="match-control__pair-display live-action--override"
+            @click="openEmergencyOverride"
+          >
+            <span>
+              Take Match Control
+            </span>
+          </button>
+
+          <button
             v-if="canScore && !finished"
             type="button"
             class="match-control__correction-button"
@@ -701,18 +851,6 @@ onUnmounted(() => {
             "
             @click="emit('toggle-announcements')"
           >
-            <svg v-if="announcementsEnabled" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 9v6h4l5 4V5L9 9H5Z" />
-
-              <path d="M17 9.5c.7.7 1 1.5 1 2.5s-.3 1.8-1 2.5" />
-            </svg>
-
-            <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 9v6h4l5 4V5L9 9H5Z" />
-
-              <path d="m17 10 4 4m0-4-4 4" />
-            </svg>
-
             <span>
               {{
                 !announcementsSupported
@@ -840,6 +978,7 @@ onUnmounted(() => {
       <div class="match-control__dock-inner">
         <button
           type="button"
+          class="score-action"
           :class="{
             'score-action--confirmed': lastPointWinner === 'you',
           }"
@@ -896,64 +1035,294 @@ onUnmounted(() => {
     </footer>
 
     <Transition name="pair-display">
-      <div v-if="tvPairingOpen" class="tv-pairing-backdrop" @click.self="emit('close-tv-pairing')">
+      <div
+        v-if="tvPairingOpen"
+        class="tv-pairing-backdrop"
+        @click.self="
+          emit(
+            'close-tv-pairing',
+          )
+        "
+      >
         <section
           class="tv-pairing-sheet"
           role="dialog"
           aria-modal="true"
           aria-labelledby="tv-pairing-title"
         >
-          <header class="tv-pairing-sheet__header">
+          <header
+            class="tv-pairing-sheet__header"
+          >
             <div>
-              <span> Live display </span>
+              <span>
+                Live display
+              </span>
 
-              <h2 id="tv-pairing-title">Display on another device</h2>
+              <h2
+                id="tv-pairing-title"
+              >
+                Display this match
+              </h2>
             </div>
 
             <button
               type="button"
               class="tv-pairing-sheet__close"
               aria-label="Close display pairing"
-              @click="emit('close-tv-pairing')"
+              @click="
+                emit(
+                  'close-tv-pairing',
+                )
+              "
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 7l10 10M17 7 7 17" />
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  d="M7 7l10 10M17 7 7 17"
+                />
               </svg>
             </button>
           </header>
 
-          <p class="tv-pairing-sheet__intro">
-            Open Gorra on the display and enter this temporary code.
-          </p>
+          <template
+            v-if="
+              tvPairingStatus ===
+              'waiting'
+            "
+          >
+            <p
+              class="tv-pairing-sheet__intro"
+            >
+              Scan the QR code or open
+              Gorra on the display and
+              enter the temporary code.
+            </p>
 
-          <div class="tv-pairing-code" aria-label="TV pairing code">
-            {{ tvPairingCode }}
-          </div>
+            <div
+              class="tv-pairing-waiting"
+            >
+              <img
+                v-if="
+                  tvPairingQrDataUrl
+                "
+                :src="
+                  tvPairingQrDataUrl
+                "
+                alt="Display pairing QR code"
+              />
 
-          <div class="tv-pairing-sheet__security">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3 5 6v5c0 4.5 2.7 7.8 7 10 4.3-2.2 7-5.5 7-10V6l-7-3Z" />
+              <div
+                class="tv-pairing-waiting__code"
+              >
+                <span>
+                  Pairing code
+                </span>
 
-              <path d="m9.5 12 1.7 1.7 3.5-4" />
+                <strong>
+                  {{ tvPairingCode }}
+                </strong>
+
+                <small>
+                  Expires in
+                  {{
+                    tvPairingRemainingLabel
+                  }}
+                </small>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="tv-pairing-sheet__secondary"
+              @click="
+                emit(
+                  'cancel-tv-pairing',
+                )
+              "
+            >
+              Cancel pairing
+            </button>
+          </template>
+
+          <template
+            v-else-if="
+              tvPairingStatus ===
+              'claimed'
+            "
+          >
+            <div
+              class="tv-pairing-connected"
+            >
+              <span
+                aria-hidden="true"
+              >
+                ✓
+              </span>
+
+              <div>
+                <strong>
+                  Display connected
+                </strong>
+
+                <p>
+                  Live scores are now
+                  available on the paired
+                  display.
+                </p>
+
+                <small>
+                  Session ends in
+                  {{
+                    tvDisplayRemainingLabel
+                  }}
+                </small>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="tv-pairing-sheet__danger"
+              @click="
+                emit(
+                  'revoke-tv-display',
+                )
+              "
+            >
+              Disconnect display
+            </button>
+          </template>
+
+          <template v-else>
+            <p
+              class="tv-pairing-sheet__intro"
+            >
+              {{
+                tvPairingMessage ||
+                'This pairing is no longer active.'
+              }}
+            </p>
+
+            <button
+              type="button"
+              class="tv-pairing-sheet__primary"
+              @click="
+                emit(
+                  'restart-tv-pairing',
+                )
+              "
+            >
+              Create new pairing
+            </button>
+          </template>
+
+          <div
+            class="tv-pairing-sheet__security"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 3 5 6v5c0 4.5 2.7 7.8 7 10 4.3-2.2 7-5.5 7-10V6l-7-3Z"
+              />
+
+              <path
+                d="m9.5 12 1.7 1.7 3.5-4"
+              />
             </svg>
 
             <p>
-              <strong> Read-only access </strong>
+              <strong>
+                Read-only access
+              </strong>
 
               <span>
-                A paired display can show this match. It cannot score, undo or control the match.
+                A paired display can
+                show this match. It
+                cannot score, undo,
+                change the server or
+                take Match Control.
               </span>
             </p>
           </div>
 
-          <p v-if="tvPairingMessage" class="tv-pairing-sheet__message" role="status">
+          <p
+            v-if="
+              tvPairingMessage &&
+              tvPairingStatus
+            "
+            class="tv-pairing-sheet__message"
+            role="status"
+          >
             {{ tvPairingMessage }}
           </p>
-
-          <footer>The code expires automatically if it isn't used.</footer>
         </section>
       </div>
     </Transition>
+
+    <div
+      v-if="
+        emergencyOverrideOpen &&
+        canEmergencyOverrideMatch
+      "
+      class="control-override-backdrop"
+      @click.self="
+        closeEmergencyOverride
+      "
+    >
+      <section
+        class="control-override-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="control-override-title"
+      >
+        <span>
+          Match operations
+        </span>
+
+        <h2
+          id="control-override-title"
+        >
+          Take Match Control?
+        </h2>
+
+        <p>
+          This immediately makes you the
+          active scorer. The current score,
+          server, match clock and match
+          owner will not change.
+        </p>
+
+        <p
+          class="control-override-dialog__warning"
+        >
+          The current scorer will lose
+          scoring access.
+        </p>
+
+        <div>
+          <button
+            type="button"
+            @click="
+              closeEmergencyOverride
+            "
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            @click="
+              confirmEmergencyOverride
+            "
+          >
+            Take control
+          </button>
+        </div>
+      </section>
+    </div>
 
     <ChairUmpireDialog
       :open="chairUmpireOpen"
@@ -961,10 +1330,39 @@ onUnmounted(() => {
       :candidates="chairUmpireCandidates"
       :qr-data-url="chairUmpireQrDataUrl"
       :invite-url="chairUmpireInviteUrl"
-      @close="emit('close-chair-umpire')"
-      @invite-club-member="emit('invite-chair-umpire-member', $event)"
-      @invite-guest="emit('invite-chair-umpire-guest')"
-      @cancel-invitation="emit('cancel-chair-umpire')"
+      :current-scorer-id="
+        chairUmpireCurrentScorerId
+      "
+      :can-handoff-control="
+        chairUmpireCanHandoffControl
+      "
+      @close="
+        emit('close-chair-umpire')
+      "
+      @invite-club-member="
+        emit(
+          'invite-chair-umpire-member',
+          $event,
+        )
+      "
+      @invite-guest="
+        emit(
+          'invite-chair-umpire-guest',
+        )
+      "
+      @cancel-invitation="
+        emit('cancel-chair-umpire')
+      "
+      @handoff-control="
+        emit(
+          'handoff-chair-umpire-control',
+        )
+      "
+      @reclaim-control="
+        emit(
+          'reclaim-chair-umpire-control',
+        )
+      "
     />
   </section>
 </template>
@@ -1624,8 +2022,6 @@ onUnmounted(() => {
   justify-content: center;
 
   background: rgba(12, 32, 22, 0.22);
-
-  backdrop-filter: blur(4px);
 }
 
 .tv-pairing-sheet {
@@ -2458,6 +2854,331 @@ onUnmounted(() => {
 .match-control__voice-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.tv-pairing-waiting {
+  margin-top: 18px;
+
+  display: grid;
+
+  grid-template-columns:
+    minmax(110px, 150px)
+    1fr;
+
+  align-items: center;
+
+  gap: 18px;
+}
+
+.tv-pairing-waiting
+  > img {
+  display: block;
+
+  width: 100%;
+
+  border:
+    1px solid
+    rgba(7, 63, 48, 0.09);
+
+  border-radius: 10px;
+}
+
+.tv-pairing-waiting__code {
+  min-width: 0;
+}
+
+.tv-pairing-waiting__code
+  span,
+.tv-pairing-waiting__code
+  small {
+  display: block;
+}
+
+.tv-pairing-waiting__code
+  span {
+  color: #74837b;
+
+  font-size: 9px;
+}
+
+.tv-pairing-waiting__code
+  strong {
+  display: block;
+
+  margin-top: 5px;
+
+  color: #073f30;
+
+  font-size:
+    clamp(
+      28px,
+      5vw,
+      42px
+    );
+
+  line-height: 1;
+
+  letter-spacing: 0.12em;
+
+  white-space: nowrap;
+}
+
+.tv-pairing-waiting__code
+  small {
+  margin-top: 10px;
+
+  color: #687970;
+
+  font-size: 9px;
+}
+
+.tv-pairing-connected {
+  margin-top: 18px;
+
+  padding: 15px;
+
+  display: flex;
+  align-items: flex-start;
+
+  gap: 11px;
+
+  border-radius: 10px;
+
+  background: #f2f8f3;
+}
+
+.tv-pairing-connected
+  > span {
+  width: 34px;
+  height: 34px;
+
+  flex: 0 0 auto;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 50%;
+
+  color: #087a35;
+
+  background: #e1f3e5;
+
+  font-weight: 800;
+}
+
+.tv-pairing-connected
+  strong,
+.tv-pairing-connected
+  p,
+.tv-pairing-connected
+  small {
+  display: block;
+}
+
+.tv-pairing-connected
+  strong {
+  color: #173126;
+
+  font-size: 11px;
+}
+
+.tv-pairing-connected
+  p {
+  margin: 4px 0 0;
+
+  color: #687970;
+
+  font-size: 9px;
+
+  line-height: 1.5;
+}
+
+.tv-pairing-connected
+  small {
+  margin-top: 7px;
+
+  color: #087a35;
+
+  font-size: 9px;
+}
+
+.tv-pairing-sheet__primary,
+.tv-pairing-sheet__secondary,
+.tv-pairing-sheet__danger {
+  width: 100%;
+
+  min-height: 45px;
+
+  margin-top: 14px;
+
+  border-radius: 9px;
+
+  font: inherit;
+
+  font-size: 10px;
+  font-weight: 650;
+
+  cursor: pointer;
+}
+
+.tv-pairing-sheet__primary {
+  border: 0;
+
+  color: #fff;
+
+  background: #008f15;
+}
+
+.tv-pairing-sheet__secondary {
+  border:
+    1px solid
+    rgba(7, 63, 48, 0.1);
+
+  color: #53675c;
+
+  background: #fff;
+}
+
+.tv-pairing-sheet__danger {
+  border:
+    1px solid
+    rgba(150, 61, 52, 0.16);
+
+  color: #963d34;
+
+  background: #fffafa;
+}
+
+@media (max-width: 440px) {
+  .tv-pairing-waiting {
+    grid-template-columns: 1fr;
+
+    text-align: center;
+  }
+
+  .tv-pairing-waiting
+    > img {
+    width: min(180px, 100%);
+
+    margin: 0 auto;
+  }
+}
+
+.control-override-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 145;
+
+  display: grid;
+  place-items: center;
+
+  padding: 18px;
+
+  background:
+    rgba(12, 31, 22, 0.2);
+}
+
+.control-override-dialog {
+  width: min(100%, 420px);
+
+  padding: 20px;
+
+  border:
+    1px solid
+    rgba(7, 63, 48, 0.09);
+
+  border-radius: 14px;
+
+  background: #fff;
+
+  box-shadow:
+    0 12px 32px
+    rgba(7, 30, 19, 0.08);
+}
+
+.control-override-dialog > span {
+  color: #087a35;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  letter-spacing: 0.08em;
+
+  text-transform: uppercase;
+}
+
+.control-override-dialog h2 {
+  margin: 7px 0 0;
+
+  color: #10291e;
+
+  font-size: 20px;
+}
+
+.control-override-dialog > p {
+  margin: 9px 0 0;
+
+  color: #687970;
+
+  font-size: 10px;
+
+  line-height: 1.55;
+}
+
+.control-override-dialog
+  .control-override-dialog__warning {
+  color: #7d4b36;
+}
+
+.control-override-dialog > div {
+  margin-top: 17px;
+
+  display: grid;
+
+  grid-template-columns:
+    1fr
+    1.35fr;
+
+  gap: 7px;
+}
+
+.control-override-dialog button {
+  min-height: 44px;
+
+  border-radius: 8px;
+
+  font: inherit;
+
+  font-size: 10px;
+  font-weight: 650;
+
+  cursor: pointer;
+}
+
+.control-override-dialog
+  button:first-child {
+  border:
+    1px solid
+    rgba(7, 63, 48, 0.1);
+
+  color: #5d6f65;
+
+  background: #fff;
+}
+
+.control-override-dialog
+  button:last-child {
+  border: 0;
+
+  color: #fff;
+
+  background: #087a35;
+}
+
+@media (max-width: 420px) {
+  .control-override-dialog > div {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {

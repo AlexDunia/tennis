@@ -18,6 +18,9 @@ export const CHAIR_UMPIRE_SCHEMA_VERSION = 1
 
 export const CHAIR_UMPIRE_INVITATION_KIND = 'gorra.chair-umpire-invitation'
 
+export const CHAIR_UMPIRE_SCORER_SESSION_KIND =
+  'gorra.chair-umpire-scorer-session'
+
 export const CHAIR_UMPIRE_INVITATION_TTL_MS = 10 * 60 * 1000
 
 export const CHAIR_UMPIRE_CANDIDATE_TTL_MS = 12 * 60 * 60 * 1000
@@ -46,6 +49,23 @@ function secureRandomHex(byteLength) {
     .join('')
 }
 
+export function createChairUmpireControlGrantId() {
+  return `grant-${secureRandomHex(18)}`
+}
+
+export function createChairUmpireScorerSessionId() {
+  return `scorer-${secureRandomHex(24)}`
+}
+
+export function chairUmpireAcceptedIdentityId(invitation = {}) {
+  return cleanText(
+    invitation.acceptedIdentity?.userId ||
+      invitation.acceptedIdentity?.guestId ||
+      '',
+    120,
+  )
+}
+
 export function normalizeChairUmpireToken(value) {
   return cleanText(value, 80)
     .toLowerCase()
@@ -69,6 +89,7 @@ export function createChairUmpireCandidateId() {
 
 export function createChairUmpireInvitation({
   matchId,
+  matchType = 'friendly',
   clubId = '',
   createdBy,
   createdByName = '',
@@ -110,6 +131,8 @@ export function createChairUmpireInvitation({
 
     matchId: safeMatchId,
 
+    matchType: matchType === 'ladder' ? 'ladder' : 'friendly',
+
     clubId: cleanText(clubId, 120),
 
     audience,
@@ -145,11 +168,19 @@ export function createChairUmpireInvitation({
     declinedAt: null,
 
     /*
-     * Explicitly documenting the boundary.
+     * Acceptance remains different from Match Control.
      *
-     * 4D will manage scorer authority elsewhere.
+     * This stays false even when a handoff exists.
+     * Actual scoring authority lives on match.scorerId.
      */
     scoringAuthority: false,
+
+    /*
+     * Notification/capability bridge only.
+     *
+     * This does NOT itself authorize a score mutation.
+     */
+    controlHandoff: null,
   }
 }
 
