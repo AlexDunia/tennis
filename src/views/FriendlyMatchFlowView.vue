@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useAdminStore } from '../stores/admin'
 import { useFriendlyMatchStore } from '../stores/friendlyMatch'
 import { usePlayerStore } from '../stores/player'
 import { useChallengeStore } from '../stores/challenge'
@@ -33,10 +34,19 @@ import {
   createLiveScoreboardSnapshot,
   getLiveScoreboardMatchId,
 } from '../utils/liveScoreboardSnapshot'
-import { publishLiveMatchSnapshot } from '../services/liveMatchRealtime'
+import { publishLiveMatchSnapshot, startLiveMatchHeartbeat } from '../services/liveMatchRealtime'
+import { createPairingSession } from '../services/tvPairingService'
+import { formatPairingCode } from '../utils/tvPairing'
+import {
+  cancelChairUmpireInvitation,
+  createChairUmpireInvitationSession,
+  getActiveChairUmpireInvitationForMatch,
+  subscribeToChairUmpireInvitation,
+} from '../services/chairUmpireService'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const adminStore = useAdminStore()
 const friendlyMatchStore = useFriendlyMatchStore()
 const playerStore = usePlayerStore()
 const challengeStore = useChallengeStore()
@@ -53,6 +63,20 @@ const customFormatError = ref('')
 const showTieBreakDetails = ref(false)
 const resultModalOpen = ref(false)
 const friendlyFinalizing = ref(false)
+
+const chairUmpireOpen = ref(false)
+
+const chairUmpireInvitation = ref(null)
+
+const chairUmpireQrDataUrl = ref('')
+
+let stopChairUmpireSubscription = () => {}
+
+const tvPairingOpen = ref(false)
+
+const tvPairingSession = ref(null)
+
+const tvPairingMessage = ref('')
 
 const liveAnnouncement = ref('')
 
@@ -90,6 +114,7 @@ let invitationTimer = null
 let autoRouteTimer = null
 let liveAnnouncementTimer = null
 let pointFeedbackTimer = null
+let stopScoreboardHeartbeat = () => {}
 
 const VOICE_ANNOUNCEMENT_STORAGE_KEY = 'gorra.matchVoiceAnnouncements.v1'
 
@@ -154,6 +179,102 @@ const canManageDraft = computed(
     friendlyMatchStore.draft.ownerId === currentIdentity.value.id,
 )
 const playNowReady = computed(() => friendlyMatchStore.opponentReady)
+const canManageLiveMatch = computed(() => {
+  return friendlyMatchStore.canManageMatch(currentIdentity.value.id)
+})
+
+function initialsForName(name) {
+  return String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+}
+
+function resolveClubMemberName(userId) {
+  const player = playerStore.players.find((item) => item.id === userId)
+
+  if (player?.name) {
+    return player.name
+  }
+
+  const membershipSetup = adminStore.activeClub?.setup?.membership
+
+  const setupMembers = [
+    ...(membershipSetup?.importedMembers || []),
+
+    ...(membershipSetup?.manualMembers || []),
+
+    ...(membershipSetup?.roster || []),
+  ]
+
+  const setupMember = setupMembers.find((member) => member.userId === userId)
+
+  return setupMember?.name || setupMember?.fullName || ''
+}
+
+const chairUmpireCandidates = computed(() => {
+  const clubId = adminStore.activeClubId
+
+  if (!clubId) {
+    return []
+  }
+
+  const participantIds = new Set(
+    [
+      friendlyMatchStore.draft.ownerId,
+
+      friendlyMatchStore.draft.opponent?.id,
+
+      currentIdentity.value.id,
+    ].filter(Boolean),
+  )
+
+  return adminStore.memberships
+    .filter(
+      (membership) =>
+        membership.clubId === clubId &&
+        Boolean(membership.userId) &&
+        !participantIds.has(membership.userId),
+    )
+    .map((membership) => {
+      const name = resolveClubMemberName(membership.userId)
+
+      /*
+       * Membership identity exists but the current
+       * frontend cannot display/resolve the person.
+       *
+       * Do not show raw internal IDs as humans.
+       */
+      if (!name) {
+        return null
+      }
+
+      return {
+        id: membership.userId,
+
+        name,
+
+        role: membership.role,
+
+        roleLabel: ['admin', 'co-admin'].includes(membership.role)
+          ? 'Club admin'
+          : 'Club member',
+
+        initials: initialsForName(name),
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name))
+})
+
+const tvPairingCode = computed(() => {
+  return formatPairingCode(tvPairingSession.value?.pairingCode || '')
+})
+
 const canScoreLiveMatch = computed(() => friendlyMatchStore.canScoreMatch(currentIdentity.value.id))
 
 const canAccessLiveMatch = computed(() => canManageDraft.value || canScoreLiveMatch.value)
@@ -412,6 +533,27 @@ function flowLocation(name, options = {}) {
   )
   return Object.keys(query).length ? { path, query } : { path }
 }
+
+const chairUmpireInviteUrl = computed(() => {
+  const invitation = chairUmpireInvitation.value
+
+  if (!invitation?.token || typeof window === 'undefined') {
+    return ''
+  }
+
+  const routeName =
+    invitation.audience === 'guest' ? 'ChairUmpireGuestInvite' : 'ChairUmpireInvite'
+
+  const href = router.resolve({
+    name: routeName,
+
+    params: {
+      token: invitation.token,
+    },
+  }).href
+
+  return new URL(href, window.location.href).href
+})
 
 const liveScoreboardHref = computed(() => {
   const matchId = getLiveScoreboardMatchId(friendlyMatchStore.draft)
@@ -1207,7 +1349,7 @@ async function completeReview() {
         return
       }
 
-      publishCurrentLiveScoreboard()
+      publishCurrentLiveScoreboard({ type: 'start' })
 
       router.push(flowLocation('FriendlyMatchLive'))
 
@@ -1251,7 +1393,7 @@ async function completeReview() {
       return
     }
 
-    publishCurrentLiveScoreboard()
+    publishCurrentLiveScoreboard({ type: 'start' })
 
     router.push(flowLocation('FriendlyMatchLive'))
 
@@ -1314,13 +1456,29 @@ function handleReadyAction() {
   completeReview()
 }
 
-function publishCurrentLiveScoreboard() {
+function publicScoreboardSide(side) {
+  if (side === 'you' || side === 'playerA') {
+    return 'playerA'
+  }
+
+  if (side === 'opponent' || side === 'playerB') {
+    return 'playerB'
+  }
+
+  return null
+}
+
+function publishCurrentLiveScoreboard(event = { type: 'sync' }) {
   const snapshot = createLiveScoreboardSnapshot({
     draft: friendlyMatchStore.draft,
     playerAPoint: friendlyMatchStore.pointLabel('you'),
     playerBPoint: friendlyMatchStore.pointLabel('opponent'),
     matchFormatLabel: friendlyMatchStore.matchFormatLabel,
     scoringFormatLabel: friendlyMatchStore.formatLabel,
+    event: {
+      type: event?.type || 'sync',
+      side: publicScoreboardSide(event?.side),
+    },
   })
 
   if (!snapshot) {
@@ -1328,6 +1486,25 @@ function publishCurrentLiveScoreboard() {
   }
 
   return publishLiveMatchSnapshot(snapshot)
+}
+
+function syncLiveScoreboardHeartbeat() {
+  stopScoreboardHeartbeat()
+  stopScoreboardHeartbeat = () => {}
+
+  const draft = friendlyMatchStore.draft
+
+  if (step.value !== 'live' || draft.status !== 'live' || !draft.liveState) {
+    return
+  }
+
+  const matchId = getLiveScoreboardMatchId(draft)
+
+  if (!matchId) {
+    return
+  }
+
+  stopScoreboardHeartbeat = startLiveMatchHeartbeat(matchId)
 }
 
 function captureLiveAnnouncementState() {
@@ -1444,6 +1621,256 @@ function announceLiveScore({ before, after, pointWinnerSide }) {
   })
 }
 
+function stopChairUmpireWatch() {
+  stopChairUmpireSubscription()
+
+  stopChairUmpireSubscription = () => {}
+}
+
+async function generateChairUmpireQrCode() {
+  chairUmpireQrDataUrl.value = ''
+
+  if (!chairUmpireInviteUrl.value || chairUmpireInvitation.value?.status !== 'waiting') {
+    return
+  }
+
+  try {
+    chairUmpireQrDataUrl.value = await QRCode.toDataURL(chairUmpireInviteUrl.value, {
+      width: 248,
+
+      margin: 2,
+
+      color: {
+        dark: '#172319',
+
+        light: '#ffffff',
+      },
+
+      errorCorrectionLevel: 'M',
+    })
+  } catch {
+    /*
+     * Link remains usable if QR rendering fails.
+     */
+    chairUmpireQrDataUrl.value = ''
+  }
+}
+
+function watchChairUmpireInvitation(invitationId) {
+  stopChairUmpireWatch()
+
+  stopChairUmpireSubscription = subscribeToChairUmpireInvitation(
+    invitationId,
+
+    async (nextInvitation) => {
+      if (!nextInvitation) {
+        return
+      }
+
+      chairUmpireInvitation.value = nextInvitation
+
+      if (nextInvitation.status === 'waiting') {
+        await generateChairUmpireQrCode()
+      } else {
+        chairUmpireQrDataUrl.value = ''
+      }
+    },
+  )
+}
+
+async function activateChairUmpireInvitation(invitation) {
+  chairUmpireInvitation.value = invitation
+
+  watchChairUmpireInvitation(invitation.invitationId)
+
+  await generateChairUmpireQrCode()
+}
+
+async function openChairUmpire() {
+  if (!canManageLiveMatch.value) {
+    inlineNote.value = 'You do not have permission to manage the chair umpire for this match.'
+
+    return
+  }
+
+  try {
+    await adminStore.loadClubs()
+  } catch {
+    /*
+     * Guest invitation can still work.
+     * Club-member list may simply remain empty.
+     */
+  }
+
+  const matchId = getLiveScoreboardMatchId(friendlyMatchStore.draft)
+
+  if (!matchId) {
+    inlineNote.value = 'Gorra could not identify this live match.'
+
+    return
+  }
+
+  const existing = getActiveChairUmpireInvitationForMatch(matchId, currentIdentity.value.id)
+
+  chairUmpireInvitation.value = existing
+
+  chairUmpireQrDataUrl.value = ''
+
+  if (existing) {
+    await activateChairUmpireInvitation(existing)
+  }
+
+  chairUmpireOpen.value = true
+}
+
+function closeChairUmpire() {
+  chairUmpireOpen.value = false
+
+  stopChairUmpireWatch()
+}
+
+function chairUmpireMatchSummary() {
+  return {
+    playerAName:
+      friendlyMatchStore.draft.liveState?.players?.playerA || currentIdentity.value.name,
+
+    playerBName: friendlyMatchStore.draft.liveState?.players?.playerB || opponentName.value,
+  }
+}
+
+async function inviteClubChairUmpire(candidate) {
+  if (!canManageLiveMatch.value || !candidate?.id) {
+    return
+  }
+
+  const matchId = getLiveScoreboardMatchId(friendlyMatchStore.draft)
+
+  const summary = chairUmpireMatchSummary()
+
+  const invitation = createChairUmpireInvitationSession({
+    matchId,
+
+    clubId: adminStore.activeClubId,
+
+    createdBy: currentIdentity.value.id,
+
+    createdByName: currentIdentity.value.name,
+
+    audience: 'club_member',
+
+    expectedUserId: candidate.id,
+
+    expectedName: candidate.name,
+
+    ...summary,
+  })
+
+  if (!invitation) {
+    inlineNote.value = 'Gorra could not create the umpire invitation.'
+
+    return
+  }
+
+  await activateChairUmpireInvitation(invitation)
+}
+
+async function inviteGuestChairUmpire() {
+  if (!canManageLiveMatch.value) {
+    return
+  }
+
+  const matchId = getLiveScoreboardMatchId(friendlyMatchStore.draft)
+
+  const summary = chairUmpireMatchSummary()
+
+  const invitation = createChairUmpireInvitationSession({
+    matchId,
+
+    clubId: adminStore.activeClubId,
+
+    createdBy: currentIdentity.value.id,
+
+    createdByName: currentIdentity.value.name,
+
+    audience: 'guest',
+
+    ...summary,
+  })
+
+  if (!invitation) {
+    inlineNote.value = 'Gorra could not create the guest umpire invitation.'
+
+    return
+  }
+
+  await activateChairUmpireInvitation(invitation)
+}
+
+function removeChairUmpireInvitation() {
+  const invitation = chairUmpireInvitation.value
+
+  if (!invitation) {
+    return
+  }
+
+  const cancelled = cancelChairUmpireInvitation(
+    invitation.invitationId,
+
+    currentIdentity.value.id,
+  )
+
+  if (!cancelled) {
+    inlineNote.value = 'Gorra could not remove this umpire invitation.'
+
+    return
+  }
+
+  stopChairUmpireWatch()
+
+  chairUmpireInvitation.value = null
+
+  chairUmpireQrDataUrl.value = ''
+}
+
+function openTvPairing() {
+  if (!canManageLiveMatch.value) {
+    inlineNote.value = 'You do not have permission to pair a display for this match.'
+
+    return
+  }
+
+  const matchId = getLiveScoreboardMatchId(friendlyMatchStore.draft)
+
+  if (!matchId) {
+    inlineNote.value = 'Gorra could not identify this live match.'
+
+    return
+  }
+
+  const session = createPairingSession({
+    matchId,
+    createdBy: currentIdentity.value.id,
+  })
+
+  if (!session) {
+    inlineNote.value = 'Gorra could not create a display pairing session.'
+
+    return
+  }
+
+  tvPairingSession.value = session
+
+  tvPairingMessage.value = ''
+
+  tvPairingOpen.value = true
+}
+
+function closeTvPairing() {
+  tvPairingOpen.value = false
+
+  tvPairingMessage.value = ''
+}
+
 function toggleVoiceAnnouncements() {
   voiceAnnouncementsEnabled.value = !voiceAnnouncementsEnabled.value
 
@@ -1519,7 +1946,10 @@ async function recordLivePoint(side) {
    */
   showPointConfirmation(side)
 
-  publishCurrentLiveScoreboard()
+  publishCurrentLiveScoreboard({
+    type: 'point',
+    side,
+  })
 
   announceLiveScore({
     before,
@@ -1588,6 +2018,9 @@ async function finalizeFriendlyMatch() {
     publishLiveMatchSnapshot(completedSnapshot)
   }
 
+  stopScoreboardHeartbeat()
+  stopScoreboardHeartbeat = () => {}
+
   /*
    * The result was already persisted.
    *
@@ -1647,7 +2080,9 @@ function undoLivePoint() {
     return
   }
 
-  publishCurrentLiveScoreboard()
+  publishCurrentLiveScoreboard({
+    type: 'undo',
+  })
 
   /*
    * Any point-success animation now refers to a
@@ -1743,7 +2178,10 @@ function setLiveServer(side) {
     return
   }
 
-  publishCurrentLiveScoreboard()
+  publishCurrentLiveScoreboard({
+    type: 'server',
+    side,
+  })
 
   const message = `Correction. ${requestedName} to serve.`
 
@@ -2063,6 +2501,7 @@ function handleStorage(event) {
      */
     if (step.value === 'live') {
       guardStep()
+      syncLiveScoreboardHeartbeat()
     }
 
     return
@@ -2162,6 +2601,7 @@ function configureStep() {
   }
   refreshInvitation()
   guardStep()
+  syncLiveScoreboardHeartbeat()
   if (step.value === 'join') generateQrCode()
 }
 
@@ -2203,6 +2643,11 @@ onUnmounted(() => {
   if (pointFeedbackTimer) {
     window.clearTimeout(pointFeedbackTimer)
   }
+
+  stopChairUmpireWatch()
+
+  stopScoreboardHeartbeat()
+  stopScoreboardHeartbeat = () => {}
 
   cancelTennisAnnouncements()
 })
@@ -3304,11 +3749,28 @@ watch(
         :announcements-enabled="voiceAnnouncementsEnabled"
         :announcements-supported="voiceAnnouncementsSupported"
         :scoreboard-href="liveScoreboardHref"
+        :can-invite-chair-umpire="canManageLiveMatch"
+        :chair-umpire-open="chairUmpireOpen"
+        :chair-umpire-invitation="chairUmpireInvitation"
+        :chair-umpire-candidates="chairUmpireCandidates"
+        :chair-umpire-qr-data-url="chairUmpireQrDataUrl"
+        :chair-umpire-invite-url="chairUmpireInviteUrl"
+        :can-pair-display="canManageLiveMatch"
+        :tv-pairing-open="tvPairingOpen"
+        :tv-pairing-code="tvPairingCode"
+        :tv-pairing-message="tvPairingMessage"
         :last-point-winner="lastPointWinner"
         @point="recordLivePoint"
         @undo="undoLivePoint"
         @set-server="setLiveServer"
         @toggle-announcements="toggleVoiceAnnouncements"
+        @open-tv-pairing="openTvPairing"
+        @close-tv-pairing="closeTvPairing"
+        @open-chair-umpire="openChairUmpire"
+        @close-chair-umpire="closeChairUmpire"
+        @invite-chair-umpire-member="inviteClubChairUmpire"
+        @invite-chair-umpire-guest="inviteGuestChairUmpire"
+        @cancel-chair-umpire="removeChairUmpireInvitation"
       />
     </main>
     <MatchResultModal

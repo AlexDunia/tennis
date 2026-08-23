@@ -111,6 +111,7 @@ export function createLiveScoreboardSnapshot({
   playerBPoint = 'Love',
   matchFormatLabel = '',
   scoringFormatLabel = '',
+  event = { type: 'sync' },
 }) {
   if (!draft || !draft.liveState) {
     return null
@@ -146,6 +147,12 @@ export function createLiveScoreboardSnapshot({
     status: safeStatus(draft.over ? 'finished' : draft.status),
 
     revision: safeNonNegativeNumber(live.revision),
+
+    event: {
+      type: cleanText(event?.type, 'sync', 20),
+      side: ['playerA', 'playerB'].includes(event?.side) ? event.side : null,
+      sequence: safeNonNegativeNumber(live.revision),
+    },
 
     startedAt: safeDateValue(draft.startedAt),
 

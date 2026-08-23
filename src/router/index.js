@@ -8,6 +8,7 @@ import MatchDetailsView from '../views/MatchDetailsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
 import LiveScoreboardView from '../views/LiveScoreboardView.vue'
+import ChairUmpireInvitationView from '../views/ChairUmpireInvitationView.vue'
 import PlayHubView from '../views/PlayHubView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import HistoryView from '../views/HistoryView.vue'
@@ -462,6 +463,51 @@ const routes = [
       title: 'Live scoreboard',
       subtitle: 'Read-only match display.',
       immersive: true,
+    },
+  },
+  {
+    path: '/match-umpire/invite/:token',
+
+    name: 'ChairUmpireInvite',
+
+    component: ChairUmpireInvitationView,
+
+    props: (route) => ({
+      token: String(route.params.token || ''),
+
+      audience: 'club_member',
+    }),
+
+    meta: {
+      title: 'Chair umpire invitation',
+
+      immersive: true,
+
+      primarySection: 'play',
+    },
+  },
+
+  {
+    path: '/match-umpire/guest/:token',
+
+    name: 'ChairUmpireGuestInvite',
+
+    component: ChairUmpireInvitationView,
+
+    props: (route) => ({
+      token: String(route.params.token || ''),
+
+      audience: 'guest',
+    }),
+
+    meta: {
+      public: true,
+
+      title: 'Chair umpire invitation',
+
+      immersive: true,
+
+      primarySection: 'play',
     },
   },
   {

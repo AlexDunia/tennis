@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import ChairUmpireDialog from './ChairUmpireDialog.vue'
 
 const props = defineProps({
   playerAName: {
@@ -133,6 +134,56 @@ const props = defineProps({
     default: '',
   },
 
+  canInviteChairUmpire: {
+    type: Boolean,
+    default: false,
+  },
+
+  chairUmpireOpen: {
+    type: Boolean,
+    default: false,
+  },
+
+  chairUmpireInvitation: {
+    type: Object,
+    default: null,
+  },
+
+  chairUmpireCandidates: {
+    type: Array,
+    default: () => [],
+  },
+
+  chairUmpireQrDataUrl: {
+    type: String,
+    default: '',
+  },
+
+  chairUmpireInviteUrl: {
+    type: String,
+    default: '',
+  },
+
+  canPairDisplay: {
+    type: Boolean,
+    default: false,
+  },
+
+  tvPairingOpen: {
+    type: Boolean,
+    default: false,
+  },
+
+  tvPairingCode: {
+    type: String,
+    default: '',
+  },
+
+  tvPairingMessage: {
+    type: String,
+    default: '',
+  },
+
   lastPointWinner: {
     type: String,
     default: '',
@@ -140,7 +191,19 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['point', 'undo', 'set-server', 'toggle-announcements'])
+const emit = defineEmits([
+  'point',
+  'undo',
+  'set-server',
+  'toggle-announcements',
+  'open-tv-pairing',
+  'close-tv-pairing',
+  'open-chair-umpire',
+  'close-chair-umpire',
+  'invite-chair-umpire-member',
+  'invite-chair-umpire-guest',
+  'cancel-chair-umpire',
+])
 const now = ref(Date.now())
 
 /*
@@ -570,6 +633,40 @@ onUnmounted(() => {
           </a>
 
           <button
+            v-if="canPairDisplay"
+            type="button"
+            class="match-control__pair-display"
+            @click="emit('open-tv-pairing')"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="13" rx="2" />
+
+              <path d="M8 21h8M12 18v3" />
+
+              <path d="M16.5 9.5h3M18 8v3" />
+            </svg>
+
+            <span> Display </span>
+          </button>
+
+          <button
+            v-if="canInviteChairUmpire"
+            type="button"
+            class="match-control__pair-display match-control__umpire-action"
+            @click="emit('open-chair-umpire')"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="3" />
+
+              <path d="M6.5 19c.7-3.2 2.5-5 5.5-5s4.8 1.8 5.5 5" />
+
+              <path d="M18 3v5M15.5 5.5h5" />
+            </svg>
+
+            <span> Umpire </span>
+          </button>
+
+          <button
             v-if="canScore && !finished"
             type="button"
             class="match-control__correction-button"
@@ -797,6 +894,78 @@ onUnmounted(() => {
         </button>
       </div>
     </footer>
+
+    <Transition name="pair-display">
+      <div v-if="tvPairingOpen" class="tv-pairing-backdrop" @click.self="emit('close-tv-pairing')">
+        <section
+          class="tv-pairing-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tv-pairing-title"
+        >
+          <header class="tv-pairing-sheet__header">
+            <div>
+              <span> Live display </span>
+
+              <h2 id="tv-pairing-title">Display on another device</h2>
+            </div>
+
+            <button
+              type="button"
+              class="tv-pairing-sheet__close"
+              aria-label="Close display pairing"
+              @click="emit('close-tv-pairing')"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 7l10 10M17 7 7 17" />
+              </svg>
+            </button>
+          </header>
+
+          <p class="tv-pairing-sheet__intro">
+            Open Gorra on the display and enter this temporary code.
+          </p>
+
+          <div class="tv-pairing-code" aria-label="TV pairing code">
+            {{ tvPairingCode }}
+          </div>
+
+          <div class="tv-pairing-sheet__security">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3 5 6v5c0 4.5 2.7 7.8 7 10 4.3-2.2 7-5.5 7-10V6l-7-3Z" />
+
+              <path d="m9.5 12 1.7 1.7 3.5-4" />
+            </svg>
+
+            <p>
+              <strong> Read-only access </strong>
+
+              <span>
+                A paired display can show this match. It cannot score, undo or control the match.
+              </span>
+            </p>
+          </div>
+
+          <p v-if="tvPairingMessage" class="tv-pairing-sheet__message" role="status">
+            {{ tvPairingMessage }}
+          </p>
+
+          <footer>The code expires automatically if it isn't used.</footer>
+        </section>
+      </div>
+    </Transition>
+
+    <ChairUmpireDialog
+      :open="chairUmpireOpen"
+      :invitation="chairUmpireInvitation"
+      :candidates="chairUmpireCandidates"
+      :qr-data-url="chairUmpireQrDataUrl"
+      :invite-url="chairUmpireInviteUrl"
+      @close="emit('close-chair-umpire')"
+      @invite-club-member="emit('invite-chair-umpire-member', $event)"
+      @invite-guest="emit('invite-chair-umpire-guest')"
+      @cancel-invitation="emit('cancel-chair-umpire')"
+    />
   </section>
 </template>
 
@@ -1377,6 +1546,304 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.match-control__pair-display {
+  min-height: 44px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 0 13px;
+
+  border: 1px solid rgba(20, 58, 38, 0.12);
+
+  border-radius: 9px;
+
+  color: #31523f;
+
+  background: #fff;
+
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+
+  cursor: pointer;
+
+  touch-action: manipulation;
+
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 90ms ease;
+}
+
+.match-control__pair-display:hover {
+  border-color: rgba(0, 143, 21, 0.22);
+
+  background: #f8fbf9;
+}
+
+.match-control__pair-display:active {
+  transform: scale(0.98);
+}
+
+.match-control__pair-display:focus-visible {
+  outline: 3px solid rgba(0, 181, 26, 0.22);
+
+  outline-offset: 3px;
+}
+
+.match-control__pair-display svg {
+  width: 17px;
+  height: 17px;
+
+  fill: none;
+
+  stroke: currentColor;
+
+  stroke-width: 1.7;
+
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tv-pairing-backdrop {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 120;
+
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(12, 32, 22, 0.22);
+
+  backdrop-filter: blur(4px);
+}
+
+.tv-pairing-sheet {
+  width: min(100%, 470px);
+
+  padding: 18px;
+
+  border: 1px solid rgba(7, 63, 48, 0.09);
+
+  border-radius: 18px;
+
+  color: #173126;
+
+  background: #fff;
+
+  box-shadow: 0 18px 50px rgba(7, 30, 19, 0.12);
+}
+
+.tv-pairing-sheet__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.tv-pairing-sheet__header span {
+  color: #087a35;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tv-pairing-sheet__header h2 {
+  margin: 4px 0 0;
+
+  color: #073f30;
+
+  font-size: 20px;
+  font-weight: 650;
+
+  letter-spacing: -0.025em;
+}
+
+.tv-pairing-sheet__close {
+  width: 44px;
+  height: 44px;
+
+  flex: 0 0 auto;
+
+  border: 1px solid rgba(7, 63, 48, 0.1);
+
+  border-radius: 50%;
+
+  display: grid;
+  place-items: center;
+
+  color: #607268;
+
+  background: #fff;
+}
+
+.tv-pairing-sheet__close svg {
+  width: 16px;
+  height: 16px;
+
+  fill: none;
+
+  stroke: currentColor;
+
+  stroke-width: 1.8;
+
+  stroke-linecap: round;
+}
+
+.tv-pairing-sheet__intro {
+  max-width: 330px;
+
+  margin: 13px 0 0;
+
+  color: #66786e;
+
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.tv-pairing-code {
+  margin-top: 22px;
+
+  padding: 20px 15px;
+
+  border: 1px solid rgba(8, 122, 53, 0.13);
+
+  border-radius: 13px;
+
+  color: #073f30;
+
+  background: #f2f8f3;
+
+  font-size: clamp(35px, 8vw, 48px);
+
+  font-weight: 750;
+
+  letter-spacing: 0.16em;
+
+  line-height: 1;
+
+  text-align: center;
+
+  font-variant-numeric: tabular-nums;
+
+  user-select: all;
+}
+
+.tv-pairing-sheet__security {
+  margin-top: 15px;
+
+  padding: 12px 13px;
+
+  border-radius: 10px;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  background: #f7faf7;
+}
+
+.tv-pairing-sheet__security svg {
+  width: 19px;
+  height: 19px;
+
+  flex: 0 0 auto;
+
+  margin-top: 1px;
+
+  fill: none;
+
+  stroke: #087a35;
+
+  stroke-width: 1.7;
+
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tv-pairing-sheet__security p {
+  margin: 0;
+}
+
+.tv-pairing-sheet__security strong,
+.tv-pairing-sheet__security span {
+  display: block;
+}
+
+.tv-pairing-sheet__security strong {
+  color: #173126;
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tv-pairing-sheet__security span {
+  margin-top: 2px;
+
+  color: #6a7a71;
+
+  font-size: 9px;
+
+  line-height: 1.5;
+}
+
+.tv-pairing-sheet__message {
+  margin: 11px 0 0;
+
+  color: #087a35;
+
+  font-size: 9px;
+}
+
+.tv-pairing-sheet footer {
+  margin-top: 15px;
+
+  padding-top: 12px;
+
+  border-top: 1px solid rgba(7, 63, 48, 0.08);
+
+  color: #87928c;
+
+  font-size: 8px;
+
+  text-align: center;
+}
+
+.pair-display-enter-active,
+.pair-display-leave-active {
+  transition: opacity 160ms ease;
+}
+
+.pair-display-enter-active .tv-pairing-sheet,
+.pair-display-leave-active .tv-pairing-sheet {
+  transition:
+    opacity 170ms ease,
+    transform 220ms cubic-bezier(0.22, 0.8, 0.22, 1);
+}
+
+.pair-display-enter-from,
+.pair-display-leave-to {
+  opacity: 0;
+}
+
+.pair-display-enter-from .tv-pairing-sheet,
+.pair-display-leave-to .tv-pairing-sheet {
+  opacity: 0;
+
+  transform: translateY(12px) scale(0.99);
 }
 
 .match-control__scoreboard-link {
@@ -2149,6 +2616,27 @@ onUnmounted(() => {
 }
 
 @media (max-width: 410px) {
+  .match-control__pair-display {
+    width: 44px;
+    min-width: 44px;
+
+    padding-inline: 0;
+  }
+
+  .match-control__pair-display span {
+    display: none;
+  }
+
+  .tv-pairing-backdrop {
+    padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .tv-pairing-sheet {
+    padding: 15px;
+
+    border-radius: 16px;
+  }
+
   .match-control__heading h1 {
     font-size: 16px;
   }
@@ -2218,56 +2706,54 @@ onUnmounted(() => {
   .match-correction__server-options {
     grid-template-columns: 1fr;
   }
-.match-control button:focus-visible {
-  outline:
-    3px solid
-    rgba(0, 181, 26, 0.2);
+  .match-control button:focus-visible {
+    outline: 3px solid rgba(0, 181, 26, 0.2);
 
-  outline-offset: 2px;
-}
-
-@media (max-width: 350px) {
-  .match-control {
-    --control-page-padding: 10px;
+    outline-offset: 2px;
   }
 
-  .match-control__state-actions {
-    gap: 6px;
+  @media (max-width: 350px) {
+    .match-control {
+      --control-page-padding: 10px;
+    }
+
+    .match-control__state-actions {
+      gap: 6px;
+    }
+
+    .match-control__dock-inner {
+      gap: 6px;
+
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+
+    .score-action {
+      min-width: 0;
+
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+
+    .match-control__correction-button,
+    .match-control__voice-button {
+      flex: 0 0 44px;
+    }
+
+    .match-correction {
+      border-radius: 8px;
+    }
+
+    .match-correction__options {
+      padding: 9px;
+    }
+
+    .match-correction__server-options {
+      grid-template-columns: 1fr;
+    }
   }
 
-  .match-control__dock-inner {
-    gap: 6px;
-
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-
-  .score-action {
-    min-width: 0;
-
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-
-  .match-control__correction-button,
-  .match-control__voice-button {
-    flex: 0 0 44px;
-  }
-
-  .match-correction {
-    border-radius: 8px;
-  }
-
-  .match-correction__options {
-    padding: 9px;
-  }
-
-  .match-correction__server-options {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
+  @media (prefers-reduced-motion: reduce) {
     .match-control *,
     .match-control *::before,
     .match-control *::after {

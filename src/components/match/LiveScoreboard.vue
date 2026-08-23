@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   snapshot: {
@@ -11,7 +11,23 @@ const props = defineProps({
     type: Number,
     default: () => Date.now(),
   },
+
+  connectionState: {
+    type: String,
+    default: 'connecting',
+    validator: (value) =>
+      ['connecting', 'fresh', 'stale', 'unavailable', 'complete'].includes(value),
+  },
+
+  sunlightMode: {
+    type: Boolean,
+    default: false,
+  },
 })
+
+const pointPulseA = ref(false)
+const pointPulseB = ref(false)
+let scoreFeedbackTimer = null
 
 const clockFormatter =
   typeof Intl !== 'undefined'
@@ -41,6 +57,38 @@ const statusLabel = computed(() => {
   }
 
   return 'LIVE'
+})
+
+const connectionNotice = computed(() => {
+  if (props.connectionState === 'unavailable') {
+    return {
+      visible: true,
+      title: 'Live connection unavailable',
+      message: 'Showing the last confirmed score on this display.',
+    }
+  }
+
+  if (props.connectionState === 'stale') {
+    return {
+      visible: true,
+      title: 'Reconnecting display...',
+      message: 'Showing the last confirmed score.',
+    }
+  }
+
+  if (props.connectionState === 'connecting' && props.snapshot?.status === 'live') {
+    return {
+      visible: true,
+      title: 'Checking live connection...',
+      message: 'The confirmed score remains on screen.',
+    }
+  }
+
+  return {
+    visible: false,
+    title: '',
+    message: '',
+  }
 })
 
 const matchTypeLabel = computed(() => {
@@ -311,6 +359,94 @@ const scoreAriaLabel = computed(() => {
 
   return `${playerAName.value} ${pointA.value}, ${playerBName.value} ${pointB.value}`
 })
+
+function clearScoreFeedback() {
+  pointPulseA.value = false
+  pointPulseB.value = false
+
+  if (scoreFeedbackTimer) {
+    window.clearTimeout(scoreFeedbackTimer)
+    scoreFeedbackTimer = null
+  }
+}
+
+function scheduleScoreFeedbackClear() {
+  if (scoreFeedbackTimer) {
+    window.clearTimeout(scoreFeedbackTimer)
+  }
+
+  scoreFeedbackTimer = window.setTimeout(() => {
+    pointPulseA.value = false
+    pointPulseB.value = false
+    scoreFeedbackTimer = null
+  }, 440)
+}
+
+watch(
+  () => props.snapshot,
+  (nextSnapshot, previousSnapshot) => {
+    if (!nextSnapshot || !previousSnapshot) {
+      return
+    }
+
+    if (nextSnapshot.matchId !== previousSnapshot.matchId) {
+      clearScoreFeedback()
+      return
+    }
+
+    const event = nextSnapshot.event
+    const previousEvent = previousSnapshot.event
+
+    if (
+      event?.sequence === previousEvent?.sequence &&
+      nextSnapshot.revision === previousSnapshot.revision
+    ) {
+      return
+    }
+
+    const revisionGap =
+      Number(nextSnapshot.revision || 0) - Number(previousSnapshot.revision || 0)
+
+    if (revisionGap > 1) {
+      clearScoreFeedback()
+      return
+    }
+
+    pointPulseA.value = false
+    pointPulseB.value = false
+
+    if (event?.type === 'point') {
+      if (event.side === 'playerA') {
+        pointPulseA.value = true
+      }
+
+      if (event.side === 'playerB') {
+        pointPulseB.value = true
+      }
+    }
+
+    if (event?.type === 'undo') {
+      pointPulseA.value =
+        String(nextSnapshot.score?.points?.a ?? '') !==
+        String(previousSnapshot.score?.points?.a ?? '')
+      pointPulseB.value =
+        String(nextSnapshot.score?.points?.b ?? '') !==
+        String(previousSnapshot.score?.points?.b ?? '')
+    }
+
+    if (event?.type === 'server') {
+      return
+    }
+
+    if (pointPulseA.value || pointPulseB.value) {
+      scheduleScoreFeedbackClear()
+    }
+  },
+)
+
+onBeforeUnmount(() => {
+  clearScoreFeedback()
+})
 </script>
 
 <template>
@@ -318,6 +454,7 @@ const scoreAriaLabel = computed(() => {
     class="live-scoreboard"
     :class="{
       'live-scoreboard--completed': isCompleted,
+      'live-scoreboard--sunlight': sunlightMode,
     }"
   >
     <header class="live-scoreboard__header">
@@ -362,6 +499,25 @@ const scoreAriaLabel = computed(() => {
     </header>
 
     <main class="live-scoreboard__main">
+      <Transition name="connection-notice">
+        <div
+          v-if="connectionNotice.visible"
+          class="live-scoreboard__connection"
+          :class="{
+            'live-scoreboard__connection--stale': connectionState === 'stale',
+          }"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="live-scoreboard__connection-dot" aria-hidden="true"></span>
+
+          <p>
+            <strong>{{ connectionNotice.title }}</strong>
+            <span>{{ connectionNotice.message }}</span>
+          </p>
+        </div>
+      </Transition>
+
       <h1 class="sr-only">
         Live scoreboard:
         {{ playerAName }} versus
@@ -433,6 +589,7 @@ const scoreAriaLabel = computed(() => {
             <strong
               :class="{
                 'is-leading': pointLeader === 'playerA',
+                'is-score-updated': pointPulseA,
               }"
             >
               {{ heroScoreA }}
@@ -443,6 +600,7 @@ const scoreAriaLabel = computed(() => {
             <strong
               :class="{
                 'is-leading': pointLeader === 'playerB',
+                'is-score-updated': pointPulseB,
               }"
             >
               {{ heroScoreB }}
@@ -771,6 +929,54 @@ const scoreAriaLabel = computed(() => {
   padding: 28px 0 22px;
 }
 
+.live-scoreboard__connection {
+  align-self: center;
+  max-width: min(620px, 100%);
+  margin-bottom: 16px;
+  padding: 9px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(6px);
+}
+
+.live-scoreboard__connection-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.live-scoreboard__connection--stale .live-scoreboard__connection-dot {
+  background: #d8ce78;
+}
+
+.live-scoreboard__connection p {
+  margin: 0;
+  min-width: 0;
+}
+
+.live-scoreboard__connection strong,
+.live-scoreboard__connection p span {
+  display: block;
+}
+
+.live-scoreboard__connection strong {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.live-scoreboard__connection p span {
+  margin-top: 1px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 9px;
+}
+
 .live-scoreboard__match-type {
   align-self: center;
   display: inline-flex;
@@ -899,6 +1105,37 @@ const scoreAriaLabel = computed(() => {
 
 .live-scoreboard__scoreline strong.is-leading {
   color: var(--board-leader);
+}
+
+.live-scoreboard__scoreline strong.is-score-updated {
+  animation: scoreboard-score-confirm 440ms cubic-bezier(0.22, 0.8, 0.22, 1);
+}
+
+@keyframes scoreboard-score-confirm {
+  0% {
+    transform: scale(1);
+  }
+
+  32% {
+    transform: scale(1.075);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.connection-notice-enter-active,
+.connection-notice-leave-active {
+  transition:
+    opacity 150ms ease,
+    transform 170ms ease;
+}
+
+.connection-notice-enter-from,
+.connection-notice-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .live-scoreboard__scoreline > span {
@@ -1090,6 +1327,154 @@ const scoreAriaLabel = computed(() => {
   color: rgba(255, 255, 255, 0.75);
 }
 
+/* Sunlight mode keeps the scoreboard readable in bright conditions. */
+.live-scoreboard--sunlight {
+  --board-green-950: #f7faf7;
+  --board-green-900: #ffffff;
+  --board-green-800: #edf5ef;
+  --board-leader: #087a35;
+  --board-panel: #ffffff;
+  --board-panel-head: #eef4ef;
+  --board-line: rgba(7, 63, 48, 0.12);
+  --board-text: #173126;
+  --board-muted: #64746b;
+  color: #173126;
+  background: #f7faf7;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__header {
+  border-bottom-color: rgba(7, 63, 48, 0.11);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.live-scoreboard--sunlight .live-scoreboard__brand,
+.live-scoreboard--sunlight .live-scoreboard__player h2,
+.live-scoreboard--sunlight .live-scoreboard__scoreline strong,
+.live-scoreboard--sunlight .live-scoreboard__time time {
+  color: #173126;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__brand-ball,
+.live-scoreboard--sunlight .live-scoreboard__brand-ball::before,
+.live-scoreboard--sunlight .live-scoreboard__brand-ball::after {
+  border-color: #087a35;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__identity {
+  color: #29483a;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__status,
+.live-scoreboard--sunlight .live-scoreboard__match-type i,
+.live-scoreboard--sunlight .live-scoreboard__table-point,
+.live-scoreboard--sunlight .live-scoreboard__completed > span {
+  color: #087a35;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__status--final {
+  color: #66786e;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__status i {
+  box-shadow: 0 0 0 4px rgba(8, 122, 53, 0.09);
+}
+
+.live-scoreboard--sunlight .live-scoreboard__time span,
+.live-scoreboard--sunlight .live-scoreboard__score-context,
+.live-scoreboard--sunlight .live-scoreboard__completed p,
+.live-scoreboard--sunlight .live-scoreboard__meta,
+.live-scoreboard--sunlight .live-scoreboard__connection p span {
+  color: #64746b;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__clock {
+  color: #445b4f !important;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__connection,
+.live-scoreboard--sunlight .live-scoreboard__table-shell,
+.live-scoreboard--sunlight .live-scoreboard__tiebreak-summary {
+  border-color: rgba(7, 63, 48, 0.13);
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(7, 63, 48, 0.05);
+}
+
+.live-scoreboard--sunlight .live-scoreboard__connection {
+  color: #173126;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__connection-dot {
+  background: #718078;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__connection--stale .live-scoreboard__connection-dot {
+  background: #8d731f;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__match-type {
+  border-color: rgba(8, 122, 53, 0.13);
+  color: #365847;
+  background: #ecf6ee;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__avatar {
+  border-color: rgba(7, 63, 48, 0.36);
+  color: #073f30;
+  background: #ffffff;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__serve-ball {
+  border-color: #f7faf7;
+  background: #f7faf7;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__scoreline > span {
+  color: #52665a;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__scoreline strong.is-leading {
+  color: #087a35;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__score-caption {
+  border-color: rgba(8, 122, 53, 0.18);
+  color: #087a35;
+  background: #eef7f0;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__completed strong,
+.live-scoreboard--sunlight .live-scoreboard__table tbody th,
+.live-scoreboard--sunlight .live-scoreboard__table tbody td,
+.live-scoreboard--sunlight .live-scoreboard__tiebreak-summary strong {
+  color: #173126;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__table thead th {
+  color: #516359;
+  background: #eef4ef;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__table .current-column {
+  background: rgba(8, 122, 53, 0.035);
+}
+
+.live-scoreboard--sunlight .live-scoreboard__tiebreak-summary span {
+  color: #65766c;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__meta span + span::before {
+  color: rgba(8, 122, 53, 0.62);
+}
+
+.live-scoreboard--sunlight .live-scoreboard__footer {
+  border-top-color: rgba(7, 63, 48, 0.08);
+  color: #738279;
+}
+
+.live-scoreboard--sunlight .live-scoreboard__footer strong {
+  color: #355346;
+}
+
 .sr-only {
   position: absolute !important;
   width: 1px !important;
@@ -1100,6 +1485,85 @@ const scoreAriaLabel = computed(() => {
   clip: rect(0, 0, 0, 0) !important;
   white-space: nowrap !important;
   border: 0 !important;
+}
+
+@media (min-width: 1800px) {
+  .live-scoreboard__header-inner {
+    width: min(92%, 1900px);
+    min-height: 92px;
+  }
+
+  .live-scoreboard__brand { font-size: 28px; }
+  .live-scoreboard__identity { font-size: 18px; }
+  .live-scoreboard__time span { font-size: 11px; }
+  .live-scoreboard__time time { font-size: 17px; }
+
+  .live-scoreboard__main {
+    width: min(90%, 1850px);
+    padding-top: 36px;
+    padding-bottom: 28px;
+  }
+
+  .live-scoreboard__match-type {
+    min-height: 42px;
+    padding: 9px 21px;
+    font-size: 13px;
+  }
+
+  .live-scoreboard__hero {
+    margin: 38px 0 40px;
+    gap: clamp(44px, 5vw, 90px);
+  }
+
+  .live-scoreboard__avatar { width: clamp(116px, 7vw, 150px); }
+  .live-scoreboard__player h2 { max-width: 380px; font-size: 31px; }
+  .live-scoreboard__score-context { font-size: 14px; }
+  .live-scoreboard__scoreline { min-height: 194px; }
+  .live-scoreboard__scoreline strong { font-size: clamp(150px, 8vw, 220px); }
+  .live-scoreboard__scoreline > span { font-size: 79px; }
+  .live-scoreboard__score-caption { min-width: 220px; padding: 9px 24px; font-size: 11px; }
+  .live-scoreboard__table thead th { height: 63px; font-size: 13px; }
+  .live-scoreboard__table tbody tr { height: 91px; }
+  .live-scoreboard__table tbody th { font-size: 19px; }
+  .live-scoreboard__table tbody td { font-size: 29px; }
+  .live-scoreboard__table-point { font-size: 35px !important; }
+  .live-scoreboard__meta { margin-top: 22px; font-size: 13px; }
+  .live-scoreboard__footer { width: min(90%, 1850px); min-height: 58px; font-size: 11px; }
+}
+
+@media (min-width: 2600px) {
+  .live-scoreboard__header-inner { min-height: 112px; }
+  .live-scoreboard__brand { font-size: 34px; }
+  .live-scoreboard__identity { font-size: 21px; }
+  .live-scoreboard__main { width: min(91%, 2400px); }
+  .live-scoreboard__avatar { width: 175px; }
+  .live-scoreboard__player h2 { max-width: 460px; font-size: 39px; }
+  .live-scoreboard__scoreline { min-height: 245px; }
+  .live-scoreboard__scoreline strong { font-size: clamp(210px, 7vw, 285px); }
+  .live-scoreboard__scoreline > span { font-size: 100px; }
+  .live-scoreboard__score-context { font-size: 17px; }
+  .live-scoreboard__score-caption { min-width: 270px; font-size: 14px; }
+  .live-scoreboard__table thead th { height: 76px; font-size: 16px; }
+  .live-scoreboard__table tbody tr { height: 110px; }
+  .live-scoreboard__table tbody th { font-size: 24px; }
+  .live-scoreboard__table tbody td { font-size: 36px; }
+  .live-scoreboard__table-point { font-size: 44px !important; }
+  .live-scoreboard__meta { font-size: 16px; }
+}
+
+@media (min-width: 700px) and (max-height: 700px) {
+  .live-scoreboard__header-inner { min-height: 58px; }
+  .live-scoreboard__main { justify-content: flex-start; padding-top: 15px; padding-bottom: 13px; }
+  .live-scoreboard__match-type { min-height: 29px; padding: 5px 13px; }
+  .live-scoreboard__hero { margin: 14px 0 16px; }
+  .live-scoreboard__avatar { width: 66px; }
+  .live-scoreboard__player h2 { margin-top: 7px; font-size: 17px; }
+  .live-scoreboard__scoreline { min-height: 87px; }
+  .live-scoreboard__scoreline strong { font-size: 76px; }
+  .live-scoreboard__scoreline > span { font-size: 35px; }
+  .live-scoreboard__table thead th { height: 38px; }
+  .live-scoreboard__table tbody tr { height: 52px; }
+  .live-scoreboard__meta { margin-top: 10px; }
 }
 
 @media (max-width: 900px) {
