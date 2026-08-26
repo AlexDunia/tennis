@@ -31,6 +31,19 @@ import {
  */
 const RESULT_STORAGE_KEY = 'gorra.friendlyMatchResults.v2'
 const DRAFT_STORAGE_KEY = 'gorra.friendlyMatchDraft.v5'
+/*
+ * Separation Five.
+ *
+ * Setup still has one temporary draft.
+ *
+ * Once a match becomes live, however, it receives
+ * its own independent storage record keyed by
+ * matchId.
+ *
+ * This prevents Court A from overwriting Court B.
+ */
+const LIVE_MATCH_STORAGE_PREFIX =
+  'gorra.friendlyMatchLive.v1.'
 const INVITATION_STORAGE_KEY = 'gorra.friendlyMatchInvitations.v2'
 const CUSTOM_FORMAT_STORAGE_KEY = 'gorra.friendlyMatchCustomFormats.v1'
 const PLAY_NOW_TTL_MS = 30 * 60 * 1000
@@ -144,6 +157,55 @@ function createDraft() {
   }
 }
 
+function normalizeLiveMatchId(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .slice(0, 120)
+}
+
+function liveMatchStorageKey(matchId) {
+  const id =
+    normalizeLiveMatchId(matchId)
+
+  if (!id) {
+    return ''
+  }
+
+  return (
+    LIVE_MATCH_STORAGE_PREFIX +
+    encodeURIComponent(id)
+  )
+}
+
+function resolveLiveMatchId(value = {}) {
+  return normalizeLiveMatchId(
+    value.matchId ||
+      value.ladderMatchId ||
+      value.id ||
+      '',
+  )
+}
+
+function removeStored(key) {
+  if (
+    !key ||
+    typeof window === 'undefined'
+  ) {
+    return false
+  }
+
+  try {
+    window.localStorage.removeItem(
+      key,
+    )
+
+    return true
+  } catch {
+    return false
+  }
+}
+
 function readArray(key) {
   if (typeof window === 'undefined' || !window.localStorage) return []
   try {
@@ -154,22 +216,157 @@ function readArray(key) {
   }
 }
 
+function normalizeStoredDraft(stored) {
+  if (
+    !stored ||
+    typeof stored !== 'object'
+  ) {
+    return null
+  }
+
+  const empty =
+    createDraft()
+
+  return {
+    ...empty,
+
+    ...stored,
+
+    schedule: {
+      ...empty.schedule,
+
+      ...(stored.schedule || {}),
+    },
+
+    customFormat:
+      stored.customFormat
+        ? normalizeCustomFormat(
+            stored.customFormat,
+          )
+        : null,
+
+    setScores:
+      Array.isArray(
+        stored.setScores,
+      )
+        ? stored.setScores
+        : [],
+
+    pointHistory:
+      Array.isArray(
+        stored.pointHistory,
+      )
+        ? stored.pointHistory
+        : [],
+
+    scorerHistory:
+      Array.isArray(
+        stored.scorerHistory,
+      )
+        ? stored.scorerHistory.slice(
+            0,
+            20,
+          )
+        : [],
+  }
+}
+
 function readDraft() {
-  if (typeof window === 'undefined' || !window.localStorage) return createDraft()
+  if (
+    typeof window ===
+      'undefined' ||
+    !window.localStorage
+  ) {
+    return createDraft()
+  }
+
   try {
-    const stored = JSON.parse(window.localStorage.getItem(DRAFT_STORAGE_KEY) || 'null')
-    if (!stored || typeof stored !== 'object') return createDraft()
-    return {
-      ...createDraft(),
-      ...stored,
-      schedule: { ...createDraft().schedule, ...(stored.schedule || {}) },
-      customFormat: stored.customFormat ? normalizeCustomFormat(stored.customFormat) : null,
-      setScores: Array.isArray(stored.setScores) ? stored.setScores : [],
-      pointHistory: Array.isArray(stored.pointHistory) ? stored.pointHistory : [],
-      scorerHistory: Array.isArray(stored.scorerHistory) ? stored.scorerHistory.slice(0, 20) : [],
-    }
+    const stored =
+      JSON.parse(
+        window.localStorage.getItem(
+          DRAFT_STORAGE_KEY,
+        ) || 'null',
+      )
+
+    return (
+      normalizeStoredDraft(
+        stored,
+      ) ||
+      createDraft()
+    )
   } catch {
     return createDraft()
+  }
+}
+
+function readLiveDraft(matchId) {
+  const id =
+    normalizeLiveMatchId(
+      matchId,
+    )
+
+  const key =
+    liveMatchStorageKey(
+      id,
+    )
+
+  if (
+    !id ||
+    !key ||
+    typeof window ===
+      'undefined' ||
+    !window.localStorage
+  ) {
+    return null
+  }
+
+  try {
+    const stored =
+      JSON.parse(
+        window.localStorage.getItem(
+          key,
+        ) || 'null',
+      )
+
+    const normalized =
+      normalizeStoredDraft(
+        stored,
+      )
+
+    if (!normalized) {
+      return null
+    }
+
+    /*
+     * Storage key and stored match identity
+     * must agree.
+     *
+     * Knowing another storage key must never
+     * allow one match to masquerade as another.
+     */
+    if (
+      resolveLiveMatchId(
+        normalized,
+      ) !== id
+    ) {
+      return null
+    }
+
+    if (
+      !normalized.liveState ||
+      ![
+        'live',
+        'finished',
+      ].includes(
+        normalized.status,
+      )
+    ) {
+      return null
+    }
+
+    return normalized
+  } catch {
+    return null
   }
 }
 
@@ -210,8 +407,30 @@ function engineConfigForDraft(value) {
 }
 
 function persist(key, value) {
-  if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.setItem(key, JSON.stringify(value))
+  if (
+    !key ||
+    typeof window ===
+      'undefined'
+  ) {
+    return false
+  }
+
+  try {
+    window.localStorage.setItem(
+      key,
+      JSON.stringify(value),
+    )
+
+    return true
+  } catch {
+    /*
+     * Browser storage can fail on low-storage,
+     * private or restricted devices.
+     *
+     * Never crash Match Control merely because
+     * persistence is unavailable.
+     */
+    return false
   }
 }
 
@@ -322,8 +541,71 @@ function rulesForDraft(value) {
   }
 }
 
-export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
-  const draft = ref(readDraft())
+export const useFriendlyMatchStore = defineStore(
+  'friendlyMatch',
+  () => {
+    const initialDraft =
+      readDraft()
+
+    /*
+     * Migration from the previous single-draft
+     * development architecture.
+     *
+     * If the old setup key happens to contain an
+     * already-live match, move it into the new
+     * match-scoped namespace instead of destroying
+     * somebody's active development match.
+     */
+    const legacyLiveMatchId =
+      initialDraft.liveState &&
+      [
+        'live',
+        'finished',
+      ].includes(
+        initialDraft.status,
+      )
+        ? resolveLiveMatchId(
+            initialDraft,
+          )
+        : ''
+
+    const activeLiveMatchId =
+      ref(
+        legacyLiveMatchId,
+      )
+
+    /*
+     * Detached means:
+     *
+     * this store intentionally has no setup draft
+     * and no writable live session bound to it.
+     *
+     * This is useful immediately after a live match
+     * completes or disappears in another tab.
+     */
+    const draftDetached =
+      ref(false)
+
+    const draft =
+      ref(initialDraft)
+
+    if (
+      legacyLiveMatchId
+    ) {
+      const migrated =
+        persist(
+          liveMatchStorageKey(
+            legacyLiveMatchId,
+          ),
+          initialDraft,
+        )
+
+      if (migrated) {
+        removeStored(
+          DRAFT_STORAGE_KEY,
+        )
+      }
+    }
   const results = ref(readArray(RESULT_STORAGE_KEY))
   const invitations = ref(readArray(INVITATION_STORAGE_KEY))
   const savedFormats = ref(readArray(CUSTOM_FORMAT_STORAGE_KEY).map(normalizeCustomFormat))
@@ -334,6 +616,12 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       isEligibleLadderOpponent(currentPlayer, player, config),
     )
   })
+
+  const liveMatchId =
+    computed(
+      () =>
+        activeLiveMatchId.value,
+    )
 
   const formatLabel = computed(() => (draft.value.format === 'noad' ? 'No-Ad' : 'Advantage'))
   const matchTypeLabel = computed(() =>
@@ -430,10 +718,147 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     return `${labels[Math.min(pointsA, 3)]}–${labels[Math.min(pointsB, 3)]}`
   })
 
-  watch(draft, (value) => persist(DRAFT_STORAGE_KEY, value), { deep: true })
+  function persistCurrentDraft(
+    value = draft.value,
+  ) {
+    if (
+      draftDetached.value
+    ) {
+      return false
+    }
+
+    const liveId =
+      activeLiveMatchId.value
+
+    if (liveId) {
+      /*
+       * Critical isolation boundary.
+       *
+       * The state being written must actually
+       * belong to the match represented by
+       * this storage key.
+       */
+      if (
+        resolveLiveMatchId(
+          value,
+        ) !== liveId
+      ) {
+        return false
+      }
+
+      return persist(
+        liveMatchStorageKey(
+          liveId,
+        ),
+        value,
+      )
+    }
+
+    return persist(
+      DRAFT_STORAGE_KEY,
+      value,
+    )
+  }
+
+  watch(
+    draft,
+
+    (value) => {
+      persistCurrentDraft(
+        value,
+      )
+    },
+
+    {
+      deep: true,
+    },
+  )
   watch(results, (value) => persist(RESULT_STORAGE_KEY, value), { deep: true })
   watch(invitations, (value) => persist(INVITATION_STORAGE_KEY, value), { deep: true })
   watch(savedFormats, (value) => persist(CUSTOM_FORMAT_STORAGE_KEY, value), { deep: true })
+
+  function prepareSetupContext() {
+    /*
+     * Never let Start another match mutate
+     * whichever live match happened to be loaded
+     * in this tab.
+     */
+    if (
+      activeLiveMatchId.value
+    ) {
+      persistCurrentDraft()
+
+      activeLiveMatchId.value =
+        ''
+
+      draftDetached.value =
+        false
+
+      draft.value =
+        readDraft()
+
+      return
+    }
+
+    if (
+      draftDetached.value
+    ) {
+      draftDetached.value =
+        false
+
+      draft.value =
+        readDraft()
+    }
+  }
+
+  function clearStartedSetupDraft(
+    matchId,
+  ) {
+    const id =
+      normalizeLiveMatchId(
+        matchId,
+      )
+
+    if (!id) {
+      return false
+    }
+
+    /*
+     * Do not blindly remove the setup key.
+     *
+     * Another tab may already be preparing
+     * another match.
+     */
+    const currentSetup =
+      readDraft()
+
+    if (
+      resolveLiveMatchId(
+        currentSetup,
+      ) !== id
+    ) {
+      return false
+    }
+
+    return removeStored(
+      DRAFT_STORAGE_KEY,
+    )
+  }
+
+  function isCurrentLiveStorageKey(
+    key,
+  ) {
+    const liveId =
+      activeLiveMatchId.value
+
+    return Boolean(
+      liveId &&
+        key ===
+          liveMatchStorageKey(
+            liveId,
+          ),
+    )
+  }
 
   function canManageMatch(actorId = '') {
     return Boolean(actorId && draft.value.ownerId && actorId === draft.value.ownerId)
@@ -598,10 +1023,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
      * Authority transfer is a security/lifecycle
      * transaction. Commit immediately.
      */
-    persist(
-      DRAFT_STORAGE_KEY,
-      draft.value,
-    )
+    persistCurrentDraft()
 
     return true
   }
@@ -691,6 +1113,20 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function cancelActiveInvitation() {
+    /*
+     * A live match is no longer a setup invitation.
+     *
+     * Never erase live match identity because somebody
+     * called a setup-only cancellation function.
+     */
+    if (
+      activeLiveMatchId.value ||
+      draft.value.liveState ||
+      draft.value.status === 'live'
+    ) {
+      return false
+    }
+
     const invitation = activeInvitation.value
 
     if (invitation && ['waiting_for_opponent', 'ready'].includes(invitation.status)) {
@@ -712,29 +1148,39 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (draft.value.status !== 'live') {
       draft.value.status = 'draft'
     }
+
+    return true
   }
 
   function beginMatch() {
     /*
-     * A new match is a hard lifecycle boundary.
+     * If this tab was previously viewing or scoring
+     * another live match, leave that live session intact.
      *
-     * No opponent, invitation, live score, old result
-     * state or previous match session is allowed to
-     * leak into the next match.
+     * We are changing UI context, not ending the match.
+     */
+    prepareSetupContext()
+
+    /*
+     * Cancel only a setup-stage invitation belonging
+     * to this temporary setup context.
      */
     cancelActiveInvitation()
 
+    draftDetached.value =
+      false
+
     draft.value = createDraft()
 
-    /*
-     * Persist immediately rather than waiting for the
-     * deep watcher.
-     *
-     * This is today's frontend equivalent of beginning
-     * a fresh server-side match session.
-     */
-    persist(DRAFT_STORAGE_KEY, draft.value)
-    persist(INVITATION_STORAGE_KEY, invitations.value)
+    persist(
+      DRAFT_STORAGE_KEY,
+      draft.value,
+    )
+
+    persist(
+      INVITATION_STORAGE_KEY,
+      invitations.value,
+    )
 
     return draft.value
   }
@@ -743,6 +1189,8 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (!['friendly', 'ladder'].includes(matchType)) {
       return false
     }
+
+    prepareSetupContext()
 
     /*
      * Selecting a match type here means:
@@ -1492,8 +1940,60 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
      * Both the draft and invitation must already agree before
      * the application navigates to Match Control.
      */
-    persist(DRAFT_STORAGE_KEY, draft.value)
-    persist(INVITATION_STORAGE_KEY, invitations.value)
+    const liveId =
+      resolveLiveMatchId(
+        draft.value,
+      )
+
+    if (!liveId) {
+      return false
+    }
+
+    /*
+     * Bind this store instance to this specific
+     * live match BEFORE future deep-watcher writes.
+     */
+    activeLiveMatchId.value =
+      liveId
+
+    draftDetached.value =
+      false
+
+    /*
+     * The live record must exist before we release
+     * the temporary setup record.
+     */
+    const livePersisted =
+      persistCurrentDraft()
+
+    if (!livePersisted) {
+      /*
+       * During the frontend/mock stage localStorage
+       * is our only durable live authority.
+       *
+       * If it cannot be persisted, fail closed rather
+       * than pretending Match Control safely started.
+       */
+      activeLiveMatchId.value =
+        ''
+
+      return false
+    }
+
+    persist(
+      INVITATION_STORAGE_KEY,
+      invitations.value,
+    )
+
+    /*
+     * Remove the old setup only if it still belongs
+     * to THIS match.
+     *
+     * Another tab may already be creating Court B.
+     */
+    clearStartedSetupDraft(
+      liveId,
+    )
 
     return true
   }
@@ -1660,6 +2160,12 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       return false
     }
 
+    if (
+      activeLiveMatchId.value
+    ) {
+      refreshDraft()
+    }
+
     /*
      * This is now score authority,
      * not ownership authority.
@@ -1688,6 +2194,12 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function undoPoint(actorId = '') {
+    if (
+      activeLiveMatchId.value
+    ) {
+      refreshDraft()
+    }
+
     if (!canScoreMatch(actorId)) {
       return false
     }
@@ -1714,6 +2226,12 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   function setServer(side, actorId = '') {
     if (!['you', 'opponent'].includes(side)) {
       return false
+    }
+
+    if (
+      activeLiveMatchId.value
+    ) {
+      refreshDraft()
     }
 
     if (!canScoreMatch(actorId)) {
@@ -1745,6 +2263,12 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function toggleServer(actorId = '') {
+    if (
+      activeLiveMatchId.value
+    ) {
+      refreshDraft()
+    }
+
     if (!canScoreMatch(actorId)) {
       return false
     }
@@ -1768,27 +2292,266 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     return true
   }
 
-  function refreshDraft() {
-    const stored = readDraft()
+  function mergeLiveDraftSnapshots(
+    current,
+    stored,
+  ) {
+    if (!current) {
+      return stored
+    }
 
-    const currentRevision = Number(draft.value.liveState?.revision || 0)
+    if (!stored) {
+      return current
+    }
 
-    const storedRevision = Number(stored.liveState?.revision || 0)
+    const currentId =
+      resolveLiveMatchId(
+        current,
+      )
+
+    const storedId =
+      resolveLiveMatchId(
+        stored,
+      )
+
+    if (
+      !currentId ||
+      currentId !== storedId
+    ) {
+      return stored
+    }
+
+    const currentScoreRevision =
+      Number(
+        current.liveState
+          ?.revision || 0,
+      )
+
+    const storedScoreRevision =
+      Number(
+        stored.liveState
+          ?.revision || 0,
+      )
+
+    const scoreSource =
+      storedScoreRevision >=
+      currentScoreRevision
+        ? stored
+        : current
+
+    const currentAuthorityRevision =
+      Number(
+        current.scorerRevision ||
+          0,
+      )
+
+    const storedAuthorityRevision =
+      Number(
+        stored.scorerRevision ||
+          0,
+      )
+
+    let authoritySource =
+      storedAuthorityRevision >=
+      currentAuthorityRevision
+        ? stored
+        : current
 
     /*
-     * Never let an older tab overwrite a newer
-     * in-memory score merely because a storage
-     * event arrived late.
+     * Same authority revision:
+     * use the later explicit authority timestamp.
      */
-    if (draft.value.liveState && stored.liveState && storedRevision < currentRevision) {
+    if (
+      storedAuthorityRevision ===
+      currentAuthorityRevision
+    ) {
+      const currentChangedAt =
+        new Date(
+          current.scorerChangedAt ||
+            0,
+        ).getTime()
+
+      const storedChangedAt =
+        new Date(
+          stored.scorerChangedAt ||
+            0,
+        ).getTime()
+
+      authoritySource =
+        storedChangedAt >=
+        currentChangedAt
+          ? stored
+          : current
+    }
+
+    return {
+      ...current,
+
+      ...stored,
+
+      /*
+       * Tennis state and authority state can advance
+       * independently in different tabs.
+       *
+       * Never throw away a newer score merely because
+       * another tab contains a newer scorer revision.
+       */
+      liveState:
+        scoreSource.liveState,
+
+      startedAt:
+        scoreSource.startedAt,
+
+      status:
+        scoreSource.status,
+
+      scorerId:
+        authoritySource.scorerId,
+
+      scorerRevision:
+        authoritySource
+          .scorerRevision,
+
+      scorerChangedAt:
+        authoritySource
+          .scorerChangedAt,
+
+      scorerChangedBy:
+        authoritySource
+          .scorerChangedBy,
+
+      scorerHistory:
+        Array.isArray(
+          authoritySource
+            .scorerHistory,
+        )
+          ? authoritySource
+              .scorerHistory
+              .slice(0, 20)
+          : [],
+    }
+  }
+
+  function hasLiveMatch(
+    matchId,
+  ) {
+    return Boolean(
+      readLiveDraft(
+        matchId,
+      ),
+    )
+  }
+
+  function loadLiveMatch(
+    matchId,
+  ) {
+    const id =
+      normalizeLiveMatchId(
+        matchId,
+      )
+
+    if (!id) {
+      return null
+    }
+
+    /*
+     * Persist the previously loaded live court
+     * before changing this tab's working context.
+     */
+    if (
+      activeLiveMatchId.value &&
+      activeLiveMatchId.value !==
+        id
+    ) {
+      persistCurrentDraft()
+    }
+
+    const stored =
+      readLiveDraft(
+        id,
+      )
+
+    if (!stored) {
+      return null
+    }
+
+    activeLiveMatchId.value =
+      id
+
+    draftDetached.value =
+      false
+
+    draft.value =
+      stored
+
+    syncLegacyScoreFields()
+
+    return draft.value
+  }
+
+  function refreshDraft() {
+    const liveId =
+      activeLiveMatchId.value
+
+    /*
+     * SETUP MODE
+     */
+    if (!liveId) {
+      if (
+        draftDetached.value
+      ) {
+        return null
+      }
+
+      const stored =
+        readDraft()
+
+      draft.value =
+        stored
+
       return draft.value
     }
 
-    draft.value = stored
+    /*
+     * LIVE MODE
+     *
+     * Read ONLY the storage record belonging
+     * to the currently loaded match.
+     */
+    const stored =
+      readLiveDraft(
+        liveId,
+      )
 
-    if (draft.value.liveState) {
-      syncLegacyScoreFields()
+    if (!stored) {
+      /*
+       * Another context may have completed or
+       * removed this live session.
+       *
+       * Stop treating this tab as authoritative.
+       *
+       * Do NOT write the stale live object into
+       * the setup-draft key.
+       */
+      activeLiveMatchId.value =
+        ''
+
+      draftDetached.value =
+        true
+
+      return null
     }
+
+    const merged =
+      mergeLiveDraftSnapshots(
+        draft.value,
+        stored,
+      )
+
+    draft.value =
+      merged
+
+    syncLegacyScoreFields()
 
     return draft.value
   }
@@ -2020,20 +2783,47 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     /*
      * Critical lifecycle boundary:
      *
-     * The live session is now CLOSED.
+     * Close ONLY this live session.
      *
-     * Result data lives in `results`.
-     * It must no longer live inside the active draft.
+     * Do not overwrite DRAFT_STORAGE_KEY here.
+     * Another tab may already be preparing the next
+     * match for another court.
      */
-    draft.value = createDraft()
+    const completedLiveMatchId =
+      activeLiveMatchId.value ||
+      resolveLiveMatchId(
+        draft.value,
+      )
 
-    persist(DRAFT_STORAGE_KEY, draft.value)
+    if (
+      completedLiveMatchId
+    ) {
+      removeStored(
+        liveMatchStorageKey(
+          completedLiveMatchId,
+        ),
+      )
+    }
+
+    activeLiveMatchId.value =
+      ''
+
+    /*
+     * Prevent the deep watcher from writing this empty
+     * local state into the shared setup key.
+     */
+    draftDetached.value =
+      true
+
+    draft.value =
+      createDraft()
 
     return result
   }
 
   return {
     draft,
+    liveMatchId,
     results,
     invitations,
     savedFormats,
@@ -2068,6 +2858,9 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     createScheduledInvitation,
     linkLadderRecords,
     startLiveMatch,
+    hasLiveMatch,
+    loadLiveMatch,
+    isCurrentLiveStorageKey,
     canManageMatch,
     canScoreMatch,
     transferScoringAuthority,

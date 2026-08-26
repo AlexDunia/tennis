@@ -72,6 +72,7 @@ export function normalizeQrClaimToken(value) {
 export function createTvPairingSession({
   matchId,
   createdBy,
+  clubId = '',
 }) {
   const safeMatchId =
     cleanText(
@@ -82,6 +83,12 @@ export function createTvPairingSession({
   const safeCreator =
     cleanText(
       createdBy,
+      120,
+    )
+
+  const safeClubId =
+    cleanText(
+      clubId,
       120,
     )
 
@@ -109,6 +116,9 @@ export function createTvPairingSession({
 
     matchId:
       safeMatchId,
+
+    clubId:
+      safeClubId,
 
     /*
      * Short human-entered pairing credential.

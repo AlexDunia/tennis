@@ -42,6 +42,9 @@ const MAX_MEMORY_SNAPSHOTS = 24
 
 const REQUEST_RESPONSE_MIN_INTERVAL_MS = 500
 
+const MAX_REQUEST_RESPONSE_TRACKED_MATCHES =
+  64
+
 export const LIVE_SCOREBOARD_HEARTBEAT_INTERVAL_MS = 8000
 
 export const LIVE_SCOREBOARD_STALE_AFTER_MS = 24000
@@ -59,6 +62,51 @@ let lastPublishedAt = 0
 const memorySnapshots = new Map()
 
 const requestResponseTimes = new Map()
+
+function rememberRequestResponseTime(
+  matchId,
+  timestamp,
+) {
+  const id =
+    normalizedMatchId(
+      matchId,
+    )
+
+  if (!id) {
+    return
+  }
+
+  /*
+   * Refresh insertion order.
+   *
+   * This keeps the map bounded even after
+   * a long-running tournament has produced
+   * hundreds of historical match IDs.
+   */
+  requestResponseTimes.delete(id)
+
+  requestResponseTimes.set(
+    id,
+    timestamp,
+  )
+
+  while (
+    requestResponseTimes.size >
+    MAX_REQUEST_RESPONSE_TRACKED_MATCHES
+  ) {
+    const oldest =
+      requestResponseTimes.keys()
+        .next().value
+
+    if (!oldest) {
+      break
+    }
+
+    requestResponseTimes.delete(
+      oldest,
+    )
+  }
+}
 
 function browserAvailable() {
   return typeof window !== 'undefined'
@@ -278,33 +326,68 @@ export function isLiveMatchSnapshotNewer(incoming, current) {
 }
 
 export function readLiveMatchSnapshot(matchId) {
-  const id = normalizedMatchId(matchId)
+  const id = normalizedMatchId(
+    matchId,
+  )
 
   if (!id) {
     return null
   }
 
-  /*
-   * Memory first.
-   *
-   * This keeps same-page/runtime recovery useful even
-   * if persistent browser storage is unavailable.
-   */
-  const memory = memorySnapshotFor(id)
+  const memory =
+    memorySnapshotFor(id)
 
-  if (memory) {
+  let stored = null
+
+  if (
+    browserAvailable() &&
+    localStorageAvailable()
+  ) {
+    try {
+      stored =
+        parseStoredSnapshot(
+          window.localStorage.getItem(
+            storageKey(id),
+          ),
+        )
+    } catch {
+      stored = null
+    }
+  }
+
+  if (!memory) {
+    if (stored) {
+      cacheMemorySnapshot(stored)
+    }
+
+    return stored
+  }
+
+  if (!stored) {
     return memory
   }
 
-  if (!browserAvailable() || !localStorageAvailable()) {
-    return null
+  /*
+   * Memory is fast, but it is not automatically
+   * the freshest source.
+   *
+   * A different tab may already have persisted
+   * a newer authoritative revision.
+   */
+  if (
+    isLiveMatchSnapshotNewer(
+      stored,
+      memory,
+    )
+  ) {
+    cacheMemorySnapshot(
+      stored,
+    )
+
+    return stored
   }
 
-  try {
-    return parseStoredSnapshot(window.localStorage.getItem(storageKey(id)))
-  } catch {
-    return null
-  }
+  return memory
 }
 
 export function readLiveMatchHeartbeat(matchId) {
@@ -324,6 +407,36 @@ export function readLiveMatchHeartbeat(matchId) {
     return Number.isFinite(value) ? value : 0
   } catch {
     return 0
+  }
+}
+
+export function clearLiveMatchHeartbeat(
+  matchId,
+) {
+  if (
+    !browserAvailable() ||
+    !localStorageAvailable()
+  ) {
+    return false
+  }
+
+  const id =
+    normalizedMatchId(
+      matchId,
+    )
+
+  if (!id) {
+    return false
+  }
+
+  try {
+    window.localStorage.removeItem(
+      heartbeatStorageKey(id),
+    )
+
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -405,7 +518,10 @@ function handlePublisherChannelMessage(event) {
     return
   }
 
-  requestResponseTimes.set(matchId, now)
+  rememberRequestResponseTime(
+    matchId,
+    now,
+  )
 
   const current = memorySnapshotFor(matchId) || readLiveMatchSnapshot(matchId)
 
@@ -504,6 +620,23 @@ export function publishLiveMatchSnapshot(snapshot) {
     ...cloned,
 
     publishedAt: nextPublishedTimestamp(),
+  }
+
+  /*
+   * Terminal matches no longer require a liveness
+   * heartbeat.
+   *
+   * Keep the final sanitized scoreboard snapshot,
+   * but discard the obsolete heartbeat record.
+   */
+  if (
+    ['finished', 'completed'].includes(
+      payload.status,
+    )
+  ) {
+    clearLiveMatchHeartbeat(
+      payload.matchId,
+    )
   }
 
   /*

@@ -254,18 +254,92 @@ function loadCleanCollections() {
   }
 }
 
-function activePairingForMatch(pairings, matchId, createdBy) {
-  const id = String(matchId || '')
+function activePairingForMatch(
+  pairings,
+  matchId,
+) {
+  const id =
+    String(matchId || '')
 
-  const creator = String(createdBy || '')
+  if (!id) {
+    return null
+  }
 
+  /*
+   * Separation Five:
+   *
+   * Pairing belongs to the MATCH,
+   * not whichever administrator happened
+   * to open the pairing sheet.
+   *
+   * Otherwise two admins could accidentally
+   * create two active display credentials
+   * for the same court.
+   */
   return (
     pairings.find(
       (session) =>
         session.matchId === id &&
-        session.createdBy === creator &&
-        ['waiting', 'claimed'].includes(session.status),
+        [
+          'waiting',
+          'claimed',
+        ].includes(
+          session.status,
+        ),
     ) || null
+  )
+}
+
+function pairingActorCanManage(
+  pairing,
+  actorId,
+  {
+    clubId = '',
+    authorized = false,
+  } = {},
+) {
+  if (!pairing) {
+    return false
+  }
+
+  const actor =
+    String(actorId || '')
+      .trim()
+      .slice(0, 120)
+
+  if (!actor) {
+    return false
+  }
+
+  /*
+   * The person who created the pairing may
+   * always manage that pairing.
+   */
+  if (
+    pairing.createdBy === actor
+  ) {
+    return true
+  }
+
+  const requestedClubId =
+    String(clubId || '')
+      .trim()
+      .slice(0, 120)
+
+  /*
+   * Frontend/mock admin override.
+   *
+   * The caller must already have verified
+   * active-club permission.
+   *
+   * Laravel must derive this server-side.
+   */
+  return Boolean(
+    authorized === true &&
+      requestedClubId &&
+      pairing.clubId &&
+      pairing.clubId ===
+        requestedClubId,
   )
 }
 
@@ -281,31 +355,144 @@ function pairingCredentialsUnique(candidate, sessions) {
   )
 }
 
-export function createPairingSession({ matchId, createdBy }) {
-  const { pairings } = loadCleanCollections()
+export function createPairingSession({
+  matchId,
+  createdBy,
+  clubId = '',
+  authorized = false,
+}) {
+  const {
+    pairings,
+  } = loadCleanCollections()
+
+  const safeMatchId =
+    String(matchId || '')
+      .trim()
+      .slice(0, 120)
+
+  const safeCreator =
+    String(createdBy || '')
+      .trim()
+      .slice(0, 120)
+
+  const safeClubId =
+    String(clubId || '')
+      .trim()
+      .slice(0, 120)
+
+  if (
+    !safeMatchId ||
+    !safeCreator
+  ) {
+    return null
+  }
 
   /*
-   * Separation Four supports one active paired display
-   * per match.
+   * One active paired display per match.
    *
-   * Multi-display management belongs to Separation Five.
+   * The creator/admin viewing the match does
+   * not define display ownership.
    */
-  const existing = activePairingForMatch(pairings, matchId, createdBy)
+  const existing =
+    activePairingForMatch(
+      pairings,
+      safeMatchId,
+    )
 
   if (existing) {
+    /*
+     * Existing creator may reopen it.
+     *
+     * Another authorized admin from the
+     * same club may also manage it.
+     */
+    if (
+      !pairingActorCanManage(
+        existing,
+        safeCreator,
+        {
+          clubId:
+            safeClubId,
+
+          authorized,
+        },
+      )
+    ) {
+      return null
+    }
+
+    /*
+     * Migration for a development pairing
+     * created before clubId existed.
+     *
+     * Only its original creator may bind it.
+     */
+    if (
+      !existing.clubId &&
+      safeClubId &&
+      existing.createdBy ===
+        safeCreator
+    ) {
+      const updated = {
+        ...existing,
+
+        clubId:
+          safeClubId,
+      }
+
+      const next =
+        pairings.map(
+          (session) =>
+            session.sessionId ===
+            updated.sessionId
+              ? updated
+              : session,
+        )
+
+      if (
+        !writeCollection(
+          PAIRING_STORAGE_KEY,
+          next,
+        )
+      ) {
+        return null
+      }
+
+      return updated
+    }
+
     return existing
   }
 
-  let candidate = null
+  let candidate =
+    null
 
-  for (let attempt = 0; attempt < MAX_CREATE_ATTEMPTS; attempt += 1) {
-    const proposed = createTvPairingSession({
-      matchId,
-      createdBy,
-    })
+  for (
+    let attempt = 0;
+    attempt <
+    MAX_CREATE_ATTEMPTS;
+    attempt += 1
+  ) {
+    const proposed =
+      createTvPairingSession({
+        matchId:
+          safeMatchId,
 
-    if (pairingCredentialsUnique(proposed, pairings)) {
-      candidate = proposed
+        createdBy:
+          safeCreator,
+
+        clubId:
+          safeClubId,
+      })
+
+    if (
+      pairingCredentialsUnique(
+        proposed,
+        pairings,
+      )
+    ) {
+      candidate =
+        proposed
 
       break
     }
@@ -315,9 +502,20 @@ export function createPairingSession({ matchId, createdBy }) {
     return null
   }
 
-  const next = [candidate, ...pairings].slice(0, MAX_PAIRING_SESSIONS)
+  const next = [
+    candidate,
+    ...pairings,
+  ].slice(
+    0,
+    MAX_PAIRING_SESSIONS,
+  )
 
-  if (!writeCollection(PAIRING_STORAGE_KEY, next)) {
+  if (
+    !writeCollection(
+      PAIRING_STORAGE_KEY,
+      next,
+    )
+  ) {
     return null
   }
 
@@ -570,7 +768,11 @@ export function getReadableDisplaySession(displaySessionId) {
   return displaySessionCanRead(session, session.matchId) ? session : null
 }
 
-export function cancelPairingSession(sessionId, actorId) {
+export function cancelPairingSession(
+  sessionId,
+  actorId,
+  options = {},
+) {
   const pairings = currentPairingSessions()
 
   const target = pairings.find((session) => session.sessionId === String(sessionId || ''))
@@ -585,7 +787,13 @@ export function cancelPairingSession(sessionId, actorId) {
    * Laravel must later derive the actor from the
    * authenticated request rather than browser input.
    */
-  if (target.createdBy !== String(actorId || '')) {
+  if (
+    !pairingActorCanManage(
+      target,
+      actorId,
+      options,
+    )
+  ) {
     return false
   }
 
@@ -604,7 +812,11 @@ export function cancelPairingSession(sessionId, actorId) {
   return writeCollection(PAIRING_STORAGE_KEY, next)
 }
 
-export function revokePairedDisplay(pairingSessionId, actorId) {
+export function revokePairedDisplay(
+  pairingSessionId,
+  actorId,
+  options = {},
+) {
   const pairings = currentPairingSessions()
 
   const displays = currentDisplaySessions()
@@ -614,8 +826,17 @@ export function revokePairedDisplay(pairingSessionId, actorId) {
   if (
     !pairing ||
     pairing.status !== 'claimed' ||
-    pairing.createdBy !== String(actorId || '') ||
     !pairing.displaySessionId
+  ) {
+    return false
+  }
+
+  if (
+    !pairingActorCanManage(
+      pairing,
+      actorId,
+      options,
+    )
   ) {
     return false
   }
@@ -711,6 +932,271 @@ export function clearDisplaySessionForThisTab() {
     window.sessionStorage.removeItem(TAB_DISPLAY_SESSION_KEY)
   } catch {
     // no-op
+  }
+}
+
+function displayOperationsState(
+  pairing,
+  displays,
+) {
+  if (!pairing) {
+    return null
+  }
+
+  const display =
+    pairing.status ===
+      'claimed' &&
+    pairing.displaySessionId
+      ? displays.find(
+          (session) =>
+            session.displaySessionId ===
+            pairing.displaySessionId,
+        )
+      : null
+
+  return {
+    /*
+     * PRIVATE Operations projection.
+     *
+     * No pairingCode.
+     * No qrClaimToken.
+     * No displaySessionId.
+     */
+    matchId:
+      String(
+        pairing.matchId || '',
+      ),
+
+    clubId:
+      String(
+        pairing.clubId || '',
+      ),
+
+    status:
+      pairing.status ===
+        'claimed' &&
+      display &&
+      displaySessionCanRead(
+        display,
+        pairing.matchId,
+      )
+        ? 'connected'
+        : 'waiting',
+
+    pairingExpiresAt:
+      Number(
+        pairing.expiresAt ||
+          0,
+      ),
+
+    displayExpiresAt:
+      Number(
+        display?.expiresAt ||
+          pairing.displayExpiresAt ||
+          0,
+      ),
+  }
+}
+
+export function getTvDisplayStatesForClub(
+  clubId,
+) {
+  const requestedClubId =
+    String(clubId || '')
+      .trim()
+      .slice(0, 120)
+
+  if (!requestedClubId) {
+    return []
+  }
+
+  const {
+    pairings,
+    displays,
+  } = loadCleanCollections()
+
+  return pairings
+    .filter(
+      (pairing) =>
+        pairing.clubId ===
+        requestedClubId,
+    )
+    .map(
+      (pairing) =>
+        displayOperationsState(
+          pairing,
+          displays,
+        ),
+    )
+    .filter(Boolean)
+}
+
+export function getTvDisplayStateForMatch(
+  matchId,
+  clubId,
+) {
+  const id =
+    String(matchId || '')
+      .trim()
+      .slice(0, 120)
+
+  if (!id) {
+    return null
+  }
+
+  return (
+    getTvDisplayStatesForClub(
+      clubId,
+    ).find(
+      (state) =>
+        state.matchId === id,
+    ) || null
+  )
+}
+
+export function getManageablePairingSessionForMatch({
+  matchId,
+  actorId,
+  clubId,
+  authorized = false,
+}) {
+  const id =
+    String(matchId || '')
+      .trim()
+      .slice(0, 120)
+
+  if (!id) {
+    return null
+  }
+
+  const {
+    pairings,
+  } = loadCleanCollections()
+
+  const pairing =
+    activePairingForMatch(
+      pairings,
+      id,
+    )
+
+  if (!pairing) {
+    return null
+  }
+
+  return pairingActorCanManage(
+    pairing,
+    actorId,
+    {
+      clubId,
+      authorized,
+    },
+  )
+    ? {
+        ...pairing,
+      }
+    : null
+}
+
+export function subscribeToTvDisplayStatesForClub(
+  clubId,
+  onChange,
+) {
+  if (
+    !browserAvailable() ||
+    typeof onChange !==
+      'function'
+  ) {
+    return () => {}
+  }
+
+  const requestedClubId =
+    String(clubId || '')
+      .trim()
+      .slice(0, 120)
+
+  if (!requestedClubId) {
+    return () => {}
+  }
+
+  let expiryTimer =
+    null
+
+  function emit() {
+    onChange(
+      getTvDisplayStatesForClub(
+        requestedClubId,
+      ),
+    )
+  }
+
+  function handleStorage(
+    event,
+  ) {
+    if (
+      [
+        PAIRING_STORAGE_KEY,
+        DISPLAY_STORAGE_KEY,
+      ].includes(
+        event.key,
+      )
+    ) {
+      emit()
+    }
+  }
+
+  function handleLocal(
+    event,
+  ) {
+    if (
+      [
+        PAIRING_STORAGE_KEY,
+        DISPLAY_STORAGE_KEY,
+      ].includes(
+        event.detail?.key,
+      )
+    ) {
+      emit()
+    }
+  }
+
+  window.addEventListener(
+    'storage',
+    handleStorage,
+  )
+
+  window.addEventListener(
+    LOCAL_CHANGE_EVENT,
+    handleLocal,
+  )
+
+  /*
+   * One expiry refresh for all displays
+   * in this club — not one timer per court.
+   */
+  expiryTimer =
+    window.setInterval(
+      emit,
+      10000,
+    )
+
+  emit()
+
+  return () => {
+    window.removeEventListener(
+      'storage',
+      handleStorage,
+    )
+
+    window.removeEventListener(
+      LOCAL_CHANGE_EVENT,
+      handleLocal,
+    )
+
+    if (expiryTimer) {
+      window.clearInterval(
+        expiryTimer,
+      )
+    }
   }
 }
 

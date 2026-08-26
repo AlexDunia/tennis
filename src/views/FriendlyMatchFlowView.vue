@@ -34,7 +34,13 @@ import {
   createLiveScoreboardSnapshot,
   getLiveScoreboardMatchId,
 } from '../utils/liveScoreboardSnapshot'
+import {
+  createLiveOperationsSnapshot,
+} from '../utils/liveOperationsSnapshot'
 import { publishLiveMatchSnapshot, startLiveMatchHeartbeat } from '../services/liveMatchRealtime'
+import {
+  publishLiveOperationsSnapshot,
+} from '../services/liveOperationsRegistry'
 import {
   cancelPairingSession,
   createPairingSession,
@@ -164,11 +170,59 @@ const isChairUmpireControlRoute =
       true,
   )
 
+const requestedLiveMatchId =
+  computed(() => {
+    if (
+      step.value !== 'live'
+    ) {
+      return ''
+    }
+
+    const routeMatchId =
+      String(
+        route.params.matchId ||
+          '',
+      )
+        .trim()
+        .slice(0, 120)
+
+    if (routeMatchId) {
+      return routeMatchId
+    }
+
+    /*
+     * Guest chair umpires may still arrive through
+     * the migration-compatible route without a URL
+     * parameter.
+     *
+     * Their scorer capability is tab-bound and already
+     * identifies the exact match.
+     */
+    if (
+      isChairUmpireControlRoute
+        .value
+    ) {
+      return String(
+        chairUmpireScorerSession
+          .value?.matchId ||
+          '',
+      )
+        .trim()
+        .slice(0, 120)
+    }
+
+    return ''
+  })
+
 const currentLiveMatchId =
-  computed(() =>
-    getLiveScoreboardMatchId(
-      friendlyMatchStore.draft,
-    ),
+  computed(
+    () =>
+      requestedLiveMatchId.value ||
+      friendlyMatchStore
+        .liveMatchId ||
+      getLiveScoreboardMatchId(
+        friendlyMatchStore.draft,
+      ),
   )
 
 const isLadder = computed(() => friendlyMatchStore.draft.matchType === 'ladder')
@@ -537,6 +591,18 @@ const canRenderCurrentRoute = computed(() => {
   if (step.value === 'live') {
     const draft = friendlyMatchStore.draft
 
+    const requestedId =
+      requestedLiveMatchId.value
+
+    if (
+      !requestedId ||
+      friendlyMatchStore
+        .liveMatchId !==
+        requestedId
+    ) {
+      return false
+    }
+
     if (
       isChairUmpireControlRoute.value
     ) {
@@ -747,7 +813,8 @@ const LADDER_FLOW_PATHS = Object.freeze({
   FriendlyMatchFormat: '/ladder-match/format',
   FriendlyMatchScheduled: '/ladder-match/sent',
   FriendlyMatchJoinInvitation: '/ladder-match/join/:token',
-  FriendlyMatchLive: '/ladder-match/live',
+  FriendlyMatchLive:
+    '/ladder-match/live/:matchId',
 })
 
 function flowLocation(name, options = {}) {
@@ -762,6 +829,27 @@ function flowLocation(name, options = {}) {
     template,
   )
   return Object.keys(query).length ? { path, query } : { path }
+}
+
+function liveMatchLocation() {
+  const matchId =
+    friendlyMatchStore
+      .liveMatchId
+
+  if (!matchId) {
+    return {
+      name: 'Play',
+    }
+  }
+
+  return flowLocation(
+    'FriendlyMatchLive',
+    {
+      params: {
+        matchId,
+      },
+    },
+  )
 }
 
 const chairUmpireInviteUrl = computed(() => {
@@ -924,14 +1012,20 @@ function guardStep() {
       refreshChairUmpireScorerSession()
 
     const matchId =
-      getLiveScoreboardMatchId(
-        friendlyMatchStore.draft,
-      )
+      requestedLiveMatchId.value
 
     const sessionValid =
       chairUmpireScorerSessionCanControl(
         session,
         matchId,
+      )
+
+    const correctLiveSession =
+      Boolean(
+        matchId &&
+          friendlyMatchStore
+            .liveMatchId ===
+            matchId,
       )
 
     const matchExists =
@@ -961,6 +1055,7 @@ function guardStep() {
      */
     if (
       !sessionValid ||
+      !correctLiveSession ||
       !matchExists ||
       !stillAssigned
     ) {
@@ -1173,8 +1268,21 @@ function guardStep() {
      * - opponent
      * - real liveState
      * - status === live
-     */
+    */
     if (step.value === 'live') {
+      if (
+        !requestedLiveMatchId.value ||
+        friendlyMatchStore
+          .liveMatchId !==
+          requestedLiveMatchId.value
+      ) {
+        router.replace({
+          name: 'Dashboard',
+        })
+
+        return
+      }
+
       const hasScoring = Boolean(friendlyMatchStore.draft.format)
 
       const hasOpponent = Boolean(friendlyMatchStore.draft.opponent)
@@ -1205,8 +1313,24 @@ function guardStep() {
    * → Join / Schedule
    * → Format
    * → Live
-   */
+  */
   if (isLadder.value) {
+    if (
+      step.value === 'live' &&
+      (
+        !requestedLiveMatchId.value ||
+        friendlyMatchStore
+          .liveMatchId !==
+          requestedLiveMatchId.value
+      )
+    ) {
+      router.replace({
+        name: 'Dashboard',
+      })
+
+      return
+    }
+
     if (step.value === 'timing' && !friendlyMatchStore.draft.opponent) {
       router.replace(flowLocation('FriendlyMatchClubOpponent'))
 
@@ -1470,7 +1594,9 @@ function chooseFormat(format) {
       adminStore.activeClubId ||
         '',
     )
-    router.push(flowLocation('FriendlyMatchLive'))
+    router.push(
+      liveMatchLocation(),
+    )
   } else if (isFriendly.value) router.push(flowLocation('FriendlyMatchFormat'))
 }
 function chooseMatchFormat(matchFormat) {
@@ -1656,7 +1782,9 @@ async function completeReview() {
 
       publishCurrentLiveScoreboard({ type: 'start' })
 
-      router.push(flowLocation('FriendlyMatchLive'))
+      router.push(
+        liveMatchLocation(),
+      )
 
       return
     }
@@ -1705,7 +1833,9 @@ async function completeReview() {
 
     publishCurrentLiveScoreboard({ type: 'start' })
 
-    router.push(flowLocation('FriendlyMatchLive'))
+    router.push(
+      liveMatchLocation(),
+    )
 
     return
   }
@@ -1778,24 +1908,199 @@ function publicScoreboardSide(side) {
   return null
 }
 
-function publishCurrentLiveScoreboard(event = { type: 'sync' }) {
-  const snapshot = createLiveScoreboardSnapshot({
-    draft: friendlyMatchStore.draft,
-    playerAPoint: friendlyMatchStore.pointLabel('you'),
-    playerBPoint: friendlyMatchStore.pointLabel('opponent'),
-    matchFormatLabel: friendlyMatchStore.matchFormatLabel,
-    scoringFormatLabel: friendlyMatchStore.formatLabel,
+function buildCurrentLiveScoreboardSnapshot(
+  event = {
+    type: 'sync',
+  },
+) {
+  return createLiveScoreboardSnapshot({
+    draft:
+      friendlyMatchStore.draft,
+
+    playerAPoint:
+      friendlyMatchStore.pointLabel(
+        'you',
+      ),
+
+    playerBPoint:
+      friendlyMatchStore.pointLabel(
+        'opponent',
+      ),
+
+    matchFormatLabel:
+      friendlyMatchStore
+        .matchFormatLabel,
+
+    scoringFormatLabel:
+      friendlyMatchStore
+        .formatLabel,
+
     event: {
-      type: event?.type || 'sync',
-      side: publicScoreboardSide(event?.side),
+      type:
+        event?.type ||
+        'sync',
+
+      side:
+        publicScoreboardSide(
+          event?.side,
+        ),
     },
   })
+}
+
+function liveOperationsScorerName() {
+  const draft =
+    friendlyMatchStore.draft
+
+  const scorerId =
+    draft.scorerId || ''
+
+  if (!scorerId) {
+    return ''
+  }
+
+  const playerAName =
+    draft.liveState?.players
+      ?.playerA ||
+    authenticatedIdentity.value
+      .name
+
+  if (
+    scorerId ===
+    draft.ownerId
+  ) {
+    return playerAName
+  }
+
+  const accepted =
+    chairUmpireInvitation.value
+      ?.acceptedIdentity
+
+  const acceptedId =
+    accepted?.userId ||
+    accepted?.guestId ||
+    ''
+
+  if (
+    acceptedId &&
+    acceptedId === scorerId
+  ) {
+    return (
+      accepted?.name ||
+      'Chair umpire'
+    )
+  }
+
+  if (
+    scorerId ===
+    authenticatedIdentity.value
+      .id
+  ) {
+    return (
+      authenticatedIdentity.value
+        .name ||
+      'Club admin'
+    )
+  }
+
+  if (
+    scorerId ===
+    currentIdentity.value.id
+  ) {
+    return (
+      currentIdentity.value.name ||
+      'Assigned scorer'
+    )
+  }
+
+  return 'Assigned scorer'
+}
+
+function publishOperationsForScoreboard(
+  scoreboard,
+) {
+  if (!scoreboard) {
+    return false
+  }
+
+  const operations =
+    createLiveOperationsSnapshot({
+      scoreboard,
+
+      draft:
+        friendlyMatchStore.draft,
+
+      scorerName:
+        liveOperationsScorerName(),
+
+      /*
+       * Current TV controller code does not
+       * yet maintain a reliable always-live
+       * display connection state.
+       *
+       * Do not invent false.
+       */
+      displayConnected: null,
+
+      eventType:
+        scoreboard.event?.type ||
+        'sync',
+    })
+
+  if (!operations) {
+    return false
+  }
+
+  return publishLiveOperationsSnapshot(
+    operations,
+  )
+}
+
+function publishCurrentLiveOperations(
+  event = {
+    type: 'sync',
+  },
+) {
+  const scoreboard =
+    buildCurrentLiveScoreboardSnapshot(
+      event,
+    )
+
+  return publishOperationsForScoreboard(
+    scoreboard,
+  )
+}
+
+function publishCurrentLiveScoreboard(
+  event = {
+    type: 'sync',
+  },
+) {
+  const snapshot =
+    buildCurrentLiveScoreboardSnapshot(
+      event,
+    )
 
   if (!snapshot) {
     return false
   }
 
-  return publishLiveMatchSnapshot(snapshot)
+  const delivered =
+    publishLiveMatchSnapshot(
+      snapshot,
+    )
+
+  /*
+   * Operations receives a projection
+   * of the same authoritative score.
+   *
+   * No second tennis calculation.
+   */
+  publishOperationsForScoreboard(
+    snapshot,
+  )
+
+  return delivered
 }
 
 function syncLiveScoreboardHeartbeat() {
@@ -2179,6 +2484,10 @@ function handoffChairUmpireControl() {
 
   chairUmpireInvitation.value =
     granted
+
+  publishCurrentLiveOperations({
+    type: 'authority',
+  })
 }
 
 function reclaimChairUmpireControl() {
@@ -2204,6 +2513,10 @@ function reclaimChairUmpireControl() {
 
     return
   }
+
+  publishCurrentLiveOperations({
+    type: 'authority',
+  })
 
   const invitation =
     chairUmpireInvitation.value
@@ -2288,6 +2601,10 @@ function emergencyTakeMatchControl() {
 
     return
   }
+
+  publishCurrentLiveOperations({
+    type: 'authority',
+  })
 
   inlineNote.value =
     'You now have Match Control.'
@@ -2581,6 +2898,12 @@ async function openTvPairing() {
 
       createdBy:
         currentIdentity.value.id,
+
+      clubId:
+        friendlyMatchStore
+          .draft.clubId ||
+        adminStore.activeClubId ||
+        '',
     })
 
   if (!session) {
@@ -2862,6 +3185,17 @@ async function finalizeFriendlyMatch() {
    * - closes the invitation
    * - clears the active live draft
    */
+  /*
+   * Tell Live Operations that active scoring has ended
+   * BEFORE endMatch() closes/removes the live session.
+   *
+   * The scoring engine has already declared the winner,
+   * so this is now a terminal operational state.
+   */
+  publishCurrentLiveOperations({
+    type: 'complete',
+  })
+
   const result = friendlyMatchStore.endMatch(currentIdentity.value.id)
 
   if (!result) {
@@ -3380,15 +3714,49 @@ function handleStorage(event) {
    * work during a real live match.
    */
 
-  if (key.includes('friendlyMatchDraft')) {
-    friendlyMatchStore.refreshDraft()
+  /*
+   * SETUP DRAFT
+   *
+   * A live Match Control page does not care that
+   * another tab is configuring the next match.
+   */
+  if (
+    key.includes(
+      'friendlyMatchDraft',
+    )
+  ) {
+    if (
+      step.value !== 'live'
+    ) {
+      friendlyMatchStore
+        .refreshDraft()
+    }
 
-    /*
-     * Another tab may have completed or reset the match.
-     * Refreshing state alone must not leave an obsolete live route mounted.
-     */
-    if (step.value === 'live') {
+    return
+  }
+
+  /*
+   * MATCH-SCOPED LIVE SESSION
+   *
+   * Court A ignores Court B's storage event.
+   */
+  if (
+    key.includes(
+      'friendlyMatchLive.v1.',
+    )
+  ) {
+    if (
+      step.value === 'live' &&
+      friendlyMatchStore
+        .isCurrentLiveStorageKey(
+          key,
+        )
+    ) {
+      friendlyMatchStore
+        .refreshDraft()
+
       guardStep()
+
       syncLiveScoreboardHeartbeat()
     }
 
@@ -3422,8 +3790,37 @@ function recoverCurrentMatchState() {
    * refreshDraft() already protects newer revisions from
    * being overwritten by older persisted snapshots.
    */
-  if (step.value === 'live') {
-    friendlyMatchStore.refreshDraft()
+  if (
+    step.value === 'live'
+  ) {
+    const requestedId =
+      requestedLiveMatchId.value
+
+    if (!requestedId) {
+      return
+    }
+
+    /*
+     * Opening Match A explicitly loads Match A.
+     *
+     * It does not matter which court this browser
+     * happened to have open previously.
+     */
+    if (
+      friendlyMatchStore
+        .liveMatchId !==
+      requestedId
+    ) {
+      friendlyMatchStore
+        .loadLiveMatch(
+          requestedId,
+        )
+
+      return
+    }
+
+    friendlyMatchStore
+      .refreshDraft()
 
     return
   }

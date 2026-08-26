@@ -8,6 +8,8 @@ import MatchDetailsView from '../views/MatchDetailsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
 import LiveScoreboardView from '../views/LiveScoreboardView.vue'
+import LiveOperationsView from '../views/LiveOperationsView.vue'
+import LiveOperationDetailView from '../views/LiveOperationDetailView.vue'
 import TvDisplayPairingView from '../views/TvDisplayPairingView.vue'
 import TvDisplayLiveView from '../views/TvDisplayLiveView.vue'
 import ChairUmpireInvitationView from '../views/ChairUmpireInvitationView.vue'
@@ -304,8 +306,12 @@ const routes = [
     },
   },
   {
-    path: '/friendly-match/live',
-    alias: '/ladder-match/live',
+    path:
+      '/friendly-match/live/:matchId',
+
+    alias:
+      '/ladder-match/live/:matchId',
+
     name: 'FriendlyMatchLive',
     component: FriendlyMatchFlowView,
     meta: {
@@ -456,6 +462,30 @@ const routes = [
     },
   },
   {
+    path: '/operations/live',
+    name: 'LiveOperations',
+    component: LiveOperationsView,
+    meta: {
+      title: 'Live Operations',
+      subtitle: 'See every live court in your club.',
+      permission: 'matches.live_score',
+      activeClubPermission: true,
+      primarySection: 'play',
+    },
+  },
+  {
+    path: '/operations/live/:matchId',
+    name: 'LiveOperationDetail',
+    component: LiveOperationDetailView,
+    meta: {
+      title: 'Live Match Operations',
+      subtitle: 'Review a live court and its Match Control authority.',
+      permission: 'matches.live_score',
+      activeClubPermission: true,
+      primarySection: 'play',
+    },
+  },
+  {
     path: '/live-scoreboard/:matchId',
     name: 'LiveScoreboard',
     component: LiveScoreboardView,
@@ -547,7 +577,8 @@ const routes = [
     },
   },
   {
-    path: '/match-umpire/control',
+    path:
+      '/match-umpire/control/:matchId?',
 
     name: 'ChairUmpireMatchControl',
 
