@@ -2432,6 +2432,199 @@ export const useFriendlyMatchStore = defineStore(
     }
   }
 
+  /*
+   * Home / personal live-match projection.
+   *
+   * This deliberately exposes only live matches that:
+   *
+   * - belong to the active club
+   * - directly involve the current actor
+   * - still have a real live scoring state
+   *
+   * Home must never discover unrelated club matches merely
+   * because they happen to exist in browser storage.
+   *
+   * Laravel will eventually replace this query with an
+   * authenticated server-side equivalent.
+   */
+  function listLiveMatchesForUser({
+    clubId = '',
+    actorId = '',
+  } = {}) {
+    const requestedClubId =
+      normalizeAuthorityId(clubId)
+
+    const requestedActorId =
+      normalizeAuthorityId(actorId)
+
+    /*
+     * Fail closed.
+     *
+     * Without both club and actor identity there is no
+     * legitimate personal Home projection to return.
+     */
+    if (
+      !requestedClubId ||
+      !requestedActorId ||
+      typeof window === 'undefined'
+    ) {
+      return []
+    }
+
+    const matches = []
+
+    try {
+      const storage =
+        window.localStorage
+
+      for (
+        let index = 0;
+        index < storage.length;
+        index += 1
+      ) {
+        const key =
+          storage.key(index) || ''
+
+        if (
+          !key.startsWith(
+            LIVE_MATCH_STORAGE_PREFIX,
+          )
+        ) {
+          continue
+        }
+
+        const encodedMatchId =
+          key.slice(
+            LIVE_MATCH_STORAGE_PREFIX.length,
+          )
+
+        let matchId = ''
+
+        try {
+          matchId =
+            decodeURIComponent(
+              encodedMatchId,
+            )
+        } catch {
+          continue
+        }
+
+        const match =
+          readLiveDraft(matchId)
+
+        if (
+          !match ||
+          match.status !== 'live' ||
+          !match.liveState ||
+          match.liveState.matchWinner ||
+          match.over
+        ) {
+          continue
+        }
+
+        /*
+         * Active-club isolation.
+         */
+        if (
+          normalizeAuthorityId(
+            match.clubId,
+          ) !== requestedClubId
+        ) {
+          continue
+        }
+
+        /*
+         * Personal relationship only.
+         *
+         * owner:
+         * creator / match owner
+         *
+         * scorer:
+         * delegated scorer / chair umpire etc.
+         *
+         * opponent:
+         * second match participant
+         */
+        const relationshipIds =
+          new Set(
+            [
+              match.ownerId,
+              match.scorerId,
+              match.opponent?.id,
+            ]
+              .map(
+                normalizeAuthorityId,
+              )
+              .filter(Boolean),
+          )
+
+        if (
+          !relationshipIds.has(
+            requestedActorId,
+          )
+        ) {
+          continue
+        }
+
+        matches.push(match)
+      }
+    } catch {
+      /*
+       * Restricted/private browser storage should not
+       * crash Home or leak fallback data.
+       */
+      return []
+    }
+
+    return matches
+  }
+
+  /*
+   * Cross-tab live-match changes.
+   *
+   * No polling:
+   * remain idle when nothing changes and react only when
+   * another browser tab actually changes live-match state.
+   */
+  function subscribeToLiveMatchChanges(
+    callback,
+  ) {
+    if (
+      typeof callback !== 'function' ||
+      typeof window === 'undefined'
+    ) {
+      return () => {}
+    }
+
+    const handleStorage = (event) => {
+      /*
+       * key === null means localStorage was cleared.
+       */
+      if (
+        event.key !== null &&
+        !event.key.startsWith(
+          LIVE_MATCH_STORAGE_PREFIX,
+        )
+      ) {
+        return
+      }
+
+      callback()
+    }
+
+    window.addEventListener(
+      'storage',
+      handleStorage,
+    )
+
+    return () => {
+      window.removeEventListener(
+        'storage',
+        handleStorage,
+      )
+    }
+  }
+
   function hasLiveMatch(
     matchId,
   ) {
@@ -2858,6 +3051,8 @@ export const useFriendlyMatchStore = defineStore(
     createScheduledInvitation,
     linkLadderRecords,
     startLiveMatch,
+    listLiveMatchesForUser,
+    subscribeToLiveMatchChanges,
     hasLiveMatch,
     loadLiveMatch,
     isCurrentLiveStorageKey,

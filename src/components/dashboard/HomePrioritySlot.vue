@@ -13,7 +13,7 @@ defineEmits(['open'])
   <section class="home-priority" aria-labelledby="home-priority-title">
     <div class="home-priority__copy">
       <p class="home-priority__eyebrow">
-        <span class="home-priority__live-dot" aria-hidden="true"></span>
+        <span class="home-priority__state-dot" aria-hidden="true"></span>
 
         {{ priority.eyebrow }}
       </p>
@@ -79,7 +79,7 @@ defineEmits(['open'])
   line-height: 1.2;
 }
 
-.home-priority__live-dot {
+.home-priority__state-dot {
   width: 7px;
   height: 7px;
   flex: 0 0 7px;

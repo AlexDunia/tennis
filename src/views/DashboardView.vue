@@ -1,17 +1,30 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import ClubActivityCard from '../components/dashboard/ClubActivityCard.vue'
 import ClubOpportunityBanner from '../components/dashboard/ClubOpportunityBanner.vue'
 import MemberLadderSnapshot from '../components/dashboard/MemberLadderSnapshot.vue'
+import HomePrioritySlot from '../components/dashboard/HomePrioritySlot.vue'
 import EmptyState from '../components/EmptyState.vue'
 import { getActiveLadderConfig, isEligibleLadderOpponent } from '../config/ladder'
+import { useAuthStore } from '../stores/auth'
+import { useFriendlyMatchStore } from '../stores/friendlyMatch'
 import { useAdminStore } from '../stores/admin'
 import { useChallengeStore } from '../stores/challenge'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
 import { isSafeImageSource } from '../utils/formSafety'
+import { resolveLiveMatchPriority } from '../utils/homePriority/liveMatchPriority'
+import { resolveReadyMatchPriority } from '../utils/homePriority/readyMatchPriority'
+import { resolveHomePriority } from '../utils/homePriority/resolveHomePriority'
+import { resolveResultReviewPriority } from '../utils/homePriority/resultReviewPriority'
 
 const COURT_IMAGES = Object.freeze([
   'https://res.cloudinary.com/dnuhjsckk/image/upload/v1777007467/tennis-court-render-3d-illustration-_2_do7vjj.jpg',
@@ -21,7 +34,9 @@ const COURT_IMAGES = Object.freeze([
 const ACTIVE_CHALLENGE_STATES = new Set(['awaiting', 'scheduled', 'pending_review'])
 
 const router = useRouter()
+const authStore = useAuthStore()
 const adminStore = useAdminStore()
+const friendlyMatchStore = useFriendlyMatchStore()
 const challengeStore = useChallengeStore()
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
@@ -29,8 +44,106 @@ const tournamentStore = useTournamentStore()
 
 const hasLoaded = ref(false)
 const loadNotice = ref('')
+const livePriorityMatches = ref([])
+
+/*
+ * Time itself is an input into match readiness.
+ *
+ * This is NOT data polling.
+ *
+ * We only advance the local clock so the same
+ * challenge lifecycle can naturally cross its
+ * existing readiness boundary while Home is open.
+ */
+const priorityNow = ref(
+  Date.now(),
+)
+
+let stopLiveMatchSubscription =
+  null
+
+let priorityClockTimer =
+  null
 
 const currentPlayer = computed(() => playerStore.currentPlayer)
+const currentActorId = computed(() =>
+  String(
+    currentPlayer.value?.id ||
+      authStore.user?.playerId ||
+      authStore.user?.id ||
+      '',
+  ).trim(),
+)
+
+const liveMatchPriority =
+  computed(() =>
+    resolveLiveMatchPriority({
+      matches:
+        livePriorityMatches.value,
+
+      actorId:
+        currentActorId.value,
+    }),
+  )
+
+const readyMatchPriority =
+  computed(() =>
+    resolveReadyMatchPriority({
+      challenges:
+        challengeStore.challenges,
+
+      matches:
+        matchStore.matches,
+
+      actorId:
+        currentActorId.value,
+
+      clubId:
+        adminStore.activeClubId ||
+        '',
+
+      now:
+        priorityNow.value,
+    }),
+  )
+
+const resultReviewPriority =
+  computed(() =>
+    resolveResultReviewPriority({
+      challenges:
+        challengeStore.challenges,
+
+      matches:
+        matchStore.matches,
+
+      actorId:
+        currentActorId.value,
+
+      clubId:
+        adminStore.activeClubId ||
+        '',
+
+      now:
+        priorityNow.value,
+    }),
+  )
+
+/*
+ * There is still ONE Home Priority Slot.
+ *
+ * Live beats Ready.
+ *
+ * Later V1-C, V1-D, etc. simply become additional
+ * candidates here.
+ */
+const homePriority =
+  computed(() =>
+    resolveHomePriority([
+      liveMatchPriority.value,
+      readyMatchPriority.value,
+      resultReviewPriority.value,
+    ]),
+  )
 const sortedLadder = computed(() => playerStore.sortedLadder.filter((player) => Number(player.rank) > 0))
 const isDashboardLoading = computed(() => !hasLoaded.value)
 const ladderError = computed(() => playerStore.error || '')
@@ -148,9 +261,37 @@ function formatActivityTime(value) {
 }
 
 const activityCards = computed(() => {
-  const currentId = playerStore.currentPlayerId
-  const challenges = [...challengeStore.challenges]
-  const matches = matchStore.matches.filter((match) => !match.isBye)
+  const currentId =
+    playerStore.currentPlayerId
+
+  /*
+   * A state promoted into Priority should not also
+   * appear immediately below as ordinary activity.
+   */
+  const promotedChallengeId =
+    homePriority.value?.challengeId ||
+    ''
+
+  const promotedMatchId =
+    homePriority.value?.matchId ||
+    ''
+
+  const challenges =
+    challengeStore.challenges.filter(
+      (challenge) =>
+        challenge.id !==
+        promotedChallengeId,
+    )
+
+  const matches =
+    matchStore.matches.filter(
+      (match) =>
+        !match.isBye &&
+        match.id !==
+          promotedMatchId &&
+        match.challengeId !==
+          promotedChallengeId,
+    )
 
   if (!challenges.length && !matches.length) return []
 
@@ -290,6 +431,105 @@ const clubOpportunity = computed(() => {
   }
 })
 
+function refreshPriorityClock() {
+  priorityNow.value =
+    Date.now()
+}
+
+function handlePriorityVisibilityChange() {
+  if (
+    document.visibilityState ===
+    'visible'
+  ) {
+    refreshPriorityClock()
+  }
+}
+
+function refreshHomeLiveMatches() {
+  livePriorityMatches.value =
+    friendlyMatchStore.listLiveMatchesForUser({
+      clubId:
+        adminStore.activeClubId ||
+        activeClub.value?.id ||
+        '',
+
+      actorId:
+        currentActorId.value,
+    })
+}
+
+function openHomePriority(
+  priority,
+) {
+  if (!priority) {
+    return
+  }
+
+  if (
+    priority.action ===
+      'open_live_match' &&
+    priority.matchId
+  ) {
+    router.push({
+      name: 'FriendlyMatchLive',
+
+      params: {
+        matchId:
+          priority.matchId,
+      },
+    })
+
+    return
+  }
+
+  if (
+    priority.action ===
+      'open_ready_match' &&
+    priority.challengeId
+  ) {
+    /*
+     * Home does not start the match.
+     *
+     * It opens the existing authoritative challenge
+     * workflow. ChallengeDetails remains responsible
+     * for participant/start validation.
+     */
+    router.push({
+      name: 'ChallengeDetails',
+
+      params: {
+        challengeId:
+          priority.challengeId,
+      },
+    })
+  }
+
+  if (
+    priority.action ===
+      'open_result_review' &&
+    priority.challengeId
+  ) {
+    /*
+     * Home does not confirm the result.
+     *
+     * ChallengeDetails re-evaluates:
+     * - participant identity
+     * - pending_review state
+     * - who submitted the result
+     *
+     * and only then exposes Confirm result.
+     */
+    router.push({
+      name: 'ChallengeDetails',
+
+      params: {
+        challengeId:
+          priority.challengeId,
+      },
+    })
+  }
+}
+
 function startChallenge(player) {
   if (!player?.id) return
   router.push({ name: 'CreateChallenge', query: { opponent: player.id } })
@@ -305,16 +545,75 @@ function enterOpportunity() {
   }
 }
 
+watch(
+  [
+    () => adminStore.activeClubId,
+    currentActorId,
+  ],
+  () => {
+    refreshHomeLiveMatches()
+  },
+)
+
 onMounted(async () => {
+  /*
+   * Subscribe before async dashboard loading so we cannot
+   * miss a live-match change from another browser tab.
+   */
+  stopLiveMatchSubscription =
+    friendlyMatchStore.subscribeToLiveMatchChanges(
+      refreshHomeLiveMatches,
+    )
+
+  /*
+   * One inexpensive minute-level clock.
+   *
+   * The challenge start window is measured in tens
+   * of minutes, so waking Vue every second would be
+   * wasteful.
+   *
+   * Hidden tabs do no work.
+   */
+  priorityClockTimer =
+    window.setInterval(
+      () => {
+        if (
+          document.visibilityState ===
+          'visible'
+        ) {
+          refreshPriorityClock()
+        }
+      },
+      60_000,
+    )
+
+  document.addEventListener(
+    'visibilitychange',
+    handlePriorityVisibilityChange,
+  )
+
   const tasks = [
     playerStore.loadPlayers(),
     challengeStore.loadChallenges(),
     matchStore.loadMatches(),
     tournamentStore.fetchTournaments(),
   ]
-  if (!adminStore.clubs.length) tasks.push(adminStore.loadClubs())
 
-  await Promise.allSettled(tasks)
+  if (!adminStore.clubs.length) {
+    tasks.push(
+      adminStore.loadClubs(),
+    )
+  }
+
+  await Promise.allSettled(
+    tasks,
+  )
+
+  /*
+   * Identity + active club are now available.
+   */
+  refreshHomeLiveMatches()
+
   const errors = [
     playerStore.error,
     challengeStore.error,
@@ -322,10 +621,39 @@ onMounted(async () => {
     tournamentStore.error,
     adminStore.error,
   ].filter(Boolean)
-  loadNotice.value = errors.length
-    ? 'Some club updates could not be refreshed. The latest available information is shown.'
-    : ''
+
+  loadNotice.value =
+    errors.length
+      ? 'Some club updates could not be refreshed. The latest available information is shown.'
+      : ''
+
   hasLoaded.value = true
+})
+
+onUnmounted(() => {
+  if (
+    typeof stopLiveMatchSubscription ===
+    'function'
+  ) {
+    stopLiveMatchSubscription()
+  }
+
+  stopLiveMatchSubscription =
+    null
+
+  if (priorityClockTimer) {
+    window.clearInterval(
+      priorityClockTimer,
+    )
+  }
+
+  priorityClockTimer =
+    null
+
+  document.removeEventListener(
+    'visibilitychange',
+    handlePriorityVisibilityChange,
+  )
 })
 </script>
 
@@ -342,7 +670,19 @@ onMounted(async () => {
       </div>
     </header>
 
-    <p v-if="loadNotice" class="member-home__notice" role="status">{{ loadNotice }}</p>
+    <p
+      v-if="loadNotice"
+      class="member-home__notice"
+      role="status"
+    >
+      {{ loadNotice }}
+    </p>
+
+    <HomePrioritySlot
+      v-if="homePriority"
+      :priority="homePriority"
+      @open="openHomePriority"
+    />
 
     <MemberLadderSnapshot
       :rows="ladderRows"
