@@ -7,11 +7,16 @@ import dashboardImage from '../../artifacts/dashboard-desktop.png'
 import ladderImage from '../../docs/screenshots/compete-ladder-refined-desktop.jpg'
 import challengesImage from '../../docs/screenshots/compete-challenges-refined-mobile.jpg'
 import tournamentsImage from '../../docs/screenshots/compete-tournaments-admin.jpg'
+import scanToJoinImage from '../assets/landing/scan-to-join.jpg'
+import playTheMatchImage from '../assets/landing/play-the-match.jpg'
 
 const mobileMenuOpen = ref(false)
 const activePreviewKey = ref('dashboard')
 const navDocked = ref(false)
 const floatingCtaVisible = ref(false)
+const scoreboardSection = ref(null)
+const scoreCallActive = ref(false)
+const voiceSupported = ref(false)
 const cookieSettingsOpen = ref(false)
 const consentKey = 'gorra-cookie-consent'
 const defaultCookiePreferences = {
@@ -22,14 +27,9 @@ const defaultCookiePreferences = {
 }
 const cookiePreferences = ref({ ...defaultCookiePreferences })
 const showCookieBanner = ref(false)
-
-const cookieSummary = computed(() => {
-  if (cookiePreferences.value.analytics || cookiePreferences.value.marketing) {
-    return 'Cookies enabled for a smoother experience.'
-  }
-
-  return 'Optional cookies are currently off.'
-})
+let previewTimer
+let scoreboardObserver
+let scoreCallTimer
 
 function closeMobileMenu() {
   mobileMenuOpen.value = false
@@ -80,6 +80,43 @@ function toggleCookieSettings() {
   cookieSettingsOpen.value = !cookieSettingsOpen.value
 }
 
+function manageCookiePreferences() {
+  showCookieBanner.value = true
+  cookieSettingsOpen.value = true
+}
+
+function rotatePreview() {
+  const currentIndex = previews.findIndex((preview) => preview.key === activePreviewKey.value)
+  activePreviewKey.value = previews[(currentIndex + 1) % previews.length].key
+}
+
+function startPreviewRotation() {
+  window.clearInterval(previewTimer)
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  previewTimer = window.setInterval(rotatePreview, 4200)
+}
+
+function selectPreview(key) {
+  activePreviewKey.value = key
+  startPreviewRotation()
+}
+
+function speakScoreCall() {
+  if (!voiceSupported.value) return
+  window.speechSynthesis.cancel()
+  const call = new SpeechSynthesisUtterance('Advantage, Chidi Obi. Court one.')
+  call.rate = 0.92
+  call.pitch = 0.96
+  scoreCallActive.value = true
+  call.onend = () => {
+    scoreCallActive.value = false
+  }
+  call.onerror = () => {
+    scoreCallActive.value = false
+  }
+  window.speechSynthesis.speak(call)
+}
+
 function readCookieConsent() {
   try {
     const stored = localStorage.getItem(consentKey)
@@ -114,7 +151,7 @@ function setMeta(name, content) {
 }
 
 onMounted(() => {
-  document.title = 'GORRA | Run the club. Keep everyone playing.'
+  document.title = 'GORRA | Club tennis, tournaments and ladders made simple'
   setMeta(
     'description',
     'GORRA connects tennis ladders, challenges, match schedules, live scoring, tournaments and club updates in one clear flow.',
@@ -123,11 +160,30 @@ onMounted(() => {
   setMeta('apple-mobile-web-app-status-bar-style', 'black-translucent')
   readCookieConsent()
   syncLandingHeaderState()
+  voiceSupported.value = 'speechSynthesis' in window
+  startPreviewRotation()
+
+  if ('IntersectionObserver' in window && scoreboardSection.value) {
+    scoreboardObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting || scoreCallActive.value) return
+        scoreboardObserver.disconnect()
+        scoreCallTimer = window.setTimeout(speakScoreCall, 700)
+      },
+      { threshold: 0.55 },
+    )
+    scoreboardObserver.observe(scoreboardSection.value)
+  }
+
   window.addEventListener('scroll', syncLandingHeaderState, { passive: true })
   window.addEventListener('resize', syncLandingHeaderState)
 })
 
 onUnmounted(() => {
+  window.clearInterval(previewTimer)
+  window.clearTimeout(scoreCallTimer)
+  scoreboardObserver?.disconnect()
+  if (scoreCallActive.value) window.speechSynthesis?.cancel()
   window.removeEventListener('scroll', syncLandingHeaderState)
   window.removeEventListener('resize', syncLandingHeaderState)
 })
@@ -144,11 +200,25 @@ const previews = [
     notes: ['Next action is visible', 'Club activity stays together', 'Members start with context'],
   },
   {
-    key: 'ladder',
-    label: 'Ladder',
+    key: 'play',
+    label: 'Play',
+    eyebrow: 'Matches and challenges',
+    title: 'Move every match from invite to result.',
+    copy: 'Players can accept, schedule and complete a match without losing the next action in a group chat.',
+    image: challengesImage,
+    alt: 'The GORRA challenge queue showing received and sent matches',
+    notes: [
+      'Received and sent challenges separated',
+      'Match status stays visible',
+      'One path from invite to result',
+    ],
+  },
+  {
+    key: 'compete',
+    label: 'Compete',
     eyebrow: 'Ladders and rankings',
-    title: 'Make the ladder self-explanatory.',
-    copy: 'Players can see their position, points and challenge range without asking an organizer to interpret a spreadsheet.',
+    title: 'Make club competition easy to follow.',
+    copy: 'Players see their rank, challenge range and movement clearly, while organizers keep the rules and results in one system.',
     image: ladderImage,
     alt: 'The GORRA club ladder with player ranks and challenge actions',
     notes: [
@@ -158,27 +228,13 @@ const previews = [
     ],
   },
   {
-    key: 'challenges',
-    label: 'Challenges',
-    eyebrow: 'Challenge flow',
-    title: 'A challenge always has a next step.',
-    copy: 'Received and sent challenges stay organized by status, so players can respond, schedule, play and review the result in one flow.',
-    image: challengesImage,
-    alt: 'The GORRA mobile challenge queue showing received challenges',
-    notes: [
-      'Received and sent are separated',
-      'Response state stays visible',
-      'Match detail keeps the full history',
-    ],
-  },
-  {
-    key: 'tournaments',
-    label: 'Tournaments',
-    eyebrow: 'Club competition',
-    title: 'Give every tournament one reliable home.',
-    copy: 'Keep event details, categories, schedules, groups, fixtures, standings and results connected from setup through the final.',
+    key: 'club',
+    label: 'Club',
+    eyebrow: 'Club operations',
+    title: 'Run tournaments without scattered admin.',
+    copy: 'Keep categories, schedules, fixtures, standings and results connected from setup through the final.',
     image: tournamentsImage,
-    alt: 'The GORRA tournament management view for club administrators',
+    alt: 'The GORRA club tournament management view for administrators',
     notes: [
       'Events stay easy to find',
       'Competition status is visible',
@@ -192,11 +248,35 @@ const activePreview = computed(
 )
 
 const workflow = [
-  ['Challenge', 'A player starts with an eligible opponent and clear club rules.'],
-  ['Schedule', 'Both sides know the agreed time, court and next action.'],
-  ['Score', 'Run the live scoreboard or record the result after the match.'],
-  ['Confirm', 'The result becomes a shared match record, not a chat message.'],
-  ['Move', 'The ladder, history and club activity reflect what happened.'],
+  {
+    number: '01',
+    label: 'Join the match',
+    title: 'Scan and accept',
+    copy: 'Scan the code, check the match details and get ready for court.',
+    image: scanToJoinImage,
+    alt: 'A tennis player scanning a match code',
+    badge: 'Scan',
+  },
+  {
+    number: '02',
+    label: 'Just play',
+    title: 'Stay in the game',
+    copy: 'Keep score as you play, ask someone courtside to help, or enter the result when the match ends.',
+    image: playTheMatchImage,
+    alt: 'Two club players playing tennis',
+    badge: 'Play',
+    live: true,
+  },
+  {
+    number: '03',
+    label: 'GORRA remembers',
+    title: 'Save and share',
+    copy: 'The result is saved, the ladder updates and everyone can see where they stand.',
+    image: playTheMatchImage,
+    alt: '',
+    badge: 'Done',
+    result: true,
+  },
 ]
 
 const audiences = [
@@ -262,11 +342,11 @@ const audiences = [
       <section class="lp-hero">
         <div class="lp-container lp-hero__grid">
           <div class="lp-hero__copy">
-            <p class="lp-kicker"><span></span> The operating system for club tennis</p>
-            <h1>Run the club.<br /><em>Keep everyone playing.</em></h1>
+            <p class="lp-kicker"><span></span> One home for your tennis club</p>
+            <h1>Club tennis, tournaments<br /><em>and ladders made simple.</em></h1>
             <p class="lp-hero__lead">
-              GORRA connects the ladder, challenges, match schedules, live scores and tournaments in
-              one place - so players know what is next and organizers stop chasing updates.
+              Run ladders, challenges, match schedules, live scores and tournaments in one place.
+              Players know what comes next; organizers spend less time chasing updates.
             </p>
             <div class="lp-hero__actions">
               <RouterLink class="lp-button lp-button--lime" to="/signup">
@@ -294,12 +374,59 @@ const audiences = [
               />
             </div>
             <div class="lp-product-callout lp-product-callout--top">
-              <small>YOUR NEXT ACTION</small><strong>Visible at a glance</strong>
+              <small>PLAYER HOME</small><strong>The next match is clear</strong>
             </div>
             <div class="lp-product-callout lp-product-callout--bottom">
               <span aria-hidden="true">&#10003;</span>
               <div><small>ONE CLUB RECORD</small><strong>Everyone sees the same thing</strong></div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-connected" aria-labelledby="connected-title">
+        <div class="lp-container">
+          <p id="connected-title">Everything your club needs, in one place</p>
+          <div>
+            <span>Live scoring</span><i></i><span>Ladders &amp; rankings</span><i></i
+            ><span>Tournaments</span><i></i><span>Player updates</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="workflow" class="lp-section lp-workflow">
+        <div class="lp-container">
+          <div class="lp-heading lp-heading--center">
+            <p class="lp-eyebrow">One match. Three steps.</p>
+            <h2>How it works</h2>
+            <p>
+              One player starts, the other joins and you play. GORRA keeps the score and saves the
+              result.
+            </p>
+          </div>
+          <ol class="lp-flow" aria-label="Three simple steps to play a match">
+            <li v-for="step in workflow" :key="step.number">
+              <header>
+                <span>{{ step.number }}</span
+                ><small>{{ step.label }}</small>
+              </header>
+              <figure>
+                <img :src="step.image" :alt="step.alt" loading="lazy" />
+                <div v-if="step.live" class="lp-flow__live"><small>LIVE</small><b>3-2</b></div>
+                <div v-if="step.result" class="lp-flow__saved">
+                  <small>FINAL SCORE</small><b>Amara won</b><strong>6-4 · 7-5</strong><em>Saved</em>
+                </div>
+                <i>{{ step.badge }}</i>
+              </figure>
+              <div>
+                <h3>{{ step.title }}</h3>
+                <p>{{ step.copy }}</p>
+              </div>
+            </li>
+          </ol>
+          <div class="lp-flow__result">
+            <p><span aria-hidden="true">&#10003;</span> One simple match flow</p>
+            <strong>The same three steps work for friendlies, ladders and tournaments.</strong>
           </div>
         </div>
       </section>
@@ -311,63 +438,23 @@ const audiences = [
             <h2>The match is simple.<br />Everything around it should be too.</h2>
           </div>
           <div class="lp-problem__copy">
+            <p>Replace scattered chats, sheets and calendars with one clear club record.</p>
             <p>
-              Club tennis gets messy when the score lives in a chat, the fixture lives in a
-              calendar, the ranking lives in a sheet and the next action lives in one person's head.
-            </p>
-            <p>
-              GORRA gives every match a clear path from challenge to confirmed result, with the club
-              record moving alongside it.
+              GORRA connects every challenge, schedule, score and result so players and organizers
+              always see the same thing.
             </p>
           </div>
         </div>
         <div class="lp-container lp-outcomes">
           <article>
-            <strong>One next action</strong><span>Players know what to do now.</span>
+            <strong>Clear next actions</strong><span>Players always know what to do.</span>
           </article>
           <article>
-            <strong>One official result</strong><span>The club keeps a trusted record.</span>
+            <strong>Official results</strong><span>Every score has one trusted record.</span>
           </article>
           <article>
-            <strong>One place to look</strong><span>Organizers answer fewer repeat questions.</span>
+            <strong>Less follow-up</strong><span>Organizers answer fewer repeat questions.</span>
           </article>
-        </div>
-      </section>
-
-      <section id="workflow" class="lp-section lp-workflow">
-        <div class="lp-container">
-          <div class="lp-heading lp-heading--center">
-            <p class="lp-eyebrow">From first tap to final score</p>
-            <h2>Every match moves forward in five clear steps.</h2>
-            <p>Not five tools. Not five reminders. One shared flow for the club and its players.</p>
-          </div>
-          <ol class="lp-flow">
-            <li v-for="(step, index) in workflow" :key="step[0]">
-              <span>0{{ index + 1 }}</span>
-              <div>
-                <h3>{{ step[0] }}</h3>
-                <p>{{ step[1] }}</p>
-              </div>
-            </li>
-          </ol>
-          <div class="lp-flow__result">
-            <p><span aria-hidden="true">&#10003;</span> Result confirmed</p>
-            <strong>The club record moves with the match.</strong>
-            <div>
-              <span>History updated</span><span>Ladder movement visible</span
-              ><span>Players notified</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="lp-connected" aria-labelledby="connected-title">
-        <div class="lp-container">
-          <p id="connected-title">The whole club flow, connected</p>
-          <div>
-            <span>Ladders</span><i></i><span>Challenges</span><i></i><span>Live scoring</span><i></i
-            ><span>Tournaments</span><i></i><span>Updates</span>
-          </div>
         </div>
       </section>
 
@@ -375,12 +462,12 @@ const audiences = [
         <div class="lp-container">
           <div class="lp-heading lp-product__heading">
             <div>
-              <p class="lp-eyebrow">This is GORRA</p>
-              <h2>See the product your members will actually use.</h2>
+              <p class="lp-eyebrow">Inside GORRA</p>
+              <h2>Home, Play, Compete and Club.</h2>
             </div>
             <p>
-              Every screen below comes directly from the current GORRA interface, using the same
-              navigation, spacing, colors and club data members see inside the app.
+              Move through the same four areas your members and organizers use to play matches,
+              follow competition and run the club.
             </p>
           </div>
           <div class="lp-tabs" role="tablist" aria-label="Product previews">
@@ -391,7 +478,7 @@ const audiences = [
               role="tab"
               :aria-selected="activePreview.key === preview.key"
               :class="{ active: activePreview.key === preview.key }"
-              @click="activePreviewKey = preview.key"
+              @click="selectPreview(preview.key)"
             >
               {{ preview.label }}
             </button>
@@ -428,6 +515,51 @@ const audiences = [
               </RouterLink>
             </div>
           </article>
+        </div>
+      </section>
+
+      <section ref="scoreboardSection" class="lp-section lp-scoreboard">
+        <div class="lp-container lp-scoreboard__grid">
+          <div class="lp-scoreboard__screen" aria-label="Live tennis scoreboard demonstration">
+            <header>
+              <b><span></span> LIVE · COURT 1</b>
+              <small>MEN'S A · SEMI-FINAL</small>
+            </header>
+            <div class="lp-scoreboard__columns" aria-hidden="true">
+              <span>SETS</span><span>GAMES</span><span>POINTS</span>
+            </div>
+            <p><span>Chidi Obi</span><b>1</b><b>5</b><em>AD</em></p>
+            <p><span>Tunde Akinyemi</span><b>0</b><b>4</b><em>40</em></p>
+            <footer>
+              <span :class="{ active: scoreCallActive }" aria-hidden="true">
+                <i></i><i></i><i></i><i></i>
+              </span>
+              <small>{{
+                scoreCallActive ? 'Calling the score...' : 'Voice score calls ready'
+              }}</small>
+            </footer>
+          </div>
+          <div class="lp-scoreboard__copy">
+            <p class="lp-eyebrow">Live scoreboard</p>
+            <h2>A match-day display that knows tennis.</h2>
+            <p>
+              Show every point on a TV, projector or courtside display. GORRA handles love, deuce,
+              advantage and match point, with optional voice calls that keep eyes on court.
+            </p>
+            <ul>
+              <li><b>DISPLAY</b> Connect a TV, projector or second screen</li>
+              <li><b>VOICE</b> Hear the score as each point is recorded</li>
+              <li><b>RECORD</b> Keep the official result after match point</li>
+            </ul>
+            <button
+              class="lp-button lp-button--dark"
+              type="button"
+              :disabled="!voiceSupported"
+              @click="speakScoreCall"
+            >
+              {{ scoreCallActive ? 'Calling score...' : 'Hear a score call' }}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -561,7 +693,7 @@ const audiences = [
     </main>
 
     <button
-      v-if="floatingCtaVisible"
+      v-if="floatingCtaVisible && !showCookieBanner"
       type="button"
       class="lp-floating-cta"
       aria-label="Scroll back to top"
@@ -637,8 +769,7 @@ const audiences = [
         <nav aria-label="Footer navigation">
           <a href="#workflow">How it works</a><a href="#product">Product</a
           ><a href="#clubs">For your club</a>
-          <a href="#cookie-policy">Cookie policy</a>
-          <RouterLink to="/landing-legacy">Previous landing page</RouterLink>
+          <button type="button" @click="manageCookiePreferences">Cookie settings</button>
         </nav>
         <div class="lp-footer__meta">
           <a href="mailto:hello@gorra.club">hello@gorra.club</a>
@@ -648,20 +779,5 @@ const audiences = [
         </div>
       </div>
     </footer>
-
-    <section id="cookie-policy" class="lp-cookie-policy">
-      <div class="lp-container">
-        <p class="lp-eyebrow">Cookie policy</p>
-        <h2>Built with a clear consent flow.</h2>
-        <p>
-          Essential cookies keep the site stable and signed-in sessions running correctly. Optional
-          cookies help us measure engagement and improve the landing experience. If you reject
-          optional cookies, the site continues to work without the extra tracking layer. The consent
-          state is stored locally in the browser and is ready to be forwarded to a backend endpoint
-          once the API contract is in place.
-        </p>
-        <strong>{{ cookieSummary }}</strong>
-      </div>
-    </section>
   </div>
 </template>

@@ -1,11 +1,12 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import HomePrioritySlot from '../components/dashboard/HomePrioritySlot.vue'
+import { APP_CURRENT_PLAYER } from '../config/currentPlayer'
 import { dashboardFixture } from '../data/dashboard'
-import { resolveHomePriority } from '../utils/homePriority/resolveHomePriority'
+import { usePlayerStore } from '../stores/player'
 
 const router = useRouter()
+const playerStore = usePlayerStore()
 const dashboardRoot = ref(null)
 const staticNotice = ref('')
 const dashboard = dashboardFixture
@@ -13,21 +14,20 @@ const ladderRoute = Object.freeze({ name: 'Rankings' })
 const actionIconNames = Object.freeze(['play', 'challenge', 'tournament'])
 let revealObserver = null
 
-const homePriority = computed(() => resolveHomePriority(dashboard.priorityCandidates))
-const currentLadder = computed(() => dashboard.ladders[0] || null)
-const userInitials = computed(
-  () => (dashboard.currentUser.firstName[0] || '') + (dashboard.currentUser.lastName[0] || ''),
+const currentPlayerName = computed(() => playerStore.currentPlayer?.name || APP_CURRENT_PLAYER.name)
+const currentPlayerFirstName = computed(
+  () => currentPlayerName.value.trim().split(/\s+/)[0] || APP_CURRENT_PLAYER.firstName,
 )
+const currentLadder = computed(() => {
+  const ladder = dashboard.ladders[0]
+  if (!ladder) return null
 
-function ordinal(value) {
-  const number = Number(value)
-  const remainder = number % 100
-  if (remainder >= 11 && remainder <= 13) return number + 'th'
-  if (number % 10 === 1) return number + 'st'
-  if (number % 10 === 2) return number + 'nd'
-  if (number % 10 === 3) return number + 'rd'
-  return number + 'th'
-}
+  return {
+    ...ladder,
+    position: playerStore.currentPlayer?.rank ?? ladder.position,
+    playerCount: playerStore.players.length || ladder.playerCount,
+  }
+})
 
 function isActionIcon(action, index) {
   return action.icon === actionIconNames[index]
@@ -43,10 +43,6 @@ function eventDateLabel(item) {
 
 function openRoute(to) {
   if (to) router.push(to)
-}
-
-function openPriority(priority) {
-  openRoute(priority?.to)
 }
 
 function handleAction(action) {
@@ -97,196 +93,123 @@ onUnmounted(() => {
 <template>
   <main ref="dashboardRoot" class="dashboard-page">
     <div class="dashboard-stack">
-      <section class="dashboard-panel dashboard-hero" aria-labelledby="dashboard-welcome-title">
-        <div>
-          <p>{{ dashboard.activeClub.name }}</p>
-          <h1 id="dashboard-welcome-title">Welcome back, {{ dashboard.currentUser.firstName }}.</h1>
-          <span>Here’s what needs you, what you can do, and what’s coming up.</span>
-        </div>
-        <span class="dashboard-hero__mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="8.5" />
-            <path d="M6.3 6.6c2.8 1.8 4 4 3.9 6.8M17.7 17.4c-2.8-1.8-4-4-3.9-6.8" />
-          </svg>
-        </span>
-      </section>
-
-      <HomePrioritySlot
-        v-if="homePriority"
-        class="dashboard-panel"
-        :priority="homePriority"
-        @open="openPriority"
-      />
-
       <section
         v-if="currentLadder"
-        class="dashboard-panel dashboard-card ladder-summary"
-        aria-labelledby="ladder-title"
+        class="dashboard-panel dashboard-section"
+        aria-labelledby="ladder-section-title"
       >
-        <div class="ladder-main">
-          <div class="ladder-heading">
-            <span class="section-icon ladder-heading-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <rect x="4" y="3" width="16" height="18" rx="3" />
-                <path d="M8 17V9M12 17V6M16 17v-4" />
-              </svg>
-            </span>
-            <div>
-              <span class="ladder-eyebrow">You’re on this ladder</span>
-              <h2 id="ladder-title">{{ currentLadder.name }}</h2>
-              <p>{{ dashboard.activeClub.name }}</p>
+        <header class="section-intro">
+          <h2 id="ladder-section-title">Welcome back, {{ currentPlayerFirstName }}.</h2>
+        </header>
+
+        <div class="ladder-card">
+          <div class="ladder-header">
+            <div class="ladder-heading-copy">
+              <h3>You are on {{ currentLadder.name }} ladder.</h3>
+              <p>In {{ dashboard.activeClub.name }}.</p>
             </div>
+
+            <button class="open-ladder" type="button" @click="openRoute(ladderRoute)">
+              <span>Open ladder</span>
+              <span class="open-ladder-arrow" aria-hidden="true">→</span>
+            </button>
           </div>
 
-          <div class="ladder-person">
-            <span class="ladder-avatar" aria-hidden="true">{{ userInitials }}</span>
-            <div>
-              <strong>
-                {{ dashboard.currentUser.firstName }}, you’re
-                {{ ordinal(currentLadder.position) }} out of {{ currentLadder.playerCount }} players
-              </strong>
-              <p>
-                You can challenge players ranked
-                {{ ordinal(currentLadder.challengeFrom) }} to
-                {{ ordinal(currentLadder.challengeTo) }}.
-              </p>
-            </div>
-          </div>
-        </div>
+          <div class="ladder-divider" aria-hidden="true"></div>
 
-        <div class="ladder-side">
-          <div class="ladder-facts">
-            <div class="ladder-fact">
-              <span>Your position</span>
-              <strong>{{ ordinal(currentLadder.position) }}</strong>
-            </div>
-            <div class="ladder-fact">
-              <span>Players</span>
-              <strong>{{ currentLadder.playerCount }}</strong>
-            </div>
-            <div class="ladder-fact">
-              <span>You can challenge</span>
-              <strong>
-                {{ ordinal(currentLadder.challengeFrom) }}–{{ ordinal(currentLadder.challengeTo) }}
-              </strong>
-            </div>
-          </div>
-
-          <button class="ladder-link" type="button" @click="openRoute(ladderRoute)">
-            <span>See ladder</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m9 18 6-6-6-6" />
-            </svg>
-          </button>
+          <p class="ladder-position">
+            <span>Your ladder position is</span>
+            <strong>#{{ currentLadder.position }}</strong>
+            <span>of {{ currentLadder.playerCount }}.</span>
+          </p>
         </div>
       </section>
 
-      <section class="dashboard-panel dashboard-card quick-panel" aria-labelledby="quick-title">
-        <header class="section-heading">
-          <span class="section-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="m13 2-7 11h6l-1 9 7-12h-6Z" /></svg>
-          </span>
-          <div>
-            <h2 id="quick-title">Quick actions for you</h2>
-            <p>What do you want to do?</p>
-          </div>
+      <section class="dashboard-panel dashboard-section" aria-labelledby="quick-title">
+        <header class="section-intro">
+          <h2 id="quick-title">Here are some quick actions for you</h2>
         </header>
 
-        <div class="quick-grid">
-          <button
-            v-for="action in dashboard.quickActions"
-            :key="action.id"
-            class="quick-card"
-            :class="action.icon"
-            type="button"
-            @click="handleAction(action)"
-          >
-            <span class="quick-icon" aria-hidden="true">
-              <svg v-if="isActionIcon(action, 0)" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="9" />
-                <path d="m10 8 6 4-6 4Z" />
-              </svg>
-              <svg v-else-if="isActionIcon(action, 1)" viewBox="0 0 24 24">
-                <ellipse cx="8" cy="7" rx="3" ry="4" transform="rotate(-35 8 7)" />
-                <ellipse cx="16" cy="7" rx="3" ry="4" transform="rotate(35 16 7)" />
-                <path d="m10 10 7 9M14 10l-7 9" />
-              </svg>
-              <svg v-else viewBox="0 0 24 24">
-                <path d="M8 4h8v4a4 4 0 0 1-8 0V4Z" />
-                <path d="M6 5H4v2a4 4 0 0 0 4 4M18 5h2v2a4 4 0 0 1-4 4M12 12v5M8 20h8" />
-              </svg>
-            </span>
+        <div class="dashboard-card quick-panel">
+          <div class="quick-grid">
+            <button
+              v-for="action in dashboard.quickActions"
+              :key="action.id"
+              class="quick-card"
+              :class="action.icon"
+              type="button"
+              @click="handleAction(action)"
+            >
+              <span class="quick-icon" aria-hidden="true">
+                <svg v-if="isActionIcon(action, 0)" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="m10 8 6 4-6 4Z" />
+                </svg>
+                <svg v-else-if="isActionIcon(action, 1)" viewBox="0 0 24 24">
+                  <ellipse cx="8" cy="7" rx="3" ry="4" transform="rotate(-35 8 7)" />
+                  <ellipse cx="16" cy="7" rx="3" ry="4" transform="rotate(35 16 7)" />
+                  <path d="m10 10 7 9M14 10l-7 9" />
+                </svg>
+                <svg v-else viewBox="0 0 24 24">
+                  <path d="M8 4h8v4a4 4 0 0 1-8 0V4Z" />
+                  <path d="M6 5H4v2a4 4 0 0 0 4 4M18 5h2v2a4 4 0 0 1-4 4M12 12v5M8 20h8" />
+                </svg>
+              </span>
 
-            <span class="quick-copy">
-              <strong>{{ action.title }}</strong>
-              <small>{{ action.description }}</small>
-            </span>
+              <span class="quick-copy">
+                <strong>{{ action.title }}</strong>
+                <small>{{ action.description }}</small>
+              </span>
 
-            <span class="quick-arrow" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></svg>
-            </span>
+              <span class="quick-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></svg>
+              </span>
 
-            <span class="quick-photo" aria-hidden="true">
-              <img :src="action.image" alt="" loading="lazy" />
-            </span>
-          </button>
+              <span class="quick-photo" aria-hidden="true">
+                <img :src="action.image" alt="" loading="lazy" />
+              </span>
+            </button>
+          </div>
         </div>
       </section>
 
       <section
-        class="dashboard-panel dashboard-card attention-panel"
+        v-if="dashboard.attentionItems.length"
+        class="dashboard-panel dashboard-section"
         aria-labelledby="attention-title"
       >
-        <header class="section-heading">
-          <span class="section-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
-            </svg>
-          </span>
-          <div>
-            <h2 id="attention-title">Needs your attention</h2>
-            <p>Take care of these when you’re ready.</p>
-          </div>
+        <header class="section-intro">
+          <h2 id="attention-title">This needs your attention</h2>
         </header>
 
-        <div class="attention-list">
-          <article v-for="item in dashboard.attentionItems" :key="item.id" class="attention-item">
-            <span class="attention-icon" aria-hidden="true">
-              <svg v-if="isReviewItem(item)" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="9" />
-                <path d="m8 12 2.5 2.5L16.5 9" />
-              </svg>
-              <svg v-else viewBox="0 0 24 24">
-                <rect x="4" y="5" width="16" height="15" rx="2" />
-                <path d="M8 3v4M16 3v4M4 9h16" />
-              </svg>
-            </span>
-            <div class="attention-copy">
-              <strong>{{ item.title }}</strong>
-              <p>{{ item.description }}</p>
-            </div>
-            <button type="button" @click="handleAction(item)">{{ item.actionLabel }}</button>
-          </article>
+        <div class="dashboard-card attention-panel">
+          <div class="attention-list">
+            <article v-for="item in dashboard.attentionItems" :key="item.id" class="attention-item">
+              <span class="attention-icon" aria-hidden="true">
+                <svg v-if="isReviewItem(item)" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="m8 12 2.5 2.5L16.5 9" />
+                </svg>
+                <svg v-else viewBox="0 0 24 24">
+                  <rect x="4" y="5" width="16" height="15" rx="2" />
+                  <path d="M8 3v4M16 3v4M4 9h16" />
+                </svg>
+              </span>
+              <div class="attention-copy">
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.description }}</p>
+              </div>
+              <button type="button" @click="handleAction(item)">{{ item.actionLabel }}</button>
+            </article>
+          </div>
         </div>
       </section>
 
-      <section
-        class="dashboard-panel dashboard-card upcoming-panel"
-        aria-labelledby="upcoming-title"
-      >
-        <header class="section-heading section-heading--split">
-          <span class="section-heading__main">
-            <span class="section-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <rect x="4" y="5" width="16" height="15" rx="2" />
-                <path d="M8 3v4M16 3v4M4 10h16" />
-              </svg>
-            </span>
-            <span>
-              <h2 id="upcoming-title">Upcoming events at {{ dashboard.activeClub.name }}</h2>
-              <p>See what’s coming up next.</p>
-            </span>
-          </span>
+      <section class="dashboard-panel dashboard-section" aria-labelledby="upcoming-title">
+        <header class="section-intro section-intro--split">
+          <div>
+            <h2 id="upcoming-title">Upcoming events for {{ dashboard.activeClub.name }}</h2>
+          </div>
 
           <button class="calendar-link" type="button" @click="openCalendar">
             Open calendar
@@ -294,78 +217,72 @@ onUnmounted(() => {
           </button>
         </header>
 
-        <div class="upcoming-grid">
-          <article v-for="item in dashboard.upcomingItems" :key="item.id" class="upcoming-item">
-            <time class="calendar-date" :aria-label="eventDateLabel(item)">
-              <span>{{ item.month }}</span>
-              <strong>{{ item.day }}</strong>
-              <small>{{ item.weekday }}</small>
-            </time>
-            <div class="upcoming-copy">
-              <h3>{{ item.title }}</h3>
-              <p>{{ item.description }}</p>
-            </div>
-          </article>
+        <div class="dashboard-card upcoming-panel">
+          <div class="upcoming-grid">
+            <article v-for="item in dashboard.upcomingItems" :key="item.id" class="upcoming-item">
+              <time class="calendar-date" :aria-label="eventDateLabel(item)">
+                <span>{{ item.month }}</span>
+                <strong>{{ item.day }}</strong>
+                <small>{{ item.weekday }}</small>
+              </time>
+              <div class="upcoming-copy">
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.description }}</p>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
 
-      <section class="dashboard-panel dashboard-card glance-panel" aria-labelledby="glance-title">
-        <header class="section-heading">
-          <span class="section-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <circle cx="9" cy="8" r="3" />
-              <circle cx="17" cy="9" r="2.5" />
-              <path d="M3.5 19a5.5 5.5 0 0 1 11 0M14 15a4.5 4.5 0 0 1 6.5 4" />
-            </svg>
-          </span>
-          <div>
-            <h2 id="glance-title">{{ dashboard.activeClub.name }} right now</h2>
-            <p>Here’s what’s happening at your club.</p>
-          </div>
+      <section class="dashboard-panel dashboard-section" aria-labelledby="glance-title">
+        <header class="section-intro">
+          <h2 id="glance-title">{{ dashboard.activeClub.name }} right now</h2>
         </header>
 
-        <div class="glance-grid">
-          <article class="glance-item">
-            <span class="glance-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <circle cx="9" cy="8" r="3" />
-                <circle cx="17" cy="9" r="2.5" />
-                <path d="M3.5 19a5.5 5.5 0 0 1 11 0M14 15a4.5 4.5 0 0 1 6.5 4" />
-              </svg>
-            </span>
-            <div>
-              <strong>{{ dashboard.clubSummary.members }}</strong>
-              <span>Members</span>
-              <small class="positive">{{ dashboard.clubSummary.newMembersLabel }}</small>
-            </div>
-          </article>
+        <div class="dashboard-card glance-panel">
+          <div class="glance-grid">
+            <article class="glance-item">
+              <span class="glance-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="9" cy="8" r="3" />
+                  <circle cx="17" cy="9" r="2.5" />
+                  <path d="M3.5 19a5.5 5.5 0 0 1 11 0M14 15a4.5 4.5 0 0 1 6.5 4" />
+                </svg>
+              </span>
+              <div>
+                <strong>{{ dashboard.clubSummary.members }}</strong>
+                <span>Members</span>
+                <small class="positive">{{ dashboard.clubSummary.newMembersLabel }}</small>
+              </div>
+            </article>
 
-          <article class="glance-item">
-            <span class="glance-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M5.5 6.5c3 2 4 4.5 4.5 7.5M18.5 17.5c-3-2-4-4.5-4.5-7.5" />
-              </svg>
-            </span>
-            <div>
-              <strong>{{ dashboard.clubSummary.liveMatches }}</strong>
-              <span>Matches live now</span>
-              <small>{{ dashboard.clubSummary.liveMatchesLabel }}</small>
-            </div>
-          </article>
+            <article class="glance-item">
+              <span class="glance-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M5.5 6.5c3 2 4 4.5 4.5 7.5M18.5 17.5c-3-2-4-4.5-4.5-7.5" />
+                </svg>
+              </span>
+              <div>
+                <strong>{{ dashboard.clubSummary.liveMatches }}</strong>
+                <span>Matches live now</span>
+                <small>{{ dashboard.clubSummary.liveMatchesLabel }}</small>
+              </div>
+            </article>
 
-          <article class="glance-item">
-            <span class="glance-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M5 20V12M10 20V7M15 20V10M20 20V4" />
-              </svg>
-            </span>
-            <div>
-              <strong>{{ dashboard.clubSummary.activeLadders }}</strong>
-              <span>Active ladders</span>
-              <small>{{ dashboard.clubSummary.activeLaddersLabel }}</small>
-            </div>
-          </article>
+            <article class="glance-item">
+              <span class="glance-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M5 20V12M10 20V7M15 20V10M20 20V4" />
+                </svg>
+              </span>
+              <div>
+                <strong>{{ dashboard.clubSummary.activeLadders }}</strong>
+                <span>Active ladders</span>
+                <small>{{ dashboard.clubSummary.activeLaddersLabel }}</small>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
     </div>
@@ -383,76 +300,61 @@ onUnmounted(() => {
 
 .dashboard-stack {
   display: grid;
-  gap: 24px;
+  gap: 36px;
 }
 
-.dashboard-hero {
+.dashboard-panel {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.dashboard-panel.is-visible {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 420ms ease,
+    transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dashboard-section {
+  display: grid;
+  width: 100%;
+  gap: 16px;
+}
+
+.dashboard-section + .dashboard-section {
+  margin-top: 2px;
+}
+
+.section-intro {
+  min-width: 0;
+}
+
+.section-intro--split {
   display: flex;
-  min-height: 132px;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 34%, var(--color-border));
-  border-radius: 14px;
-  padding: 24px 26px;
-  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));
-  box-shadow: var(--flow-shadow-quiet);
+  gap: 18px;
 }
 
-.dashboard-hero p,
-.dashboard-hero h1,
-.dashboard-hero span {
+.section-intro h2,
+.section-intro p {
   margin: 0;
 }
 
-.dashboard-hero p {
-  color: var(--color-primary-strong);
-  font-size: 11px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
-.dashboard-hero h1 {
-  margin-top: 5px;
+.section-intro h2 {
   color: var(--color-text-soft);
-  font-size: 22px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: -0.025em;
-  line-height: 1.25;
+  font-size: 18px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.018em;
+  line-height: 1.3;
 }
 
-.dashboard-hero div > span {
-  display: block;
-  max-width: 58ch;
-  margin-top: 7px;
+.section-intro p {
+  margin-top: 4px;
   color: var(--color-muted);
   font-size: 13px;
-  font-weight: var(--font-weight-regular);
-  line-height: 1.65;
-}
-
-.dashboard-hero__mark {
-  display: grid;
-  width: 58px;
-  height: 58px;
-  flex: 0 0 58px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-surface);
-  box-shadow: 0 8px 22px rgba(87, 61, 8, 0.055);
-  color: var(--color-primary-strong);
-}
-
-.dashboard-hero__mark svg {
-  width: 28px;
-  height: 28px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.6;
+  line-height: 1.5;
 }
 
 .dashboard-card {
@@ -478,285 +380,123 @@ onUnmounted(() => {
   transform: translateY(-1px);
 }
 
-.dashboard-panel {
-  opacity: 0;
-  transform: translateY(8px);
+.ladder-card {
+  position: relative;
+  width: 100%;
+  min-height: 158px;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 26px 30px;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(8, 43, 24, 0.5) 0%,
+      rgba(8, 43, 24, 0.22) 48%,
+      rgba(8, 43, 24, 0.04) 76%
+    ),
+    url('https://res.cloudinary.com/dnuhjsckk/image/upload/v1787789959/tennissecond_1_skqfpc.png');
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 10px 28px rgba(19, 44, 27, 0.07);
 }
 
-.dashboard-panel.is-visible {
-  opacity: 1;
-  transform: none;
-  transition:
-    opacity 420ms ease,
-    transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    border-color 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.section-heading,
-.section-heading__main {
+.ladder-header {
   display: flex;
-  align-items: flex-start;
-  gap: 11px;
-}
-
-.section-heading {
-  padding: 22px 22px 8px;
-}
-
-.section-heading--split {
+  width: 100%;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 40px;
 }
 
-.section-heading h2,
-.section-heading p {
+.ladder-heading-copy {
+  min-width: 0;
+}
+
+.ladder-heading-copy h3,
+.ladder-heading-copy p {
   margin: 0;
 }
 
-.section-heading h2 {
-  color: var(--color-text-soft);
-  font-size: 18px;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.016em;
-  line-height: 1.35;
-}
-
-.section-heading p {
-  margin-top: 5px;
-  color: var(--color-muted);
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-.section-icon,
-.attention-icon,
-.glance-icon {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  background: rgba(0, 181, 26, 0.055);
-  color: var(--color-primary-strong);
-}
-
-.section-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  animation: gorra-icon-float 3.8s ease-in-out infinite;
-  transform-style: preserve-3d;
-}
-
-.section-icon svg {
-  width: 14px;
-  height: 14px;
-}
-
-.section-icon svg,
-.attention-icon svg,
-.glance-icon svg,
-.ladder-link svg,
-.calendar-link svg {
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.7;
-}
-
-.dashboard-card:hover .section-icon {
-  animation: gorra-icon-flip 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.ladder-summary {
-  display: grid;
-  min-height: 190px;
-  grid-template-columns: minmax(0, 1.2fr) minmax(330px, 0.8fr);
-  align-items: stretch;
-}
-
-.ladder-main {
-  display: grid;
-  align-content: space-between;
-  gap: 25px;
-  padding: 24px 26px;
-}
-
-.ladder-heading {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.ladder-heading-icon {
-  width: 36px;
-  height: 36px;
-  flex-basis: 36px;
-  border-radius: 11px;
-  background: rgba(0, 181, 26, 0.09);
-}
-
-.ladder-heading-icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.ladder-eyebrow {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--color-primary-strong);
-  font-size: 10px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.11em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.ladder-heading h2,
-.ladder-heading p,
-.ladder-person p {
-  margin: 0;
-}
-
-.ladder-heading h2 {
-  color: var(--color-text-soft);
-  font-size: 18px;
+.ladder-heading-copy h3 {
+  color: var(--color-light);
+  font-size: 20px;
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
-  line-height: 1.25;
+  line-height: 1.28;
 }
 
-.ladder-heading p {
-  margin-top: 4px;
-  color: #858e87;
-  font-size: 12px;
+.ladder-heading-copy p {
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
-.ladder-person {
-  display: flex;
+.open-ladder {
+  display: inline-flex;
+  min-width: 154px;
+  height: 44px;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 11px;
-}
-
-.ladder-avatar {
-  display: grid;
-  width: 39px;
-  height: 39px;
-  flex: 0 0 39px;
-  place-items: center;
-  border-radius: 50%;
-  background: #f1f8f3;
-  color: var(--color-primary-strong);
-  font-size: 9px;
-  font-weight: var(--font-weight-bold);
-}
-
-.ladder-person strong {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--color-text-soft);
-  font-size: 14px;
+  justify-content: space-between;
+  gap: 25px;
+  border: 0;
+  border-radius: 9px;
+  padding: 0 17px;
+  background: #f5f6e9;
+  color: #173e24;
+  font-size: 13px;
   font-weight: var(--font-weight-semibold);
-  line-height: 1.35;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
 }
 
-.ladder-person p {
-  color: #7d867f;
-  font-size: 12px;
+.open-ladder:hover {
+  background: var(--color-light);
+  box-shadow: 0 6px 18px rgba(9, 29, 16, 0.12);
+  transform: translateY(-1px);
+}
+
+.open-ladder-arrow {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.ladder-divider {
+  width: min(420px, 48%);
+  height: 1px;
+  margin: 21px 0 16px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ladder-position {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
   line-height: 1.5;
 }
 
-.ladder-side {
-  display: grid;
-  min-width: 0;
-  align-content: space-between;
-  gap: 18px;
-  border-left: 1px solid var(--color-border);
-  padding: 24px 24px 20px;
-  background: #fbfdfb;
-}
-
-.ladder-facts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.ladder-fact {
-  min-width: 0;
-  border-left: 1px solid var(--color-border);
-  padding: 2px 16px;
-}
-
-.ladder-fact:first-child {
-  border-left: 0;
-  padding-left: 0;
-}
-
-.ladder-fact span {
-  display: block;
-  min-height: 23px;
-  color: #8a928c;
-  font-size: 10px;
-  line-height: 1.35;
-}
-
-.ladder-fact strong {
-  display: block;
-  margin-top: 5px;
-  color: #182019;
-  font-size: 18px;
-  font-weight: var(--font-weight-semibold);
+.ladder-position strong {
+  color: var(--color-light);
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
   line-height: 1;
-  white-space: nowrap;
-}
-
-.ladder-fact:first-child strong {
-  color: var(--color-primary-strong);
-}
-
-.ladder-link {
-  display: flex;
-  width: 100%;
-  min-height: 39px;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  overflow: hidden;
-  border: 0;
-  border-top: 1px solid var(--color-border);
-  padding: 0 2px;
-  background: transparent;
-  color: var(--color-primary-strong);
-  font-size: 12px;
-  font-weight: var(--font-weight-semibold);
-  text-align: left;
-  transition: transform 160ms ease;
-}
-
-.ladder-link svg {
-  width: 13px;
-  height: 13px;
-  transition: transform 180ms ease;
-}
-
-.ladder-link:hover {
-  transform: translateX(2px);
-}
-
-.ladder-link:hover svg {
-  transform: translateX(3px);
 }
 
 .quick-panel {
-  padding-bottom: 21px;
-  background: var(--color-surface);
+  padding: 20px 22px;
 }
 
 .quick-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
-  padding: 10px 22px 0;
 }
 
 .quick-card {
@@ -799,9 +539,7 @@ onUnmounted(() => {
 
 .quick-card:hover {
   border-color: #dce6de;
-  box-shadow:
-    0 12px 30px rgba(20, 45, 29, 0.022),
-    0 24px 48px rgba(20, 45, 29, 0.02);
+  box-shadow: 0 12px 30px rgba(20, 45, 29, 0.026);
   transform: translateY(-2px);
 }
 
@@ -810,38 +548,42 @@ onUnmounted(() => {
   z-index: 3;
 }
 
-.quick-icon {
+.quick-icon,
+.attention-icon,
+.glance-icon {
   display: grid;
-  width: 43px;
-  height: 43px;
+  width: 37px;
+  height: 37px;
+  flex: 0 0 auto;
+  align-self: center;
+  justify-self: center;
   place-items: center;
   border-radius: 50%;
-  background: rgba(0, 181, 26, 0.055);
+  background: rgba(0, 181, 26, 0.038);
   color: var(--color-primary-strong);
-  animation: gorra-quick-pulse 3.2s ease-in-out infinite;
-  transform-style: preserve-3d;
+  line-height: 0;
 }
 
-.quick-card:nth-child(2) .quick-icon {
-  animation-delay: 280ms;
+.quick-icon {
+  place-self: center;
 }
 
-.quick-card:nth-child(3) .quick-icon {
-  animation-delay: 560ms;
-}
-
-.quick-card:hover .quick-icon {
-  animation: gorra-quick-flip 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.quick-icon svg {
-  width: 22px;
-  height: 22px;
+.quick-icon svg,
+.attention-icon svg,
+.glance-icon svg,
+.quick-arrow svg,
+.calendar-link svg {
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.65;
+  stroke-width: 1.7;
+}
+
+.quick-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 .quick-copy {
@@ -851,14 +593,14 @@ onUnmounted(() => {
 }
 
 .quick-copy strong {
-  color: var(--color-text-soft);
+  color: #111712;
   font-size: 14px;
   font-weight: var(--font-weight-semibold);
   line-height: 1.3;
 }
 
 .quick-copy small {
-  color: #808881;
+  color: #111712;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -877,11 +619,6 @@ onUnmounted(() => {
 .quick-arrow svg {
   width: 11px;
   height: 11px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
 }
 
 .quick-card:hover .quick-arrow {
@@ -902,8 +639,8 @@ onUnmounted(() => {
   display: block;
   width: 100%;
   height: 100%;
+  opacity: 0.42;
   object-fit: cover;
-  transform: scale(1.001);
   transition: transform 340ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -912,12 +649,8 @@ onUnmounted(() => {
 }
 
 .attention-panel {
-  padding-bottom: 9px;
+  padding: 7px 22px;
   background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface));
-}
-
-.attention-list {
-  padding: 0 22px 6px;
 }
 
 .attention-item {
@@ -935,17 +668,11 @@ onUnmounted(() => {
 }
 
 .attention-icon {
-  width: 37px;
-  height: 37px;
-  border-radius: 50%;
-  transition: transform 160ms ease;
-}
-
-.attention-item:hover .attention-icon {
-  transform: translateY(-1px);
+  place-self: center;
 }
 
 .attention-icon svg {
+  display: block;
   width: 16px;
   height: 16px;
 }
@@ -967,10 +694,8 @@ onUnmounted(() => {
 }
 
 .attention-item > button {
-  position: relative;
   min-width: 76px;
   min-height: 33px;
-  overflow: hidden;
   border: 1px solid rgba(0, 143, 21, 0.28);
   border-radius: 8px;
   padding: 0 12px;
@@ -984,40 +709,39 @@ onUnmounted(() => {
     transform 150ms ease;
 }
 
-.attention-item > button::after {
-  position: absolute;
-  top: 0;
-  left: -120%;
-  width: 70%;
-  height: 100%;
-  background: linear-gradient(
-    105deg,
-    transparent,
-    rgba(0, 143, 21, 0.05),
-    rgba(0, 143, 21, 0.16),
-    rgba(0, 143, 21, 0.05),
-    transparent
-  );
-  content: '';
-  pointer-events: none;
-  transform: skewX(-18deg);
-  transition: left 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
 .attention-item > button:hover {
   border-color: rgba(0, 143, 21, 0.42);
   background: rgba(0, 181, 26, 0.035);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
-.attention-item > button:hover::after {
-  left: 145%;
+.calendar-link {
+  display: inline-flex;
+  min-height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-primary-strong);
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.calendar-link svg {
+  width: 11px;
+  height: 11px;
+}
+
+.upcoming-panel {
+  padding: 14px 22px;
 }
 
 .upcoming-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 0 22px 14px;
 }
 
 .upcoming-item {
@@ -1026,18 +750,11 @@ onUnmounted(() => {
   grid-template-columns: 58px minmax(0, 1fr);
   align-items: center;
   gap: 13px;
-  border-radius: 10px;
   padding: 8px 22px 8px 0;
-  transition: background 160ms ease;
-}
-
-.upcoming-item:hover {
-  background: #fbfdfb;
 }
 
 .upcoming-item + .upcoming-item {
   border-left: 1px solid var(--color-border);
-  border-radius: 0 10px 10px 0;
   padding-left: 23px;
 }
 
@@ -1101,45 +818,14 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 
-.calendar-link {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  gap: 5px;
-  overflow: hidden;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--color-primary-strong);
-  font-size: 12px;
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
-  transition: transform 160ms ease;
-}
-
-.calendar-link svg {
-  width: 11px;
-  height: 11px;
-  transition: transform 180ms ease;
-}
-
-.calendar-link:hover {
-  transform: translateX(2px);
-}
-
-.calendar-link:hover svg {
-  transform: translateX(3px);
-}
-
 .glance-panel {
-  padding-bottom: 14px;
+  padding: 14px 22px;
   background: color-mix(in srgb, var(--color-primary) 2.5%, var(--color-surface));
 }
 
 .glance-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 0 22px;
 }
 
 .glance-item {
@@ -1160,14 +846,13 @@ onUnmounted(() => {
 }
 
 .glance-icon {
-  width: 41px;
-  height: 41px;
-  border-radius: 50%;
+  place-self: center;
 }
 
 .glance-icon svg {
-  width: 19px;
-  height: 19px;
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 .glance-item strong,
@@ -1223,63 +908,12 @@ onUnmounted(() => {
   display: none;
 }
 
-.dashboard-panel.is-visible:hover {
-  transform: translateY(-1px);
-}
-
 .quick-card:focus-visible,
 .attention-item > button:focus-visible,
-.ladder-link:focus-visible,
+.open-ladder:focus-visible,
 .calendar-link:focus-visible {
   outline: 3px solid rgba(0, 181, 26, 0.14);
   outline-offset: 3px;
-}
-
-@keyframes gorra-icon-float {
-  0%,
-  100% {
-    transform: translateY(0) rotateY(0deg);
-  }
-  50% {
-    transform: translateY(-3px) rotateY(0deg);
-  }
-}
-
-@keyframes gorra-icon-flip {
-  0% {
-    transform: translateY(0) rotateY(0deg);
-  }
-  40% {
-    transform: translateY(-5px) rotateY(110deg);
-  }
-  72% {
-    transform: translateY(-2px) rotateY(235deg);
-  }
-  100% {
-    transform: translateY(0) rotateY(360deg);
-  }
-}
-
-@keyframes gorra-quick-pulse {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-2px) scale(1.02);
-  }
-}
-
-@keyframes gorra-quick-flip {
-  0% {
-    transform: translateY(0) rotateY(0deg) scale(1);
-  }
-  50% {
-    transform: translateY(-4px) rotateY(180deg) scale(1.05);
-  }
-  100% {
-    transform: translateY(0) rotateY(360deg) scale(1);
-  }
 }
 
 @media (max-width: 1080px) and (min-width: 721px) {
@@ -1288,11 +922,6 @@ onUnmounted(() => {
     grid-template-columns: 40px minmax(0, 1fr) 24px;
     gap: 9px;
     padding: 13px;
-  }
-
-  .quick-icon {
-    width: 40px;
-    height: 40px;
   }
 
   .quick-copy {
@@ -1305,17 +934,12 @@ onUnmounted(() => {
 }
 
 @media (max-width: 900px) {
-  .ladder-summary {
-    grid-template-columns: 1fr;
+  .ladder-card {
+    padding: 24px 26px;
   }
 
-  .ladder-side {
-    border-top: 1px solid var(--color-border);
-    border-left: 0;
-  }
-
-  .ladder-link {
-    min-height: 42px;
+  .ladder-header {
+    gap: 24px;
   }
 }
 
@@ -1325,10 +949,20 @@ onUnmounted(() => {
   }
 
   .dashboard-stack {
-    gap: 16px;
+    gap: 28px;
   }
 
-  .quick-grid {
+  .dashboard-section {
+    gap: 14px;
+  }
+
+  .section-intro h2 {
+    font-size: 17px;
+  }
+
+  .quick-grid,
+  .upcoming-grid,
+  .glance-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1340,21 +974,13 @@ onUnmounted(() => {
     width: 42%;
   }
 
-  .ladder-main,
-  .ladder-side {
-    padding-right: 20px;
-    padding-left: 20px;
-  }
-
-  .upcoming-grid,
-  .glance-grid {
-    grid-template-columns: 1fr;
+  .upcoming-item + .upcoming-item,
+  .glance-item + .glance-item {
+    border-top: 1px solid var(--color-border);
+    border-left: 0;
   }
 
   .upcoming-item + .upcoming-item {
-    border-top: 1px solid var(--color-border);
-    border-left: 0;
-    border-radius: 0;
     padding-left: 0;
   }
 
@@ -1362,21 +988,64 @@ onUnmounted(() => {
   .glance-item:first-child {
     padding: 12px 0;
   }
+}
 
-  .glance-item + .glance-item {
-    border-top: 1px solid var(--color-border);
-    border-left: 0;
+@media (max-width: 640px) {
+  .ladder-card {
+    min-height: 170px;
+    border-radius: 15px;
+    padding: 21px;
+    background-position: 61% center;
+  }
+
+  .ladder-header {
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .ladder-heading-copy h3 {
+    max-width: 210px;
+    font-size: 17px;
+  }
+
+  .ladder-heading-copy p {
+    font-size: 12px;
+  }
+
+  .open-ladder {
+    min-width: auto;
+    height: 40px;
+    gap: 12px;
+    padding: 0 13px;
+    font-size: 12px;
+  }
+
+  .ladder-divider {
+    width: 58%;
+    margin: 19px 0 14px;
+  }
+
+  .ladder-position {
+    font-size: 12px;
+  }
+
+  .ladder-position strong {
+    font-size: 15px;
   }
 }
 
 @media (max-width: 520px) {
-  .section-heading,
-  .quick-grid,
-  .attention-list,
-  .upcoming-grid,
-  .glance-grid {
+  .quick-panel,
+  .attention-panel,
+  .upcoming-panel,
+  .glance-panel {
     padding-right: 18px;
     padding-left: 18px;
+  }
+
+  .section-intro--split {
+    align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .quick-card {
@@ -1405,25 +1074,30 @@ onUnmounted(() => {
 }
 
 @media (max-width: 430px) {
-  .ladder-facts {
-    grid-template-columns: 1fr 1fr;
-    row-gap: 16px;
+  .ladder-card {
+    background-position: 67% center;
   }
 
-  .ladder-fact {
-    padding: 0 14px;
+  .ladder-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
   }
 
-  .ladder-fact:nth-child(3) {
-    grid-column: 1 / -1;
-    border-top: 1px solid var(--color-border);
-    border-left: 0;
-    padding: 14px 0 0;
+  .ladder-heading-copy h3 {
+    max-width: 180px;
+    font-size: 16px;
   }
 
-  .ladder-link {
-    min-height: 44px;
-    align-items: center;
+  .open-ladder {
+    height: 38px;
+    gap: 8px;
+    border-radius: 8px;
+    padding: 0 11px;
+  }
+
+  .ladder-divider {
+    width: 65%;
   }
 }
 
@@ -1446,30 +1120,19 @@ onUnmounted(() => {
 
   .dashboard-panel,
   .dashboard-card,
-  .section-icon,
-  .quick-icon,
   .quick-card,
   .quick-photo img,
-  .attention-icon,
   .attention-item > button,
-  .ladder-link,
-  .calendar-link {
+  .open-ladder {
     animation: none;
     transition: none;
   }
 
-  .dashboard-panel:hover,
   .dashboard-card:hover,
   .quick-card:hover,
-  .quick-card:hover .quick-icon,
   .attention-item > button:hover,
-  .ladder-link:hover,
-  .calendar-link:hover {
+  .open-ladder:hover {
     transform: none;
-  }
-
-  .attention-item > button::after {
-    display: none;
   }
 }
 </style>

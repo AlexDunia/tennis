@@ -26,9 +26,9 @@ function numericSortTime(candidate) {
  *
  * Future Laravel data can feed this exact contract.
  */
-export function resolveHomePriority(candidates = []) {
+export function resolveHomePriorities(candidates = []) {
   if (!Array.isArray(candidates)) {
-    return null
+    return []
   }
 
   const eligible = candidates.filter(
@@ -37,7 +37,7 @@ export function resolveHomePriority(candidates = []) {
   )
 
   if (!eligible.length) {
-    return null
+    return []
   }
 
   return [...eligible].sort((left, right) => {
@@ -62,5 +62,9 @@ export function resolveHomePriority(candidates = []) {
      * depends on browser implementation details.
      */
     return String(left.id || '').localeCompare(String(right.id || ''))
-  })[0]
+  })
+}
+
+export function resolveHomePriority(candidates = []) {
+  return resolveHomePriorities(candidates)[0] || null
 }

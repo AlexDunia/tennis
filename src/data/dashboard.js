@@ -1,42 +1,8 @@
 export const dashboardFixture = Object.freeze({
-  currentUser: {
-    id: 'player-alex-dunia',
-    firstName: 'Alex',
-    lastName: 'Dunia',
-  },
   activeClub: {
     id: 'greenview-tennis-club',
     name: 'Greenview Tennis Club',
   },
-  priorityCandidates: [
-    {
-      id: 'ready-match-james',
-      family: 'V1-B',
-      priority: 700,
-      sortAt: 1748107800000,
-      eyebrow: 'Your match is ready',
-      title: 'You vs James',
-      supportingText: 'Your scheduled singles match is ready to open.',
-      category: "Men's Singles",
-      court: 'Court 3',
-      time: '6:30 PM',
-      dateLabel: 'Today, May 24',
-      ctaLabel: 'Open match',
-      players: [
-        {
-          id: 'player-alex-dunia',
-          name: 'Alex',
-          image: 'https://i.pravatar.cc/160?img=47',
-        },
-        {
-          id: 'player-james',
-          name: 'James',
-          image: 'https://i.pravatar.cc/160?img=12',
-        },
-      ],
-      to: { name: 'Challenges' },
-    },
-  ],
   ladders: [
     {
       id: 'greenview-mens-singles',

@@ -8,6 +8,7 @@ import {
 } from '../utils/auth/accessControl'
 import { useAuthStore } from './auth'
 import { getActiveLadderConfig, isEligibleLadderOpponent } from '../config/ladder'
+import { APP_CURRENT_PLAYER } from '../config/currentPlayer'
 
 const ROLE_STORAGE_KEY = 'tennis.local.playerRoles.v1'
 
@@ -27,7 +28,7 @@ export const usePlayerStore = defineStore('player', () => {
   const authStore = useAuthStore()
   // 6. REACTIVE STATE
   const players = ref([])
-  const currentPlayerId = computed(() => authStore.user?.playerId || 'player-02')
+  const currentPlayerId = computed(() => authStore.user?.playerId || APP_CURRENT_PLAYER.id)
   const roleOverrides = ref(loadRoleOverrides())
   const isLoading = ref(false)
   const error = ref('')
@@ -66,7 +67,8 @@ export const usePlayerStore = defineStore('player', () => {
       ? {
           ...player,
           ...access,
-          name: access?.isAdmin && authStore.user?.name ? authStore.user.name : player.name,
+          name: authStore.user?.name || player.name,
+          imageUrl: authStore.user?.avatar || player.imageUrl,
         }
       : null
   })

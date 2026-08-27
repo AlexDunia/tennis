@@ -3,11 +3,20 @@ import { defineStore } from 'pinia'
 import { fakeRequest, createTimestamp } from '../services/api'
 import { buildAccessProfile, hasPermission as checkPermission } from '../utils/auth/accessControl'
 import { APP_DATA_MODES, setAppDataMode } from '../dataMode'
+import { APP_CURRENT_PLAYER } from '../config/currentPlayer'
 
 const STORAGE_KEY = 'sheltennis-auth'
 
-function createAvatarImage(name) {
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=EDF2F7&color=2E3A59`
+function applyCurrentPlayerIdentity(user) {
+  if (!user) return null
+
+  return {
+    ...user,
+    id: APP_CURRENT_PLAYER.id,
+    playerId: APP_CURRENT_PLAYER.id,
+    name: APP_CURRENT_PLAYER.name,
+    avatar: APP_CURRENT_PLAYER.imageUrl,
+  }
 }
 
 function loadAuthFromStorage() {
@@ -19,7 +28,7 @@ function loadAuthFromStorage() {
     const parsed = JSON.parse(stored)
     return {
       isLoggedIn: parsed.isLoggedIn === true,
-      user: parsed.user ?? null,
+      user: applyCurrentPlayerIdentity(parsed.user),
     }
   } catch (_) {
     return { isLoggedIn: false, user: null }
@@ -54,19 +63,20 @@ export const useAuthStore = defineStore('auth', () => {
       const roleKey = ['club_admin', 'super_admin'].includes(credentials.roleKey)
         ? credentials.roleKey
         : 'player'
-      const playerId = roleKey === 'player' ? 'player-05' : 'player-02'
+      const playerId = APP_CURRENT_PLAYER.id
       const requestedMode =
         roleKey !== 'player' || credentials.dataMode === APP_DATA_MODES.DEMO
           ? APP_DATA_MODES.DEMO
           : APP_DATA_MODES.EMPTY
       setAppDataMode(requestedMode)
       const response = await fakeRequest({
-        name: credentials.username,
+        id: APP_CURRENT_PLAYER.id,
+        name: APP_CURRENT_PLAYER.name,
         email: credentials.email || `${credentials.username}@shell.com`,
         playerId,
         roleKey,
         lastLogin: createTimestamp(),
-        avatar: createAvatarImage(credentials.username),
+        avatar: APP_CURRENT_PLAYER.imageUrl,
       })
       user.value = {
         ...response,

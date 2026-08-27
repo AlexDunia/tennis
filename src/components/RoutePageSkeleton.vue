@@ -310,22 +310,28 @@ const opponentRows = computed(() =>
     </template>
 
     <template v-else-if="variant === 'dashboard'">
-      <div class="dashboard-identity">
-        <span class="sk sk-dashboard-badge"></span>
-        <div class="stack gap-7">
-          <span class="sk sk-line w-24 thin"></span>
-          <span class="sk sk-line w-34 title"></span>
+      <div class="dashboard-skeleton-section">
+        <span class="sk sk-line w-28"></span>
+        <span class="sk sk-dashboard-ladder"></span>
+      </div>
+      <div class="dashboard-skeleton-section">
+        <span class="sk sk-line w-34"></span>
+        <div class="three-grid dashboard-activity">
+          <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-dashboard-activity"></span>
         </div>
       </div>
-      <span class="sk sk-dashboard-ladder"></span>
-      <div class="member-head dashboard-section-head">
+      <div class="dashboard-skeleton-section">
         <span class="sk sk-line w-28"></span>
-        <span class="sk sk-line w-10 thin"></span>
+        <span class="sk sk-dashboard-opportunity"></span>
       </div>
-      <div class="three-grid dashboard-activity">
-        <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-dashboard-activity"></span>
+      <div class="dashboard-skeleton-section">
+        <span class="sk sk-line w-34"></span>
+        <span class="sk sk-dashboard-upcoming"></span>
       </div>
-      <span class="sk sk-dashboard-opportunity"></span>
+      <div class="dashboard-skeleton-section">
+        <span class="sk sk-line w-28"></span>
+        <span class="sk sk-dashboard-glance"></span>
+      </div>
     </template>
 
     <template v-else-if="variant === 'rankings'">
@@ -758,33 +764,28 @@ const opponentRows = computed(() =>
 .sk-hero {
   height: 290px;
 }
-.dashboard-identity {
-  display: flex;
-  min-height: 58px;
-  align-items: center;
-  gap: 12px;
+.route-skeleton--dashboard {
+  gap: 36px;
 }
-.sk-dashboard-badge {
-  width: 54px;
-  height: 54px;
-  flex: 0 0 54px;
-  border-radius: 50%;
+.dashboard-skeleton-section {
+  display: grid;
+  gap: 16px;
 }
 .sk-dashboard-ladder {
-  height: 390px;
-  border-radius: calc(var(--app-card-radius) * 2.2);
-}
-.dashboard-section-head {
-  min-height: 34px;
-  padding: 0;
-  border: 0;
+  height: 158px;
+  border-radius: 18px;
 }
 .sk-dashboard-activity {
-  height: 246px;
+  height: 126px;
 }
 .sk-dashboard-opportunity {
-  height: 80px;
-  border-radius: calc(var(--app-card-radius) * 2);
+  height: 178px;
+  border-radius: 18px;
+}
+.sk-dashboard-upcoming,
+.sk-dashboard-glance {
+  height: 112px;
+  border-radius: 18px;
 }
 .sk-tournament-hero {
   height: 190px;
@@ -1042,20 +1043,25 @@ const opponentRows = computed(() =>
     overflow: hidden;
     gap: 16px;
   }
-  .sk-dashboard-badge {
-    width: 48px;
-    height: 48px;
-    flex-basis: 48px;
+  .route-skeleton--dashboard {
+    gap: 28px;
+  }
+  .dashboard-skeleton-section {
+    gap: 14px;
   }
   .sk-dashboard-ladder {
-    height: 374px;
+    height: 170px;
+    border-radius: 15px;
   }
   .dashboard-activity {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
-  .sk-dashboard-activity { height: 226px; }
-  .dashboard-activity .sk-dashboard-activity:last-child { display: none; }
+  .sk-dashboard-activity {
+    height: 114px;
+  }
+  .dashboard-activity .sk-dashboard-activity:last-child {
+    display: block;
+  }
   .sk-line.tab {
     min-width: 72px;
   }
