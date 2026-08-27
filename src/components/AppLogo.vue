@@ -31,7 +31,7 @@ const logoSource = computed(() => (props.onDark ? GORRA_LOGO_ON_DARK_URL : GORRA
 }
 
 .app-logo--on-light {
-  filter: brightness(0) saturate(100%);
+  filter: none;
 }
 
 .app-logo--on-dark {

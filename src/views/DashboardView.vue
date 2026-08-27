@@ -164,10 +164,6 @@ onUnmounted(() => {
               <span class="quick-arrow" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></svg>
               </span>
-
-              <span class="quick-photo" aria-hidden="true">
-                <img :src="action.image" alt="" loading="lazy" />
-              </span>
             </button>
           </div>
         </div>
@@ -300,7 +296,7 @@ onUnmounted(() => {
 
 .dashboard-stack {
   display: grid;
-  gap: 36px;
+  gap: 40px;
 }
 
 .dashboard-panel {
@@ -323,7 +319,11 @@ onUnmounted(() => {
 }
 
 .dashboard-section + .dashboard-section {
-  margin-top: 2px;
+  margin-top: 4px;
+}
+
+.dashboard-section:first-child {
+  margin-bottom: 4px;
 }
 
 .section-intro {
@@ -501,7 +501,6 @@ onUnmounted(() => {
 
 .quick-card {
   position: relative;
-  isolation: isolate;
   display: grid;
   min-height: 126px;
   grid-template-columns: 44px minmax(0, 1fr) 26px;
@@ -521,31 +520,10 @@ onUnmounted(() => {
     transform 160ms ease;
 }
 
-.quick-card::before {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    #fff 0%,
-    #fff 46%,
-    rgba(255, 255, 255, 0.97) 57%,
-    rgba(255, 255, 255, 0.76) 69%,
-    rgba(255, 255, 255, 0) 84%
-  );
-  content: '';
-  pointer-events: none;
-}
-
 .quick-card:hover {
   border-color: #dce6de;
   box-shadow: 0 12px 30px rgba(20, 45, 29, 0.026);
   transform: translateY(-2px);
-}
-
-.quick-card > :not(.quick-photo) {
-  position: relative;
-  z-index: 3;
 }
 
 .quick-icon,
@@ -623,29 +601,6 @@ onUnmounted(() => {
 
 .quick-card:hover .quick-arrow {
   transform: translateX(2px);
-}
-
-.quick-photo {
-  position: absolute;
-  z-index: 1;
-  inset: 0 0 0 auto;
-  width: 48%;
-  height: 100%;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.quick-photo img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  opacity: 0.42;
-  object-fit: cover;
-  transition: transform 340ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.quick-card:hover .quick-photo img {
-  transform: scale(1.045);
 }
 
 .attention-panel {
@@ -927,10 +882,6 @@ onUnmounted(() => {
   .quick-copy {
     max-width: 125px;
   }
-
-  .quick-photo {
-    width: 45%;
-  }
 }
 
 @media (max-width: 900px) {
@@ -949,7 +900,11 @@ onUnmounted(() => {
   }
 
   .dashboard-stack {
-    gap: 28px;
+    gap: 30px;
+  }
+
+  .dashboard-section:first-child {
+    margin-bottom: 2px;
   }
 
   .dashboard-section {
@@ -968,10 +923,6 @@ onUnmounted(() => {
 
   .quick-card {
     min-height: 114px;
-  }
-
-  .quick-photo {
-    width: 42%;
   }
 
   .upcoming-item + .upcoming-item,
@@ -1052,21 +1003,6 @@ onUnmounted(() => {
     grid-template-columns: 42px minmax(0, 1fr) 25px;
   }
 
-  .quick-photo {
-    width: 45%;
-  }
-
-  .quick-card::before {
-    background: linear-gradient(
-      90deg,
-      #fff 0%,
-      #fff 50%,
-      rgba(255, 255, 255, 0.97) 60%,
-      rgba(255, 255, 255, 0.72) 72%,
-      rgba(255, 255, 255, 0) 89%
-    );
-  }
-
   .calendar-date {
     width: 50px;
     height: 58px;
@@ -1121,7 +1057,6 @@ onUnmounted(() => {
   .dashboard-panel,
   .dashboard-card,
   .quick-card,
-  .quick-photo img,
   .attention-item > button,
   .open-ladder {
     animation: none;

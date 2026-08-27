@@ -2,17 +2,59 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '../stores/admin'
+import { useMatchStore } from '../stores/match'
 import EmptyState from '../components/EmptyState.vue'
 
 const route = useRoute()
 const router = useRouter()
 const adminStore = useAdminStore()
+const matchStore = useMatchStore()
 
 const activeClub = computed(() => adminStore.activeClub)
 const setup = computed(() => activeClub.value?.setup || null)
 const workspace = computed(() => setup.value?.workspace || {})
 const rules = computed(() => setup.value?.rules || {})
 const isManager = computed(() => adminStore.hasActiveClubPermission('club.manage'))
+const activeLadders = computed(
+  () => setup.value?.ladders?.filter((ladder) => ladder.enabled && !ladder.archived) || [],
+)
+const clubInitials = computed(() =>
+  String(activeClub.value?.name || 'Club')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase(),
+)
+const clubMatches = computed(() =>
+  matchStore.matches.filter(
+    (match) => !match.clubId || !activeClub.value?.id || match.clubId === activeClub.value.id,
+  ),
+)
+const liveMatches = computed(() =>
+  clubMatches.value.filter((match) => ['live', 'in_progress'].includes(match.status)),
+)
+const scheduledMatches = computed(() =>
+  clubMatches.value.filter((match) => ['accepted', 'scheduled'].includes(match.status)),
+)
+const activityTitle = computed(() =>
+  liveMatches.value.length
+    ? `${liveMatches.value.length} ${liveMatches.value.length === 1 ? 'match' : 'matches'} live now`
+    : 'No matches live right now',
+)
+const activityCopy = computed(() => {
+  if (liveMatches.value.length) {
+    const activeCourts = new Set(liveMatches.value.map((match) => match.court).filter(Boolean)).size
+    return activeCourts
+      ? `Across ${activeCourts} ${activeCourts === 1 ? 'court' : 'courts'}`
+      : 'Follow every active court from Live Operations.'
+  }
+
+  return scheduledMatches.value.length
+    ? `${scheduledMatches.value.length} scheduled next`
+    : 'Scheduled and live matches will appear here.'
+})
 const section = computed(() => {
   const value = String(route.query.section || 'overview')
   return ['overview', 'members', 'rules'].includes(value) ? value : 'overview'
@@ -64,7 +106,7 @@ function openJoinOrManage() {
 }
 
 onMounted(() => {
-  adminStore.loadClubs().catch(() => {})
+  Promise.all([adminStore.loadClubs(), matchStore.loadMatches()]).catch(() => {})
 })
 </script>
 
@@ -88,7 +130,7 @@ onMounted(() => {
     <template v-else>
       <header class="club-hero">
         <div class="club-hero__mark" aria-hidden="true">
-          {{ activeClub.name.slice(0, 2).toUpperCase() }}
+          {{ clubInitials }}
         </div>
         <div class="club-hero__copy">
           <p>Your active club</p>
@@ -96,9 +138,6 @@ onMounted(() => {
           <span>{{ workspace.location || 'Club location not added yet' }}</span>
         </div>
         <div v-if="isManager" class="club-hero__actions">
-          <RouterLink class="button-secondary" :to="{ name: 'Clubs', query: { view: 'start' } }">
-            Switch or add club
-          </RouterLink>
           <RouterLink class="button-primary" :to="{ name: 'Settings' }"> Manage club </RouterLink>
         </div>
       </header>
@@ -115,9 +154,7 @@ onMounted(() => {
           </article>
           <article>
             <span>Active ladders</span>
-            <strong>{{
-              setup.ladders?.filter((ladder) => ladder.enabled && !ladder.archived).length || 0
-            }}</strong>
+            <strong>{{ activeLadders.length }}</strong>
           </article>
         </div>
 
@@ -138,23 +175,17 @@ onMounted(() => {
             <p v-else class="club-card__empty">No courts have been added yet.</p>
           </article>
 
-          <article class="club-card">
+          <article class="club-card club-card--activity">
             <div class="club-card__heading">
               <div>
-                <p>Season</p>
-                <h2>Club calendar</h2>
+                <p>Club activity</p>
+                <h2>Live right now</h2>
               </div>
             </div>
-            <dl class="club-details">
-              <div>
-                <dt>Starts</dt>
-                <dd>{{ workspace.seasonStart || 'Not set' }}</dd>
-              </div>
-              <div>
-                <dt>Ends</dt>
-                <dd>{{ workspace.seasonEnd || 'Not set' }}</dd>
-              </div>
-            </dl>
+            <div class="club-activity">
+              <strong>{{ activityTitle }}</strong>
+              <p>{{ activityCopy }}</p>
+            </div>
           </article>
         </div>
       </section>
@@ -218,8 +249,8 @@ onMounted(() => {
 <style scoped>
 .club-page {
   display: grid;
-  gap: 24px;
-  width: min(100%, 1080px);
+  gap: 16px;
+  width: 100%;
 }
 
 .club-loading {
@@ -233,20 +264,25 @@ onMounted(() => {
 .club-hero {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--color-border);
+  gap: 14px;
+  min-height: 112px;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-card-radius);
+  background: var(--color-surface);
+  box-shadow: var(--flow-shadow-quiet);
 }
 
 .club-hero__mark {
   display: grid;
-  flex: 0 0 62px;
-  width: 62px;
-  height: 62px;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
   place-items: center;
-  border-radius: 16px;
-  background: var(--color-surface-soft);
-  color: var(--color-primary-strong);
+  border-radius: var(--app-inner-radius);
+  background: #052e20;
+  color: #d9f77b;
+  font-size: var(--type-meta);
   font-weight: var(--font-weight-bold);
 }
 
@@ -275,14 +311,14 @@ onMounted(() => {
 .club-hero__copy h1 {
   overflow: hidden;
   color: var(--color-text);
-  font-size: clamp(21px, 3vw, 28px);
+  font-size: var(--type-section-title);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .club-hero__copy span {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: var(--type-meta);
 }
 
 .club-hero__actions {
@@ -294,39 +330,39 @@ onMounted(() => {
 
 .club-overview {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .club-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--app-card-radius);
-  background: var(--color-surface);
+  gap: 12px;
 }
 
 .club-stats article {
   display: grid;
+  min-height: 88px;
+  align-content: center;
   gap: 4px;
-  padding: 20px;
-  border-right: 1px solid var(--color-border);
-}
-
-.club-stats article:last-child {
-  border-right: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-card-radius);
+  background: var(--color-surface);
+  box-shadow: var(--flow-shadow-quiet);
 }
 
 .club-stats span {
-  color: var(--color-muted);
-  font-size: 11px;
-  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-strong);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .club-stats strong {
   color: var(--color-text);
-  font-size: 21px;
+  font-size: var(--type-section-title);
+  line-height: 1.15;
 }
 
 .club-grid {
@@ -338,17 +374,19 @@ onMounted(() => {
 .club-card {
   display: grid;
   align-content: start;
-  gap: 18px;
+  gap: 14px;
   min-width: 0;
-  padding: 22px;
+  min-height: 180px;
+  padding: 20px;
   border: 1px solid var(--color-border);
   border-radius: var(--app-card-radius);
   background: var(--color-surface);
-  box-shadow: 0 4px 14px rgba(15, 34, 24, 0.025);
+  box-shadow: var(--flow-shadow-quiet);
 }
 
 .club-card--wide {
-  width: min(100%, 880px);
+  width: 100%;
+  min-height: 0;
 }
 
 .club-card__heading {
@@ -364,7 +402,21 @@ onMounted(() => {
 }
 
 .club-card__heading h2 {
-  font-size: 16px;
+  font-size: var(--type-card-title);
+}
+
+.club-card__heading > a,
+.club-card__heading > button {
+  min-height: 32px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-primary-strong);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
 }
 
 .club-list,
@@ -380,14 +432,19 @@ onMounted(() => {
 .member-list li {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 54px;
+  gap: 10px;
+  min-height: 32px;
+  font-size: var(--type-row-title);
+}
+
+.member-list li {
+  min-height: 58px;
   border-top: 1px solid var(--color-border);
 }
 
 .club-list__dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--color-primary);
 }
@@ -395,6 +452,24 @@ onMounted(() => {
 .club-card__empty {
   margin: 0;
   color: var(--color-muted);
+}
+
+.club-activity {
+  display: grid;
+  align-content: start;
+  gap: var(--space-row-copy);
+  padding-top: 2px;
+}
+
+.club-activity > strong {
+  color: var(--color-text);
+  font-size: var(--type-row-title);
+}
+
+.club-activity > p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--type-meta);
 }
 
 .club-details,
@@ -452,6 +527,7 @@ onMounted(() => {
   .club-hero {
     align-items: flex-start;
     flex-wrap: wrap;
+    min-height: 0;
   }
 
   .club-hero__actions {
@@ -461,6 +537,10 @@ onMounted(() => {
 
   .club-grid {
     grid-template-columns: 1fr;
+  }
+
+  .club-card {
+    min-height: 0;
   }
 }
 
@@ -472,12 +552,7 @@ onMounted(() => {
   .club-stats article {
     grid-template-columns: 1fr auto;
     align-items: center;
-    border-right: 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .club-stats article:last-child {
-    border-bottom: 0;
+    min-height: 82px;
   }
 
   .club-card__heading {

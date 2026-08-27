@@ -171,7 +171,7 @@ body:has(.gorra-landing) {
 
 .lp-brand {
   display: flex;
-  width: 112px;
+  width: 104px;
   align-items: center;
   flex-shrink: 0;
 }
@@ -280,7 +280,7 @@ body:has(.gorra-landing) {
 .lp-hero {
   position: relative;
   isolation: isolate;
-  padding: clamp(74px, 9vw, 118px) 0 96px;
+  padding: clamp(52px, 6.5vw, 82px) 0 96px;
   background: var(--lp-deep);
   color: #fff;
 }
@@ -1539,8 +1539,8 @@ body:has(.gorra-landing) {
 }
 
 .lp-footer__logo {
-  width: 124px;
-  max-height: 42px;
+  width: 112px;
+  max-height: 39px;
 }
 
 .lp-footer p,
@@ -1785,7 +1785,7 @@ body:has(.gorra-landing) {
   }
 
   .lp-brand {
-    width: 98px;
+    width: 92px;
   }
 
   .lp-nav__actions {

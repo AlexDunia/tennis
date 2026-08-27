@@ -20,8 +20,6 @@ export const dashboardFixture = Object.freeze({
       title: 'Play match',
       description: 'Play now or schedule a match',
       icon: 'play',
-      image:
-        'https://images.unsplash.com/photo-1551773188-0801da12ddae?auto=format&fit=crop&fm=jpg&q=78&w=1100',
       to: { name: 'Play' },
     },
     {
@@ -29,8 +27,6 @@ export const dashboardFixture = Object.freeze({
       title: 'Challenge ladder',
       description: 'Challenge someone near your position',
       icon: 'challenge',
-      image:
-        'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?auto=format&fit=crop&w=1100&q=80',
       to: { name: 'CreateChallenge' },
     },
     {
@@ -38,8 +34,6 @@ export const dashboardFixture = Object.freeze({
       title: 'Enter tournament',
       description: 'Find an event and enter',
       icon: 'tournament',
-      image:
-        'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?auto=format&fit=crop&w=1100&q=80',
       to: { name: 'Tournaments' },
     },
   ],

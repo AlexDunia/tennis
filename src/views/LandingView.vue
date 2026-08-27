@@ -299,7 +299,7 @@ const audiences = [
       <header class="lp-nav" :class="{ 'lp-nav--docked': navDocked }">
         <div class="lp-container lp-nav__inner">
           <RouterLink class="lp-brand" to="/" aria-label="GORRA home" @click="closeMobileMenu">
-            <AppLogo class="lp-brand__logo" on-dark />
+            <AppLogo class="lp-brand__logo" :on-dark="true" />
           </RouterLink>
 
           <div id="landing-navigation" class="lp-nav__links" :class="{ open: mobileMenuOpen }">
@@ -740,7 +740,7 @@ const audiences = [
     <footer class="lp-footer">
       <div class="lp-container lp-footer__grid">
         <div>
-          <AppLogo class="lp-footer__logo" on-dark />
+          <AppLogo class="lp-footer__logo" :on-dark="true" />
           <p>The operating system for club tennis.</p>
         </div>
         <nav aria-label="Footer navigation">

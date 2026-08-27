@@ -7,7 +7,7 @@
         aria-label="GORRA Home"
         @click="handleNavigationClick({ name: 'Dashboard' }, $event)"
       >
-        <AppLogo class="brand__logo" />
+        <AppLogo class="brand__logo" :on-dark="false" />
       </a>
 
       <div ref="clubMenuRoot" class="club-switcher">
@@ -142,7 +142,7 @@
             aria-label="GORRA Home"
             @click="handleNavigationClick({ name: 'Dashboard' }, $event)"
           >
-            <AppLogo class="global-identity__logo" />
+            <AppLogo class="global-identity__logo" :on-dark="false" />
           </a>
 
           <div class="header-main">
@@ -253,6 +253,7 @@
         <nav
           v-if="showContextualNavigation"
           class="context-nav"
+          :class="{ 'context-nav--club': activePrimarySection === 'club' }"
           :aria-label="`${activePrimaryLabel} navigation`"
           :style="contextMotionStyle"
         >
@@ -886,8 +887,8 @@ onUnmounted(() => {
 }
 
 .brand__logo {
-  width: 124px;
-  max-height: 44px;
+  width: 112px;
+  max-height: 40px;
 }
 
 .club-switcher {
@@ -1293,9 +1294,9 @@ onUnmounted(() => {
 
 .global-identity__logo {
   display: block;
-  width: 96px;
+  width: 88px;
   max-width: 28vw;
-  max-height: 34px;
+  max-height: 32px;
 }
 
 .club-control {
@@ -1738,6 +1739,56 @@ onUnmounted(() => {
   background: var(--color-primary);
 }
 
+.context-nav--club {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: clamp(24px, 3vw, 36px);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(10px);
+  overflow-x: auto;
+}
+
+.context-nav--club .context-nav__motion {
+  display: none;
+}
+
+.context-nav--club a {
+  flex: 0 0 auto;
+  min-width: auto;
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 0 2px;
+  color: var(--color-text-soft);
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  opacity: 0.7;
+  transition:
+    color var(--motion-short) var(--motion-curve),
+    opacity var(--motion-short) var(--motion-curve);
+}
+
+.context-nav--club a:hover {
+  opacity: 0.9;
+}
+
+.context-nav--club a.active {
+  color: var(--color-primary-strong);
+  font-weight: var(--font-weight-semibold);
+  opacity: 1;
+}
+
+.context-nav--club .context-nav__icon,
+.context-nav--club .context-nav__icon :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.context-nav--club a::after {
+  right: 0;
+  left: 0;
+}
+
 @keyframes horizontalNavTrack {
   from {
     opacity: 0.14;
@@ -1851,8 +1902,8 @@ onUnmounted(() => {
   }
 
   .brand__logo {
-    width: 52px;
-    max-height: 28px;
+    width: 48px;
+    max-height: 26px;
   }
 
   .club-switcher__copy,
@@ -2138,7 +2189,7 @@ onUnmounted(() => {
 
 @media (max-width: 390px) {
   .global-identity__logo {
-    width: 86px;
+    width: 80px;
   }
 
   .club-control__name,

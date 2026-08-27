@@ -93,36 +93,74 @@ const playerInitials = APP_CURRENT_PLAYER.name
 
       <div class="product-preview__content">
         <template v-if="section === 'home'">
-          <section class="product-preview__intro">
-            <small>YOUR LADDER</small>
-            <h3>Welcome back, {{ APP_CURRENT_PLAYER.firstName }}.</h3>
-          </section>
-          <article class="product-preview__ladder-card">
-            <div>
-              <small>{{ dashboardFixture.activeClub.name }}</small>
-              <strong>You are on the {{ ladder.name }} ladder.</strong>
-            </div>
-            <p>
-              <span>Your position</span><b>#{{ ladder.position }}</b
-              ><em>of {{ ladder.playerCount }}</em>
-            </p>
-          </article>
-          <section class="product-preview__quick-grid">
-            <article v-for="action in dashboardFixture.quickActions" :key="action.id">
-              <span aria-hidden="true">↗</span>
-              <strong>{{ action.title }}</strong>
-              <small>{{ action.description }}</small>
-            </article>
-          </section>
-          <article class="product-preview__attention">
-            <span aria-hidden="true">✓</span>
-            <div>
-              <small>NEEDS YOUR ATTENTION</small>
-              <strong>{{ dashboardFixture.attentionItems[0].title }}</strong>
-              <p>{{ dashboardFixture.attentionItems[0].description }}</p>
-            </div>
-            <b>{{ dashboardFixture.attentionItems[0].actionLabel }}</b>
-          </article>
+          <div class="product-preview__home-dashboard">
+            <section class="product-preview__home-section">
+              <h3>Welcome back, {{ APP_CURRENT_PLAYER.firstName }}.</h3>
+              <article class="product-preview__home-ladder">
+                <header>
+                  <div>
+                    <strong>You are on {{ ladder.name }} ladder.</strong>
+                    <small>In {{ dashboardFixture.activeClub.name }}.</small>
+                  </div>
+                  <span>Open ladder <b aria-hidden="true">→</b></span>
+                </header>
+                <i aria-hidden="true"></i>
+                <p>
+                  <span>Your ladder position is</span>
+                  <strong>#{{ ladder.position }}</strong>
+                  <span>of {{ ladder.playerCount }}.</span>
+                </p>
+              </article>
+            </section>
+            <section class="product-preview__home-section">
+              <h3>Here are some quick actions for you</h3>
+              <div class="product-preview__home-panel">
+                <div class="product-preview__home-actions">
+                  <article
+                    v-for="(action, index) in dashboardFixture.quickActions"
+                    :key="action.id"
+                  >
+                    <span class="product-preview__home-action-icon" aria-hidden="true">
+                      <svg v-if="index === 0" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="m10 8 6 4-6 4Z" />
+                      </svg>
+                      <svg v-else-if="index === 1" viewBox="0 0 24 24">
+                        <ellipse cx="8" cy="7" rx="3" ry="4" transform="rotate(-35 8 7)" />
+                        <ellipse cx="16" cy="7" rx="3" ry="4" transform="rotate(35 16 7)" />
+                        <path d="m10 10 7 9M14 10l-7 9" />
+                      </svg>
+                      <svg v-else viewBox="0 0 24 24">
+                        <path d="M8 4h8v4a4 4 0 0 1-8 0V4Z" />
+                        <path d="M6 5H4v2a4 4 0 0 0 4 4M18 5h2v2a4 4 0 0 1-4 4M12 12v5M8 20h8" />
+                      </svg>
+                    </span>
+                    <span class="product-preview__home-action-copy">
+                      <strong>{{ action.title }}</strong>
+                      <small>{{ action.description }}</small>
+                    </span>
+                    <span class="product-preview__home-action-arrow" aria-hidden="true">›</span>
+                  </article>
+                </div>
+              </div>
+            </section>
+            <section class="product-preview__home-section">
+              <h3>This needs your attention</h3>
+              <div class="product-preview__home-panel product-preview__home-attention">
+                <span aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="m8 12 2.5 2.5L16.5 9" />
+                  </svg>
+                </span>
+                <div>
+                  <strong>{{ dashboardFixture.attentionItems[0].title }}</strong>
+                  <p>{{ dashboardFixture.attentionItems[0].description }}</p>
+                </div>
+                <b>{{ dashboardFixture.attentionItems[0].actionLabel }}</b>
+              </div>
+            </section>
+          </div>
         </template>
 
         <template v-else-if="section === 'play'">
@@ -267,7 +305,7 @@ const playerInitials = APP_CURRENT_PLAYER.name
 }
 
 .product-preview__logo {
-  width: 72px;
+  width: 66px;
   margin: 0 7px 23px;
 }
 
@@ -466,6 +504,210 @@ const playerInitials = APP_CURRENT_PLAYER.name
 .product-preview__intro p {
   color: #6d7a70;
   font-size: 8px;
+}
+
+.product-preview__home-dashboard {
+  display: grid;
+  gap: 12px;
+}
+
+.product-preview__home-section {
+  display: grid;
+  gap: 7px;
+}
+
+.product-preview__home-section > h3 {
+  margin: 0;
+  color: #425044;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+}
+
+.product-preview__home-ladder {
+  min-height: 88px;
+  padding: 13px 15px;
+  overflow: hidden;
+  border-radius: 10px;
+  background-image:
+    linear-gradient(90deg, rgba(8, 43, 24, 0.62), rgba(8, 43, 24, 0.2)),
+    url('https://res.cloudinary.com/dnuhjsckk/image/upload/v1787789959/tennissecond_1_skqfpc.png');
+  background-position: center;
+  background-size: cover;
+  color: #fff;
+}
+
+.product-preview__home-ladder header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.product-preview__home-ladder header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.product-preview__home-ladder header strong {
+  font-size: 10px;
+}
+
+.product-preview__home-ladder header small {
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.product-preview__home-ladder header > span {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: #f5f6e9;
+  color: #173e24;
+  font-size: 7px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.product-preview__home-ladder > i {
+  display: block;
+  width: 44%;
+  height: 1px;
+  margin: 8px 0 6px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.product-preview__home-ladder > p {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 7px;
+}
+
+.product-preview__home-ladder > p strong {
+  color: #fff;
+  font-size: 9px;
+}
+
+.product-preview__home-panel {
+  padding: 9px 10px;
+  border: 1px solid #edf1ee;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.product-preview__home-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.product-preview__home-actions article {
+  position: relative;
+  display: grid;
+  min-height: 70px;
+  grid-template-columns: 23px minmax(0, 1fr) 15px;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  overflow: hidden;
+  border: 1px solid #e7ece8;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.product-preview__home-action-icon {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(0, 181, 26, 0.05);
+  color: #008f15;
+}
+
+.product-preview__home-action-icon svg,
+.product-preview__home-attention svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.product-preview__home-action-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.product-preview__home-action-copy strong {
+  overflow: hidden;
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-preview__home-action-copy small {
+  overflow: hidden;
+  color: #425044;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-preview__home-action-arrow {
+  display: grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border: 1px solid rgba(0, 143, 21, 0.18);
+  border-radius: 50%;
+  color: #008f15;
+  font-size: 10px;
+}
+
+.product-preview__home-attention {
+  display: grid;
+  min-height: 48px;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.product-preview__home-attention > span {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(0, 181, 26, 0.05);
+  color: #008f15;
+}
+
+.product-preview__home-attention > div {
+  display: grid;
+  gap: 1px;
+}
+
+.product-preview__home-attention strong {
+  font-size: 8px;
+}
+
+.product-preview__home-attention p {
+  margin: 0;
+  color: #6d7a70;
+  font-size: 7px;
+}
+
+.product-preview__home-attention > b {
+  color: #008f15;
+  font-size: 7px;
 }
 
 .product-preview__ladder-card {
