@@ -6481,6 +6481,84 @@ watch(
   white-space: nowrap;
   border: 0;
 }
+.friendly-flow__screen:has(#custom-format-title) {
+  gap: 24px;
+}
+.friendly-flow__screen:has(#custom-format-title) .friendly-flow__intro {
+  margin-bottom: 20px;
+}
+.friendly-flow__screen:has(#custom-format-title) .friendly-flow__eyebrow {
+  font-size: 11px;
+}
+.friendly-flow__screen:has(#custom-format-title) .friendly-flow__intro h2 {
+  font-size: clamp(22px, 4vw, 28px);
+}
+.friendly-flow__screen:has(#custom-format-title) .friendly-flow__intro > p:last-child {
+  font-size: 15px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-format-form {
+  gap: 20px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-format-summary {
+  gap: 8px;
+  padding: 18px 20px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-format-summary span {
+  font-size: 11px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-format-summary strong {
+  font-size: 14px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-format-section {
+  gap: 16px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-format-section__head strong,
+.friendly-flow__screen:has(#custom-format-title) .custom-setting-row > span > strong,
+.friendly-flow__screen:has(#custom-format-title) .custom-disclosure__button strong {
+  font-size: 14px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-format-section__head small,
+.friendly-flow__screen:has(#custom-format-title) .custom-setting-row small,
+.friendly-flow__screen:has(#custom-format-title) .custom-disclosure__button small {
+  font-size: 12px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-style-chip {
+  min-height: 86px;
+  padding: 17px 18px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-style-chip strong {
+  font-size: 14px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-style-chip small {
+  font-size: 12px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-setting-row {
+  min-height: 76px;
+  padding: 17px 19px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-stepper button {
+  font-size: 20px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-stepper > strong {
+  font-size: 14px;
+}
+.friendly-flow__screen:has(#custom-format-title) .setting-toggle {
+  font-size: 12px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-disclosure__button {
+  min-height: 72px;
+  padding: 16px 19px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-disclosure__button > i {
+  font-size: 18px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-format-name {
+  font-size: 12px;
+}
+.friendly-flow__screen:has(#custom-format-title) .custom-format-name input,
+.friendly-flow__screen:has(#custom-format-title) .friendly-flow__continue {
+  font-size: 14px;
+}
 @keyframes footerArrive {
   from {
     opacity: 0;
