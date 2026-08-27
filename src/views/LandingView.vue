@@ -2,18 +2,16 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppLogo from '../components/AppLogo.vue'
+import LandingProductPreview from '../components/landing/LandingProductPreview.vue'
 import '../assets/landing-v2.css'
-import dashboardImage from '../../artifacts/dashboard-desktop.png'
-import ladderImage from '../../docs/screenshots/compete-ladder-refined-desktop.jpg'
-import challengesImage from '../../docs/screenshots/compete-challenges-refined-mobile.jpg'
-import tournamentsImage from '../../docs/screenshots/compete-tournaments-admin.jpg'
 import scanToJoinImage from '../assets/landing/scan-to-join.jpg'
 import playTheMatchImage from '../assets/landing/play-the-match.jpg'
 
 const mobileMenuOpen = ref(false)
-const activePreviewKey = ref('dashboard')
+const activePreviewKey = ref('home')
 const navDocked = ref(false)
 const floatingCtaVisible = ref(false)
+const workflowSection = ref(null)
 const scoreboardSection = ref(null)
 const scoreCallActive = ref(false)
 const voiceSupported = ref(false)
@@ -36,7 +34,8 @@ function closeMobileMenu() {
 }
 
 function syncLandingHeaderState() {
-  navDocked.value = window.scrollY > 18
+  const workflowTop = workflowSection.value?.offsetTop ?? Number.POSITIVE_INFINITY
+  navDocked.value = window.scrollY >= workflowTop - 84
   floatingCtaVisible.value = window.scrollY > 260
 }
 
@@ -190,14 +189,12 @@ onUnmounted(() => {
 
 const previews = [
   {
-    key: 'dashboard',
+    key: 'home',
     label: 'Home',
     eyebrow: 'Member home',
-    title: 'Know what needs attention before the club asks.',
-    copy: 'The dashboard brings the next match, nearby ladder movement, open challenges and club activity into one calm starting point.',
-    image: dashboardImage,
-    alt: 'The GORRA member dashboard showing club activity and next actions',
-    notes: ['Next action is visible', 'Club activity stays together', 'Members start with context'],
+    title: 'Your tennis and club activity in one place.',
+    copy: 'Henry sees his Greenview ladder position, quick actions and anything waiting for his attention.',
+    notes: ['Henry Dunia at rank #2', 'Greenview Tennis Club', 'Current quick-action flow'],
   },
   {
     key: 'play',
@@ -205,12 +202,10 @@ const previews = [
     eyebrow: 'Matches and challenges',
     title: 'Move every match from invite to result.',
     copy: 'Players can accept, schedule and complete a match without losing the next action in a group chat.',
-    image: challengesImage,
-    alt: 'The GORRA challenge queue showing received and sent matches',
     notes: [
-      'Received and sent challenges separated',
-      'Match status stays visible',
-      'One path from invite to result',
+      'Start a friendly match',
+      'Start a ladder match',
+      'Continue matches already in progress',
     ],
   },
   {
@@ -219,12 +214,10 @@ const previews = [
     eyebrow: 'Ladders and rankings',
     title: 'Make club competition easy to follow.',
     copy: 'Players see their rank, challenge range and movement clearly, while organizers keep the rules and results in one system.',
-    image: ladderImage,
-    alt: 'The GORRA club ladder with player ranks and challenge actions',
     notes: [
-      'Current position highlighted',
-      'Eligible opponents are clear',
-      'Movement follows confirmed results',
+      'Henry highlighted at rank #2',
+      'Nearby players use the current roster',
+      'Ladder, Challenges and Tournaments stay together',
     ],
   },
   {
@@ -233,12 +226,10 @@ const previews = [
     eyebrow: 'Club operations',
     title: 'Run tournaments without scattered admin.',
     copy: 'Keep categories, schedules, fixtures, standings and results connected from setup through the final.',
-    image: tournamentsImage,
-    alt: 'The GORRA club tournament management view for administrators',
     notes: [
-      'Events stay easy to find',
-      'Competition status is visible',
-      'Admins and players share one record',
+      'Current Overview, Members and Rules flow',
+      'Club activity and court summary',
+      'Management stays in the active club',
     ],
   },
 ]
@@ -304,39 +295,41 @@ const audiences = [
 <template>
   <div class="gorra-landing">
     <a class="lp-skip" href="#landing-main">Skip to content</a>
-    <header class="lp-nav" :class="{ 'lp-nav--docked': navDocked }">
-      <div class="lp-container lp-nav__inner">
-        <RouterLink class="lp-brand" to="/" aria-label="GORRA home" @click="closeMobileMenu">
-          <AppLogo class="lp-brand__logo" :class="{ 'lp-brand__logo--light': navDocked }" on-dark />
-        </RouterLink>
-
-        <div id="landing-navigation" class="lp-nav__links" :class="{ open: mobileMenuOpen }">
-          <nav aria-label="Landing page navigation">
-            <a href="#workflow" @click="closeMobileMenu">How it works</a>
-            <a href="#product" @click="closeMobileMenu">Product</a>
-            <a href="#clubs" @click="closeMobileMenu">For your club</a>
-            <a href="#faq" @click="closeMobileMenu">Questions</a>
-          </nav>
-        </div>
-
-        <div class="lp-nav__actions">
-          <RouterLink class="lp-cta" to="/signup" @click="closeMobileMenu">
-            Play Tennis Now
-            <span class="lp-cta__arrow" aria-hidden="true">→</span>
+    <div class="lp-nav-slot">
+      <header class="lp-nav" :class="{ 'lp-nav--docked': navDocked }">
+        <div class="lp-container lp-nav__inner">
+          <RouterLink class="lp-brand" to="/" aria-label="GORRA home" @click="closeMobileMenu">
+            <AppLogo class="lp-brand__logo" on-dark />
           </RouterLink>
-          <button
-            class="lp-menu-button"
-            type="button"
-            :aria-expanded="mobileMenuOpen"
-            aria-controls="landing-navigation"
-            aria-label="Toggle navigation"
-            @click="mobileMenuOpen = !mobileMenuOpen"
-          >
-            <span></span><span></span>
-          </button>
+
+          <div id="landing-navigation" class="lp-nav__links" :class="{ open: mobileMenuOpen }">
+            <nav aria-label="Landing page navigation">
+              <a href="#workflow" @click="closeMobileMenu">How it works</a>
+              <a href="#product" @click="closeMobileMenu">Product</a>
+              <a href="#clubs" @click="closeMobileMenu">For your club</a>
+              <a href="#faq" @click="closeMobileMenu">Questions</a>
+            </nav>
+          </div>
+
+          <div class="lp-nav__actions">
+            <RouterLink class="lp-cta" to="/signup" @click="closeMobileMenu">
+              Play Tennis Now
+              <span class="lp-cta__arrow" aria-hidden="true">→</span>
+            </RouterLink>
+            <button
+              class="lp-menu-button"
+              type="button"
+              :aria-expanded="mobileMenuOpen"
+              aria-controls="landing-navigation"
+              aria-label="Toggle navigation"
+              @click="mobileMenuOpen = !mobileMenuOpen"
+            >
+              <span></span><span></span>
+            </button>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </div>
 
     <main id="landing-main">
       <section class="lp-hero">
@@ -354,11 +347,6 @@ const audiences = [
               </RouterLink>
               <a class="lp-quiet-link" href="#product">See the real product</a>
             </div>
-            <ul class="lp-hero__assurances" aria-label="Product highlights">
-              <li><span aria-hidden="true">&#10003;</span> Built for tennis clubs</li>
-              <li><span aria-hidden="true">&#10003;</span> One connected match record</li>
-              <li><span aria-hidden="true">&#10003;</span> Clear roles for admins and players</li>
-            </ul>
           </div>
 
           <div class="lp-hero__product">
@@ -366,12 +354,7 @@ const audiences = [
               <div class="lp-window__bar">
                 <span></span><span></span><span></span><small>GORRA / Club home</small>
               </div>
-              <img
-                :src="dashboardImage"
-                alt="The actual GORRA club dashboard"
-                fetchpriority="high"
-                decoding="async"
-              />
+              <LandingProductPreview section="home" />
             </div>
             <div class="lp-product-callout lp-product-callout--top">
               <small>PLAYER HOME</small><strong>The next match is clear</strong>
@@ -394,7 +377,7 @@ const audiences = [
         </div>
       </section>
 
-      <section id="workflow" class="lp-section lp-workflow">
+      <section id="workflow" ref="workflowSection" class="lp-section lp-workflow">
         <div class="lp-container">
           <div class="lp-heading lp-heading--center">
             <p class="lp-eyebrow">One match. Three steps.</p>
@@ -491,13 +474,7 @@ const audiences = [
                   ><small>GORRA / {{ activePreview.label }}</small>
                 </div>
                 <Transition name="lp-preview" mode="out-in">
-                  <img
-                    :key="activePreview.key"
-                    :src="activePreview.image"
-                    :alt="activePreview.alt"
-                    loading="lazy"
-                    decoding="async"
-                  />
+                  <LandingProductPreview :key="activePreview.key" :section="activePreview.key" />
                 </Transition>
               </div>
             </div>
