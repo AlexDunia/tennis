@@ -96,7 +96,7 @@ const routes = [
     meta: {
       title: 'Ladder',
       subtitle: 'Your rank and nearby players.',
-      primarySection: 'compete',
+      primarySection: 'ladder',
     },
   },
   {
@@ -106,9 +106,7 @@ const routes = [
     meta: {
       title: 'Tournaments',
       subtitle: 'Active and completed events.',
-      headerTitle: 'Compete',
-      headerSubtitle: 'Ladder, challenges, and tournaments.',
-      primarySection: 'compete',
+      primarySection: 'tournament',
     },
   },
   {
@@ -120,7 +118,7 @@ const routes = [
       subtitle: 'Build a tournament with categories, groups, and rules.',
       permission: 'tournaments.manage',
       activeClubPermission: true,
-      primarySection: 'compete',
+      primarySection: 'tournament',
       hideBottomNav: true,
     },
   },
@@ -131,7 +129,7 @@ const routes = [
     meta: {
       title: 'Tournament Overview',
       subtitle: 'See categories, progress, officials, and the match schedule.',
-      primarySection: 'compete',
+      primarySection: 'tournament',
     },
   },
   {
@@ -141,7 +139,7 @@ const routes = [
     meta: {
       title: 'Tournament Category',
       subtitle: 'Work through groups, fixtures, standings, and knockout rounds.',
-      primarySection: 'compete',
+      primarySection: 'tournament',
     },
   },
   {
@@ -151,7 +149,7 @@ const routes = [
     meta: {
       title: 'Tournament Schedule',
       subtitle: 'All tournament matches grouped by date and filterable by category.',
-      primarySection: 'compete',
+      primarySection: 'tournament',
     },
   },
   {
@@ -161,7 +159,7 @@ const routes = [
     meta: {
       title: 'Tournament Gallery',
       subtitle: 'Browse and share moments from this tournament edition.',
-      primarySection: 'compete',
+      primarySection: 'tournament',
     },
   },
   {
@@ -172,7 +170,7 @@ const routes = [
     meta: {
       title: 'Tournament Match',
       subtitle: 'Review the shared match record with tournament context.',
-      primarySection: 'compete',
+      primarySection: 'tournament',
     },
   },
   {
@@ -306,11 +304,9 @@ const routes = [
     },
   },
   {
-    path:
-      '/friendly-match/live/:matchId',
+    path: '/friendly-match/live/:matchId',
 
-    alias:
-      '/ladder-match/live/:matchId',
+    alias: '/ladder-match/live/:matchId',
 
     name: 'FriendlyMatchLive',
     component: FriendlyMatchFlowView,
@@ -407,7 +403,7 @@ const routes = [
     meta: {
       title: 'Challenges',
       subtitle: 'Challenges sent and received.',
-      primarySection: 'compete',
+      primarySection: 'ladder',
     },
   },
   {
@@ -418,7 +414,7 @@ const routes = [
     meta: {
       title: 'Challenge Details',
       subtitle: 'Track the next action, match schedule, score, and Ladder result.',
-      primarySection: 'compete',
+      primarySection: 'ladder',
     },
   },
   {
@@ -444,7 +440,7 @@ const routes = [
     meta: {
       title: 'Match Details',
       subtitle: 'Confirm the final score, verify the winner, and move the ladder forward.',
-      primarySection: 'compete',
+      primarySection: 'ladder',
     },
   },
   {
@@ -577,8 +573,7 @@ const routes = [
     },
   },
   {
-    path:
-      '/match-umpire/control/:matchId?',
+    path: '/match-umpire/control/:matchId?',
 
     name: 'ChairUmpireMatchControl',
 
@@ -609,7 +604,7 @@ const routes = [
       subtitle: 'Choose an eligible opponent using your club’s fixed Ladder rules.',
       permission: 'challenges.create',
       activeClubPermission: true,
-      primarySection: 'compete',
+      primarySection: 'ladder',
     },
   },
   {

@@ -4,6 +4,7 @@ import { usePlayerStore } from './player'
 import {
   acceptChallenge as acceptChallengeRequest,
   createChallenge as createChallengeRequest,
+  createAdminLadderMatch as createAdminLadderMatchRequest,
   declineChallenge as declineChallengeRequest,
   getChallenges,
   reviewChallenge as reviewChallengeRequest,
@@ -12,6 +13,7 @@ import {
   startChallenge as startChallengeRequest,
   withdrawChallenge as withdrawChallengeRequest,
 } from '../services/ChallengeService'
+import { useMatchStore } from './match'
 
 export const useChallengeStore = defineStore('challenge', () => {
   const challenges = ref([])
@@ -69,6 +71,35 @@ export const useChallengeStore = defineStore('challenge', () => {
       error.value = response.message || 'Unable to create challenge.'
     } catch (createError) {
       error.value = createError?.message || 'Unable to create challenge.'
+    } finally {
+      isLoading.value = false
+    }
+
+    return null
+  }
+
+  const createAdminLadderMatch = async (payload) => {
+    error.value = ''
+    isLoading.value = true
+
+    try {
+      const response = await createAdminLadderMatchRequest(payload)
+      if (response.success) {
+        const challenge = response.data?.challenge
+        const match = response.data?.match
+        if (challenge) challenges.value.push(challenge)
+        if (match) {
+          const matchStore = useMatchStore()
+          const index = matchStore.matches.findIndex((item) => item.id === match.id)
+          if (index === -1) matchStore.matches.push(match)
+          else matchStore.matches[index] = match
+        }
+        return response.data
+      }
+
+      error.value = response.message || 'Unable to create this Ladder match.'
+    } catch (createError) {
+      error.value = createError?.message || 'Unable to create this Ladder match.'
     } finally {
       isLoading.value = false
     }
@@ -269,6 +300,7 @@ export const useChallengeStore = defineStore('challenge', () => {
     summaryCounts,
     loadChallenges,
     createChallenge,
+    createAdminLadderMatch,
     acceptChallenge,
     scheduleChallenge,
     startChallenge,

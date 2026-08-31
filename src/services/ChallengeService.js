@@ -10,6 +10,11 @@ export async function createChallenge(payload) {
   return response.data
 }
 
+export async function createAdminLadderMatch(payload) {
+  const response = await ApiService.post('/admin/ladder-matches', payload)
+  return response.data
+}
+
 export async function acceptChallenge(challengeId, scheduledAt, actorId) {
   const response = await ApiService.post(`/challenges/${challengeId}/accept`, {
     scheduledAt,

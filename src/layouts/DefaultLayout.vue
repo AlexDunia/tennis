@@ -1,14 +1,28 @@
 <template>
-  <div class="layout">
+  <div class="layout" :class="{ 'layout--sidebar-collapsed': sidebarCollapsed }">
     <aside v-if="showSidebar" class="sidebar">
-      <a
-        class="brand"
-        :href="getNavigationHref({ name: 'Dashboard' })"
-        aria-label="GORRA Home"
-        @click="handleNavigationClick({ name: 'Dashboard' }, $event)"
-      >
-        <AppLogo class="brand__logo" :on-dark="false" />
-      </a>
+      <div class="brand-row">
+        <a
+          class="brand"
+          :href="getNavigationHref({ name: 'Dashboard' })"
+          aria-label="GORRA Home"
+          @click="handleNavigationClick({ name: 'Dashboard' }, $event)"
+        >
+          <AppLogo class="brand__logo" :on-dark="false" />
+          <span class="brand__mark" aria-hidden="true">G</span>
+        </a>
+        <button
+          class="sidebar-toggle"
+          type="button"
+          :aria-label="sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'"
+          :title="sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'"
+          @click="toggleSidebar"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path :d="sidebarCollapsed ? 'm9 6 6 6-6 6' : 'm15 6-6 6 6 6'" />
+          </svg>
+        </button>
+      </div>
 
       <div ref="clubMenuRoot" class="club-switcher">
         <button
@@ -19,6 +33,7 @@
           :disabled="adminStore.isLoading || !adminStore.activeClub"
           @click="clubMenuOpen = !clubMenuOpen"
         >
+          <span class="club-switcher__mark" aria-hidden="true">{{ currentClubInitials }}</span>
           <span class="club-switcher__copy">
             <small>Active club</small>
             <strong>{{ currentClubName }}</strong>
@@ -59,6 +74,19 @@
             </button>
 
             <a
+              v-if="adminStore.hasActiveClubPermission('club.manage')"
+              :href="getNavigationHref({ name: 'Settings' })"
+              class="club-menu__all"
+              role="menuitem"
+              @click="handleNavigationClick({ name: 'Settings' }, $event)"
+            >
+              <span>Club settings</span>
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="m8 5 5 5-5 5" />
+              </svg>
+            </a>
+
+            <a
               :href="getNavigationHref({ name: 'Club', query: { section: 'overview' } })"
               class="club-menu__all"
               role="menuitem"
@@ -66,7 +94,7 @@
                 handleNavigationClick({ name: 'Club', query: { section: 'overview' } }, $event)
               "
             >
-              <span>View all clubs</span>
+              <span>Open club</span>
               <svg viewBox="0 0 20 20" aria-hidden="true">
                 <path d="m8 5 5 5-5 5" />
               </svg>
@@ -94,26 +122,6 @@
             <span class="icon" v-html="item.icon"></span>
             <span class="label">{{ item.label }}</span>
           </a>
-
-          <nav
-            v-if="item.section === 'compete'"
-            class="nav-submenu"
-            aria-label="Compete navigation"
-          >
-            <a
-              v-for="subItem in competeNavigationItems"
-              :key="subItem.key"
-              :href="getNavigationHref(subItem.to)"
-              class="nav-sub-link"
-              :class="{ active: isContextItemActive(subItem) }"
-              :aria-current="isContextItemActive(subItem) ? 'page' : undefined"
-              :title="subItem.label"
-              @click="handleNavigationClick(subItem.to, $event)"
-            >
-              <TennisNavIcon :kind="subItem.icon" :size="16" />
-              <span>{{ subItem.label }}</span>
-            </a>
-          </nav>
         </template>
       </nav>
     </aside>
@@ -132,7 +140,7 @@
         class="app-header"
         :class="{
           'app-header--with-sidebar': showSidebar,
-          'app-header--compete': showCompeteSectionShell,
+          'app-header--section': showSectionHeaderContext,
         }"
       >
         <div class="header-content">
@@ -175,7 +183,7 @@
               </li>
             </ol>
 
-            <div v-else class="page-context">
+            <div v-else-if="!isLadderWorkspace" class="page-context">
               <h1>{{ currentTitle }}</h1>
               <p>{{ currentSubtitle }}</p>
             </div>
@@ -248,6 +256,7 @@
           'content--wide': isWideWorkspace,
           'content--fullscreen': isImmersiveRoute || isFocusedFlow,
           'content--public': isPublicRoute,
+          'content--ladder': isLadderWorkspace,
         }"
       >
         <nav
@@ -275,8 +284,6 @@
             <span>{{ item.label }}</span>
           </a>
         </nav>
-
-        <CompeteSectionShell v-if="showCompeteSectionShell && isMobileViewport" />
 
         <div class="watch-only">
           <strong>Rank #{{ currentPlayer?.rank || '-' }}</strong>
@@ -355,7 +362,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
 import { useMatchStore } from '../stores/match'
@@ -366,8 +373,6 @@ import { useAuthStore } from '../stores/auth'
 import { useAdminStore } from '../stores/admin'
 import ToastShelf from '../components/ToastShelf.vue'
 import RoutePageSkeleton from '../components/RoutePageSkeleton.vue'
-import CompeteSectionShell from '../components/compete/CompeteSectionShell.vue'
-import TennisNavIcon from '../components/compete/TennisNavIcon.vue'
 import AppLogo from '../components/AppLogo.vue'
 
 const route = useRoute()
@@ -389,6 +394,9 @@ const mobileMediaQuery =
   typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)') : null
 const isMobileViewport = ref(mobileMediaQuery?.matches ?? false)
 const pageSkeletonActive = ref(true)
+const sidebarCollapsed = ref(false)
+const sidebarWasCollapsedBeforeAdminMatch = ref(false)
+const adminMatchDrawerOwnsSidebar = ref(false)
 let pageSkeletonTimer = null
 const PAGE_SKELETON_DURATION = 900
 const FRIENDLY_FLOW_SKELETON_DURATION = 650
@@ -421,39 +429,42 @@ const bellIcon =
   '<svg viewBox="0 0 24 24" fill="none"><path d="M12 4.5A4.5 4.5 0 0 1 16.5 9v3.5l1.7 2v.7H5.8v-.7l1.7-2V9A4.5 4.5 0 0 1 12 4.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 18a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>'
 const logoutIcon =
   '<svg viewBox="0 0 24 24" fill="none"><path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+const tournamentIcon =
+  '<svg viewBox="0 0 24 24" fill="none"><path d="M8 4h8v3a4 4 0 0 1-8 0V4Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 5H4v2a4 4 0 0 0 4 4M16 5h4v2a4 4 0 0 1-4 4M12 11v5M8.5 20h7M9 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
 const navigationItems = Object.freeze([
   { to: { name: 'Dashboard' }, section: 'home', label: 'Home', icon: homeIcon },
   { to: { name: 'Play' }, section: 'play', label: 'Play', icon: playIcon },
-  { to: { name: 'Rankings' }, section: 'compete', label: 'Compete', icon: competeIcon },
+  { to: { name: 'Rankings' }, section: 'ladder', label: 'Ladder', icon: competeIcon },
+  {
+    to: { name: 'Tournaments' },
+    section: 'tournament',
+    label: 'Tournament',
+    icon: tournamentIcon,
+  },
   { to: { name: 'Club' }, section: 'club', label: 'Club', icon: clubIcon },
 ])
 
-const competeNavigationItems = Object.freeze([
-  { label: 'Ladder', to: { name: 'Rankings' }, key: 'ladder', icon: 'ladder' },
-  { label: 'Challenges', to: { name: 'Challenges' }, key: 'challenges', icon: 'challenge' },
-  { label: 'Tournaments', to: { name: 'Tournaments' }, key: 'tournaments', icon: 'trophy' },
-])
-
 const accountItems = computed(() => {
-  const items = [
+  return [
     { to: { name: 'Profile' }, label: 'View profile', icon: profileIcon },
     { to: { name: 'History' }, label: 'Match history', icon: historyIcon },
     { to: { name: 'AccountSettings' }, label: 'Account settings', icon: settingsIcon },
   ]
-  if (adminStore.hasActiveClubPermission('club.manage')) {
-    items.push({
-      to: { name: 'Settings' },
-      label: 'Club settings',
-      icon: clubIcon,
-    })
-  }
-  return items
 })
 
 const currentPlayer = computed(() => playerStore.currentPlayer)
 const unreadCount = computed(() => notificationStore.unreadCount)
 const currentClubName = computed(() => adminStore.activeClub?.name || 'Your tennis club')
+const currentClubInitials = computed(() =>
+  currentClubName.value
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase(),
+)
 const accountInitials = computed(() => {
   const name = currentPlayer.value?.name || authStore.user?.name || 'Player'
   const parts = String(name).trim().split(/\s+/).filter(Boolean)
@@ -475,6 +486,7 @@ const tournamentCreateSubtitles = {
 }
 
 const isTournamentCreate = computed(() => route.name === 'TournamentCreate')
+const isLadderWorkspace = computed(() => route.name === 'Rankings')
 const isTournamentViewer = computed(
   () => route.path.startsWith('/tournaments/') && route.name !== 'TournamentCreate',
 )
@@ -483,7 +495,9 @@ const isFriendlyFlow = computed(() => route.meta.friendlyFlow === true)
 const isOnboardingFlow = computed(() => route.meta.onboardingFlow === true)
 const isFocusedFlow = computed(() => isFriendlyFlow.value || isOnboardingFlow.value)
 const isImmersiveRoute = computed(() => route.meta.immersive === true)
-const isWideWorkspace = computed(() => isTournamentCreate.value || isTournamentViewer.value)
+const isWideWorkspace = computed(
+  () => isTournamentCreate.value || isTournamentViewer.value || isLadderWorkspace.value,
+)
 const showAppChrome = computed(
   () => !isPublicRoute.value && !isFocusedFlow.value && !isImmersiveRoute.value,
 )
@@ -500,14 +514,13 @@ const activePrimarySection = computed(() => {
   if (route.path.startsWith('/friendly-match') || route.path.startsWith('/ladder-match')) {
     return 'play'
   }
+  if (route.path.startsWith('/tournaments')) return 'tournament'
   if (
     route.path.startsWith('/rankings') ||
     route.path.startsWith('/challenges') ||
-    route.path.startsWith('/tournaments') ||
     route.path.startsWith('/matches')
-  ) {
-    return 'compete'
-  }
+  )
+    return 'ladder'
   if (
     route.path === '/club' ||
     route.path.startsWith('/club/') ||
@@ -518,15 +531,10 @@ const activePrimarySection = computed(() => {
   }
   return ''
 })
-const showCompeteSectionShell = computed(() =>
-  [
-    'Rankings',
-    'Challenges',
-    'ChallengeDetails',
-    'CreateChallenge',
-    'MatchDetails',
-    'Tournaments',
-  ].includes(String(route.name || '')),
+const showSectionHeaderContext = computed(() =>
+  ['Challenges', 'ChallengeDetails', 'CreateChallenge', 'MatchDetails', 'Tournaments'].includes(
+    String(route.name || ''),
+  ),
 )
 const activePrimaryLabel = computed(
   () => navigationItems.find((item) => item.section === activePrimarySection.value)?.label || '',
@@ -572,7 +580,7 @@ const contextIndex = computed(() =>
   contextualItems.value.findIndex((item) => item.key === activeContextKey.value),
 )
 function primaryNavigationOffset(index) {
-  return index * 51 + (index > 2 ? 119 : 0)
+  return index * 51
 }
 
 const primaryMotionStyle = computed(() => ({
@@ -728,18 +736,34 @@ function isNavigationActive(section) {
 }
 
 function isContextItemActive(item) {
-  if (item.key === 'ladder') return route.name === 'Rankings'
-  if (item.key === 'challenges') {
-    return ['Challenges', 'ChallengeDetails', 'CreateChallenge', 'MatchDetails'].includes(
-      String(route.name || ''),
-    )
-  }
-  if (item.key === 'tournaments') return route.path.startsWith('/tournaments')
   if (item.key === 'manage') return route.name === 'Settings'
   if (route.name !== 'Club') return false
   const section = String(route.query.section || 'overview')
   return item.key === section
 }
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
+function beginAdminMatchDrawer() {
+  if (adminMatchDrawerOwnsSidebar.value || typeof window === 'undefined') return
+  if (!window.matchMedia('(min-width: 1024px)').matches) return
+  sidebarWasCollapsedBeforeAdminMatch.value = sidebarCollapsed.value
+  adminMatchDrawerOwnsSidebar.value = true
+  sidebarCollapsed.value = true
+}
+
+function endAdminMatchDrawer() {
+  if (!adminMatchDrawerOwnsSidebar.value) return
+  sidebarCollapsed.value = sidebarWasCollapsedBeforeAdminMatch.value
+  adminMatchDrawerOwnsSidebar.value = false
+}
+
+provide('gorraShell', {
+  beginAdminMatchDrawer,
+  endAdminMatchDrawer,
+})
 
 function formatClubRole(role) {
   return ['admin', 'co-admin'].includes(role) ? 'Admin' : 'Player'
@@ -852,6 +876,10 @@ onUnmounted(() => {
   font-family: 'Poppins', sans-serif;
 }
 
+.layout--sidebar-collapsed {
+  --app-sidebar-width: 76px;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -875,6 +903,17 @@ onUnmounted(() => {
   padding: 24px 18px;
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
+  transition:
+    width var(--motion-medium) var(--motion-curve),
+    padding var(--motion-medium) var(--motion-curve);
+}
+
+.brand-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .brand {
@@ -889,6 +928,41 @@ onUnmounted(() => {
 .brand__logo {
   width: 112px;
   max-height: 40px;
+}
+
+.brand__mark {
+  display: none;
+  color: var(--color-primary-strong);
+  font-size: 21px;
+  font-weight: var(--font-weight-bold);
+}
+
+.sidebar-toggle {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-inner-radius);
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+
+.sidebar-toggle:hover {
+  background: var(--color-surface-soft);
+  color: var(--color-text);
+}
+
+.sidebar-toggle svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .club-switcher {
@@ -914,6 +988,19 @@ onUnmounted(() => {
 .club-switcher__trigger:hover:not(:disabled) {
   border-color: var(--color-border-strong);
   background: var(--color-surface);
+}
+
+.club-switcher__mark {
+  display: none;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-primary) 9%, white);
+  color: var(--color-primary-strong);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
 }
 
 .club-switcher__copy,
@@ -1240,6 +1327,7 @@ onUnmounted(() => {
 
 .main--with-sidebar {
   margin-left: var(--app-sidebar-width);
+  transition: margin-left var(--motion-medium) var(--motion-curve);
 }
 
 .main--fullscreen,
@@ -1272,6 +1360,7 @@ onUnmounted(() => {
 
 .app-header--with-sidebar {
   left: var(--app-sidebar-width);
+  transition: left var(--motion-medium) var(--motion-curve);
 }
 
 @media (min-width: 768px) {
@@ -1657,6 +1746,58 @@ onUnmounted(() => {
   width: var(--app-shell-content-width);
 }
 
+.content--ladder {
+  width: 100%;
+  padding: 0;
+}
+
+.layout--sidebar-collapsed .sidebar {
+  align-items: center;
+  padding-inline: 10px;
+}
+
+.layout--sidebar-collapsed .brand-row,
+.layout--sidebar-collapsed .brand,
+.layout--sidebar-collapsed .primary-nav {
+  width: 100%;
+}
+
+.layout--sidebar-collapsed .brand-row,
+.layout--sidebar-collapsed .brand {
+  justify-content: center;
+}
+
+.layout--sidebar-collapsed .brand__logo,
+.layout--sidebar-collapsed .club-switcher__copy,
+.layout--sidebar-collapsed .club-switcher__chevron,
+.layout--sidebar-collapsed .nav-link .label {
+  display: none;
+}
+
+.layout--sidebar-collapsed .brand__mark,
+.layout--sidebar-collapsed .club-switcher__mark {
+  display: grid;
+}
+
+.layout--sidebar-collapsed .sidebar-toggle {
+  position: absolute;
+  top: 62px;
+  width: 28px;
+  height: 28px;
+}
+
+.layout--sidebar-collapsed .club-switcher__trigger,
+.layout--sidebar-collapsed .nav-link {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.layout--sidebar-collapsed .club-menu {
+  top: 0;
+  left: calc(100% + 10px);
+  width: 220px;
+}
+
 .content--fullscreen,
 .content--public {
   width: 100%;
@@ -1896,6 +2037,10 @@ onUnmounted(() => {
     padding-inline: 10px;
   }
 
+  .sidebar-toggle {
+    display: none;
+  }
+
   .brand {
     width: 100%;
     justify-content: center;
@@ -1910,6 +2055,10 @@ onUnmounted(() => {
   .club-switcher__chevron,
   .sidebar-club > span:last-child {
     display: none;
+  }
+
+  .club-switcher__mark {
+    display: grid;
   }
 
   .primary-nav {
@@ -1941,13 +2090,6 @@ onUnmounted(() => {
     min-height: 44px;
     justify-content: center;
     padding-inline: 0;
-  }
-
-  .club-switcher__trigger::before {
-    content: 'C';
-    color: var(--color-primary-strong);
-    font-size: 11px;
-    font-weight: var(--font-weight-bold);
   }
 
   .club-menu {
@@ -2021,7 +2163,7 @@ onUnmounted(() => {
     min-height: 38px;
   }
 
-  .app-header--compete .global-identity {
+  .app-header--section .global-identity {
     display: none;
   }
 
@@ -2029,19 +2171,19 @@ onUnmounted(() => {
     display: none;
   }
 
-  .app-header--compete .header-main {
+  .app-header--section .header-main {
     display: flex;
   }
 
-  .app-header--compete .page-context {
+  .app-header--section .page-context {
     gap: 1px;
   }
 
-  .app-header--compete .page-context h1 {
+  .app-header--section .page-context h1 {
     font-size: 18px;
   }
 
-  .app-header--compete .page-context p {
+  .app-header--section .page-context p {
     display: -webkit-box;
     overflow: hidden;
     font-size: 12px;
@@ -2126,7 +2268,7 @@ onUnmounted(() => {
     inset: auto 0 0;
     z-index: 40;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     min-height: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px));
     padding: 3px 7.5vw env(safe-area-inset-bottom, 0px);
     border-top: 1px solid var(--color-border);

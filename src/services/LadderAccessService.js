@@ -1,4 +1,8 @@
-import { ACTIVE_LADDER_CHALLENGE_STATUSES, getActiveLadderConfig } from '../config/ladder'
+import {
+  ACTIVE_LADDER_CHALLENGE_STATUSES,
+  getActiveLadderConfig,
+  isEligibleLadderOpponent,
+} from '../config/ladder.js'
 
 function localAccessDecision({ player, challenges = [] }) {
   const ladderConfig = getActiveLadderConfig()
@@ -69,4 +73,30 @@ export async function verifyLadderCreationAccess(context) {
       source: 'backend',
     }
   }
+}
+
+export function getEligibleLadderOpponents({
+  challenger,
+  players = [],
+  challenges = [],
+  config = getActiveLadderConfig(),
+}) {
+  if (!challenger?.id || config.seasonStatus !== 'active') return []
+
+  const blockingPlayers = new Set(
+    challenges
+      .filter(
+        (challenge) =>
+          (challenge.ladderId || challenge.ladderConfigSnapshot?.id) === config.id &&
+          ACTIVE_LADDER_CHALLENGE_STATUSES.includes(challenge.status),
+      )
+      .flatMap((challenge) => [challenge.challengerId, challenge.defenderId]),
+  )
+
+  if (blockingPlayers.has(challenger.id)) return []
+
+  return players.filter(
+    (opponent) =>
+      !blockingPlayers.has(opponent?.id) && isEligibleLadderOpponent(challenger, opponent, config),
+  )
 }

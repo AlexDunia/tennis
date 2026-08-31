@@ -23,12 +23,22 @@ test('tournament creation keeps the normal shell and fills its shared content ar
   assert.doesNotMatch(creation, /width:\s*min\(620px, 100%\)/)
 })
 
-test('Compete children live in the desktop sidebar and remain reachable in mobile navigation', () => {
-  assert.match(layout, /class="nav-submenu"/)
-  assert.match(layout, /label: 'Ladder'/)
-  assert.match(layout, /label: 'Challenges'/)
-  assert.match(layout, /label: 'Tournaments'/)
-  assert.match(layout, /showCompeteSectionShell && isMobileViewport/)
+test('Ladder and Tournament are first-class destinations in desktop and five-item mobile navigation', () => {
+  assert.doesNotMatch(layout, /class="nav-submenu"/)
+  assert.match(layout, /section: 'home', label: 'Home'/)
+  assert.match(layout, /section: 'play', label: 'Play'/)
+  assert.match(layout, /section: 'ladder', label: 'Ladder'/)
+  assert.match(layout, /section: 'tournament',[\s\S]*label: 'Tournament'/)
+  assert.match(layout, /section: 'club', label: 'Club'/)
+  assert.doesNotMatch(layout, /label: 'Challenges'/)
+  assert.match(layout, /grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\)/)
+})
+
+test('admin match setup preserves and restores the previous desktop sidebar state', () => {
+  assert.match(layout, /sidebarWasCollapsedBeforeAdminMatch/)
+  assert.match(layout, /function beginAdminMatchDrawer\(\)/)
+  assert.match(layout, /function endAdminMatchDrawer\(\)/)
+  assert.match(layout, /sidebarCollapsed\.value = sidebarWasCollapsedBeforeAdminMatch\.value/)
 })
 
 test('the tournaments route owns its body heading and creation action', () => {
