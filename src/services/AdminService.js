@@ -10,6 +10,7 @@ import {
   createPrivateInvitationCode,
   createPrivateInvitationToken,
   normalizeClubRole,
+  normalizeMembershipStatus,
   normalizeClubSetup,
   sanitizeDirectoryId,
   sanitizeInvitationCode,
@@ -20,7 +21,7 @@ import {
 const LEGACY_SETUP_SCHEMA_VERSION = 1
 const MANAGER_ROLES = new Set(['admin', 'co-admin'])
 const ROLE_WEIGHT = Object.freeze({ player: 1, 'co-admin': 2, admin: 3 })
-const ROLE_LABELS = Object.freeze({ player: 'Player', 'co-admin': 'Co-admin', admin: 'Admin' })
+const ROLE_LABELS = Object.freeze({ player: 'Member', 'co-admin': 'Co-admin', admin: 'Admin' })
 const INVITE_ROLES = new Set(Object.keys(ROLE_LABELS))
 
 function canUseStorage() {
@@ -125,6 +126,7 @@ function normalizeMembershipRecord(input = {}, clubIds) {
     userId,
     clubId,
     role: normalizeClubRole(input.role),
+    status: normalizeMembershipStatus(input.status),
     joinedAt: normalizeTimestamp(input.joinedAt || input.joined_at),
   }
 }
@@ -142,6 +144,7 @@ function normalizeDirectory(input = {}) {
     })
 
   const membershipKeys = new Set()
+  const activeMembershipKeys = new Set()
   directory.memberships = (Array.isArray(input.memberships) ? input.memberships : [])
     .slice(0, 5000)
     .map((membership) => normalizeMembershipRecord(membership, clubIds))
@@ -150,6 +153,7 @@ function normalizeDirectory(input = {}) {
       const key = `${membership.userId}:${membership.clubId}`
       if (membershipKeys.has(key)) return false
       membershipKeys.add(key)
+      if (membership.status === 'active') activeMembershipKeys.add(key)
       return true
     })
 
@@ -159,7 +163,9 @@ function normalizeDirectory(input = {}) {
     .forEach(([rawUserId, rawClubId]) => {
       const userId = sanitizeDirectoryId(rawUserId)
       const clubId = sanitizeDirectoryId(rawClubId)
-      if (membershipKeys.has(`${userId}:${clubId}`)) directory.activeClubByUser[userId] = clubId
+      if (activeMembershipKeys.has(`${userId}:${clubId}`)) {
+        directory.activeClubByUser[userId] = clubId
+      }
     })
 
   const draftsByUser = input.draftsByUser || input.drafts_by_user || {}
@@ -329,7 +335,13 @@ function migrateLegacyDirectory(userId) {
     createdAt: migratedSetup.createdAt || nowIso(),
     updatedAt: migratedSetup.updatedAt || nowIso(),
   })
-  directory.memberships.push({ userId, clubId, role: 'admin', joinedAt: nowIso() })
+  directory.memberships.push({
+    userId,
+    clubId,
+    role: 'admin',
+    status: 'active',
+    joinedAt: nowIso(),
+  })
   directory.activeClubByUser[userId] = clubId
   return directory
 }
@@ -338,7 +350,7 @@ function mirrorLegacySetup(directory, userId) {
   if (!canUseStorage()) return
   const activeClubId = directory.activeClubByUser[userId]
   const membership = directory.memberships.find(
-    (item) => item.userId === userId && item.clubId === activeClubId,
+    (item) => item.userId === userId && item.clubId === activeClubId && item.status === 'active',
   )
   const activeClub = membership
     ? directory.clubs.find((club) => club.id === activeClubId && club.setup.status === 'active')
@@ -380,7 +392,9 @@ function membershipFor(directory, userId, clubId) {
 
 function assertClubAccess(directory, userId, clubId) {
   const membership = membershipFor(directory, userId, clubId)
-  if (!membership) throw createServiceError('You do not have access to this club.', 'FORBIDDEN')
+  if (!membership || membership.status !== 'active') {
+    throw createServiceError('You do not have access to this club.', 'FORBIDDEN')
+  }
   return membership
 }
 
@@ -420,7 +434,7 @@ function addMembership(directory, membership) {
 function addRosterMemberships(directory, setup, clubId) {
   const joinedAt = nowIso()
   setup.membership.selectedPlayerIds.forEach((userId) => {
-    addMembership(directory, { userId, clubId, role: 'player', joinedAt })
+    addMembership(directory, { userId, clubId, role: 'player', status: 'active', joinedAt })
   })
   ;[
     ...setup.membership.importedMembers,
@@ -432,6 +446,7 @@ function addRosterMemberships(directory, setup, clubId) {
       userId: member.userId,
       clubId,
       role: normalizeClubRole(member.role),
+      status: 'active',
       joinedAt,
     })
   })
@@ -452,8 +467,9 @@ function stripPrivateInviteData(setup) {
 
 function publicDirectoryForUser(directory, userId) {
   const ownMemberships = directory.memberships.filter((item) => item.userId === userId)
-  const accessibleIds = new Set(ownMemberships.map((item) => item.clubId))
-  const roleByClub = new Map(ownMemberships.map((item) => [item.clubId, item.role]))
+  const activeOwnMemberships = ownMemberships.filter((item) => item.status === 'active')
+  const accessibleIds = new Set(activeOwnMemberships.map((item) => item.clubId))
+  const roleByClub = new Map(activeOwnMemberships.map((item) => [item.clubId, item.role]))
   const clubs = directory.clubs
     .filter((club) => accessibleIds.has(club.id))
     .map((club) => {
@@ -469,11 +485,13 @@ function publicDirectoryForUser(directory, userId) {
         updatedAt: club.updatedAt,
       }
     })
-  const memberships = directory.memberships.filter((item) => accessibleIds.has(item.clubId))
+  const memberships = directory.memberships.filter(
+    (item) => item.userId === userId || accessibleIds.has(item.clubId),
+  )
   const requestedActiveId = directory.activeClubByUser[userId]
   const activeClubId = accessibleIds.has(requestedActiveId)
     ? requestedActiveId
-    : ownMemberships[0]?.clubId || ''
+    : activeOwnMemberships[0]?.clubId || ''
 
   return {
     schemaVersion: CLUB_DIRECTORY_SCHEMA_VERSION,
@@ -486,7 +504,9 @@ function publicDirectoryForUser(directory, userId) {
 export async function getClubDirectory(actor) {
   const userId = requireUserId(actor)
   let directory = loadDirectory(actor)
-  const fallbackClubId = directory.memberships.find((item) => item.userId === userId)?.clubId || ''
+  const fallbackClubId =
+    directory.memberships.find((item) => item.userId === userId && item.status === 'active')
+      ?.clubId || ''
   if (!directory.activeClubByUser[userId] && fallbackClubId) {
     directory.activeClubByUser[userId] = fallbackClubId
     directory = writeDirectory(directory, userId)
@@ -504,7 +524,10 @@ export async function getClubSetup(actor) {
 
   const activeClubId = directory.activeClubByUser[userId]
   const membership = membershipFor(directory, userId, activeClubId)
-  const activeClub = membership ? directory.clubs.find((club) => club.id === activeClubId) : null
+  const activeClub =
+    membership?.status === 'active'
+      ? directory.clubs.find((club) => club.id === activeClubId)
+      : null
   return activeClub ? normalizeClubSetup(activeClub.setup) : createDefaultClubSetup()
 }
 
@@ -531,7 +554,6 @@ export async function saveClubSetup(input, actor) {
     : null
 
   if (existingClub) assertClubManager(directory, userId, existingClub.id)
-  else assertCanCreateClub(actor)
 
   const validation = validateCompleteClubSetup(setup)
   if (!validation.valid) {
@@ -570,13 +592,49 @@ export async function saveClubSetup(input, actor) {
     directory.clubs[directory.clubs.findIndex((club) => club.id === clubId)] = clubRecord
   } else {
     directory.clubs.push(clubRecord)
-    addMembership(directory, { userId, clubId, role: 'admin', joinedAt: timestamp })
+    addMembership(directory, {
+      userId,
+      clubId,
+      role: 'admin',
+      status: 'active',
+      joinedAt: timestamp,
+    })
   }
   addRosterMemberships(directory, setup, clubId)
   directory.activeClubByUser[userId] = clubId
   delete directory.draftsByUser[userId]
   directory = writeDirectory(directory, userId)
   return normalizeClubSetup(directory.clubs.find((club) => club.id === clubId).setup)
+}
+
+export async function createClub(input, actor) {
+  const userId = requireUserId(actor)
+  const defaults = createDefaultClubSetup()
+  const memberInvite = createStoredInvite('player')
+  const setup = normalizeClubSetup({
+    ...defaults,
+    completedStep: ADMIN_SETUP_STEPS.length,
+    workspace: {
+      ...defaults.workspace,
+      name: input?.name,
+      location: input?.location,
+    },
+    membership: {
+      ...defaults.membership,
+      invitationToken: memberInvite.token,
+      invitationCode: memberInvite.code,
+    },
+  })
+
+  const savedSetup = await saveClubSetup(setup, { userId })
+  const directory = await getClubDirectory({ userId })
+  const club = directory.clubs.find((item) => item.id === savedSetup.clubId) || null
+  const membership =
+    directory.memberships.find(
+      (item) => item.userId === userId && item.clubId === savedSetup.clubId,
+    ) || null
+
+  return { club, membership }
 }
 
 function extractInviteCandidates(input) {
@@ -656,6 +714,7 @@ export async function joinClubWithInvite(input, actor) {
     userId,
     clubId: match.club.id,
     role: existing ? strongerRole(existing.role, match.invite.role) : match.invite.role,
+    status: 'active',
     joinedAt: existing?.joinedAt || nowIso(),
   }
   addMembership(directory, membership)

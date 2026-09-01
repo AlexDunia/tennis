@@ -50,17 +50,9 @@ async function enterWorkspace(roleKey = selectedRole.value) {
       dataMode: isAdmin || useDemoData.value ? APP_DATA_MODES.DEMO : APP_DATA_MODES.EMPTY,
     })
     if (isSignUp.value) {
-      const destination = isAdmin
-        ? {
-            name: 'AdminSetup',
-            query: route.query.invite
-              ? { view: 'join', from: 'signup', invite: route.query.invite }
-              : { view: 'start', from: 'signup' },
-          }
-        : {
-            name: 'PlayerClubJoin',
-            query: { club: route.query.club, invite: route.query.invite },
-          }
+      const destination = route.query.invite
+        ? { name: 'Clubs', query: { view: 'join', invite: route.query.invite } }
+        : { name: 'Clubs' }
       await router.push(destination)
       return
     }

@@ -1,6 +1,10 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import PersonAvatar from '../PersonAvatar.vue'
+import MatchFormatEditor from '../match/MatchFormatEditor.vue'
+import { createStandardMatchRulesSnapshot } from '../../domain/matchRules.js'
+import { ladderRulesToMatchRulesSnapshot } from '../../domain/ruleAdapters/ladderMatchRules.js'
+import { formatMatchRulesSummary } from '../../utils/matchRulesSummary.js'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -8,6 +12,7 @@ const props = defineProps({
   playerA: { type: Object, default: null },
   playerB: { type: Object, default: null },
   ladderRules: { type: Object, required: true },
+  rulesEditable: { type: Boolean, default: true },
   courts: { type: Array, default: () => [] },
   submitting: { type: Boolean, default: false },
   error: { type: String, default: '' },
@@ -22,11 +27,7 @@ const scheduleDate = ref('')
 const scheduleTime = ref('')
 const overrideOpen = ref(false)
 const matchRuleSource = ref('ladder_default')
-const overrideRules = reactive({
-  matchFormat: 'best_of_3',
-  gameScoringRule: 'normal',
-  finalSetRule: 'same',
-})
+const overrideRulesSnapshot = ref(createStandardMatchRulesSnapshot())
 
 function localDateString(date = new Date()) {
   const year = date.getFullYear()
@@ -43,9 +44,18 @@ function dateFromLocalFields() {
 }
 
 const minimumDate = computed(() => localDateString())
-const currentRules = computed(() =>
-  matchRuleSource.value === 'admin_override' ? overrideRules : props.ladderRules,
+const ladderRuleResult = computed(() =>
+  ladderRulesToMatchRulesSnapshot({ matchConfig: props.ladderRules }),
 )
+const ladderRulesSnapshot = computed(() =>
+  ladderRuleResult.value.ok ? ladderRuleResult.value.snapshot : createStandardMatchRulesSnapshot(),
+)
+const currentRulesSnapshot = computed(() =>
+  matchRuleSource.value === 'admin_override'
+    ? overrideRulesSnapshot.value
+    : ladderRulesSnapshot.value,
+)
+const currentRulesSummary = computed(() => formatMatchRulesSummary(currentRulesSnapshot.value))
 const scheduledDateTime = computed(() => dateFromLocalFields())
 const scheduleIsFuture = computed(
   () =>
@@ -95,18 +105,6 @@ function formatResultDate(value) {
   }).format(new Date(value))
 }
 
-function matchFormatLabel(value) {
-  return value === 'best_of_5' ? 'Best of 5 sets' : 'Best of 3 sets'
-}
-
-function scoringLabel(value) {
-  return value === 'sudden_death' ? 'No-Ad' : 'Advantage'
-}
-
-function finalSetLabel(value) {
-  return value === 'super_tiebreak' ? '10-point final-set tiebreak' : 'Full final set'
-}
-
 function reset() {
   timing.value = ''
   courtId.value = ''
@@ -114,17 +112,23 @@ function reset() {
   scheduleTime.value = ''
   overrideOpen.value = false
   matchRuleSource.value = 'ladder_default'
-  Object.assign(overrideRules, props.ladderRules)
+  overrideRulesSnapshot.value = ladderRulesSnapshot.value
 }
 
-function saveOverride() {
+function openRulesEditor() {
+  overrideRulesSnapshot.value = currentRulesSnapshot.value
+  overrideOpen.value = true
+}
+
+function saveOverride(rulesSnapshot) {
+  overrideRulesSnapshot.value = rulesSnapshot
   matchRuleSource.value = 'admin_override'
   overrideOpen.value = false
 }
 
 function useLadderDefault() {
   matchRuleSource.value = 'ladder_default'
-  Object.assign(overrideRules, props.ladderRules)
+  overrideRulesSnapshot.value = ladderRulesSnapshot.value
   overrideOpen.value = false
 }
 
@@ -135,12 +139,14 @@ function submit() {
     scheduledAt: timing.value === 'scheduled' ? scheduledDateTime.value.toISOString() : null,
     courtId: courtId.value || null,
     matchRuleSource: matchRuleSource.value,
-    matchRules: { ...currentRules.value },
+    rulesSnapshot: currentRulesSnapshot.value,
   })
 }
 
 function handleKeydown(event) {
-  if (props.open && event.key === 'Escape' && !props.submitting) emit('close')
+  if (!props.open || event.key !== 'Escape' || props.submitting) return
+  if (overrideOpen.value) overrideOpen.value = false
+  else emit('close')
 }
 
 watch(
@@ -155,7 +161,11 @@ watch(
 
 watch(
   () => props.ladderRules,
-  (rules) => Object.assign(overrideRules, rules),
+  () => {
+    if (matchRuleSource.value === 'ladder_default') {
+      overrideRulesSnapshot.value = ladderRulesSnapshot.value
+    }
+  },
   { immediate: true, deep: true },
 )
 
@@ -236,56 +246,27 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
         <section v-if="timing" class="drawer-section">
           <div class="drawer-section__label">
-            <strong>Match rules</strong>
+            <strong>Match format</strong>
             <span>{{
               matchRuleSource === 'admin_override' ? 'Admin override' : 'Ladder default'
             }}</span>
           </div>
           <div class="rules-card">
             <span>
-              <strong>{{ matchFormatLabel(currentRules.matchFormat) }}</strong>
-              <small
-                >{{ scoringLabel(currentRules.gameScoringRule) }} ·
-                {{ finalSetLabel(currentRules.finalSetRule) }}</small
-              >
+              <strong>{{ currentRulesSummary.match }}</strong>
+              <small v-for="line in currentRulesSummary.concise.slice(1, 4)" :key="line">
+                {{ line }}
+              </small>
             </span>
-            <button type="button" @click="overrideOpen = !overrideOpen">
-              {{ overrideOpen ? 'Close' : 'Change' }}
+            <button type="button" @click="openRulesEditor">
+              {{ rulesEditable ? 'Customize' : 'View details' }}
             </button>
           </div>
           <p v-if="matchRuleSource === 'admin_override'" class="override-note">
             This admin override applies to this match only.
             <button type="button" @click="useLadderDefault">Use Ladder default</button>
           </p>
-
-          <div v-if="overrideOpen" class="override-editor">
-            <label>
-              <span>Match format</span>
-              <select v-model="overrideRules.matchFormat">
-                <option value="best_of_3">Best of 3 sets</option>
-                <option value="best_of_5">Best of 5 sets</option>
-              </select>
-            </label>
-            <label>
-              <span>Game scoring</span>
-              <select v-model="overrideRules.gameScoringRule">
-                <option value="normal">Advantage</option>
-                <option value="sudden_death">No-Ad</option>
-              </select>
-            </label>
-            <label>
-              <span>Final set</span>
-              <select v-model="overrideRules.finalSetRule">
-                <option value="same">Full final set</option>
-                <option value="super_tiebreak">10-point match tiebreak</option>
-              </select>
-            </label>
-            <button class="override-editor__save" type="button" @click="saveOverride">
-              Apply to this match
-            </button>
-          </div>
         </section>
-
         <section v-if="timing === 'scheduled'" class="drawer-section">
           <div class="schedule-fields">
             <label>
@@ -357,6 +338,39 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
       </section>
     </section>
   </div>
+  <Teleport to="body">
+    <div
+      v-if="open && overrideOpen"
+      class="rules-modal"
+      role="presentation"
+      @click.self="overrideOpen = false"
+    >
+      <section
+        class="rules-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Customize match format"
+      >
+        <button
+          type="button"
+          class="rules-modal__close"
+          aria-label="Close match format"
+          @click="overrideOpen = false"
+        >
+          ×
+        </button>
+        <MatchFormatEditor
+          :model-value="overrideRulesSnapshot"
+          :editable="rulesEditable"
+          :show-save="rulesEditable"
+          :allow-standalone-tiebreak="false"
+          :read-only-label="`Controlled by ${ladder?.name || 'this Ladder'}`"
+          save-label="Apply to this match"
+          @save="saveOverride"
+        />
+      </section>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -528,7 +542,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 }
 
 .drawer-section__label strong {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .drawer-section__label span {
@@ -541,7 +555,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 11px 12px;
+  padding: 13px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--app-inner-radius);
 }
@@ -552,13 +566,14 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 }
 
 .rules-card strong {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .rules-card small {
   margin-top: 2px;
   color: var(--color-muted);
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .rules-card button,
@@ -577,17 +592,6 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
   font-size: 9px;
 }
 
-.override-editor {
-  display: grid;
-  gap: 8px;
-  margin-top: 9px;
-  padding: 11px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--app-inner-radius);
-  background: var(--color-surface-soft);
-}
-
-.override-editor label,
 .court-field,
 .schedule-fields label {
   display: grid;
@@ -597,7 +601,6 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
   font-weight: var(--font-weight-medium);
 }
 
-.override-editor select,
 .court-field select,
 .court-field input,
 .schedule-fields input {
@@ -609,16 +612,6 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
   background: var(--color-surface);
   color: var(--color-text);
   font-size: 11px;
-}
-
-.override-editor__save {
-  min-height: 38px;
-  border: 0;
-  border-radius: var(--app-inner-radius);
-  background: var(--color-primary);
-  color: white;
-  font-size: 10px;
-  font-weight: var(--font-weight-semibold);
 }
 
 .schedule-fields {
@@ -796,6 +789,62 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
   .admin-drawer,
   .admin-drawer__panel {
     scroll-behavior: auto;
+  }
+}
+
+.rules-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: grid;
+  padding: clamp(18px, 4vw, 40px);
+  place-items: center;
+  background: rgba(15, 34, 24, 0.36);
+}
+
+.rules-modal__panel {
+  position: relative;
+  width: min(960px, 100%);
+  max-height: calc(100vh - clamp(36px, 8vw, 80px));
+  overflow-y: auto;
+  padding: clamp(26px, 4vw, 42px);
+  border: var(--app-hairline);
+  border-radius: 18px;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-strong, 0 24px 64px rgba(15, 34, 24, 0.18));
+}
+
+.rules-modal__close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 1;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-soft);
+  font-size: 20px;
+}
+
+@media (max-width: 640px) {
+  .rules-modal {
+    padding: 0;
+    place-items: end stretch;
+  }
+
+  .rules-modal__panel {
+    max-height: calc(100vh - 48px);
+    padding: 54px 16px 28px;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .rules-modal__close {
+    top: 12px;
+    right: 14px;
   }
 }
 </style>

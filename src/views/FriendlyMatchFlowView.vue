@@ -11,6 +11,11 @@ import { useMatchStore } from '../stores/match'
 import { useNotificationStore } from '../stores/notification'
 import { verifyLadderCreationAccess } from '../services/LadderAccessService'
 import CompletedMatchResult from '../components/match/CompletedMatchResult.vue'
+import MatchFormatEditor from '../components/match/MatchFormatEditor.vue'
+import { createStandardMatchRulesSnapshot } from '../domain/matchRules'
+import { friendlyRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/friendlyMatchRules'
+import { ladderRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/ladderMatchRules'
+import { formatMatchRulesSummary } from '../utils/matchRulesSummary'
 import {
   ACTIVE_LADDER_CHALLENGE_STATUSES,
   deadlineFromNow,
@@ -34,13 +39,9 @@ import {
   createLiveScoreboardSnapshot,
   getLiveScoreboardMatchId,
 } from '../utils/liveScoreboardSnapshot'
-import {
-  createLiveOperationsSnapshot,
-} from '../utils/liveOperationsSnapshot'
+import { createLiveOperationsSnapshot } from '../utils/liveOperationsSnapshot'
 import { publishLiveMatchSnapshot, startLiveMatchHeartbeat } from '../services/liveMatchRealtime'
-import {
-  publishLiveOperationsSnapshot,
-} from '../services/liveOperationsRegistry'
+import { publishLiveOperationsSnapshot } from '../services/liveOperationsRegistry'
 import {
   cancelPairingSession,
   createPairingSession,
@@ -76,7 +77,8 @@ const joinMessage = ref('')
 const joinedNotice = ref('')
 const externalInvitation = ref(null)
 const customFormatError = ref('')
-const showTieBreakDetails = ref(false)
+const customFormatRules = ref(createStandardMatchRulesSnapshot())
+const ladderFormatDialogOpen = ref(false)
 const resultModalOpen = ref(false)
 const friendlyFinalizing = ref(false)
 
@@ -86,10 +88,7 @@ const chairUmpireInvitation = ref(null)
 
 const chairUmpireQrDataUrl = ref('')
 
-const chairUmpireScorerSession =
-  ref(
-    readChairUmpireScorerSessionForThisTab(),
-  )
+const chairUmpireScorerSession = ref(readChairUmpireScorerSessionForThisTab())
 
 let stopChairUmpireSubscription = () => {}
 
@@ -99,11 +98,9 @@ const tvPairingSession = ref(null)
 
 const tvPairingMessage = ref('')
 
-const tvPairingQrDataUrl =
-  ref('')
+const tvPairingQrDataUrl = ref('')
 
-let stopTvPairingSubscription =
-  () => {}
+let stopTvPairingSubscription = () => {}
 
 const liveAnnouncement = ref('')
 
@@ -127,14 +124,9 @@ const voiceAnnouncementsSupported = computed(() => {
 })
 
 const ladderAccessChecking = ref(false)
-const customFormatForm = reactive({
+const customFormatMeta = reactive({
   id: '',
   name: '',
-  mode: 'sets',
-  setsToWin: 2,
-  gamesPerSet: 6,
-  tieBreakAt: 6,
-  tieBreakPoints: 7,
   saveForLater: false,
 })
 let invitationTimer = null
@@ -163,123 +155,80 @@ function readVoiceAnnouncementPreference() {
 
 const step = computed(() => String(route.meta.friendlyStep || 'type'))
 
-const isChairUmpireControlRoute =
-  computed(
-    () =>
-      route.meta.umpireControl ===
-      true,
-  )
+const isChairUmpireControlRoute = computed(() => route.meta.umpireControl === true)
 
-const requestedLiveMatchId =
-  computed(() => {
-    if (
-      step.value !== 'live'
-    ) {
-      return ''
-    }
-
-    const routeMatchId =
-      String(
-        route.params.matchId ||
-          '',
-      )
-        .trim()
-        .slice(0, 120)
-
-    if (routeMatchId) {
-      return routeMatchId
-    }
-
-    /*
-     * Guest chair umpires may still arrive through
-     * the migration-compatible route without a URL
-     * parameter.
-     *
-     * Their scorer capability is tab-bound and already
-     * identifies the exact match.
-     */
-    if (
-      isChairUmpireControlRoute
-        .value
-    ) {
-      return String(
-        chairUmpireScorerSession
-          .value?.matchId ||
-          '',
-      )
-        .trim()
-        .slice(0, 120)
-    }
-
+const requestedLiveMatchId = computed(() => {
+  if (step.value !== 'live') {
     return ''
-  })
+  }
 
-const currentLiveMatchId =
-  computed(
-    () =>
-      requestedLiveMatchId.value ||
-      friendlyMatchStore
-        .liveMatchId ||
-      getLiveScoreboardMatchId(
-        friendlyMatchStore.draft,
-      ),
-  )
+  const routeMatchId = String(route.params.matchId || '')
+    .trim()
+    .slice(0, 120)
+
+  if (routeMatchId) {
+    return routeMatchId
+  }
+
+  /*
+   * Guest chair umpires may still arrive through
+   * the migration-compatible route without a URL
+   * parameter.
+   *
+   * Their scorer capability is tab-bound and already
+   * identifies the exact match.
+   */
+  if (isChairUmpireControlRoute.value) {
+    return String(chairUmpireScorerSession.value?.matchId || '')
+      .trim()
+      .slice(0, 120)
+  }
+
+  return ''
+})
+
+const currentLiveMatchId = computed(
+  () =>
+    requestedLiveMatchId.value ||
+    friendlyMatchStore.liveMatchId ||
+    getLiveScoreboardMatchId(friendlyMatchStore.draft),
+)
 
 const isLadder = computed(() => friendlyMatchStore.draft.matchType === 'ladder')
 const isFriendly = computed(() => friendlyMatchStore.draft.matchType === 'friendly')
 const isPlayNow = computed(() => friendlyMatchStore.draft.timing === 'now')
 const selectedOpponentId = computed(() => friendlyMatchStore.draft.opponent?.id || '')
 const opponentName = computed(() => friendlyMatchStore.draft.opponent?.name || 'Opponent')
-const authenticatedIdentity =
-  computed(() => ({
-    id:
-      authStore.user?.playerId ||
-      playerStore.currentPlayer?.id ||
-      authStore.user?.id ||
-      '',
+const authenticatedIdentity = computed(() => ({
+  id: authStore.user?.playerId || playerStore.currentPlayer?.id || authStore.user?.id || '',
 
-    name:
-      playerStore.currentPlayer?.name ||
-      authStore.user?.name ||
-      'Club player',
+  name: playerStore.currentPlayer?.name || authStore.user?.name || 'Club player',
 
-    rank:
-      playerStore.currentPlayer?.rank ||
-      null,
+  rank: playerStore.currentPlayer?.rank || null,
 
-    category:
-      playerStore.currentPlayer
-        ?.category ||
-      'Club Member',
-  }))
+  category: playerStore.currentPlayer?.category || 'Club Member',
+}))
 
-const currentIdentity =
-  computed(() => {
-    const session =
-      chairUmpireScorerSession.value
+const currentIdentity = computed(() => {
+  const session = chairUmpireScorerSession.value
 
-    if (
-      isChairUmpireControlRoute.value &&
-      chairUmpireScorerSessionCanControl(
-        session,
-        currentLiveMatchId.value,
-      )
-    ) {
-      return {
-        id: session.scorerId,
+  if (
+    isChairUmpireControlRoute.value &&
+    chairUmpireScorerSessionCanControl(session, currentLiveMatchId.value)
+  ) {
+    return {
+      id: session.scorerId,
 
-        name:
-          session.scorerName ||
-          'Chair umpire',
+      name: session.scorerName || 'Chair umpire',
 
-        rank: null,
+      rank: null,
 
-        category: 'Chair umpire',
-      }
+      category: 'Chair umpire',
     }
+  }
 
-    return authenticatedIdentity.value
-  })
+  return authenticatedIdentity.value
+})
 const activeLadderConfig = computed(() => getActiveLadderConfig())
 const ladderWindow = computed(() =>
   ladderWindowFor(currentIdentity.value, activeLadderConfig.value),
@@ -317,99 +266,65 @@ const canManageLiveMatch = computed(() => {
   return friendlyMatchStore.canManageMatch(currentIdentity.value.id)
 })
 
-const canEmergencyOverrideLiveMatch =
-  computed(() => {
-    const actorId =
-      authenticatedIdentity.value.id
+const canEmergencyOverrideLiveMatch = computed(() => {
+  const actorId = authenticatedIdentity.value.id
 
-    const draft =
-      friendlyMatchStore.draft
+  const draft = friendlyMatchStore.draft
 
-    if (
-      !actorId ||
-      isChairUmpireControlRoute.value
-    ) {
-      return false
-    }
+  if (!actorId || isChairUmpireControlRoute.value) {
+    return false
+  }
 
-    /*
-     * Admin override is for another authorized
-     * administrator intervening.
-     *
-     * The owner already has the normal
-     * reclaim-control path.
-     */
-    if (
-      friendlyMatchStore.canManageMatch(
-        actorId,
-      )
-    ) {
-      return false
-    }
+  /*
+   * Admin override is for another authorized
+   * administrator intervening.
+   *
+   * The owner already has the normal
+   * reclaim-control path.
+   */
+  if (friendlyMatchStore.canManageMatch(actorId)) {
+    return false
+  }
 
-    /*
-     * Somebody who already controls scoring
-     * obviously does not need an override.
-     */
-    if (
-      friendlyMatchStore.canScoreMatch(
-        actorId,
-      )
-    ) {
-      return false
-    }
+  /*
+   * Somebody who already controls scoring
+   * obviously does not need an override.
+   */
+  if (friendlyMatchStore.canScoreMatch(actorId)) {
+    return false
+  }
 
-    if (
-      draft.status !== 'live' ||
-      !draft.liveState ||
-      draft.over
-    ) {
-      return false
-    }
+  if (draft.status !== 'live' || !draft.liveState || draft.over) {
+    return false
+  }
 
-    /*
-     * Critical club boundary.
-     */
-    if (
-      !draft.clubId ||
-      !adminStore.activeClubId ||
-      draft.clubId !==
-        adminStore.activeClubId
-    ) {
-      return false
-    }
+  /*
+   * Critical club boundary.
+   */
+  if (!draft.clubId || !adminStore.activeClubId || draft.clubId !== adminStore.activeClubId) {
+    return false
+  }
 
-    /*
-     * Use active-club membership permission,
-     * NOT generic/global isAdmin.
-     */
-    return Boolean(
-      adminStore.hasActiveClubPermission(
-        'matches.live_score',
-      ),
-    )
-  })
+  /*
+   * Use active-club membership permission,
+   * NOT generic/global isAdmin.
+   */
+  return Boolean(adminStore.hasActiveClubPermission('matches.live_score'))
+})
 
-const acceptedChairUmpireScorerId =
-  computed(
-    () =>
-      chairUmpireInvitation.value
-        ?.acceptedIdentity?.userId ||
-      chairUmpireInvitation.value
-        ?.acceptedIdentity?.guestId ||
-      '',
-  )
+const acceptedChairUmpireScorerId = computed(
+  () =>
+    chairUmpireInvitation.value?.acceptedIdentity?.userId ||
+    chairUmpireInvitation.value?.acceptedIdentity?.guestId ||
+    '',
+)
 
-const chairUmpireHasControl =
-  computed(
-    () =>
-      Boolean(
-        acceptedChairUmpireScorerId.value &&
-          friendlyMatchStore.draft
-            .scorerId ===
-            acceptedChairUmpireScorerId.value,
-      ),
-  )
+const chairUmpireHasControl = computed(() =>
+  Boolean(
+    acceptedChairUmpireScorerId.value &&
+    friendlyMatchStore.draft.scorerId === acceptedChairUmpireScorerId.value,
+  ),
+)
 
 function initialsForName(name) {
   return String(name || '')
@@ -488,9 +403,7 @@ const chairUmpireCandidates = computed(() => {
 
         role: membership.role,
 
-        roleLabel: ['admin', 'co-admin'].includes(membership.role)
-          ? 'Club admin'
-          : 'Club member',
+        roleLabel: ['admin', 'co-admin'].includes(membership.role) ? 'Club admin' : 'Club member',
 
         initials: initialsForName(name),
       }
@@ -503,36 +416,23 @@ const tvPairingCode = computed(() => {
   return formatPairingCode(tvPairingSession.value?.pairingCode || '')
 })
 
-const tvPairingInviteUrl =
-  computed(() => {
-    const session =
-      tvPairingSession.value
+const tvPairingInviteUrl = computed(() => {
+  const session = tvPairingSession.value
 
-    if (
-      !session?.qrClaimToken ||
-      session.status !== 'waiting' ||
-      typeof window ===
-        'undefined'
-    ) {
-      return ''
-    }
+  if (!session?.qrClaimToken || session.status !== 'waiting' || typeof window === 'undefined') {
+    return ''
+  }
 
-    const href =
-      router.resolve({
-        name:
-          'TvDisplayPairing',
+  const href = router.resolve({
+    name: 'TvDisplayPairing',
 
-        query: {
-          ticket:
-            session.qrClaimToken,
-        },
-      }).href
+    query: {
+      ticket: session.qrClaimToken,
+    },
+  }).href
 
-    return new URL(
-      href,
-      window.location.href,
-    ).href
-  })
+  return new URL(href, window.location.href).href
+})
 
 const canScoreLiveMatch = computed(() => friendlyMatchStore.canScoreMatch(currentIdentity.value.id))
 
@@ -591,38 +491,21 @@ const canRenderCurrentRoute = computed(() => {
   if (step.value === 'live') {
     const draft = friendlyMatchStore.draft
 
-    const requestedId =
-      requestedLiveMatchId.value
+    const requestedId = requestedLiveMatchId.value
 
-    if (
-      !requestedId ||
-      friendlyMatchStore
-        .liveMatchId !==
-        requestedId
-    ) {
+    if (!requestedId || friendlyMatchStore.liveMatchId !== requestedId) {
       return false
     }
 
-    if (
-      isChairUmpireControlRoute.value
-    ) {
-      const session =
-        chairUmpireScorerSession.value
+    if (isChairUmpireControlRoute.value) {
+      const session = chairUmpireScorerSession.value
 
-      const matchId =
-        getLiveScoreboardMatchId(
-          draft,
-        )
+      const matchId = getLiveScoreboardMatchId(draft)
 
       if (
-        !chairUmpireScorerSessionCanControl(
-          session,
-          matchId,
-        ) ||
+        !chairUmpireScorerSessionCanControl(session, matchId) ||
         !session?.scorerId ||
-        !friendlyMatchStore.canScoreMatch(
-          session.scorerId,
-        )
+        !friendlyMatchStore.canScoreMatch(session.scorerId)
       ) {
         return false
       }
@@ -744,14 +627,19 @@ const hasScheduleDetails = computed(() =>
     friendlyMatchStore.draft.schedule.court,
   ),
 )
-const customMatchStyle = computed(() => {
-  if (customFormatForm.mode === 'tiebreak') return 'match-tiebreak'
-  return customFormatForm.setsToWin === 1 ? 'one-set' : 'best-of-3'
-})
-const playCustomTieBreaks = computed(
-  () => customFormatForm.mode === 'tiebreak' || customFormatForm.tieBreakAt > 0,
+const ladderSetupRuleResult = computed(() =>
+  ladderRulesToMatchRulesSnapshot({
+    rulesSnapshot: friendlyMatchStore.draft.rulesSnapshot,
+    ladderConfigSnapshot: friendlyMatchStore.draft.ladderConfigSnapshot || activeLadderConfig.value,
+    matchConfig: ladderMatchConfig(activeLadderConfig.value),
+  }),
 )
-const customFormatSummary = computed(() => describeCustomFormat(customFormatForm))
+const ladderSetupRules = computed(() =>
+  ladderSetupRuleResult.value.ok
+    ? ladderSetupRuleResult.value.snapshot
+    : createStandardMatchRulesSnapshot(),
+)
+const ladderRulesSummary = computed(() => formatMatchRulesSummary(ladderSetupRules.value))
 const pageTitle = computed(
   () =>
     ({
@@ -813,8 +701,7 @@ const LADDER_FLOW_PATHS = Object.freeze({
   FriendlyMatchFormat: '/ladder-match/format',
   FriendlyMatchScheduled: '/ladder-match/sent',
   FriendlyMatchJoinInvitation: '/ladder-match/join/:token',
-  FriendlyMatchLive:
-    '/ladder-match/live/:matchId',
+  FriendlyMatchLive: '/ladder-match/live/:matchId',
 })
 
 function flowLocation(name, options = {}) {
@@ -832,9 +719,7 @@ function flowLocation(name, options = {}) {
 }
 
 function liveMatchLocation() {
-  const matchId =
-    friendlyMatchStore
-      .liveMatchId
+  const matchId = friendlyMatchStore.liveMatchId
 
   if (!matchId) {
     return {
@@ -842,14 +727,11 @@ function liveMatchLocation() {
     }
   }
 
-  return flowLocation(
-    'FriendlyMatchLive',
-    {
-      params: {
-        matchId,
-      },
+  return flowLocation('FriendlyMatchLive', {
+    params: {
+      matchId,
     },
-  )
+  })
 }
 
 const chairUmpireInviteUrl = computed(() => {
@@ -859,8 +741,7 @@ const chairUmpireInviteUrl = computed(() => {
     return ''
   }
 
-  const routeName =
-    invitation.audience === 'guest' ? 'ChairUmpireGuestInvite' : 'ChairUmpireInvite'
+  const routeName = invitation.audience === 'guest' ? 'ChairUmpireGuestInvite' : 'ChairUmpireInvite'
 
   const href = router.resolve({
     name: routeName,
@@ -1008,43 +889,22 @@ function guardStep() {
    * - matching authoritative scorerId
    */
   if (isChairUmpireControlRoute.value) {
-    const session =
-      refreshChairUmpireScorerSession()
+    const session = refreshChairUmpireScorerSession()
 
-    const matchId =
-      requestedLiveMatchId.value
+    const matchId = requestedLiveMatchId.value
 
-    const sessionValid =
-      chairUmpireScorerSessionCanControl(
-        session,
-        matchId,
-      )
+    const sessionValid = chairUmpireScorerSessionCanControl(session, matchId)
 
-    const correctLiveSession =
-      Boolean(
-        matchId &&
-          friendlyMatchStore
-            .liveMatchId ===
-            matchId,
-      )
+    const correctLiveSession = Boolean(matchId && friendlyMatchStore.liveMatchId === matchId)
 
-    const matchExists =
-      Boolean(
-        friendlyMatchStore.draft
-          .liveState &&
-          ['live', 'finished'].includes(
-            friendlyMatchStore.draft
-              .status,
-          ),
-      )
+    const matchExists = Boolean(
+      friendlyMatchStore.draft.liveState &&
+      ['live', 'finished'].includes(friendlyMatchStore.draft.status),
+    )
 
-    const stillAssigned =
-      Boolean(
-        session?.scorerId &&
-          friendlyMatchStore.canScoreMatch(
-            session.scorerId,
-          ),
-      )
+    const stillAssigned = Boolean(
+      session?.scorerId && friendlyMatchStore.canScoreMatch(session.scorerId),
+    )
 
     /*
      * Finished Ladder matches remain viewable so the
@@ -1053,12 +913,7 @@ function guardStep() {
      * A completed Friendly match will have already
      * closed/reset the active draft.
      */
-    if (
-      !sessionValid ||
-      !correctLiveSession ||
-      !matchExists ||
-      !stillAssigned
-    ) {
+    if (!sessionValid || !correctLiveSession || !matchExists || !stillAssigned) {
       leaveChairUmpireControl()
 
       return
@@ -1268,13 +1123,11 @@ function guardStep() {
      * - opponent
      * - real liveState
      * - status === live
-    */
+     */
     if (step.value === 'live') {
       if (
         !requestedLiveMatchId.value ||
-        friendlyMatchStore
-          .liveMatchId !==
-          requestedLiveMatchId.value
+        friendlyMatchStore.liveMatchId !== requestedLiveMatchId.value
       ) {
         router.replace({
           name: 'Dashboard',
@@ -1313,16 +1166,11 @@ function guardStep() {
    * → Join / Schedule
    * → Format
    * → Live
-  */
+   */
   if (isLadder.value) {
     if (
       step.value === 'live' &&
-      (
-        !requestedLiveMatchId.value ||
-        friendlyMatchStore
-          .liveMatchId !==
-          requestedLiveMatchId.value
-      )
+      (!requestedLiveMatchId.value || friendlyMatchStore.liveMatchId !== requestedLiveMatchId.value)
     ) {
       router.replace({
         name: 'Dashboard',
@@ -1591,12 +1439,9 @@ function chooseFormat(format) {
     friendlyMatchStore.startLiveMatch(
       currentIdentity.value.id,
 
-      adminStore.activeClubId ||
-        '',
+      adminStore.activeClubId || '',
     )
-    router.push(
-      liveMatchLocation(),
-    )
+    router.push(liveMatchLocation())
   } else if (isFriendly.value) router.push(flowLocation('FriendlyMatchFormat'))
 }
 function chooseMatchFormat(matchFormat) {
@@ -1618,6 +1463,9 @@ function openCustomFormat() {
   router.push(flowLocation('FriendlyMatchCustomFormat'))
 }
 function describeCustomFormat(format) {
+  if (format?.rulesSnapshot) {
+    return formatMatchRulesSummary(format.rulesSnapshot).concise.join(' · ')
+  }
   if (format.mode === 'tiebreak')
     return `Match tie-break · First to ${format.tieBreakPoints} · Win by two`
   const matchStyle = format.setsToWin === 1 ? 'One set' : `Best of ${format.setsToWin * 2 - 1}`
@@ -1649,46 +1497,18 @@ function invitationMatchFormatLabel(invitation) {
     }[setup.matchFormat] || 'Friendly match'
   )
 }
-function selectCustomMatchStyle(style) {
+function applyCustomFormat(rulesSnapshot) {
   customFormatError.value = ''
-  if (style === 'match-tiebreak') {
-    customFormatForm.mode = 'tiebreak'
-    customFormatForm.setsToWin = 1
-    customFormatForm.tieBreakPoints = 10
-    return
-  }
-  customFormatForm.mode = 'sets'
-  customFormatForm.setsToWin = style === 'one-set' ? 1 : 2
-  customFormatForm.gamesPerSet = 6
-  customFormatForm.tieBreakAt = 6
-  customFormatForm.tieBreakPoints = 7
-}
-function adjustCustomNumber(field, amount, min, max) {
-  customFormatForm[field] = Math.min(max, Math.max(min, Number(customFormatForm[field]) + amount))
-  if (field === 'gamesPerSet' && customFormatForm.tieBreakAt > customFormatForm.gamesPerSet) {
-    customFormatForm.tieBreakAt = customFormatForm.gamesPerSet
-  }
-}
-function setCustomTieBreaks(enabled) {
-  customFormatForm.tieBreakAt = enabled ? customFormatForm.gamesPerSet : 0
-  if (!enabled) showTieBreakDetails.value = false
-}
-function applyCustomFormat() {
-  customFormatError.value = ''
-  if (customFormatForm.saveForLater && !customFormatForm.name.trim()) {
+  if (customFormatMeta.saveForLater && !customFormatMeta.name.trim()) {
     customFormatError.value = 'Add a name before saving this format for later.'
     return
   }
   const format = {
-    id: customFormatForm.id || undefined,
-    name: customFormatForm.name.trim() || 'Custom format',
-    mode: customFormatForm.mode,
-    setsToWin: customFormatForm.setsToWin,
-    gamesPerSet: customFormatForm.gamesPerSet,
-    tieBreakAt: customFormatForm.tieBreakAt,
-    tieBreakPoints: customFormatForm.tieBreakPoints,
+    id: customFormatMeta.id || undefined,
+    name: customFormatMeta.name.trim() || 'Custom format',
+    rulesSnapshot,
   }
-  if (customFormatForm.saveForLater) friendlyMatchStore.saveCustomFormat(format)
+  if (customFormatMeta.saveForLater) friendlyMatchStore.saveCustomFormat(format)
   else friendlyMatchStore.selectCustomFormat(format)
   router.push(flowLocation('FriendlyMatchFormat'))
 }
@@ -1741,6 +1561,8 @@ async function completeReview() {
         ...activeLadderConfig.value,
       },
 
+      rulesSnapshot: friendlyMatchStore.draft.rulesSnapshot,
+
       matchConfig: ladderMatchConfig(activeLadderConfig.value),
     })
 
@@ -1770,8 +1592,7 @@ async function completeReview() {
       const started = friendlyMatchStore.startLiveMatch(
         currentIdentity.value.id,
 
-        adminStore.activeClubId ||
-          '',
+        adminStore.activeClubId || '',
       )
 
       if (!started) {
@@ -1782,9 +1603,7 @@ async function completeReview() {
 
       publishCurrentLiveScoreboard({ type: 'start' })
 
-      router.push(
-        liveMatchLocation(),
-      )
+      router.push(liveMatchLocation())
 
       return
     }
@@ -1820,8 +1639,7 @@ async function completeReview() {
     const started = friendlyMatchStore.startLiveMatch(
       currentIdentity.value.id,
 
-      adminStore.activeClubId ||
-        '',
+      adminStore.activeClubId || '',
     )
 
     if (!started) {
@@ -1833,9 +1651,7 @@ async function completeReview() {
 
     publishCurrentLiveScoreboard({ type: 'start' })
 
-    router.push(
-      liveMatchLocation(),
-    )
+    router.push(liveMatchLocation())
 
     return
   }
@@ -1914,146 +1730,87 @@ function buildCurrentLiveScoreboardSnapshot(
   },
 ) {
   return createLiveScoreboardSnapshot({
-    draft:
-      friendlyMatchStore.draft,
+    draft: friendlyMatchStore.draft,
 
-    playerAPoint:
-      friendlyMatchStore.pointLabel(
-        'you',
-      ),
+    playerAPoint: friendlyMatchStore.pointLabel('you'),
 
-    playerBPoint:
-      friendlyMatchStore.pointLabel(
-        'opponent',
-      ),
+    playerBPoint: friendlyMatchStore.pointLabel('opponent'),
 
-    matchFormatLabel:
-      friendlyMatchStore
-        .matchFormatLabel,
+    matchFormatLabel: friendlyMatchStore.matchFormatLabel,
 
-    scoringFormatLabel:
-      friendlyMatchStore
-        .formatLabel,
+    scoringFormatLabel: friendlyMatchStore.formatLabel,
 
     event: {
-      type:
-        event?.type ||
-        'sync',
+      type: event?.type || 'sync',
 
-      side:
-        publicScoreboardSide(
-          event?.side,
-        ),
+      side: publicScoreboardSide(event?.side),
     },
   })
 }
 
 function liveOperationsScorerName() {
-  const draft =
-    friendlyMatchStore.draft
+  const draft = friendlyMatchStore.draft
 
-  const scorerId =
-    draft.scorerId || ''
+  const scorerId = draft.scorerId || ''
 
   if (!scorerId) {
     return ''
   }
 
-  const playerAName =
-    draft.liveState?.players
-      ?.playerA ||
-    authenticatedIdentity.value
-      .name
+  const playerAName = draft.liveState?.players?.playerA || authenticatedIdentity.value.name
 
-  if (
-    scorerId ===
-    draft.ownerId
-  ) {
+  if (scorerId === draft.ownerId) {
     return playerAName
   }
 
-  const accepted =
-    chairUmpireInvitation.value
-      ?.acceptedIdentity
+  const accepted = chairUmpireInvitation.value?.acceptedIdentity
 
-  const acceptedId =
-    accepted?.userId ||
-    accepted?.guestId ||
-    ''
+  const acceptedId = accepted?.userId || accepted?.guestId || ''
 
-  if (
-    acceptedId &&
-    acceptedId === scorerId
-  ) {
-    return (
-      accepted?.name ||
-      'Chair umpire'
-    )
+  if (acceptedId && acceptedId === scorerId) {
+    return accepted?.name || 'Chair umpire'
   }
 
-  if (
-    scorerId ===
-    authenticatedIdentity.value
-      .id
-  ) {
-    return (
-      authenticatedIdentity.value
-        .name ||
-      'Club admin'
-    )
+  if (scorerId === authenticatedIdentity.value.id) {
+    return authenticatedIdentity.value.name || 'Club admin'
   }
 
-  if (
-    scorerId ===
-    currentIdentity.value.id
-  ) {
-    return (
-      currentIdentity.value.name ||
-      'Assigned scorer'
-    )
+  if (scorerId === currentIdentity.value.id) {
+    return currentIdentity.value.name || 'Assigned scorer'
   }
 
   return 'Assigned scorer'
 }
 
-function publishOperationsForScoreboard(
-  scoreboard,
-) {
+function publishOperationsForScoreboard(scoreboard) {
   if (!scoreboard) {
     return false
   }
 
-  const operations =
-    createLiveOperationsSnapshot({
-      scoreboard,
+  const operations = createLiveOperationsSnapshot({
+    scoreboard,
 
-      draft:
-        friendlyMatchStore.draft,
+    draft: friendlyMatchStore.draft,
 
-      scorerName:
-        liveOperationsScorerName(),
+    scorerName: liveOperationsScorerName(),
 
-      /*
-       * Current TV controller code does not
-       * yet maintain a reliable always-live
-       * display connection state.
-       *
-       * Do not invent false.
-       */
-      displayConnected: null,
+    /*
+     * Current TV controller code does not
+     * yet maintain a reliable always-live
+     * display connection state.
+     *
+     * Do not invent false.
+     */
+    displayConnected: null,
 
-      eventType:
-        scoreboard.event?.type ||
-        'sync',
-    })
+    eventType: scoreboard.event?.type || 'sync',
+  })
 
   if (!operations) {
     return false
   }
 
-  return publishLiveOperationsSnapshot(
-    operations,
-  )
+  return publishLiveOperationsSnapshot(operations)
 }
 
 function publishCurrentLiveOperations(
@@ -2061,14 +1818,9 @@ function publishCurrentLiveOperations(
     type: 'sync',
   },
 ) {
-  const scoreboard =
-    buildCurrentLiveScoreboardSnapshot(
-      event,
-    )
+  const scoreboard = buildCurrentLiveScoreboardSnapshot(event)
 
-  return publishOperationsForScoreboard(
-    scoreboard,
-  )
+  return publishOperationsForScoreboard(scoreboard)
 }
 
 function publishCurrentLiveScoreboard(
@@ -2076,19 +1828,13 @@ function publishCurrentLiveScoreboard(
     type: 'sync',
   },
 ) {
-  const snapshot =
-    buildCurrentLiveScoreboardSnapshot(
-      event,
-    )
+  const snapshot = buildCurrentLiveScoreboardSnapshot(event)
 
   if (!snapshot) {
     return false
   }
 
-  const delivered =
-    publishLiveMatchSnapshot(
-      snapshot,
-    )
+  const delivered = publishLiveMatchSnapshot(snapshot)
 
   /*
    * Operations receives a projection
@@ -2096,9 +1842,7 @@ function publishCurrentLiveScoreboard(
    *
    * No second tennis calculation.
    */
-  publishOperationsForScoreboard(
-    snapshot,
-  )
+  publishOperationsForScoreboard(snapshot)
 
   return delivered
 }
@@ -2237,16 +1981,12 @@ function announceLiveScore({ before, after, pointWinnerSide }) {
 }
 
 function refreshChairUmpireScorerSession() {
-  chairUmpireScorerSession.value =
-    readChairUmpireScorerSessionForThisTab()
+  chairUmpireScorerSession.value = readChairUmpireScorerSessionForThisTab()
 
   return chairUmpireScorerSession.value
 }
 
-function chairUmpireInvitationLocation(
-  session =
-    chairUmpireScorerSession.value,
-) {
+function chairUmpireInvitationLocation(session = chairUmpireScorerSession.value) {
   if (!session?.invitationToken) {
     return {
       name: 'Home',
@@ -2254,30 +1994,22 @@ function chairUmpireInvitationLocation(
   }
 
   return {
-    name:
-      session.audience === 'guest'
-        ? 'ChairUmpireGuestInvite'
-        : 'ChairUmpireInvite',
+    name: session.audience === 'guest' ? 'ChairUmpireGuestInvite' : 'ChairUmpireInvite',
 
     params: {
-      token:
-        session.invitationToken,
+      token: session.invitationToken,
     },
   }
 }
 
 async function leaveChairUmpireControl() {
-  const destination =
-    chairUmpireInvitationLocation()
+  const destination = chairUmpireInvitationLocation()
 
   clearChairUmpireScorerSessionForThisTab()
 
-  chairUmpireScorerSession.value =
-    null
+  chairUmpireScorerSession.value = null
 
-  await router.replace(
-    destination,
-  )
+  await router.replace(destination)
 }
 
 function stopChairUmpireWatch() {
@@ -2392,8 +2124,7 @@ function handoffChairUmpireControl() {
   inlineNote.value = ''
 
   if (!canManageLiveMatch.value) {
-    inlineNote.value =
-      'Only the match owner can hand over Match Control.'
+    inlineNote.value = 'Only the match owner can hand over Match Control.'
 
     return
   }
@@ -2406,22 +2137,12 @@ function handoffChairUmpireControl() {
    */
   friendlyMatchStore.refreshDraft()
 
-  const invitation =
-    chairUmpireInvitation.value
+  const invitation = chairUmpireInvitation.value
 
   const scorerId =
-    invitation?.acceptedIdentity
-      ?.userId ||
-    invitation?.acceptedIdentity
-      ?.guestId ||
-    ''
+    invitation?.acceptedIdentity?.userId || invitation?.acceptedIdentity?.guestId || ''
 
-  if (
-    !invitation ||
-    invitation.status !==
-      'accepted' ||
-    !scorerId
-  ) {
+  if (!invitation || invitation.status !== 'accepted' || !scorerId) {
     inlineNote.value =
       'The chair umpire must accept the invitation before Match Control can be handed over.'
 
@@ -2433,22 +2154,16 @@ function handoffChairUmpireControl() {
    *
    * The recipient is not notified until that succeeds.
    */
-  const transferred =
-    friendlyMatchStore.transferScoringAuthority(
-      {
-        actorId:
-          currentIdentity.value.id,
+  const transferred = friendlyMatchStore.transferScoringAuthority({
+    actorId: currentIdentity.value.id,
 
-        scorerId,
+    scorerId,
 
-        sourceId:
-          invitation.invitationId,
-      },
-    )
+    sourceId: invitation.invitationId,
+  })
 
   if (!transferred) {
-    inlineNote.value =
-      'Match Control could not be handed over.'
+    inlineNote.value = 'Match Control could not be handed over.'
 
     return
   }
@@ -2458,12 +2173,11 @@ function handoffChairUmpireControl() {
    * explicitly granted their already-existing
    * scorer authority.
    */
-  const granted =
-    grantChairUmpireScoringControl(
-      invitation.invitationId,
+  const granted = grantChairUmpireScoringControl(
+    invitation.invitationId,
 
-      currentIdentity.value.id,
-    )
+    currentIdentity.value.id,
+  )
 
   if (!granted) {
     /*
@@ -2472,18 +2186,14 @@ function handoffChairUmpireControl() {
      * If the capability notification cannot be created,
      * immediately return scoring to the owner.
      */
-    friendlyMatchStore.reclaimScoringAuthority(
-      currentIdentity.value.id,
-    )
+    friendlyMatchStore.reclaimScoringAuthority(currentIdentity.value.id)
 
-    inlineNote.value =
-      'The umpire could not receive Match Control. You still control scoring.'
+    inlineNote.value = 'The umpire could not receive Match Control. You still control scoring.'
 
     return
   }
 
-  chairUmpireInvitation.value =
-    granted
+  chairUmpireInvitation.value = granted
 
   publishCurrentLiveOperations({
     type: 'authority',
@@ -2494,22 +2204,17 @@ function reclaimChairUmpireControl() {
   inlineNote.value = ''
 
   if (!canManageLiveMatch.value) {
-    inlineNote.value =
-      'Only the match owner can take Match Control back.'
+    inlineNote.value = 'Only the match owner can take Match Control back.'
 
     return
   }
 
   friendlyMatchStore.refreshDraft()
 
-  const reclaimed =
-    friendlyMatchStore.reclaimScoringAuthority(
-      currentIdentity.value.id,
-    )
+  const reclaimed = friendlyMatchStore.reclaimScoringAuthority(currentIdentity.value.id)
 
   if (!reclaimed) {
-    inlineNote.value =
-      'Match Control could not be returned to you.'
+    inlineNote.value = 'Match Control could not be returned to you.'
 
     return
   }
@@ -2518,25 +2223,22 @@ function reclaimChairUmpireControl() {
     type: 'authority',
   })
 
-  const invitation =
-    chairUmpireInvitation.value
+  const invitation = chairUmpireInvitation.value
 
   if (!invitation) {
     return
   }
 
-  const revoked =
-    revokeChairUmpireScoringControl(
-      invitation.invitationId,
+  const revoked = revokeChairUmpireScoringControl(
+    invitation.invitationId,
 
-      currentIdentity.value.id,
+    currentIdentity.value.id,
 
-      'owner_reclaimed',
-    )
+    'owner_reclaimed',
+  )
 
   if (revoked) {
-    chairUmpireInvitation.value =
-      revoked
+    chairUmpireInvitation.value = revoked
   }
 }
 
@@ -2550,54 +2252,37 @@ function emergencyTakeMatchControl() {
    */
   friendlyMatchStore.refreshDraft()
 
-  const actorId =
-    authenticatedIdentity.value.id
+  const actorId = authenticatedIdentity.value.id
 
-  const draft =
-    friendlyMatchStore.draft
+  const draft = friendlyMatchStore.draft
 
-  const stillAuthorized =
-    Boolean(
-      actorId &&
-        draft.status === 'live' &&
-        !draft.over &&
-        draft.clubId &&
-        adminStore.activeClubId ===
-          draft.clubId &&
-        adminStore.hasActiveClubPermission(
-          'matches.live_score',
-        ) &&
-        !friendlyMatchStore.canManageMatch(
-          actorId,
-        ) &&
-        !friendlyMatchStore.canScoreMatch(
-          actorId,
-        ),
-    )
+  const stillAuthorized = Boolean(
+    actorId &&
+    draft.status === 'live' &&
+    !draft.over &&
+    draft.clubId &&
+    adminStore.activeClubId === draft.clubId &&
+    adminStore.hasActiveClubPermission('matches.live_score') &&
+    !friendlyMatchStore.canManageMatch(actorId) &&
+    !friendlyMatchStore.canScoreMatch(actorId),
+  )
 
   if (!stillAuthorized) {
-    inlineNote.value =
-      'You no longer have permission to take Match Control.'
+    inlineNote.value = 'You no longer have permission to take Match Control.'
 
     return
   }
 
-  const overridden =
-    friendlyMatchStore
-      .emergencyOverrideScoringAuthority(
-        {
-          actorId,
+  const overridden = friendlyMatchStore.emergencyOverrideScoringAuthority({
+    actorId,
 
-          clubId:
-            adminStore.activeClubId,
+    clubId: adminStore.activeClubId,
 
-          authorized: true,
-        },
-      )
+    authorized: true,
+  })
 
   if (!overridden) {
-    inlineNote.value =
-      'Match Control could not be changed.'
+    inlineNote.value = 'Match Control could not be changed.'
 
     return
   }
@@ -2606,14 +2291,12 @@ function emergencyTakeMatchControl() {
     type: 'authority',
   })
 
-  inlineNote.value =
-    'You now have Match Control.'
+  inlineNote.value = 'You now have Match Control.'
 }
 
 function chairUmpireMatchSummary() {
   return {
-    playerAName:
-      friendlyMatchStore.draft.liveState?.players?.playerA || currentIdentity.value.name,
+    playerAName: friendlyMatchStore.draft.liveState?.players?.playerA || currentIdentity.value.name,
 
     playerBName: friendlyMatchStore.draft.liveState?.players?.playerB || opponentName.value,
   }
@@ -2631,8 +2314,7 @@ async function inviteClubChairUmpire(candidate) {
   const invitation = createChairUmpireInvitationSession({
     matchId,
 
-    matchType:
-      friendlyMatchStore.draft.matchType,
+    matchType: friendlyMatchStore.draft.matchType,
 
     clubId: adminStore.activeClubId,
 
@@ -2670,8 +2352,7 @@ async function inviteGuestChairUmpire() {
   const invitation = createChairUmpireInvitationSession({
     matchId,
 
-    matchType:
-      friendlyMatchStore.draft.matchType,
+    matchType: friendlyMatchStore.draft.matchType,
 
     clubId: adminStore.activeClubId,
 
@@ -2707,14 +2388,10 @@ function removeChairUmpireInvitation() {
    * as the active scorer.
    */
   if (chairUmpireHasControl.value) {
-    const reclaimed =
-      friendlyMatchStore.reclaimScoringAuthority(
-        currentIdentity.value.id,
-      )
+    const reclaimed = friendlyMatchStore.reclaimScoringAuthority(currentIdentity.value.id)
 
     if (!reclaimed) {
-      inlineNote.value =
-        'Take Match Control back before removing this umpire.'
+      inlineNote.value = 'Take Match Control back before removing this umpire.'
 
       return
     }
@@ -2750,189 +2427,135 @@ function removeChairUmpireInvitation() {
 function stopTvPairingWatch() {
   stopTvPairingSubscription()
 
-  stopTvPairingSubscription =
-    () => {}
+  stopTvPairingSubscription = () => {}
 }
 
 async function generateTvPairingQrCode() {
-  tvPairingQrDataUrl.value =
-    ''
+  tvPairingQrDataUrl.value = ''
 
-  const session =
-    tvPairingSession.value
+  const session = tvPairingSession.value
 
-  if (
-    session?.status !==
-      'waiting' ||
-    !tvPairingInviteUrl.value
-  ) {
+  if (session?.status !== 'waiting' || !tvPairingInviteUrl.value) {
     return
   }
 
   try {
-    tvPairingQrDataUrl.value =
-      await QRCode.toDataURL(
-        tvPairingInviteUrl.value,
+    tvPairingQrDataUrl.value = await QRCode.toDataURL(
+      tvPairingInviteUrl.value,
 
-        {
-          width: 248,
+      {
+        width: 248,
 
-          margin: 2,
+        margin: 2,
 
-          color: {
-            dark: '#172319',
+        color: {
+          dark: '#172319',
 
-            light: '#ffffff',
-          },
-
-          errorCorrectionLevel:
-            'M',
+          light: '#ffffff',
         },
-      )
+
+        errorCorrectionLevel: 'M',
+      },
+    )
   } catch {
     /*
      * Human pairing code remains
      * available if QR rendering fails.
      */
-    tvPairingQrDataUrl.value =
-      ''
+    tvPairingQrDataUrl.value = ''
   }
 }
 
-function watchTvPairingSession(
-  sessionId,
-) {
+function watchTvPairingSession(sessionId) {
   stopTvPairingWatch()
 
-  stopTvPairingSubscription =
-    subscribeToPairingSession(
-      sessionId,
+  stopTvPairingSubscription = subscribeToPairingSession(
+    sessionId,
 
-      async (nextSession) => {
-        if (!nextSession) {
-          tvPairingSession.value =
-            null
+    async (nextSession) => {
+      if (!nextSession) {
+        tvPairingSession.value = null
 
-          tvPairingQrDataUrl.value =
-            ''
+        tvPairingQrDataUrl.value = ''
 
-          if (
-            tvPairingOpen.value
-          ) {
-            tvPairingMessage.value =
-              'This pairing has ended or expired.'
-          }
-
-          return
+        if (tvPairingOpen.value) {
+          tvPairingMessage.value = 'This pairing has ended or expired.'
         }
 
-        tvPairingSession.value =
-          nextSession
+        return
+      }
 
-        if (
-          nextSession.status ===
-          'waiting'
-        ) {
-          tvPairingMessage.value =
-            ''
+      tvPairingSession.value = nextSession
 
-          await generateTvPairingQrCode()
+      if (nextSession.status === 'waiting') {
+        tvPairingMessage.value = ''
 
-          return
-        }
+        await generateTvPairingQrCode()
 
-        if (
-          nextSession.status ===
-          'claimed'
-        ) {
-          tvPairingQrDataUrl.value =
-            ''
+        return
+      }
 
-          tvPairingMessage.value =
-            'Display connected.'
-        }
-      },
-    )
+      if (nextSession.status === 'claimed') {
+        tvPairingQrDataUrl.value = ''
+
+        tvPairingMessage.value = 'Display connected.'
+      }
+    },
+  )
 }
 
-async function activateTvPairing(
-  session,
-) {
-  tvPairingSession.value =
-    session
+async function activateTvPairing(session) {
+  tvPairingSession.value = session
 
-  watchTvPairingSession(
-    session.sessionId,
-  )
+  watchTvPairingSession(session.sessionId)
 
-  if (
-    session.status === 'waiting'
-  ) {
+  if (session.status === 'waiting') {
     await generateTvPairingQrCode()
   }
 }
 
 async function openTvPairing() {
   if (!canManageLiveMatch.value) {
-    inlineNote.value =
-      'You do not have permission to pair a display for this match.'
+    inlineNote.value = 'You do not have permission to pair a display for this match.'
 
     return
   }
 
-  const matchId =
-    getLiveScoreboardMatchId(
-      friendlyMatchStore.draft,
-    )
+  const matchId = getLiveScoreboardMatchId(friendlyMatchStore.draft)
 
   if (!matchId) {
-    inlineNote.value =
-      'Gorra could not identify this live match.'
+    inlineNote.value = 'Gorra could not identify this live match.'
 
     return
   }
 
-  const session =
-    createPairingSession({
-      matchId,
+  const session = createPairingSession({
+    matchId,
 
-      createdBy:
-        currentIdentity.value.id,
+    createdBy: currentIdentity.value.id,
 
-      clubId:
-        friendlyMatchStore
-          .draft.clubId ||
-        adminStore.activeClubId ||
-        '',
-    })
+    clubId: friendlyMatchStore.draft.clubId || adminStore.activeClubId || '',
+  })
 
   if (!session) {
-    inlineNote.value =
-      'Gorra could not create a display pairing session.'
+    inlineNote.value = 'Gorra could not create a display pairing session.'
 
     return
   }
 
-  tvPairingMessage.value =
-    ''
+  tvPairingMessage.value = ''
 
-  tvPairingOpen.value =
-    true
+  tvPairingOpen.value = true
 
-  await activateTvPairing(
-    session,
-  )
+  await activateTvPairing(session)
 }
 
 function closeTvPairing() {
-  tvPairingOpen.value =
-    false
+  tvPairingOpen.value = false
 
-  tvPairingMessage.value =
-    ''
+  tvPairingMessage.value = ''
 
-  tvPairingQrDataUrl.value =
-    ''
+  tvPairingQrDataUrl.value = ''
 
   /*
    * Closing the sheet is NOT the same
@@ -2942,91 +2565,67 @@ function closeTvPairing() {
 }
 
 function cancelTvPairing() {
-  const session =
-    tvPairingSession.value
+  const session = tvPairingSession.value
 
-  if (
-    !session ||
-    session.status !==
-      'waiting'
-  ) {
+  if (!session || session.status !== 'waiting') {
     return
   }
 
   stopTvPairingWatch()
 
-  const cancelled =
-    cancelPairingSession(
-      session.sessionId,
+  const cancelled = cancelPairingSession(
+    session.sessionId,
 
-      currentIdentity.value.id,
-    )
+    currentIdentity.value.id,
+  )
 
   if (!cancelled) {
-    tvPairingMessage.value =
-      'This pairing could not be cancelled.'
+    tvPairingMessage.value = 'This pairing could not be cancelled.'
 
     return
   }
 
-  tvPairingSession.value =
-    null
+  tvPairingSession.value = null
 
-  tvPairingQrDataUrl.value =
-    ''
+  tvPairingQrDataUrl.value = ''
 
-  tvPairingMessage.value =
-    'Pairing cancelled.'
+  tvPairingMessage.value = 'Pairing cancelled.'
 }
 
 function revokeTvDisplay() {
-  const session =
-    tvPairingSession.value
+  const session = tvPairingSession.value
 
-  if (
-    !session ||
-    session.status !==
-      'claimed'
-  ) {
+  if (!session || session.status !== 'claimed') {
     return
   }
 
   stopTvPairingWatch()
 
-  const revoked =
-    revokePairedDisplay(
-      session.sessionId,
+  const revoked = revokePairedDisplay(
+    session.sessionId,
 
-      currentIdentity.value.id,
-    )
+    currentIdentity.value.id,
+  )
 
   if (!revoked) {
-    tvPairingMessage.value =
-      'The display could not be disconnected.'
+    tvPairingMessage.value = 'The display could not be disconnected.'
 
     return
   }
 
-  tvPairingSession.value =
-    null
+  tvPairingSession.value = null
 
-  tvPairingQrDataUrl.value =
-    ''
+  tvPairingQrDataUrl.value = ''
 
-  tvPairingMessage.value =
-    'Display disconnected.'
+  tvPairingMessage.value = 'Display disconnected.'
 }
 
 async function restartTvPairing() {
-  const previous =
-    tvPairingSession.value
+  const previous = tvPairingSession.value
 
   stopTvPairingWatch()
 
-  if (
-    previous?.status ===
-    'waiting'
-  ) {
+  if (previous?.status === 'waiting') {
     cancelPairingSession(
       previous.sessionId,
 
@@ -3034,10 +2633,7 @@ async function restartTvPairing() {
     )
   }
 
-  if (
-    previous?.status ===
-    'claimed'
-  ) {
+  if (previous?.status === 'claimed') {
     revokePairedDisplay(
       previous.sessionId,
 
@@ -3045,14 +2641,11 @@ async function restartTvPairing() {
     )
   }
 
-  tvPairingSession.value =
-    null
+  tvPairingSession.value = null
 
-  tvPairingQrDataUrl.value =
-    ''
+  tvPairingQrDataUrl.value = ''
 
-  tvPairingMessage.value =
-    ''
+  tvPairingMessage.value = ''
 
   await openTvPairing()
 }
@@ -3233,16 +2826,12 @@ async function finalizeFriendlyMatch() {
    * The participant result route deliberately rejects
    * non-participants, so do not send an umpire there.
    */
-  if (
-    isChairUmpireControlRoute.value
-  ) {
+  if (isChairUmpireControlRoute.value) {
     clearChairUmpireScorerSessionForThisTab()
 
-    chairUmpireScorerSession.value =
-      null
+    chairUmpireScorerSession.value = null
 
-    friendlyFinalizing.value =
-      false
+    friendlyFinalizing.value = false
 
     await router.replace({
       name: 'Home',
@@ -3720,16 +3309,9 @@ function handleStorage(event) {
    * A live Match Control page does not care that
    * another tab is configuring the next match.
    */
-  if (
-    key.includes(
-      'friendlyMatchDraft',
-    )
-  ) {
-    if (
-      step.value !== 'live'
-    ) {
-      friendlyMatchStore
-        .refreshDraft()
+  if (key.includes('friendlyMatchDraft')) {
+    if (step.value !== 'live') {
+      friendlyMatchStore.refreshDraft()
     }
 
     return
@@ -3740,20 +3322,9 @@ function handleStorage(event) {
    *
    * Court A ignores Court B's storage event.
    */
-  if (
-    key.includes(
-      'friendlyMatchLive.v1.',
-    )
-  ) {
-    if (
-      step.value === 'live' &&
-      friendlyMatchStore
-        .isCurrentLiveStorageKey(
-          key,
-        )
-    ) {
-      friendlyMatchStore
-        .refreshDraft()
+  if (key.includes('friendlyMatchLive.v1.')) {
+    if (step.value === 'live' && friendlyMatchStore.isCurrentLiveStorageKey(key)) {
+      friendlyMatchStore.refreshDraft()
 
       guardStep()
 
@@ -3775,9 +3346,7 @@ function handleStorage(event) {
 }
 
 function recoverCurrentMatchState() {
-  if (
-    isChairUmpireControlRoute.value
-  ) {
+  if (isChairUmpireControlRoute.value) {
     refreshChairUmpireScorerSession()
   }
 
@@ -3790,11 +3359,8 @@ function recoverCurrentMatchState() {
    * refreshDraft() already protects newer revisions from
    * being overwritten by older persisted snapshots.
    */
-  if (
-    step.value === 'live'
-  ) {
-    const requestedId =
-      requestedLiveMatchId.value
+  if (step.value === 'live') {
+    const requestedId = requestedLiveMatchId.value
 
     if (!requestedId) {
       return
@@ -3806,21 +3372,13 @@ function recoverCurrentMatchState() {
      * It does not matter which court this browser
      * happened to have open previously.
      */
-    if (
-      friendlyMatchStore
-        .liveMatchId !==
-      requestedId
-    ) {
-      friendlyMatchStore
-        .loadLiveMatch(
-          requestedId,
-        )
+    if (friendlyMatchStore.liveMatchId !== requestedId) {
+      friendlyMatchStore.loadLiveMatch(requestedId)
 
       return
     }
 
-    friendlyMatchStore
-      .refreshDraft()
+    friendlyMatchStore.refreshDraft()
 
     return
   }
@@ -3862,7 +3420,7 @@ function configureStep() {
   copyStatus.value = ''
   joinedNotice.value = ''
   customFormatError.value = ''
-  showTieBreakDetails.value = false
+  ladderFormatDialogOpen.value = false
 
   /*
    * Route changes can occur after another tab/device-side
@@ -3877,14 +3435,22 @@ function configureStep() {
 
   if (step.value === 'customFormat') {
     const selected = friendlyMatchStore.draft.customFormat
-    Object.assign(customFormatForm, {
+    const resolved = friendlyRulesToMatchRulesSnapshot({
+      ...friendlyMatchStore.draft,
+      matchFormat: selected ? 'custom' : friendlyMatchStore.draft.matchFormat || 'best-of-3',
+      customFormat: selected,
+    })
+    customFormatRules.value = resolved.ok
+      ? resolved.snapshot
+      : createStandardMatchRulesSnapshot({
+          game: {
+            mode: 'traditional',
+            deuce: friendlyMatchStore.draft.format === 'noad' ? 'no_ad' : 'advantage',
+          },
+        })
+    Object.assign(customFormatMeta, {
       id: selected?.id || '',
       name: selected?.name === 'Custom format' ? '' : selected?.name || '',
-      mode: selected?.mode || 'sets',
-      setsToWin: selected?.setsToWin || 2,
-      gamesPerSet: selected?.gamesPerSet || 6,
-      tieBreakAt: selected?.tieBreakAt ?? 6,
-      tieBreakPoints: selected?.tieBreakPoints || 7,
       saveForLater: Boolean(
         selected && friendlyMatchStore.savedFormats.some((format) => format.id === selected.id),
       ),
@@ -4730,7 +4296,7 @@ watch(
             <p>The official Ladder format is applied automatically and cannot be changed here.</p>
           </div>
           <p v-if="inlineNote" class="friendly-flow__notice" role="status">{{ inlineNote }}</p>
-          <div class="review-list">
+          <div class="review-list ladder-format-review">
             <div class="review-row">
               <span>Players</span>
               <strong
@@ -4742,22 +4308,25 @@ watch(
             <div class="review-row">
               <span>Movement</span><strong>{{ ladderMovement.label }}</strong>
             </div>
-            <div class="review-row">
-              <span>Scoring</span
-              ><strong>{{ friendlyMatchStore.formatLabel }} <small>Club rule</small></strong>
-            </div>
-            <div class="review-row">
-              <span>Match format</span
-              ><strong>{{ activeLadderConfig.matchFormatLabel }} <small>Club rule</small></strong>
-            </div>
-            <div class="review-row">
-              <span>Tie-break</span
-              ><strong>{{ activeLadderConfig.tieBreakLabel }} <small>Club rule</small></strong>
+            <div v-for="row in ladderRulesSummary.rows" :key="row.key" class="review-row">
+              <span>{{ row.label }}</span
+              ><strong>{{ row.value }}</strong>
             </div>
             <div class="review-row">
               <span>Timing</span><strong>{{ isPlayNow ? 'Play now' : formattedSchedule }}</strong>
             </div>
           </div>
+          <p class="ladder-format-owner">
+            <FlowIcon name="lock" />
+            <span>Controlled by {{ activeLadderConfig.name }}</span>
+          </p>
+          <button
+            type="button"
+            class="button-secondary ladder-format-details"
+            @click="ladderFormatDialogOpen = true"
+          >
+            <FlowIcon name="sliders" /><span>View full match format</span>
+          </button>
           <div class="setup-default-note">
             <FlowIcon name="lock" /><span
               >Respond within {{ activeLadderConfig.responseHours }} hours · Play within
@@ -4778,195 +4347,49 @@ watch(
 
       <section
         v-if="step === 'customFormat'"
-        class="friendly-flow__screen"
-        aria-labelledby="custom-format-title"
+        class="friendly-flow__screen match-format-screen"
+        aria-label="Custom match format"
       >
-        <div class="friendly-flow__intro">
-          <p class="friendly-flow__eyebrow">Custom format</p>
-          <h2 id="custom-format-title">Set your match rules.</h2>
-          <p>Start with the closest option. The usual tennis settings are already filled in.</p>
-        </div>
-        <form class="custom-format-form" @submit.prevent="applyCustomFormat">
-          <div class="custom-format-summary" aria-live="polite">
-            <span>Your match</span>
-            <strong>{{ customFormatSummary }}</strong>
-          </div>
-
-          <div class="custom-format-section">
-            <div class="custom-format-section__head">
-              <strong>How are you playing?</strong>
-              <small>Choose one. Best of 3 is the usual option.</small>
-            </div>
-            <div class="custom-style-chips" role="radiogroup" aria-label="Match style">
-              <button
-                v-for="option in [
-                  { value: 'best-of-3', icon: 'sets', label: 'Best of 3', hint: 'Usual choice' },
-                  { value: 'one-set', icon: 'one-set', label: 'One set', hint: 'Quicker match' },
-                  {
-                    value: 'match-tiebreak',
-                    icon: 'tiebreak',
-                    label: 'Match tie-break',
-                    hint: 'First to 10',
-                  },
-                ]"
-                :key="option.value"
-                type="button"
-                class="custom-style-chip"
-                :class="{ 'custom-style-chip--selected': customMatchStyle === option.value }"
-                role="radio"
-                :aria-checked="customMatchStyle === option.value"
-                @click="selectCustomMatchStyle(option.value)"
-              >
-                <span class="flow-choice-icon"><FlowIcon :name="option.icon" /></span>
-                <strong>{{ option.label }}</strong
-                ><small>{{ option.hint }}</small>
-              </button>
-            </div>
-          </div>
-
-          <div v-if="customFormatForm.mode === 'sets'" class="custom-setting-row">
-            <span><strong>Games per set</strong><small>Standard tennis uses 6.</small></span>
-            <div class="custom-stepper" aria-label="Games per set">
-              <button
-                type="button"
-                aria-label="Decrease games per set"
-                :disabled="customFormatForm.gamesPerSet <= 1"
-                @click="adjustCustomNumber('gamesPerSet', -1, 1, 9)"
-              >
-                −
-              </button>
-              <strong>{{ customFormatForm.gamesPerSet }}</strong>
-              <button
-                type="button"
-                aria-label="Increase games per set"
-                :disabled="customFormatForm.gamesPerSet >= 9"
-                @click="adjustCustomNumber('gamesPerSet', 1, 1, 9)"
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          <div v-if="customFormatForm.mode === 'sets'" class="custom-setting-row">
-            <span
-              ><strong>Play tie-breaks</strong><small>Recommended for a clear finish.</small></span
-            >
-            <button
-              type="button"
-              class="setting-toggle"
-              :class="{ 'setting-toggle--active': playCustomTieBreaks }"
-              :aria-pressed="playCustomTieBreaks"
-              :aria-label="`Play tie-breaks: ${playCustomTieBreaks ? 'on' : 'off'}`"
-              @click="setCustomTieBreaks(!playCustomTieBreaks)"
-            >
-              <span>{{ playCustomTieBreaks ? 'On' : 'Off' }}</span
-              ><i aria-hidden="true"></i>
-            </button>
-          </div>
-
-          <div v-if="playCustomTieBreaks" class="custom-disclosure">
-            <button
-              type="button"
-              class="custom-disclosure__button"
-              :aria-expanded="showTieBreakDetails"
-              @click="showTieBreakDetails = !showTieBreakDetails"
-            >
+        <MatchFormatEditor
+          v-model="customFormatRules"
+          save-label="Use this format"
+          @save="applyCustomFormat"
+        >
+          <template #before-actions>
+            <div class="custom-setting-row match-format-save-option">
               <span
-                ><strong>Customize tie-break</strong
-                ><small>The standard points are already set.</small></span
-              ><i :class="{ 'is-open': showTieBreakDetails }" aria-hidden="true">⌄</i>
-            </button>
+                ><strong>Save for later</strong
+                ><small>Add this setup to your format choices.</small></span
+              >
+              <button
+                type="button"
+                class="setting-toggle"
+                :class="{ 'setting-toggle--active': customFormatMeta.saveForLater }"
+                :aria-pressed="customFormatMeta.saveForLater"
+                :aria-label="`Save format for later: ${customFormatMeta.saveForLater ? 'on' : 'off'}`"
+                @click="customFormatMeta.saveForLater = !customFormatMeta.saveForLater"
+              >
+                <span>{{ customFormatMeta.saveForLater ? 'On' : 'Off' }}</span
+                ><i aria-hidden="true"></i>
+              </button>
+            </div>
             <Transition name="soft-slide">
-              <div v-if="showTieBreakDetails" class="custom-disclosure__body">
-                <div v-if="customFormatForm.mode === 'sets'" class="custom-setting-row">
-                  <span><strong>Start at</strong><small>When games reach this score.</small></span>
-                  <div class="custom-stepper" aria-label="Tie-break trigger game">
-                    <button
-                      type="button"
-                      aria-label="Decrease tie-break trigger"
-                      :disabled="customFormatForm.tieBreakAt <= 1"
-                      @click="adjustCustomNumber('tieBreakAt', -1, 1, customFormatForm.gamesPerSet)"
-                    >
-                      −
-                    </button>
-                    <strong
-                      >{{ customFormatForm.tieBreakAt }}–{{ customFormatForm.tieBreakAt }}</strong
-                    >
-                    <button
-                      type="button"
-                      aria-label="Increase tie-break trigger"
-                      :disabled="customFormatForm.tieBreakAt >= customFormatForm.gamesPerSet"
-                      @click="adjustCustomNumber('tieBreakAt', 1, 1, customFormatForm.gamesPerSet)"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-                <div class="custom-setting-row">
-                  <span
-                    ><strong>Points to win</strong><small>Always win by two points.</small></span
-                  >
-                  <div class="custom-stepper" aria-label="Tie-break points">
-                    <button
-                      type="button"
-                      aria-label="Decrease tie-break points"
-                      :disabled="customFormatForm.tieBreakPoints <= 1"
-                      @click="adjustCustomNumber('tieBreakPoints', -1, 1, 21)"
-                    >
-                      −
-                    </button>
-                    <strong>{{ customFormatForm.tieBreakPoints }}</strong>
-                    <button
-                      type="button"
-                      aria-label="Increase tie-break points"
-                      :disabled="customFormatForm.tieBreakPoints >= 21"
-                      @click="adjustCustomNumber('tieBreakPoints', 1, 1, 21)"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <label v-if="customFormatMeta.saveForLater" class="custom-format-name">
+                <span>Name this format</span>
+                <input
+                  v-model="customFormatMeta.name"
+                  type="text"
+                  maxlength="40"
+                  placeholder="e.g. Sunday quick match"
+                />
+              </label>
             </Transition>
-          </div>
-
-          <div class="custom-setting-row">
-            <span
-              ><strong>Save for later</strong
-              ><small>Add this setup to your format choices.</small></span
-            >
-            <button
-              type="button"
-              class="setting-toggle"
-              :class="{ 'setting-toggle--active': customFormatForm.saveForLater }"
-              :aria-pressed="customFormatForm.saveForLater"
-              :aria-label="`Save format for later: ${customFormatForm.saveForLater ? 'on' : 'off'}`"
-              @click="customFormatForm.saveForLater = !customFormatForm.saveForLater"
-            >
-              <span>{{ customFormatForm.saveForLater ? 'On' : 'Off' }}</span
-              ><i aria-hidden="true"></i>
-            </button>
-          </div>
-          <Transition name="soft-slide">
-            <label v-if="customFormatForm.saveForLater" class="custom-format-name">
-              <span>Name this format</span>
-              <input
-                v-model="customFormatForm.name"
-                type="text"
-                maxlength="40"
-                placeholder="e.g. Sunday quick match"
-              />
-            </label>
-          </Transition>
-          <p v-if="customFormatError" class="friendly-flow__notice" role="alert">
-            {{ customFormatError }}
-          </p>
-          <button type="submit" class="button-primary friendly-flow__continue">
-            <FlowIcon name="check" /><span>Use this format</span>
-          </button>
-        </form>
+          </template>
+        </MatchFormatEditor>
+        <p v-if="customFormatError" class="friendly-flow__notice" role="alert">
+          {{ customFormatError }}
+        </p>
       </section>
-
       <section
         v-if="step === 'scheduled'"
         class="friendly-flow__screen"
@@ -5048,40 +4471,19 @@ watch(
         :chair-umpire-candidates="chairUmpireCandidates"
         :chair-umpire-qr-data-url="chairUmpireQrDataUrl"
         :chair-umpire-invite-url="chairUmpireInviteUrl"
-        :chair-umpire-current-scorer-id="
-          friendlyMatchStore.draft.scorerId
-        "
+        :chair-umpire-current-scorer-id="friendlyMatchStore.draft.scorerId"
         :chair-umpire-can-handoff-control="
-          canManageLiveMatch &&
-          chairUmpireInvitation?.status ===
-            'accepted'
+          canManageLiveMatch && chairUmpireInvitation?.status === 'accepted'
         "
-        :can-emergency-override-match="
-          canEmergencyOverrideLiveMatch
-        "
+        :can-emergency-override-match="canEmergencyOverrideLiveMatch"
         :can-pair-display="canManageLiveMatch"
         :tv-pairing-open="tvPairingOpen"
         :tv-pairing-code="tvPairingCode"
         :tv-pairing-message="tvPairingMessage"
-        :tv-pairing-status="
-          tvPairingSession?.status || ''
-        "
-        :tv-pairing-qr-data-url="
-          tvPairingQrDataUrl
-        "
-        :tv-pairing-expires-at="
-          Number(
-            tvPairingSession?.expiresAt ||
-              0
-          )
-        "
-        :tv-display-expires-at="
-          Number(
-            tvPairingSession
-              ?.displayExpiresAt ||
-              0
-          )
-        "
+        :tv-pairing-status="tvPairingSession?.status || ''"
+        :tv-pairing-qr-data-url="tvPairingQrDataUrl"
+        :tv-pairing-expires-at="Number(tvPairingSession?.expiresAt || 0)"
+        :tv-display-expires-at="Number(tvPairingSession?.displayExpiresAt || 0)"
         :last-point-winner="lastPointWinner"
         @point="recordLivePoint"
         @undo="undoLivePoint"
@@ -5089,30 +4491,48 @@ watch(
         @toggle-announcements="toggleVoiceAnnouncements"
         @open-tv-pairing="openTvPairing"
         @close-tv-pairing="closeTvPairing"
-        @cancel-tv-pairing="
-          cancelTvPairing
-        "
-        @revoke-tv-display="
-          revokeTvDisplay
-        "
-        @restart-tv-pairing="
-          restartTvPairing
-        "
+        @cancel-tv-pairing="cancelTvPairing"
+        @revoke-tv-display="revokeTvDisplay"
+        @restart-tv-pairing="restartTvPairing"
         @open-chair-umpire="openChairUmpire"
         @close-chair-umpire="closeChairUmpire"
         @invite-chair-umpire-member="inviteClubChairUmpire"
         @invite-chair-umpire-guest="inviteGuestChairUmpire"
         @cancel-chair-umpire="removeChairUmpireInvitation"
-        @handoff-chair-umpire-control="
-          handoffChairUmpireControl
-        "
-        @reclaim-chair-umpire-control="
-          reclaimChairUmpireControl
-        "
-        @emergency-override-match="
-          emergencyTakeMatchControl
-        "
+        @handoff-chair-umpire-control="handoffChairUmpireControl"
+        @reclaim-chair-umpire-control="reclaimChairUmpireControl"
+        @emergency-override-match="emergencyTakeMatchControl"
       />
+      <div
+        v-if="ladderFormatDialogOpen"
+        class="match-format-dialog"
+        role="presentation"
+        @click.self="ladderFormatDialogOpen = false"
+        @keydown.esc="ladderFormatDialogOpen = false"
+      >
+        <section
+          class="match-format-dialog__panel"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ladder match format"
+        >
+          <button
+            type="button"
+            class="match-format-dialog__close"
+            aria-label="Close match format"
+            @click="ladderFormatDialogOpen = false"
+          >
+            ×
+          </button>
+          <MatchFormatEditor
+            :model-value="ladderSetupRules"
+            :editable="false"
+            :show-save="false"
+            :allow-standalone-tiebreak="false"
+            :read-only-label="`Controlled by ${activeLadderConfig.name}`"
+          />
+        </section>
+      </div>
     </main>
     <MatchResultModal
       v-if="canRenderCurrentRoute && isLadder && step === 'live'"
@@ -6664,6 +6084,110 @@ watch(
     top: 12px;
     width: max-content;
     max-width: calc(100% - 24px);
+  }
+}
+.match-format-screen {
+  width: min(100%, var(--flow-content-width));
+}
+
+.match-format-save-option {
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-card-radius);
+  background: var(--color-surface);
+}
+
+.ladder-format-details {
+  display: inline-flex;
+  min-height: 42px;
+  margin-top: 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.ladder-format-owner {
+  display: flex;
+  margin: 12px 0 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-primary-strong);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.ladder-format-owner :deep(svg) {
+  width: 15px;
+  height: 15px;
+}
+
+.ladder-format-review .review-row {
+  min-height: 70px;
+  padding-block: 14px;
+}
+
+.ladder-format-review .review-row > strong {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.match-format-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  padding: clamp(18px, 4vw, 40px);
+  place-items: center;
+  background: rgba(15, 34, 24, 0.34);
+}
+
+.match-format-dialog__panel {
+  position: relative;
+  width: min(960px, 100%);
+  max-height: calc(100vh - clamp(36px, 8vw, 80px));
+  overflow-y: auto;
+  padding: clamp(26px, 4vw, 42px);
+  border: var(--app-hairline);
+  border-radius: 18px;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-strong, 0 24px 64px rgba(15, 34, 24, 0.18));
+}
+
+.match-format-dialog__close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 1;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-soft);
+  font-size: 20px;
+}
+
+@media (max-width: 640px) {
+  .match-format-dialog {
+    padding: 0;
+    place-items: end stretch;
+  }
+
+  .match-format-dialog__panel {
+    max-height: calc(100vh - 48px);
+    padding: 54px 16px 28px;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .match-format-dialog__close {
+    top: 12px;
+    right: 14px;
+  }
+
+  .ladder-format-review .review-row {
+    grid-template-columns: 94px minmax(0, 1fr);
+    gap: 12px;
   }
 }
 </style>

@@ -99,6 +99,19 @@ test('admin scheduling uses native local date controls and the service-layer end
   assert.match(service, /post\('\/admin\/ladder-matches', payload\)/)
   assert.match(api, /path === '\/admin\/ladder-matches'/)
   assert.match(api, /isEligibleLadderOpponent\(challenger, defender, ladderConfig\)/)
+  assert.match(api, /rulesSnapshot: freezeMatchRulesSnapshot\(preparedRules\.snapshot\)/)
+  assert.match(api, /freezeMatchRulesSnapshot\(challenge\.rulesSnapshot\)/)
+})
+
+test('active Challenge summaries resolve canonical rules through one formatter', () => {
+  const card = readFileSync('src/components/ChallengeCard.vue', 'utf8')
+  const challenges = readFileSync('src/views/ChallengesView.vue', 'utf8')
+  const details = readFileSync('src/views/ChallengeDetailsView.vue', 'utf8')
+
+  for (const source of [card, challenges, details]) {
+    assert.match(source, /ladderRulesToMatchRulesSnapshot/)
+    assert.match(source, /formatMatchRulesSummary/)
+  }
 })
 
 test('the admin drawer switches to overlay mode before its inline grid column closes', () => {

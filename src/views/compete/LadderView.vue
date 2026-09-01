@@ -32,6 +32,7 @@ const currentPlayer = computed(() => playerStore.currentPlayer)
 const basePlayers = computed(() => playerStore.sortedLadder)
 const activeClub = computed(() => adminStore.activeClub)
 const configuredLadders = computed(() => {
+  if (!activeClub.value) return []
   if (adminStore.activeLadders.length) return adminStore.activeLadders
   const config = getActiveLadderConfig()
   return [{ id: config.id, name: config.name, matchType: 'singles' }]
@@ -347,6 +348,7 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
       :player-a="selectedPlayer"
       :player-b="selectedOpponent"
       :ladder-rules="defaultMatchRules"
+      :rules-editable="canAdminSetUpMatch"
       :courts="courts"
       :submitting="challengeStore.isLoading"
       :error="challengeStore.error"

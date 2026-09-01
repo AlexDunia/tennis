@@ -29,7 +29,6 @@ import LegacyLandingView from '../views/LandingView.legacy-2026-08.vue'
 import LoginView from '../views/LoginView.vue'
 import FriendlyMatchFlowView from '../views/FriendlyMatchFlowView.vue'
 import ClubsView from '../views/ClubsView.vue'
-import MemberOnboardingView from '../views/MemberOnboardingView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import { useAuthStore } from '../stores/auth'
 import { useAdminStore } from '../stores/admin'
@@ -333,12 +332,7 @@ const routes = [
   {
     path: '/onboarding/join-club',
     name: 'PlayerClubJoin',
-    component: MemberOnboardingView,
-    meta: {
-      title: 'Join your club',
-      onboardingFlow: true,
-      primarySection: 'club',
-    },
+    redirect: (to) => ({ name: 'Clubs', query: { ...to.query, view: 'join' } }),
   },
   {
     path: '/admin/setup',
@@ -358,9 +352,7 @@ const routes = [
     component: ClubsView,
     meta: {
       title: 'Clubs',
-      subtitle: 'Open a club, create another one, or join with an invite code.',
-      permission: 'club.manage',
-      onboardingFlow: true,
+      subtitle: 'The clubs you belong to.',
       primarySection: 'club',
     },
   },
@@ -637,14 +629,15 @@ router.beforeEach(async (to) => {
   }
 
   const isClubFlow = ['AdminSetup', 'Clubs'].includes(String(to.name || ''))
-  if (!to.meta.public && authStore.isAdmin && !isClubFlow) {
+  if (!to.meta.public && !isClubFlow) {
     const adminStore = useAdminStore()
     try {
-      await adminStore.loadClubs()
+      if (!adminStore.activeClubId) await adminStore.loadClubs()
     } catch {
-      return { name: 'AdminSetup', query: { view: 'start', recovery: '1' } }
+      // Active-club routes handle unavailable club context below. Other routes
+      // must not turn an account-level role into club-level setup authority.
     }
-    if (!adminStore.isConfigured) {
+    if (adminStore.hasActiveClubPermission('club.manage') && !adminStore.isConfigured) {
       await adminStore.loadSetup()
       const hasStarted = Number(adminStore.setup?.completedStep || 0) > 0
       return hasStarted

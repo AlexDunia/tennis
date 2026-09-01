@@ -76,6 +76,10 @@ export function normalizeClubRole(value, fallback = 'player') {
   return CLUB_MEMBERSHIP_ROLES.includes(value) ? value : fallback
 }
 
+export function normalizeMembershipStatus(value, fallback = 'active') {
+  return MEMBER_STATUSES.includes(value) ? value : fallback
+}
+
 export function sanitizeInvitationToken(value) {
   const token = sanitizePlainText(value, 128)
   return /^[a-zA-Z0-9_-]{24,128}$/.test(token) ? token : ''
@@ -105,7 +109,7 @@ function normalizeMemberRecord(input, index, sourceFallback) {
     phone,
     role: normalizeClubRole(value.role),
     source,
-    status: isAllowed(value.status, MEMBER_STATUSES, source === 'existing' ? 'active' : 'invited'),
+    status: normalizeMembershipStatus(value.status, source === 'existing' ? 'active' : 'invited'),
   }
 }
 

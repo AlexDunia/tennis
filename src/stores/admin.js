@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ADMIN_SETUP_STEPS, createDefaultClubSetup } from '../config/admin.js'
 import {
+  createClub as createClubRelationship,
   discardClubSetupDraft,
   getClubDirectory,
   getClubSetup,
@@ -14,24 +15,11 @@ import {
   updateActiveClubSetup,
 } from '../services/AdminService.js'
 import { sanitizeDirectoryId } from '../utils/admin/clubSetup.js'
+import {
+  buildClubMembershipAccess,
+  hasClubMembershipPermission,
+} from '../utils/auth/accessControl.js'
 import { useAuthStore } from './auth.js'
-
-const ACTIVE_CLUB_MANAGER_PERMISSIONS = new Set([
-  'club.manage',
-  'tournaments.manage',
-  'tournaments.score.update',
-  'tournaments.fixtures.manage',
-  'tournaments.knockout.manage',
-  'tournaments.images.manage',
-  'matches.live_score',
-])
-
-const ACTIVE_CLUB_PLAYER_PERMISSIONS = new Set([
-  'tournaments.view',
-  'matches.view',
-  'rankings.view',
-  'challenges.create',
-])
 
 export const useAdminStore = defineStore('admin', () => {
   const authStore = useAuthStore()
@@ -61,7 +49,12 @@ export const useAdminStore = defineStore('admin', () => {
 
   function applyDirectory(directory) {
     clubs.value = Array.isArray(directory?.clubs) ? directory.clubs : []
-    memberships.value = Array.isArray(directory?.memberships) ? directory.memberships : []
+    memberships.value = Array.isArray(directory?.memberships)
+      ? directory.memberships.map((membership) => ({
+          ...membership,
+          ...buildClubMembershipAccess(membership),
+        }))
+      : []
     activeClubId.value = directory?.activeClubId || ''
   }
 
@@ -80,24 +73,28 @@ export const useAdminStore = defineStore('admin', () => {
     }))
   })
   const hasMultipleClubs = computed(() => clubOptions.value.length > 1)
-  const activeMembership = computed(() => {
+  const membershipForClub = computed(() => (clubId) => {
     const userId = currentUserId()
     return (
       memberships.value.find(
-        (membership) => membership.userId === userId && membership.clubId === activeClubId.value,
+        (membership) => membership.userId === userId && membership.clubId === clubId,
       ) || null
     )
   })
-  const activeClubRole = computed(() => activeMembership.value?.role || 'player')
+  const activeMembership = computed(() => membershipForClub.value(activeClubId.value))
+  const activeClubRole = computed(() => activeMembership.value?.role || '')
   const activeClubRoleLabel = computed(() =>
     ['admin', 'co-admin'].includes(activeClubRole.value) ? 'Admin' : 'Player',
   )
-  const isActiveClubAdmin = computed(() => ['admin', 'co-admin'].includes(activeClubRole.value))
-  const hasActiveClubPermission = computed(() => (permission) => {
-    if (!activeMembership.value) return false
-    if (ACTIVE_CLUB_PLAYER_PERMISSIONS.has(permission)) return true
-    return isActiveClubAdmin.value && ACTIVE_CLUB_MANAGER_PERMISSIONS.has(permission)
-  })
+  const activeClubPermissions = computed(() => activeMembership.value?.permissions || [])
+  const isActiveClubAdmin = computed(() => Boolean(activeMembership.value?.isManager))
+  const hasClubPermission = computed(
+    () => (clubId, permission) =>
+      hasClubMembershipPermission(membershipForClub.value(clubId) || {}, permission),
+  )
+  const hasActiveClubPermission = computed(
+    () => (permission) => hasClubPermission.value(activeClubId.value, permission),
+  )
   const isConfigured = computed(() => {
     const activeSetup = activeClub.value?.setup
     return Boolean(
@@ -176,6 +173,23 @@ export const useAdminStore = defineStore('admin', () => {
     } catch (saveError) {
       error.value = saveError?.message || 'Unable to publish the club setup.'
       throw saveError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function createClub(input) {
+    isSaving.value = true
+    error.value = ''
+    try {
+      const result = await createClubRelationship(input, actor())
+      const directory = await getClubDirectory(actor())
+      applyDirectory(directory)
+      setup.value = result.club?.setup || createDefaultClubSetup()
+      return result
+    } catch (createError) {
+      error.value = createError?.message || 'Unable to create this club.'
+      throw createError
     } finally {
       isSaving.value = false
     }
@@ -288,10 +302,13 @@ export const useAdminStore = defineStore('admin', () => {
     activeClub,
     clubOptions,
     hasMultipleClubs,
+    membershipForClub,
     activeMembership,
     activeClubRole,
     activeClubRoleLabel,
+    activeClubPermissions,
     isActiveClubAdmin,
+    hasClubPermission,
     hasActiveClubPermission,
     isLoading,
     isSaving,
@@ -304,6 +321,7 @@ export const useAdminStore = defineStore('admin', () => {
     startFreshSetup,
     saveDraft,
     publishSetup,
+    createClub,
     previewInvite,
     joinClub,
     switchClub,

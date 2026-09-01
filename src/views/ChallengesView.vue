@@ -11,6 +11,8 @@ import EmptyState from '../components/EmptyState.vue'
 import ChallengeEmptyState from '../components/challenges/ChallengeEmptyState.vue'
 import ChallengeSkeleton from '../components/challenges/ChallengeSkeleton.vue'
 import { formatAppDateTime } from '../utils/dateFormat'
+import { ladderRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/ladderMatchRules'
+import { formatMatchRulesSummary } from '../utils/matchRulesSummary'
 
 // 4. ROUTER
 const router = useRouter()
@@ -59,9 +61,7 @@ const pendingChallenge = computed(
 const isViewLoading = computed(
   () => challengeStore.isLoading || matchStore.isLoading || playerStore.isLoading,
 )
-const viewError = computed(
-  () => challengeStore.error || matchStore.error || playerStore.error,
-)
+const viewError = computed(() => challengeStore.error || matchStore.error || playerStore.error)
 const challengeState = computed(() => {
   if (challengeStore.challenges.length > 0) return 'active'
   if (!playerStore.players.length || !currentPlayer.value?.rank) return 'no-club'
@@ -192,27 +192,25 @@ const formatDate = (iso) => {
   return formatAppDateTime(iso)
 }
 
-const modalFormatLabel = computed(() => {
-  const cfg = modalChallenge.value?.matchConfig
-  if (!cfg) return 'Singles'
-  const type = cfg.matchType === 'doubles' ? 'Doubles' : 'Singles'
-  const fmt =
-    cfg.matchFormat === 'best_of_5'
-      ? 'Best of 5'
-      : cfg.matchFormat === 'best_of_3'
-        ? 'Best of 3'
-        : (cfg.matchFormat ?? 'Best of 3')
-  return `${type} · ${fmt}`
+const modalRulesResult = computed(() => {
+  const challenge = modalChallenge.value
+  if (!challenge) return { ok: false, snapshot: null }
+  return ladderRulesToMatchRulesSnapshot({
+    rulesSnapshot: challenge.rulesSnapshot,
+    ladderConfigSnapshot: challenge.ladderConfigSnapshot,
+    matchConfig: challenge.matchConfig,
+  })
 })
-
+const modalRulesSummary = computed(() =>
+  formatMatchRulesSummary(modalRulesResult.value.ok ? modalRulesResult.value.snapshot : null),
+)
+const modalFormatLabel = computed(() => {
+  const type = modalChallenge.value?.matchConfig?.matchType === 'doubles' ? 'Doubles' : 'Singles'
+  return modalRulesSummary.value.valid ? `${type} · ${modalRulesSummary.value.match}` : type
+})
 const modalSetLabel = computed(() => {
-  const cfg = modalChallenge.value?.matchConfig
-  if (!cfg) return ''
-  const deuce =
-    cfg.gameScoringRule === 'sudden_death' ? 'Sudden death at deuce' : 'Advantage at deuce'
-  const tb = cfg.setWinRule === 'no_tiebreak' ? 'No tiebreak' : 'Tiebreak at 6–6'
-  const final = cfg.finalSetRule === 'super_tiebreak' ? ' · Super tiebreak final set' : ''
-  return `${tb} · ${deuce}${final}`
+  if (!modalRulesSummary.value.valid) return ''
+  return modalRulesSummary.value.concise.slice(1).join(' · ')
 })
 </script>
 
@@ -395,7 +393,9 @@ const modalSetLabel = computed(() => {
           "
           :showReview="
             challenge.status === 'pending_review' &&
-            [challenge.challengerId, challenge.defenderId].includes(playerStore.currentPlayer?.id) &&
+            [challenge.challengerId, challenge.defenderId].includes(
+              playerStore.currentPlayer?.id,
+            ) &&
             (challenge.resultSubmittedBy
               ? challenge.resultSubmittedBy !== playerStore.currentPlayer?.id
               : challenge.defenderId === playerStore.currentPlayer?.id)
@@ -524,7 +524,7 @@ const modalSetLabel = computed(() => {
               </div>
             </div>
 
-            <div v-if="modalChallenge.matchConfig" class="modal__detail-item">
+            <div v-if="modalRulesSummary.valid" class="modal__detail-item">
               <svg
                 width="14"
                 height="14"
@@ -831,10 +831,20 @@ const modalSetLabel = computed(() => {
 }
 
 .challenge-error h2,
-.challenge-error p { margin: 0; }
-.challenge-error h2 { color: var(--color-text); font-size: 20px; }
-.challenge-error p { max-width: 520px; color: var(--color-muted); }
-.challenge-error button { margin-top: 8px; }
+.challenge-error p {
+  margin: 0;
+}
+.challenge-error h2 {
+  color: var(--color-text);
+  font-size: 20px;
+}
+.challenge-error p {
+  max-width: 520px;
+  color: var(--color-muted);
+}
+.challenge-error button {
+  margin-top: 8px;
+}
 
 /* ── CARDS LIST ── */
 .cards-list {

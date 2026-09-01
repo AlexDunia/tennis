@@ -1,7 +1,9 @@
 ﻿const POINT_LABELS = Object.freeze(['Love', '15', '30', '40'])
+import { MATCH_RULE_LIMITS } from '../domain/matchRules.js'
+
 const PLAYER_KEYS = Object.freeze(['playerA', 'playerB'])
 const HISTORY_LIMIT = 40
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 
 function nowIso() {
   return new Date().toISOString()
@@ -50,6 +52,7 @@ function normalizeConfig(input = {}) {
   const mode = source.mode === 'tiebreak' ? 'tiebreak' : 'sets'
 
   const scoring = source.scoring === 'noad' ? 'noad' : 'ad'
+  const gameMode = source.gameMode === 'numeric' ? 'numeric' : 'traditional'
 
   /*
    * A standalone match tie-break has no normal games or sets.
@@ -61,39 +64,139 @@ function normalizeConfig(input = {}) {
     return {
       mode: 'tiebreak',
       scoring,
+      gameMode,
       setsToWin: 1,
       bestOfSets: 1,
       gamesPerSet: 0,
+      setWinBy: 2,
+      tieBreakBehavior: 'continue',
       tieBreakAt: 0,
-      tieBreakPoints: clampInteger(source.tieBreakPoints, 1, 21, 10),
+      tieBreakPoints: clampInteger(
+        source.tieBreakPoints,
+        MATCH_RULE_LIMITS.tieBreakPointsToWin.min,
+        MATCH_RULE_LIMITS.tieBreakPointsToWin.max,
+        10,
+      ),
+      tieBreakWinBy: clampInteger(
+        source.tieBreakWinBy,
+        MATCH_RULE_LIMITS.tieBreakWinBy.min,
+        MATCH_RULE_LIMITS.tieBreakWinBy.max,
+        2,
+      ),
+      numericGamePoints: clampInteger(
+        source.numericGamePoints,
+        MATCH_RULE_LIMITS.numericGamePointsToWin.min,
+        MATCH_RULE_LIMITS.numericGamePointsToWin.max,
+        4,
+      ),
+      numericGameWinBy: clampInteger(
+        source.numericGameWinBy,
+        MATCH_RULE_LIMITS.numericGameWinBy.min,
+        MATCH_RULE_LIMITS.numericGameWinBy.max,
+        2,
+      ),
       decidingMatchTieBreak: false,
-      decidingTieBreakPoints: clampInteger(source.decidingTieBreakPoints, 1, 21, 10),
+      decidingTieBreakPoints: clampInteger(
+        source.decidingTieBreakPoints,
+        MATCH_RULE_LIMITS.decidingMatchTieBreakPointsToWin.min,
+        MATCH_RULE_LIMITS.decidingMatchTieBreakPointsToWin.max,
+        10,
+      ),
+      decidingTieBreakWinBy: clampInteger(
+        source.decidingTieBreakWinBy,
+        MATCH_RULE_LIMITS.decidingMatchTieBreakWinBy.min,
+        MATCH_RULE_LIMITS.decidingMatchTieBreakWinBy.max,
+        2,
+      ),
     }
   }
 
-  const explicitBestOf = clampInteger(source.bestOfSets, 1, 9, 0)
+  const explicitBestOf = clampInteger(
+    source.bestOfSets,
+    1,
+    MATCH_RULE_LIMITS.setsToWin.max * 2 - 1,
+    0,
+  )
 
   const setsToWin = clampInteger(
     source.setsToWin,
-    1,
-    5,
+    MATCH_RULE_LIMITS.setsToWin.min,
+    MATCH_RULE_LIMITS.setsToWin.max,
     explicitBestOf ? Math.ceil(explicitBestOf / 2) : 2,
   )
 
   const bestOfSets = explicitBestOf || setsToWin * 2 - 1
 
-  const gamesPerSet = clampInteger(source.gamesPerSet, 1, 9, 6)
+  const gamesPerSet = clampInteger(
+    source.gamesPerSet,
+    MATCH_RULE_LIMITS.gamesToWin.min,
+    MATCH_RULE_LIMITS.gamesToWin.max,
+    6,
+  )
+  const legacyTieBreakAt = Number.parseInt(source.tieBreakAt, 10)
+  const tieBreakBehavior =
+    source.tieBreakBehavior === 'continue' ||
+    (source.tieBreakBehavior === undefined &&
+      Number.isFinite(legacyTieBreakAt) &&
+      legacyTieBreakAt <= 0)
+      ? 'continue'
+      : 'tiebreak'
 
   return {
     mode: 'sets',
     scoring,
+    gameMode,
     setsToWin,
     bestOfSets,
     gamesPerSet,
-    tieBreakAt: clampInteger(source.tieBreakAt, 0, gamesPerSet, gamesPerSet),
-    tieBreakPoints: clampInteger(source.tieBreakPoints, 1, 21, 7),
+    setWinBy: clampInteger(
+      source.setWinBy,
+      MATCH_RULE_LIMITS.setWinBy.min,
+      MATCH_RULE_LIMITS.setWinBy.max,
+      2,
+    ),
+    tieBreakBehavior,
+    tieBreakAt:
+      tieBreakBehavior === 'tiebreak'
+        ? clampInteger(source.tieBreakAt, 1, gamesPerSet, gamesPerSet)
+        : 0,
+    tieBreakPoints: clampInteger(
+      source.tieBreakPoints,
+      MATCH_RULE_LIMITS.tieBreakPointsToWin.min,
+      MATCH_RULE_LIMITS.tieBreakPointsToWin.max,
+      7,
+    ),
+    tieBreakWinBy: clampInteger(
+      source.tieBreakWinBy,
+      MATCH_RULE_LIMITS.tieBreakWinBy.min,
+      MATCH_RULE_LIMITS.tieBreakWinBy.max,
+      2,
+    ),
+    numericGamePoints: clampInteger(
+      source.numericGamePoints,
+      MATCH_RULE_LIMITS.numericGamePointsToWin.min,
+      MATCH_RULE_LIMITS.numericGamePointsToWin.max,
+      4,
+    ),
+    numericGameWinBy: clampInteger(
+      source.numericGameWinBy,
+      MATCH_RULE_LIMITS.numericGameWinBy.min,
+      MATCH_RULE_LIMITS.numericGameWinBy.max,
+      2,
+    ),
     decidingMatchTieBreak: Boolean(source.decidingMatchTieBreak),
-    decidingTieBreakPoints: clampInteger(source.decidingTieBreakPoints, 1, 21, 10),
+    decidingTieBreakPoints: clampInteger(
+      source.decidingTieBreakPoints,
+      MATCH_RULE_LIMITS.decidingMatchTieBreakPointsToWin.min,
+      MATCH_RULE_LIMITS.decidingMatchTieBreakPointsToWin.max,
+      10,
+    ),
+    decidingTieBreakWinBy: clampInteger(
+      source.decidingTieBreakWinBy,
+      MATCH_RULE_LIMITS.decidingMatchTieBreakWinBy.min,
+      MATCH_RULE_LIMITS.decidingMatchTieBreakWinBy.max,
+      2,
+    ),
   }
 }
 
@@ -367,7 +470,7 @@ function awardGame(scoreboard, playerKey) {
 
   const opponentGames = set.games[opponentKey]
 
-  const { gamesPerSet, tieBreakAt } = scoreboard.config
+  const { gamesPerSet, setWinBy, tieBreakAt, tieBreakBehavior } = scoreboard.config
 
   /*
    * Examples:
@@ -375,7 +478,7 @@ function awardGame(scoreboard, playerKey) {
    * 6–4
    * 7–5
    */
-  if (playerGames >= gamesPerSet && playerGames - opponentGames >= 2) {
+  if (playerGames >= gamesPerSet && playerGames - opponentGames >= setWinBy) {
     return finalizeSet(scoreboard, playerKey)
   }
 
@@ -388,7 +491,12 @@ function awardGame(scoreboard, playerKey) {
    * represents the person who serves the first
    * tie-break point.
    */
-  if (tieBreakAt > 0 && set.games.playerA === tieBreakAt && set.games.playerB === tieBreakAt) {
+  if (
+    tieBreakBehavior === 'tiebreak' &&
+    tieBreakAt > 0 &&
+    set.games.playerA === tieBreakAt &&
+    set.games.playerB === tieBreakAt
+  ) {
     startTieBreak(scoreboard)
   }
 
@@ -455,6 +563,26 @@ function recordStandardPoint(scoreboard, playerKey) {
   return 'point'
 }
 
+function recordNumericPoint(scoreboard, playerKey) {
+  const opponentKey = opponentOf(playerKey)
+  const game = scoreboard.currentGame
+
+  game.advantage = null
+  game.points[playerKey] += 1
+
+  const playerPoints = game.points[playerKey]
+  const opponentPoints = game.points[opponentKey]
+
+  if (
+    playerPoints >= scoreboard.config.numericGamePoints &&
+    playerPoints - opponentPoints >= scoreboard.config.numericGameWinBy
+  ) {
+    return awardGame(scoreboard, playerKey)
+  }
+
+  return 'point'
+}
+
 function recordTieBreakPoint(scoreboard, playerKey) {
   const game = scoreboard.currentGame
 
@@ -481,7 +609,14 @@ function recordTieBreakPoint(scoreboard, playerKey) {
 
   const opponentPoints = game.tieBreakPoints[opponentKey]
 
-  if (playerPoints >= target && playerPoints - opponentPoints >= 2) {
+  const winBy =
+    scoreboard.config.mode === 'tiebreak'
+      ? scoreboard.config.tieBreakWinBy
+      : game.isMatchTieBreak
+        ? scoreboard.config.decidingTieBreakWinBy
+        : scoreboard.config.tieBreakWinBy
+
+  if (playerPoints >= target && playerPoints - opponentPoints >= winBy) {
     const tieBreak = {
       winner: playerKey,
 
@@ -858,7 +993,9 @@ export function recordPoint(originalScoreboard, playerKey) {
 
   const outcome = scoreboard.currentGame.inTieBreak
     ? recordTieBreakPoint(scoreboard, playerKey)
-    : recordStandardPoint(scoreboard, playerKey)
+    : scoreboard.config.gameMode === 'numeric'
+      ? recordNumericPoint(scoreboard, playerKey)
+      : recordStandardPoint(scoreboard, playerKey)
 
   scoreboard.pointsPlayed += 1
 
@@ -992,6 +1129,14 @@ export function describePoint(scoreboardInput, playerKey) {
   const other = Number(game.points[opponentKey] || 0)
 
   /*
+   * Numeric games store and display raw points.
+   * UI labels remain derived and never drive scoring.
+   */
+  if (scoreboard.config.gameMode === 'numeric') {
+    return String(own)
+  }
+
+  /*
    * No-Ad has no Advantage state.
    */
   if (scoreboard.config.scoring === 'noad') {
@@ -1037,6 +1182,10 @@ export function getPointStatus(scoreboardInput) {
   const pointA = describePoint(scoreboard, 'playerA')
 
   const pointB = describePoint(scoreboard, 'playerB')
+
+  if (scoreboard.config.gameMode === 'numeric') {
+    return `${pointA} – ${pointB}`
+  }
 
   if (scoreboard.config.scoring === 'noad') {
     const rawA = game.points.playerA

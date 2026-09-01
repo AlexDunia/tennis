@@ -49,6 +49,8 @@ const rulesEditing = ref(false)
 const rulesAccepted = ref(true)
 const customLadder = reactive({ name: '', matchType: 'singles' })
 const manualMember = reactive({ name: '', contact: '', role: 'player' })
+const minimalClub = reactive({ name: '', location: '' })
+const directoryLoaded = ref(false)
 
 const FLOW_VIEWS = new Set(['start', 'join', 'join-confirm'])
 const STEP_COPY = Object.freeze({
@@ -109,9 +111,36 @@ const RECOMMENDED_RULES = Object.freeze([
 ])
 
 const routeView = computed(() => {
+  if (route.name === 'Clubs') {
+    const view = String(route.query.view || '')
+    return ['add', 'create', 'join'].includes(view) ? `directory-${view}` : 'directory'
+  }
   const value = String(route.query.view || '')
   if (FLOW_VIEWS.has(value)) return value
   return ONBOARDING_STEPS.some((item) => item.key === route.query.step) ? 'wizard' : 'start'
+})
+const isDirectoryExperience = computed(() => routeView.value.startsWith('directory'))
+const directoryHeading = computed(
+  () =>
+    ({
+      'directory-add': 'Add a club',
+      'directory-create': 'Create a club',
+      'directory-join': 'Join a club',
+    })[routeView.value] || 'Your clubs',
+)
+const directoryDescription = computed(
+  () =>
+    ({
+      'directory-add': 'Choose how you want to add another club relationship.',
+      'directory-create': 'Start with the essentials. You can configure everything else later.',
+      'directory-join': 'Use the secure invitation code or link sent by the club.',
+    })[routeView.value] || 'Choose which club you want to use in Gorra.',
+)
+const clubCount = computed(() => adminStore.clubOptions.length)
+const clubDirectoryState = computed(() => {
+  if (clubCount.value === 0) return 'empty'
+  if (clubCount.value === 1) return 'single'
+  return 'multiple'
 })
 const stepIndex = computed(() => {
   const index = ONBOARDING_STEPS.findIndex((item) => item.key === route.query.step)
@@ -207,10 +236,36 @@ function syncTextFields() {
     .filter(Boolean)
 }
 
-function setQuery(query) {
+function flowLocation(query) {
+  return router.resolve({ path: route.path, query })
+}
+
+function setQuery(query, { replace = false } = {}) {
   pageError.value = ''
   pageMessage.value = ''
-  router.replace({ path: route.path, query })
+  const location = flowLocation(query)
+  return replace ? router.replace(location) : router.push(location)
+}
+
+function goToPreviousFlowState(query) {
+  const previousLocation = flowLocation(query)
+  if (window.history.state?.back === previousLocation.fullPath) {
+    router.back()
+    return
+  }
+
+  // A resumed or directly linked step may not have its logical predecessor in
+  // browser history. Replace it with that predecessor instead of escaping the flow.
+  setQuery(query, { replace: true })
+}
+
+function exitFlow() {
+  if (window.history.state?.back) {
+    router.back()
+    return
+  }
+
+  router.push(adminStore.isConfigured ? { name: 'Dashboard' } : { name: 'SignUp' })
 }
 
 async function focusHeading() {
@@ -227,6 +282,99 @@ async function showStart() {
 function showJoin() {
   pendingInvite.value = null
   setQuery({ view: 'join' })
+}
+
+function showClubDirectory() {
+  router.push({ name: 'Clubs' })
+}
+
+function showAddClubDecision() {
+  router.push({ name: 'Clubs', query: { view: 'add' } })
+}
+
+function openCreateClubFlow() {
+  router.push({ name: 'Clubs', query: { view: 'create' } })
+}
+
+function openJoinClubFlow() {
+  router.push({ name: 'PlayerClubJoin' })
+}
+
+async function createMinimalClub() {
+  pageError.value = ''
+  if (minimalClub.name.trim().length < 2) {
+    pageError.value = 'Enter the club name.'
+    return
+  }
+  if (minimalClub.location.trim().length < 2) {
+    pageError.value = 'Enter the club location.'
+    return
+  }
+
+  try {
+    const result = await adminStore.createClub(minimalClub)
+    notificationStore.addToast({
+      message: `${result.club?.name || minimalClub.name} is ready.`,
+      type: 'success',
+    })
+    await router.push({ name: 'Clubs' })
+  } catch (error) {
+    pageError.value = error?.message || 'We could not create this club.'
+  }
+}
+
+function resetDirectoryInvite() {
+  pendingInvite.value = null
+  pageError.value = ''
+}
+
+async function submitDirectoryJoin() {
+  pageError.value = ''
+  try {
+    if (!pendingInvite.value) {
+      pendingInvite.value = await adminStore.previewInvite(inviteCode.value)
+      return
+    }
+
+    const joined = await adminStore.joinClub(inviteCode.value)
+    notificationStore.addToast({
+      message: `You joined ${joined.club?.name || pendingInvite.value.clubName}.`,
+      type: 'success',
+    })
+    await router.push({ name: 'Clubs' })
+  } catch (error) {
+    pageError.value = error?.message || 'We could not join this club.'
+  }
+}
+
+function relationshipLabel(role) {
+  if (role === 'admin') return 'Admin'
+  if (role === 'co-admin') return 'Co-admin'
+  return 'Member'
+}
+
+function clubInitials(name) {
+  return String(name || 'Club')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+}
+
+async function selectClub(clubId) {
+  if (!clubId || clubId === adminStore.activeClubId) return
+  pageError.value = ''
+  try {
+    await adminStore.switchClub(clubId)
+    notificationStore.addToast({
+      message: `${adminStore.activeClub?.name || 'Your club'} is now active.`,
+      type: 'success',
+    })
+  } catch (error) {
+    pageError.value = error?.message || 'We could not switch clubs.'
+  }
 }
 
 async function startCreate() {
@@ -432,16 +580,16 @@ async function continueFlow() {
 function goBack() {
   pageError.value = ''
   if (routeView.value === 'start') {
-    router.push(adminStore.isConfigured ? { name: 'Dashboard' } : { name: 'SignUp' })
+    exitFlow()
     return
   }
-  if (routeView.value === 'join') return showStart()
-  if (routeView.value === 'join-confirm') return showJoin()
+  if (routeView.value === 'join') return goToPreviousFlowState({ view: 'start' })
+  if (routeView.value === 'join-confirm') return goToPreviousFlowState({ view: 'join' })
   if (stepIndex.value === 0) {
-    setQuery({ view: 'start' })
+    goToPreviousFlowState({ view: 'start' })
     return
   }
-  setQuery({ step: ONBOARDING_STEPS[stepIndex.value - 1].key })
+  goToPreviousFlowState({ step: ONBOARDING_STEPS[stepIndex.value - 1].key })
 }
 
 watch(() => route.fullPath, focusHeading)
@@ -456,6 +604,13 @@ watch(inviteLink, generateQrCode)
 onMounted(async () => {
   try {
     await adminStore.loadClubs()
+    if (isDirectoryExperience.value) {
+      if (routeView.value === 'directory-join' && route.query.invite) {
+        inviteCode.value = String(route.query.invite).slice(0, 2048)
+      }
+      await focusHeading()
+      return
+    }
     await adminStore.loadSetup()
     replaceForm(adminStore.setup)
     if (!form.membership.invitationToken) {
@@ -470,12 +625,184 @@ onMounted(async () => {
     await focusHeading()
   } catch (error) {
     pageError.value = error?.message || 'We could not load your clubs.'
+  } finally {
+    directoryLoaded.value = true
   }
 })
 </script>
 
 <template>
-  <main class="clubs-flow">
+  <main
+    v-if="isDirectoryExperience"
+    class="clubs-directory"
+    :aria-busy="adminStore.isLoading || !directoryLoaded"
+  >
+    <header class="clubs-directory__header">
+      <p class="eyebrow">Clubs</p>
+      <h1 ref="heading" tabindex="-1">{{ directoryHeading }}</h1>
+      <p>{{ directoryDescription }}</p>
+    </header>
+
+    <p v-if="pageError" class="flow-alert" role="alert">{{ pageError }}</p>
+    <section v-if="!directoryLoaded" class="directory-loading" aria-label="Loading clubs">
+      <span></span><span></span>
+    </section>
+    <form
+      v-else-if="routeView === 'directory-create'"
+      class="relationship-form"
+      @submit.prevent="createMinimalClub"
+    >
+      <button class="directory-back" type="button" @click="showAddClubDecision">
+        <FlowIcon name="arrow-right" /> Back
+      </button>
+      <div class="relationship-fields">
+        <label class="answer-field">
+          <span>Club name</span>
+          <input
+            v-model="minimalClub.name"
+            maxlength="100"
+            autocomplete="organization"
+            placeholder="For example, Greenview Tennis Club"
+            required
+          />
+        </label>
+        <label class="answer-field">
+          <span>Town or city</span>
+          <input
+            v-model="minimalClub.location"
+            maxlength="120"
+            autocomplete="address-level2"
+            placeholder="For example, Lagos"
+            required
+          />
+        </label>
+      </div>
+      <p class="relationship-form__note">
+        You will manage this club. Ladders, members, courts, and rules can be configured later.
+      </p>
+      <button
+        class="directory-primary relationship-submit"
+        type="submit"
+        :disabled="adminStore.isSaving"
+      >
+        {{ adminStore.isSaving ? 'Creating club…' : 'Create club' }}
+      </button>
+    </form>
+    <form
+      v-else-if="routeView === 'directory-join'"
+      class="relationship-form"
+      @submit.prevent="submitDirectoryJoin"
+    >
+      <button class="directory-back" type="button" @click="showAddClubDecision">
+        <FlowIcon name="arrow-right" /> Back
+      </button>
+      <label class="answer-field">
+        <span>Invitation code or link</span>
+        <input
+          v-model="inviteCode"
+          maxlength="2048"
+          autocomplete="one-time-code"
+          placeholder="Paste the invitation sent by your club"
+          required
+          @input="resetDirectoryInvite"
+        />
+      </label>
+      <section v-if="pendingInvite" class="join-preview" aria-live="polite">
+        <span class="choice-icon"><FlowIcon name="home" /></span>
+        <span>
+          <strong>{{ pendingInvite.clubName }}</strong>
+          <small>Your relationship will be {{ pendingInvite.roleLabel }}.</small>
+        </span>
+        <FlowIcon name="check" />
+      </section>
+      <p class="relationship-form__note">
+        Invitations are verified before a relationship is connected to your account.
+      </p>
+      <button
+        class="directory-primary relationship-submit"
+        type="submit"
+        :disabled="adminStore.isSaving || inviteCode.trim().length < 6"
+      >
+        {{
+          adminStore.isSaving
+            ? 'Joining club…'
+            : pendingInvite
+              ? 'Join this club'
+              : 'Check invitation'
+        }}
+      </button>
+    </form>
+    <section v-else-if="routeView === 'directory-add'" class="add-club-decision">
+      <button class="directory-back" type="button" @click="showClubDirectory">
+        <FlowIcon name="arrow-right" /> Back to your clubs
+      </button>
+      <div class="directory-actions">
+        <button type="button" @click="openCreateClubFlow">
+          <span class="choice-icon"><FlowIcon name="plus" /></span>
+          <span>
+            <strong>Create a club</strong>
+            <small>Start a new club that you will manage.</small>
+          </span>
+          <FlowIcon name="arrow-right" />
+        </button>
+        <button type="button" @click="openJoinClubFlow">
+          <span class="choice-icon"><FlowIcon name="login" /></span>
+          <span>
+            <strong>Join a club</strong>
+            <small>Use an invitation from an existing club.</small>
+          </span>
+          <FlowIcon name="arrow-right" />
+        </button>
+      </div>
+    </section>
+    <section v-else-if="clubDirectoryState === 'empty'" class="empty-clubs">
+      <span class="empty-clubs__icon" aria-hidden="true"><FlowIcon name="home" /></span>
+      <h2>You are not in a club yet.</h2>
+      <p>Create a club of your own or join one you have been invited to.</p>
+      <div class="empty-clubs__actions">
+        <button class="directory-primary" type="button" @click="openCreateClubFlow">
+          Create a club
+        </button>
+        <button type="button" @click="openJoinClubFlow">Join a club</button>
+      </div>
+    </section>
+    <section v-else class="club-relationships">
+      <p v-if="clubDirectoryState === 'single'" class="single-club-note">
+        This is your active club in Gorra.
+      </p>
+      <div class="club-directory-list" :class="'club-directory-list--' + clubDirectoryState">
+        <button
+          v-for="club in adminStore.clubOptions"
+          :key="club.id"
+          class="club-directory-card"
+          :class="{ 'club-directory-card--active': club.id === adminStore.activeClubId }"
+          type="button"
+          :aria-current="club.id === adminStore.activeClubId ? 'true' : undefined"
+          :disabled="adminStore.isLoading || club.id === adminStore.activeClubId"
+          @click="selectClub(club.id)"
+        >
+          <span class="club-directory-card__mark" aria-hidden="true">
+            {{ clubInitials(club.name) }}
+          </span>
+          <span class="club-directory-card__copy">
+            <strong>{{ club.name }}</strong>
+            <small>{{ relationshipLabel(club.role) }}</small>
+          </span>
+          <span v-if="club.id === adminStore.activeClubId" class="club-directory-card__state">
+            <FlowIcon name="check" /> Active
+          </span>
+          <span v-else class="club-directory-card__open">
+            Use this club <FlowIcon name="arrow-right" />
+          </span>
+        </button>
+      </div>
+
+      <button class="add-club-button" type="button" @click="showAddClubDecision">
+        <FlowIcon name="plus" /> Add club
+      </button>
+    </section>
+  </main>
+  <main v-else class="clubs-flow">
     <div class="flow-atmosphere" aria-hidden="true">
       <span class="flow-atmosphere__court"></span>
       <span class="flow-atmosphere__ball"></span>
@@ -928,6 +1255,262 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.clubs-directory {
+  display: grid;
+  width: min(100%, 920px);
+  gap: 24px;
+  margin: 0 auto;
+  padding: clamp(8px, 2vw, 20px) 0 48px;
+  color: var(--color-text, #172319);
+}
+.clubs-directory__header {
+  display: grid;
+  max-width: 680px;
+  gap: 8px;
+}
+.clubs-directory__header h1:focus {
+  outline: none;
+}
+.clubs-directory__header > p:last-child {
+  max-width: 58ch;
+  margin: 0;
+  color: #647067;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.directory-loading {
+  display: grid;
+  gap: 12px;
+}
+.directory-loading span {
+  display: block;
+  height: 92px;
+  border: var(--app-hairline);
+  border-radius: var(--app-card-radius, 16px);
+  background: linear-gradient(100deg, #f6f8f5 20%, #fff 42%, #f6f8f5 64%);
+  background-size: 240% 100%;
+  animation: directory-shimmer 1.4s ease infinite;
+}
+.empty-clubs,
+.add-club-decision,
+.relationship-form {
+  padding: clamp(24px, 5vw, 44px);
+  border: var(--app-hairline);
+  border-radius: var(--app-card-radius, 16px);
+  background: #fff;
+  box-shadow: var(--app-shadow-subtle, 0 10px 30px rgba(23, 35, 25, 0.05));
+}
+.empty-clubs {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+.empty-clubs__icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 6px;
+  place-items: center;
+  border-radius: 14px;
+  background: #edf5ef;
+  color: #287a45;
+}
+.empty-clubs h2 {
+  margin: 0;
+  font-size: clamp(20px, 3vw, 25px);
+}
+.empty-clubs > p,
+.single-club-note {
+  margin: 0;
+  color: #687269;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.empty-clubs__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.directory-primary {
+  border-color: #287a45;
+  background: #287a45;
+  color: #fff;
+}
+.relationship-form {
+  display: grid;
+  gap: 18px;
+}
+.relationship-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.relationship-form__note {
+  max-width: 62ch;
+  margin: 0;
+  color: #687269;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.relationship-submit {
+  width: fit-content;
+  min-width: 150px;
+}
+.join-preview {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 15px;
+  border: 1px solid rgba(40, 122, 69, 0.24);
+  border-radius: 14px;
+  background: #f4faf5;
+}
+.join-preview > span:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+.join-preview small {
+  color: #687269;
+  font-size: 12px;
+}
+.join-preview > .flow-icon {
+  width: 19px;
+  color: #287a45;
+}
+.club-relationships {
+  display: grid;
+  gap: 14px;
+}
+.club-directory-list {
+  display: grid;
+  gap: 12px;
+}
+.club-directory-card,
+.directory-actions > button {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  min-height: 94px;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: var(--app-hairline);
+  border-radius: var(--app-card-radius, 16px);
+  background: #fff;
+  color: #26362a;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+.club-directory-card:not(:disabled):hover,
+.directory-actions > button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(40, 122, 69, 0.36);
+  box-shadow: var(--app-shadow-subtle, 0 10px 30px rgba(23, 35, 25, 0.06));
+}
+.club-directory-card--active {
+  border-color: rgba(40, 122, 69, 0.28);
+  background: color-mix(in srgb, #287a45 3%, #fff);
+}
+.club-directory-card:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.club-directory-card__mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 14px;
+  background: #edf5ef;
+  color: #287a45;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.club-directory-card__copy {
+  display: grid;
+  gap: 5px;
+}
+.club-directory-card__copy strong {
+  font-size: 15px;
+  line-height: 1.35;
+}
+.club-directory-card__copy small {
+  color: #687269;
+  font-size: 12px;
+}
+.club-directory-card__state,
+.club-directory-card__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #287a45;
+  font-size: 12px;
+  font-weight: 600;
+}
+.club-directory-card__state .flow-icon,
+.club-directory-card__open .flow-icon {
+  width: 17px;
+  height: 17px;
+}
+.add-club-button {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.add-club-button .flow-icon,
+.directory-back .flow-icon {
+  width: 18px;
+  height: 18px;
+}
+.directory-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #526056;
+}
+.directory-back .flow-icon {
+  transform: rotate(180deg);
+}
+.directory-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.directory-actions .choice-icon {
+  width: 46px;
+  height: 46px;
+}
+.directory-actions > button > span:nth-child(2) {
+  display: grid;
+  gap: 5px;
+}
+.directory-actions small {
+  color: #687269;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.directory-actions > button > .flow-icon {
+  width: 18px;
+  height: 18px;
+  color: #287a45;
+}
+@keyframes directory-shimmer {
+  to {
+    background-position: -140% 0;
+  }
+}
 .clubs-flow {
   --flow-width: 920px;
   position: relative;
@@ -1627,6 +2210,12 @@ button:disabled {
   }
 }
 @media (max-width: 760px) {
+  .relationship-fields {
+    grid-template-columns: 1fr;
+  }
+  .directory-actions {
+    grid-template-columns: 1fr;
+  }
   .clubs-flow {
     padding: 18px;
   }
@@ -1654,6 +2243,19 @@ button:disabled {
   }
 }
 @media (max-width: 480px) {
+  .club-directory-card {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+  .club-directory-card__state,
+  .club-directory-card__open {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .empty-clubs,
+  .add-club-decision,
+  .relationship-form {
+    padding: 22px 18px;
+  }
   .start-screen {
     padding-top: 34px;
   }

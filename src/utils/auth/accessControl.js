@@ -44,6 +44,25 @@ export const ACCESS_ROLES = {
   },
 }
 
+const CLUB_MEMBER_PERMISSIONS = Object.freeze([
+  'tournaments.view',
+  'matches.view',
+  'rankings.view',
+  'challenges.create',
+])
+
+const CLUB_MANAGER_PERMISSIONS = Object.freeze([
+  'club.manage',
+  'tournaments.manage',
+  'tournaments.score.update',
+  'tournaments.fixtures.manage',
+  'tournaments.knockout.manage',
+  'tournaments.images.manage',
+  'matches.live_score',
+])
+
+const CLUB_MANAGER_ROLES = new Set(['admin', 'co-admin'])
+
 const LOCAL_ADMIN_PLAYER_IDS = new Set(['player-02'])
 
 export function getDefaultRoleForIdentity(identity = {}) {
@@ -74,4 +93,25 @@ export function buildAccessProfile(identity = {}, roleKey = getDefaultRoleForIde
 export function hasPermission(identity = {}, permission) {
   const permissions = identity.permissions || []
   return permissions.includes('*') || permissions.includes(permission)
+}
+
+export function buildClubMembershipAccess(membership = {}) {
+  const status = membership.status || 'active'
+  const role = membership.role || 'player'
+  const isActive = Boolean(membership.userId && membership.clubId && status === 'active')
+  const isManager = isActive && CLUB_MANAGER_ROLES.has(role)
+  const permissions = isActive
+    ? [...CLUB_MEMBER_PERMISSIONS, ...(isManager ? CLUB_MANAGER_PERMISSIONS : [])]
+    : []
+
+  return {
+    status,
+    role,
+    permissions,
+    isManager,
+  }
+}
+
+export function hasClubMembershipPermission(membership = {}, permission) {
+  return buildClubMembershipAccess(membership).permissions.includes(permission)
 }

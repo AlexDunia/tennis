@@ -12,6 +12,13 @@ const selectedFilter = ref('all')
 const searchQuery = ref('')
 
 const canCreateTournament = computed(() => adminStore.hasActiveClubPermission('tournaments.manage'))
+const clubTournaments = computed(() =>
+  tournamentStore.tournaments.filter(
+    (tournament) =>
+      !tournament.clubId ||
+      (Boolean(adminStore.activeClubId) && tournament.clubId === adminStore.activeClubId),
+  ),
+)
 
 function statusKey(tournament) {
   const status = String(tournament.status || '').toLowerCase()
@@ -21,17 +28,17 @@ function statusKey(tournament) {
 }
 
 const activeTournaments = computed(() =>
-  tournamentStore.tournaments.filter((tournament) => statusKey(tournament) === 'active'),
+  clubTournaments.value.filter((tournament) => statusKey(tournament) === 'active'),
 )
 const upcomingTournaments = computed(() =>
-  tournamentStore.tournaments.filter((tournament) => statusKey(tournament) === 'upcoming'),
+  clubTournaments.value.filter((tournament) => statusKey(tournament) === 'upcoming'),
 )
 const completedTournaments = computed(() =>
-  tournamentStore.tournaments.filter((tournament) => statusKey(tournament) === 'completed'),
+  clubTournaments.value.filter((tournament) => statusKey(tournament) === 'completed'),
 )
 
 const filters = computed(() => [
-  { key: 'all', label: 'All', count: tournamentStore.tournaments.length },
+  { key: 'all', label: 'All', count: clubTournaments.value.length },
   { key: 'active', label: 'Open', count: activeTournaments.value.length },
   { key: 'upcoming', label: 'Upcoming', count: upcomingTournaments.value.length },
   { key: 'completed', label: 'Completed', count: completedTournaments.value.length },
@@ -40,7 +47,7 @@ const filters = computed(() => [
 const visibleTournaments = computed(() => {
   const query = searchQuery.value.trim().toLocaleLowerCase()
   const weight = { active: 0, upcoming: 1, completed: 2 }
-  return tournamentStore.tournaments
+  return clubTournaments.value
     .filter((tournament) => {
       if (selectedFilter.value !== 'all' && statusKey(tournament) !== selectedFilter.value) {
         return false

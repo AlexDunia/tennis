@@ -19,6 +19,11 @@ import {
   isEligibleLadderOpponent,
   ladderMatchConfig,
 } from '../config/ladder'
+import {
+  ladderRulesToMatchRulesSnapshot,
+  matchRulesSnapshotToLegacyLadderConfig,
+} from '../domain/ruleAdapters/ladderMatchRules'
+import { freezeMatchRulesSnapshot } from '../domain/matchRules'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 const defaultDelay = 300
@@ -2585,34 +2590,33 @@ const mockAdapter = async (config) => {
       ).length
     const scheduledTime = new Date(body.scheduledAt || 0).getTime()
     const allowedRuleSources = ['ladder_default', 'admin_override']
-    const allowedMatchFormats = ['best_of_3', 'best_of_5']
-    const allowedScoringRules = ['normal', 'sudden_death']
-    const allowedFinalSetRules = ['same', 'super_tiebreak']
-    const overrideRules = body.matchRules || {}
-    const overrideIsValid =
-      allowedMatchFormats.includes(overrideRules.matchFormat) &&
-      allowedScoringRules.includes(overrideRules.gameScoringRule) &&
-      allowedFinalSetRules.includes(overrideRules.finalSetRule)
-    const invalidMessage =
-      !body.ladderId
-        ? 'Choose an active Ladder.'
-        : !challenger?.rank || !defender?.rank
-          ? 'Both players must belong to the active Ladder.'
-          : !isEligibleLadderOpponent(challenger, defender, ladderConfig)
-            ? 'The selected opponent is outside this player’s eligible challenge window.'
-            : Math.max(
-                  activeChallengeCountFor(challenger.id),
-                  activeChallengeCountFor(defender.id),
-                ) >= ladderConfig.maxActiveChallenges
-              ? 'One of these players must finish an active challenge first.'
-              : timing === 'scheduled' &&
-                  (!Number.isFinite(scheduledTime) || scheduledTime <= Date.now())
-                ? 'Choose a future match date and time.'
-                : !allowedRuleSources.includes(body.matchRuleSource)
-                  ? 'Choose whether to use the Ladder default or an admin override.'
-                  : body.matchRuleSource === 'admin_override' && !overrideIsValid
-                    ? 'Choose a supported match format for this override.'
-                    : ''
+    const resolvedRules = ladderRulesToMatchRulesSnapshot({
+      rulesSnapshot: body.rulesSnapshot,
+      ladderConfigSnapshot: ladderConfig,
+      matchConfig:
+        body.matchRuleSource === 'admin_override'
+          ? body.matchRules
+          : ladderMatchConfig(ladderConfig),
+    })
+    const invalidMessage = !body.ladderId
+      ? 'Choose an active Ladder.'
+      : !challenger?.rank || !defender?.rank
+        ? 'Both players must belong to the active Ladder.'
+        : !isEligibleLadderOpponent(challenger, defender, ladderConfig)
+          ? 'The selected opponent is outside this player’s eligible challenge window.'
+          : Math.max(
+                activeChallengeCountFor(challenger.id),
+                activeChallengeCountFor(defender.id),
+              ) >= ladderConfig.maxActiveChallenges
+            ? 'One of these players must finish an active challenge first.'
+            : timing === 'scheduled' &&
+                (!Number.isFinite(scheduledTime) || scheduledTime <= Date.now())
+              ? 'Choose a future match date and time.'
+              : !allowedRuleSources.includes(body.matchRuleSource)
+                ? 'Choose whether to use the Ladder default or an admin override.'
+                : !resolvedRules.ok
+                  ? 'Choose a valid match format for this Ladder match.'
+                  : ''
 
     if (invalidMessage) {
       return {
@@ -2628,10 +2632,8 @@ const mockAdapter = async (config) => {
     const now = new Date().toISOString()
     const challengeId = `challenge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const matchId = `match-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    const matchConfig =
-      body.matchRuleSource === 'admin_override'
-        ? { ...overrideRules, locked: true }
-        : { ...ladderMatchConfig(ladderConfig), locked: true }
+    const rulesSnapshot = freezeMatchRulesSnapshot(resolvedRules.snapshot)
+    const matchConfig = matchRulesSnapshotToLegacyLadderConfig(rulesSnapshot)
     const scheduledAt = timing === 'scheduled' ? new Date(scheduledTime).toISOString() : null
     const status = timing === 'scheduled' ? 'scheduled' : 'live'
     const court = sanitizePlainText(body.courtId, 80)
@@ -2658,6 +2660,7 @@ const mockAdapter = async (config) => {
         defender: defender.rank,
       },
       ladderConfigSnapshot: { ...ladderConfig },
+      rulesSnapshot: freezeMatchRulesSnapshot(rulesSnapshot),
       matchConfig,
       court,
       note: '',
@@ -2677,6 +2680,7 @@ const mockAdapter = async (config) => {
       score: null,
       winnerId: null,
       matchRuleSource: body.matchRuleSource,
+      rulesSnapshot,
       matchConfig,
       ladderConfigSnapshot: challenge.ladderConfigSnapshot,
       preMatchPositions: challenge.preMatchPositions,
@@ -2730,8 +2734,7 @@ const mockAdapter = async (config) => {
     const previousMeeting = mockDatabase.challenges
       .filter((challenge) => challenge.status === 'completed')
       .filter(
-        (challenge) =>
-          (challenge.ladderId || challenge.ladderConfigSnapshot?.id) === ladderId,
+        (challenge) => (challenge.ladderId || challenge.ladderConfigSnapshot?.id) === ladderId,
       )
       .filter((challenge) => {
         const pair = new Set([challenge.challengerId, challenge.defenderId])
@@ -2753,6 +2756,12 @@ const mockAdapter = async (config) => {
 
     const rematchIsCoolingDown = previousMeetingTime > 0 && cooldownEndsAt > Date.now()
 
+    const preparedRules = ladderRulesToMatchRulesSnapshot({
+      rulesSnapshot: body.rulesSnapshot,
+      ladderConfigSnapshot: ladderConfig,
+      matchConfig: body.matchConfig || ladderMatchConfig(ladderConfig),
+    })
+
     const invalidMessage =
       ladderConfig.seasonStatus !== 'active'
         ? 'The Ladder is not accepting challenges right now.'
@@ -2767,7 +2776,9 @@ const mockAdapter = async (config) => {
                 : Math.max(challengerActiveCount, defenderActiveCount) >=
                     ladderConfig.maxActiveChallenges
                   ? 'One of these players must finish an active challenge first.'
-                  : ''
+                  : !preparedRules.ok
+                    ? 'The Ladder match format is invalid.'
+                    : ''
 
     if (invalidMessage) {
       return {
@@ -2832,11 +2843,9 @@ const mockAdapter = async (config) => {
         ...ladderConfig,
       },
 
-      matchConfig: {
-        ...ladderMatchConfig(ladderConfig),
+      rulesSnapshot: freezeMatchRulesSnapshot(preparedRules.snapshot),
 
-        locked: true,
-      },
+      matchConfig: matchRulesSnapshotToLegacyLadderConfig(preparedRules.snapshot),
 
       note: sanitizePlainText(body.note, 500),
     }
@@ -2999,6 +3008,10 @@ const mockAdapter = async (config) => {
 
         winnerId: null,
 
+        rulesSnapshot: challenge.rulesSnapshot
+          ? freezeMatchRulesSnapshot(challenge.rulesSnapshot)
+          : null,
+
         matchConfig: challenge.matchConfig,
 
         ladderConfigSnapshot: challenge.ladderConfigSnapshot,
@@ -3014,6 +3027,12 @@ const mockAdapter = async (config) => {
       match.status = challenge.status
 
       match.scheduledAt = challenge.scheduledAt
+
+      match.rulesSnapshot = match.rulesSnapshot
+        ? freezeMatchRulesSnapshot(match.rulesSnapshot)
+        : challenge.rulesSnapshot
+          ? freezeMatchRulesSnapshot(challenge.rulesSnapshot)
+          : null
     } else {
       mockDatabase.matches.push(match)
     }
@@ -3168,6 +3187,10 @@ const mockAdapter = async (config) => {
 
         winnerId: null,
 
+        rulesSnapshot: challenge.rulesSnapshot
+          ? freezeMatchRulesSnapshot(challenge.rulesSnapshot)
+          : null,
+
         matchConfig: challenge.matchConfig,
 
         ladderConfigSnapshot: challenge.ladderConfigSnapshot,
@@ -3181,6 +3204,12 @@ const mockAdapter = async (config) => {
     }
 
     match.status = 'scheduled'
+
+    match.rulesSnapshot = match.rulesSnapshot
+      ? freezeMatchRulesSnapshot(match.rulesSnapshot)
+      : challenge.rulesSnapshot
+        ? freezeMatchRulesSnapshot(challenge.rulesSnapshot)
+        : null
 
     match.scheduledAt = challenge.scheduledAt
 

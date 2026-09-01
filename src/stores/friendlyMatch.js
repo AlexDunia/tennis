@@ -14,6 +14,13 @@ import {
   toggleServer as toggleTennisServer,
   undoLastPoint,
 } from '../utils/tennisScoring'
+import { freezeMatchRulesSnapshot, validateMatchRulesSnapshot } from '../domain/matchRules'
+import { toTennisEngineConfig } from '../domain/toTennisEngineConfig'
+import {
+  friendlyRulesToMatchRulesSnapshot,
+  withFriendlyScoringFormat,
+} from '../domain/ruleAdapters/friendlyMatchRules'
+import { ladderRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/ladderMatchRules'
 /*
  * Separation 1E storage schema.
  *
@@ -42,8 +49,7 @@ const DRAFT_STORAGE_KEY = 'gorra.friendlyMatchDraft.v5'
  *
  * This prevents Court A from overwriting Court B.
  */
-const LIVE_MATCH_STORAGE_PREFIX =
-  'gorra.friendlyMatchLive.v1.'
+const LIVE_MATCH_STORAGE_PREFIX = 'gorra.friendlyMatchLive.v1.'
 const INVITATION_STORAGE_KEY = 'gorra.friendlyMatchInvitations.v2'
 const CUSTOM_FORMAT_STORAGE_KEY = 'gorra.friendlyMatchCustomFormats.v1'
 const PLAY_NOW_TTL_MS = 30 * 60 * 1000
@@ -96,6 +102,7 @@ function createDraft() {
     challengeId: '',
     ladderMatchId: '',
     ladderConfigSnapshot: null,
+    rulesSnapshot: null,
     preMatchPositions: null,
     joinToken: '',
     ownerId: '',
@@ -165,40 +172,26 @@ function normalizeLiveMatchId(value) {
 }
 
 function liveMatchStorageKey(matchId) {
-  const id =
-    normalizeLiveMatchId(matchId)
+  const id = normalizeLiveMatchId(matchId)
 
   if (!id) {
     return ''
   }
 
-  return (
-    LIVE_MATCH_STORAGE_PREFIX +
-    encodeURIComponent(id)
-  )
+  return LIVE_MATCH_STORAGE_PREFIX + encodeURIComponent(id)
 }
 
 function resolveLiveMatchId(value = {}) {
-  return normalizeLiveMatchId(
-    value.matchId ||
-      value.ladderMatchId ||
-      value.id ||
-      '',
-  )
+  return normalizeLiveMatchId(value.matchId || value.ladderMatchId || value.id || '')
 }
 
 function removeStored(key) {
-  if (
-    !key ||
-    typeof window === 'undefined'
-  ) {
+  if (!key || typeof window === 'undefined') {
     return false
   }
 
   try {
-    window.localStorage.removeItem(
-      key,
-    )
+    window.localStorage.removeItem(key)
 
     return true
   } catch {
@@ -217,15 +210,11 @@ function readArray(key) {
 }
 
 function normalizeStoredDraft(stored) {
-  if (
-    !stored ||
-    typeof stored !== 'object'
-  ) {
+  if (!stored || typeof stored !== 'object') {
     return null
   }
 
-  const empty =
-    createDraft()
+  const empty = createDraft()
 
   return {
     ...empty,
@@ -238,100 +227,43 @@ function normalizeStoredDraft(stored) {
       ...(stored.schedule || {}),
     },
 
-    customFormat:
-      stored.customFormat
-        ? normalizeCustomFormat(
-            stored.customFormat,
-          )
-        : null,
+    customFormat: stored.customFormat ? normalizeCustomFormat(stored.customFormat) : null,
 
-    setScores:
-      Array.isArray(
-        stored.setScores,
-      )
-        ? stored.setScores
-        : [],
+    setScores: Array.isArray(stored.setScores) ? stored.setScores : [],
 
-    pointHistory:
-      Array.isArray(
-        stored.pointHistory,
-      )
-        ? stored.pointHistory
-        : [],
+    pointHistory: Array.isArray(stored.pointHistory) ? stored.pointHistory : [],
 
-    scorerHistory:
-      Array.isArray(
-        stored.scorerHistory,
-      )
-        ? stored.scorerHistory.slice(
-            0,
-            20,
-          )
-        : [],
+    scorerHistory: Array.isArray(stored.scorerHistory) ? stored.scorerHistory.slice(0, 20) : [],
   }
 }
 
 function readDraft() {
-  if (
-    typeof window ===
-      'undefined' ||
-    !window.localStorage
-  ) {
+  if (typeof window === 'undefined' || !window.localStorage) {
     return createDraft()
   }
 
   try {
-    const stored =
-      JSON.parse(
-        window.localStorage.getItem(
-          DRAFT_STORAGE_KEY,
-        ) || 'null',
-      )
+    const stored = JSON.parse(window.localStorage.getItem(DRAFT_STORAGE_KEY) || 'null')
 
-    return (
-      normalizeStoredDraft(
-        stored,
-      ) ||
-      createDraft()
-    )
+    return normalizeStoredDraft(stored) || createDraft()
   } catch {
     return createDraft()
   }
 }
 
 function readLiveDraft(matchId) {
-  const id =
-    normalizeLiveMatchId(
-      matchId,
-    )
+  const id = normalizeLiveMatchId(matchId)
 
-  const key =
-    liveMatchStorageKey(
-      id,
-    )
+  const key = liveMatchStorageKey(id)
 
-  if (
-    !id ||
-    !key ||
-    typeof window ===
-      'undefined' ||
-    !window.localStorage
-  ) {
+  if (!id || !key || typeof window === 'undefined' || !window.localStorage) {
     return null
   }
 
   try {
-    const stored =
-      JSON.parse(
-        window.localStorage.getItem(
-          key,
-        ) || 'null',
-      )
+    const stored = JSON.parse(window.localStorage.getItem(key) || 'null')
 
-    const normalized =
-      normalizeStoredDraft(
-        stored,
-      )
+    const normalized = normalizeStoredDraft(stored)
 
     if (!normalized) {
       return null
@@ -344,23 +276,11 @@ function readLiveDraft(matchId) {
      * Knowing another storage key must never
      * allow one match to masquerade as another.
      */
-    if (
-      resolveLiveMatchId(
-        normalized,
-      ) !== id
-    ) {
+    if (resolveLiveMatchId(normalized) !== id) {
       return null
     }
 
-    if (
-      !normalized.liveState ||
-      ![
-        'live',
-        'finished',
-      ].includes(
-        normalized.status,
-      )
-    ) {
+    if (!normalized.liveState || !['live', 'finished'].includes(normalized.status)) {
       return null
     }
 
@@ -371,55 +291,57 @@ function readLiveDraft(matchId) {
 }
 
 function engineConfigForDraft(value) {
-  const rules = rulesForDraft(value)
+  if (value.rulesSnapshot) {
+    const validation = validateMatchRulesSnapshot(value.rulesSnapshot)
+    if (!validation.valid) {
+      return {
+        ok: false,
+        state: 'invalid',
+        snapshot: null,
+        issues: validation.errors,
+        warnings: validation.warnings,
+      }
+    }
+    const snapshot = freezeMatchRulesSnapshot(value.rulesSnapshot)
+    return {
+      ok: true,
+      state: 'resolved',
+      snapshot,
+      issues: [],
+      warnings: validation.warnings,
+      config: toTennisEngineConfig(snapshot),
+    }
+  }
 
-  const useDecidingMatchTieBreak =
-    value.matchType === 'ladder' &&
-    (value.ladderConfigSnapshot?.matchPreset === 'time-smart' ||
-      value.ladderConfigSnapshot?.decidingMatchTieBreak === true)
+  const adapted =
+    value.matchType === 'ladder'
+      ? ladderRulesToMatchRulesSnapshot({
+          ladderConfigSnapshot: value.ladderConfigSnapshot,
+          matchConfig:
+            value.matchConfig ||
+            (value.ladderConfigSnapshot ? ladderMatchConfig(value.ladderConfigSnapshot) : null),
+        })
+      : friendlyRulesToMatchRulesSnapshot(value)
 
+  if (!adapted.ok) {
+    return adapted
+  }
+
+  const snapshot = freezeMatchRulesSnapshot(adapted.snapshot)
   return {
-    mode: rules.mode,
-
-    scoring: value.format === 'noad' ? 'noad' : 'ad',
-
-    setsToWin: rules.setsToWin,
-
-    /*
-     * Gorra's existing custom-format model stores
-     * setsToWin rather than bestOfSets.
-     *
-     * Convert it once here instead of teaching the
-     * tennis engine about FriendlyMatchStore.
-     */
-    bestOfSets: rules.mode === 'sets' ? Math.max(1, rules.setsToWin * 2 - 1) : 1,
-
-    gamesPerSet: rules.gamesPerSet,
-
-    tieBreakAt: rules.tieBreakAt,
-
-    tieBreakPoints: rules.tieBreakPoints,
-
-    decidingMatchTieBreak: useDecidingMatchTieBreak,
-
-    decidingTieBreakPoints: 10,
+    ...adapted,
+    snapshot,
+    config: toTennisEngineConfig(snapshot),
   }
 }
 
 function persist(key, value) {
-  if (
-    !key ||
-    typeof window ===
-      'undefined'
-  ) {
+  if (!key || typeof window === 'undefined') {
     return false
   }
 
   try {
-    window.localStorage.setItem(
-      key,
-      JSON.stringify(value),
-    )
+    window.localStorage.setItem(key, JSON.stringify(value))
 
     return true
   } catch {
@@ -511,6 +433,34 @@ function clampInteger(value, minimum, maximum, fallback) {
 }
 
 function normalizeCustomFormat(format = {}) {
+  if (format.rulesSnapshot) {
+    const validation = validateMatchRulesSnapshot(format.rulesSnapshot)
+    if (validation.valid) {
+      const rulesSnapshot = freezeMatchRulesSnapshot(format.rulesSnapshot)
+      const isTieBreak = rulesSnapshot.match.mode === 'tiebreak'
+      return {
+        id: String(format.id || `custom-${createToken()}`),
+        name:
+          String(format.name || 'Custom format')
+            .trim()
+            .slice(0, 40) || 'Custom format',
+        rulesSnapshot,
+        mode: isTieBreak ? 'tiebreak' : 'sets',
+        setsToWin: isTieBreak ? 1 : rulesSnapshot.match.setsToWin,
+        gamesPerSet: isTieBreak ? 0 : rulesSnapshot.set.gamesToWin,
+        setWinBy: isTieBreak ? 0 : rulesSnapshot.set.winBy,
+        tieBreakAt:
+          !isTieBreak && rulesSnapshot.set.tiedAtTarget.mode === 'tiebreak'
+            ? rulesSnapshot.set.gamesToWin
+            : 0,
+        tieBreakPoints: isTieBreak
+          ? rulesSnapshot.match.tiebreak.pointsToWin
+          : rulesSnapshot.set.tiedAtTarget.tiebreak?.pointsToWin || 7,
+        createdAt: format.createdAt || new Date().toISOString(),
+      }
+    }
+  }
+
   const mode = format.mode === 'tiebreak' ? 'tiebreak' : 'sets'
   const gamesPerSet = clampInteger(format.gamesPerSet, 1, 9, 6)
   return {
@@ -541,71 +491,45 @@ function rulesForDraft(value) {
   }
 }
 
-export const useFriendlyMatchStore = defineStore(
-  'friendlyMatch',
-  () => {
-    const initialDraft =
-      readDraft()
+export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
+  const initialDraft = readDraft()
 
-    /*
-     * Migration from the previous single-draft
-     * development architecture.
-     *
-     * If the old setup key happens to contain an
-     * already-live match, move it into the new
-     * match-scoped namespace instead of destroying
-     * somebody's active development match.
-     */
-    const legacyLiveMatchId =
-      initialDraft.liveState &&
-      [
-        'live',
-        'finished',
-      ].includes(
-        initialDraft.status,
-      )
-        ? resolveLiveMatchId(
-            initialDraft,
-          )
-        : ''
+  /*
+   * Migration from the previous single-draft
+   * development architecture.
+   *
+   * If the old setup key happens to contain an
+   * already-live match, move it into the new
+   * match-scoped namespace instead of destroying
+   * somebody's active development match.
+   */
+  const legacyLiveMatchId =
+    initialDraft.liveState && ['live', 'finished'].includes(initialDraft.status)
+      ? resolveLiveMatchId(initialDraft)
+      : ''
 
-    const activeLiveMatchId =
-      ref(
-        legacyLiveMatchId,
-      )
+  const activeLiveMatchId = ref(legacyLiveMatchId)
 
-    /*
-     * Detached means:
-     *
-     * this store intentionally has no setup draft
-     * and no writable live session bound to it.
-     *
-     * This is useful immediately after a live match
-     * completes or disappears in another tab.
-     */
-    const draftDetached =
-      ref(false)
+  /*
+   * Detached means:
+   *
+   * this store intentionally has no setup draft
+   * and no writable live session bound to it.
+   *
+   * This is useful immediately after a live match
+   * completes or disappears in another tab.
+   */
+  const draftDetached = ref(false)
 
-    const draft =
-      ref(initialDraft)
+  const draft = ref(initialDraft)
 
-    if (
-      legacyLiveMatchId
-    ) {
-      const migrated =
-        persist(
-          liveMatchStorageKey(
-            legacyLiveMatchId,
-          ),
-          initialDraft,
-        )
+  if (legacyLiveMatchId) {
+    const migrated = persist(liveMatchStorageKey(legacyLiveMatchId), initialDraft)
 
-      if (migrated) {
-        removeStored(
-          DRAFT_STORAGE_KEY,
-        )
-      }
+    if (migrated) {
+      removeStored(DRAFT_STORAGE_KEY)
     }
+  }
   const results = ref(readArray(RESULT_STORAGE_KEY))
   const invitations = ref(readArray(INVITATION_STORAGE_KEY))
   const savedFormats = ref(readArray(CUSTOM_FORMAT_STORAGE_KEY).map(normalizeCustomFormat))
@@ -617,13 +541,14 @@ export const useFriendlyMatchStore = defineStore(
     )
   })
 
-  const liveMatchId =
-    computed(
-      () =>
-        activeLiveMatchId.value,
-    )
+  const liveMatchId = computed(() => activeLiveMatchId.value)
 
-  const formatLabel = computed(() => (draft.value.format === 'noad' ? 'No-Ad' : 'Advantage'))
+  const formatLabel = computed(() => {
+    const game = draft.value.rulesSnapshot?.game || draft.value.customFormat?.rulesSnapshot?.game
+    if (game?.mode === 'numeric') return 'Simple points'
+    if (game?.mode === 'traditional') return game.deuce === 'no_ad' ? 'No-Ad' : 'Advantage'
+    return draft.value.format === 'noad' ? 'No-Ad' : 'Advantage'
+  })
   const matchTypeLabel = computed(() =>
     draft.value.matchType === 'ladder' ? 'Ladder challenge' : 'Friendly match',
   )
@@ -718,17 +643,12 @@ export const useFriendlyMatchStore = defineStore(
     return `${labels[Math.min(pointsA, 3)]}–${labels[Math.min(pointsB, 3)]}`
   })
 
-  function persistCurrentDraft(
-    value = draft.value,
-  ) {
-    if (
-      draftDetached.value
-    ) {
+  function persistCurrentDraft(value = draft.value) {
+    if (draftDetached.value) {
       return false
     }
 
-    const liveId =
-      activeLiveMatchId.value
+    const liveId = activeLiveMatchId.value
 
     if (liveId) {
       /*
@@ -738,35 +658,21 @@ export const useFriendlyMatchStore = defineStore(
        * belong to the match represented by
        * this storage key.
        */
-      if (
-        resolveLiveMatchId(
-          value,
-        ) !== liveId
-      ) {
+      if (resolveLiveMatchId(value) !== liveId) {
         return false
       }
 
-      return persist(
-        liveMatchStorageKey(
-          liveId,
-        ),
-        value,
-      )
+      return persist(liveMatchStorageKey(liveId), value)
     }
 
-    return persist(
-      DRAFT_STORAGE_KEY,
-      value,
-    )
+    return persist(DRAFT_STORAGE_KEY, value)
   }
 
   watch(
     draft,
 
     (value) => {
-      persistCurrentDraft(
-        value,
-      )
+      persistCurrentDraft(value)
     },
 
     {
@@ -783,41 +689,27 @@ export const useFriendlyMatchStore = defineStore(
      * whichever live match happened to be loaded
      * in this tab.
      */
-    if (
-      activeLiveMatchId.value
-    ) {
+    if (activeLiveMatchId.value) {
       persistCurrentDraft()
 
-      activeLiveMatchId.value =
-        ''
+      activeLiveMatchId.value = ''
 
-      draftDetached.value =
-        false
+      draftDetached.value = false
 
-      draft.value =
-        readDraft()
+      draft.value = readDraft()
 
       return
     }
 
-    if (
-      draftDetached.value
-    ) {
-      draftDetached.value =
-        false
+    if (draftDetached.value) {
+      draftDetached.value = false
 
-      draft.value =
-        readDraft()
+      draft.value = readDraft()
     }
   }
 
-  function clearStartedSetupDraft(
-    matchId,
-  ) {
-    const id =
-      normalizeLiveMatchId(
-        matchId,
-      )
+  function clearStartedSetupDraft(matchId) {
+    const id = normalizeLiveMatchId(matchId)
 
     if (!id) {
       return false
@@ -829,35 +721,19 @@ export const useFriendlyMatchStore = defineStore(
      * Another tab may already be preparing
      * another match.
      */
-    const currentSetup =
-      readDraft()
+    const currentSetup = readDraft()
 
-    if (
-      resolveLiveMatchId(
-        currentSetup,
-      ) !== id
-    ) {
+    if (resolveLiveMatchId(currentSetup) !== id) {
       return false
     }
 
-    return removeStored(
-      DRAFT_STORAGE_KEY,
-    )
+    return removeStored(DRAFT_STORAGE_KEY)
   }
 
-  function isCurrentLiveStorageKey(
-    key,
-  ) {
-    const liveId =
-      activeLiveMatchId.value
+  function isCurrentLiveStorageKey(key) {
+    const liveId = activeLiveMatchId.value
 
-    return Boolean(
-      liveId &&
-        key ===
-          liveMatchStorageKey(
-            liveId,
-          ),
-    )
+    return Boolean(liveId && key === liveMatchStorageKey(liveId))
   }
 
   function canManageMatch(actorId = '') {
@@ -887,23 +763,17 @@ export const useFriendlyMatchStore = defineStore(
     clubId = '',
     authorized = false,
   }) {
-    const actor =
-      normalizeAuthorityId(actorId)
+    const actor = normalizeAuthorityId(actorId)
 
-    const next =
-      normalizeAuthorityId(
-        nextScorerId,
-      )
+    const next = normalizeAuthorityId(nextScorerId)
 
     if (!actor || !next) {
       return false
     }
 
-    const ownerAuthorized =
-      canManageMatch(actor)
+    const ownerAuthorized = canManageMatch(actor)
 
-    const requestedClubId =
-      normalizeAuthorityId(clubId)
+    const requestedClubId = normalizeAuthorityId(clubId)
 
     /*
      * Frontend/mock equivalent only.
@@ -915,18 +785,13 @@ export const useFriendlyMatchStore = defineStore(
      * server-side rather than trusting the client.
      */
     const adminOverrideAuthorized =
-      authorization ===
-        'admin_override' &&
+      authorization === 'admin_override' &&
       authorized === true &&
       Boolean(requestedClubId) &&
       Boolean(draft.value.clubId) &&
-      requestedClubId ===
-        draft.value.clubId
+      requestedClubId === draft.value.clubId
 
-    if (
-      !ownerAuthorized &&
-      !adminOverrideAuthorized
-    ) {
+    if (!ownerAuthorized && !adminOverrideAuthorized) {
       return false
     }
 
@@ -934,18 +799,11 @@ export const useFriendlyMatchStore = defineStore(
      * Authority can only change while a real live
      * session exists.
      */
-    if (
-      draft.value.status !== 'live' ||
-      !draft.value.liveState ||
-      draft.value.over
-    ) {
+    if (draft.value.status !== 'live' || !draft.value.liveState || draft.value.over) {
       return false
     }
 
-    const previous =
-      normalizeAuthorityId(
-        draft.value.scorerId,
-      )
+    const previous = normalizeAuthorityId(draft.value.scorerId)
 
     /*
      * Idempotent duplicate request.
@@ -954,17 +812,9 @@ export const useFriendlyMatchStore = defineStore(
       return true
     }
 
-    const changedAt =
-      new Date().toISOString()
+    const changedAt = new Date().toISOString()
 
-    const revision =
-      Math.max(
-        0,
-        Number(
-          draft.value.scorerRevision ||
-            0,
-        ),
-      ) + 1
+    const revision = Math.max(0, Number(draft.value.scorerRevision || 0)) + 1
 
     const historyEntry = {
       revision,
@@ -979,44 +829,27 @@ export const useFriendlyMatchStore = defineStore(
         .trim()
         .slice(0, 80),
 
-      sourceId:
-        normalizeAuthorityId(
-          sourceId,
-        ),
+      sourceId: normalizeAuthorityId(sourceId),
 
-      authorization:
-        adminOverrideAuthorized
-          ? 'admin_override'
-          : 'owner',
+      authorization: adminOverrideAuthorized ? 'admin_override' : 'owner',
 
-      clubId:
-        draft.value.clubId || '',
+      clubId: draft.value.clubId || '',
 
       changedAt,
     }
 
-    draft.value.scorerId =
-      next
+    draft.value.scorerId = next
 
-    draft.value.scorerRevision =
-      revision
+    draft.value.scorerRevision = revision
 
-    draft.value.scorerChangedAt =
-      changedAt
+    draft.value.scorerChangedAt = changedAt
 
-    draft.value.scorerChangedBy =
-      actor
+    draft.value.scorerChangedBy = actor
 
     draft.value.scorerHistory = [
       historyEntry,
 
-      ...(
-        Array.isArray(
-          draft.value.scorerHistory,
-        )
-          ? draft.value.scorerHistory
-          : []
-      ),
+      ...(Array.isArray(draft.value.scorerHistory) ? draft.value.scorerHistory : []),
     ].slice(0, 20)
 
     /*
@@ -1060,21 +893,12 @@ export const useFriendlyMatchStore = defineStore(
     })
   }
 
-  function emergencyOverrideScoringAuthority({
-    actorId,
-    clubId,
-    authorized = false,
-  }) {
-    const actor =
-      normalizeAuthorityId(actorId)
+  function emergencyOverrideScoringAuthority({ actorId, clubId, authorized = false }) {
+    const actor = normalizeAuthorityId(actorId)
 
-    const matchClubId =
-      normalizeAuthorityId(
-        draft.value.clubId,
-      )
+    const matchClubId = normalizeAuthorityId(draft.value.clubId)
 
-    const requestedClubId =
-      normalizeAuthorityId(clubId)
+    const requestedClubId = normalizeAuthorityId(clubId)
 
     if (
       !actor ||
@@ -1098,13 +922,11 @@ export const useFriendlyMatchStore = defineStore(
 
       nextScorerId: actor,
 
-      reason:
-        'admin_emergency_override',
+      reason: 'admin_emergency_override',
 
       sourceId: '',
 
-      authorization:
-        'admin_override',
+      authorization: 'admin_override',
 
       clubId: requestedClubId,
 
@@ -1119,11 +941,7 @@ export const useFriendlyMatchStore = defineStore(
      * Never erase live match identity because somebody
      * called a setup-only cancellation function.
      */
-    if (
-      activeLiveMatchId.value ||
-      draft.value.liveState ||
-      draft.value.status === 'live'
-    ) {
+    if (activeLiveMatchId.value || draft.value.liveState || draft.value.status === 'live') {
       return false
     }
 
@@ -1167,20 +985,13 @@ export const useFriendlyMatchStore = defineStore(
      */
     cancelActiveInvitation()
 
-    draftDetached.value =
-      false
+    draftDetached.value = false
 
     draft.value = createDraft()
 
-    persist(
-      DRAFT_STORAGE_KEY,
-      draft.value,
-    )
+    persist(DRAFT_STORAGE_KEY, draft.value)
 
-    persist(
-      INVITATION_STORAGE_KEY,
-      invitations.value,
-    )
+    persist(INVITATION_STORAGE_KEY, invitations.value)
 
     return draft.value
   }
@@ -1239,6 +1050,11 @@ export const useFriendlyMatchStore = defineStore(
     draft.value.customFormat = null
     draft.value.tieBreak = '6-6'
     draft.value.ladderConfigSnapshot = { ...ladderConfig }
+    const adapted = ladderRulesToMatchRulesSnapshot({
+      ladderConfigSnapshot: draft.value.ladderConfigSnapshot,
+      matchConfig: ladderMatchConfig(ladderConfig),
+    })
+    draft.value.rulesSnapshot = adapted.ok ? freezeMatchRulesSnapshot(adapted.snapshot) : null
     resetScore()
     return ladderMatchConfig(ladderConfig)
   }
@@ -1359,6 +1175,7 @@ export const useFriendlyMatchStore = defineStore(
         scoring: draft.value.format,
         matchFormat: draft.value.matchFormat,
         customFormat: draft.value.customFormat ? { ...draft.value.customFormat } : null,
+        rulesSnapshot: draft.value.rulesSnapshot,
         tieBreak: draft.value.tieBreak,
       },
 
@@ -1447,6 +1264,16 @@ export const useFriendlyMatchStore = defineStore(
     if (!['ad', 'noad'].includes(format)) return
     const changed = draft.value.format !== format
     draft.value.format = format
+    if (changed && draft.value.matchFormat === 'custom' && draft.value.rulesSnapshot) {
+      const rulesSnapshot = withFriendlyScoringFormat(draft.value.rulesSnapshot, format)
+      draft.value.rulesSnapshot = rulesSnapshot
+      if (draft.value.customFormat) {
+        draft.value.customFormat = {
+          ...draft.value.customFormat,
+          rulesSnapshot,
+        }
+      }
+    }
     if (changed) resetScore()
   }
 
@@ -1455,6 +1282,7 @@ export const useFriendlyMatchStore = defineStore(
     const changed = draft.value.matchFormat !== matchFormat || Boolean(draft.value.customFormat)
     draft.value.matchFormat = matchFormat
     draft.value.customFormat = null
+    draft.value.rulesSnapshot = null
     if (changed) resetScore()
   }
 
@@ -1465,6 +1293,7 @@ export const useFriendlyMatchStore = defineStore(
       JSON.stringify(draft.value.customFormat) !== JSON.stringify(normalized)
     draft.value.matchFormat = 'custom'
     draft.value.customFormat = normalized
+    draft.value.rulesSnapshot = normalized.rulesSnapshot || null
     if (changed) resetScore()
     return normalized
   }
@@ -1716,6 +1545,9 @@ export const useFriendlyMatchStore = defineStore(
       (draft.value.ownerId && creatorIdentity.id !== draft.value.ownerId)
     )
       return null
+    const resolvedRules = engineConfigForDraft(draft.value)
+    if (!resolvedRules.ok) return null
+    draft.value.rulesSnapshot = resolvedRules.snapshot
     const now = Date.now()
     const invitation = {
       id: draft.value.matchId || `friendly-scheduled-${now}-${createToken().slice(0, 6)}`,
@@ -1729,6 +1561,7 @@ export const useFriendlyMatchStore = defineStore(
       scoring: draft.value.format,
       matchFormat: draft.value.matchFormat,
       customFormat: draft.value.customFormat ? { ...draft.value.customFormat } : null,
+      rulesSnapshot: resolvedRules.snapshot,
       tieBreak: draft.value.tieBreak,
       createdAt: new Date(now).toISOString(),
       updatedAt: new Date(now).toISOString(),
@@ -1743,37 +1576,24 @@ export const useFriendlyMatchStore = defineStore(
     return invitation
   }
 
-  function startLiveMatch(
-    actorId = '',
-    clubId = '',
-  ) {
+  function startLiveMatch(actorId = '', clubId = '') {
     if (!actorId) {
       return false
     }
 
-    const normalizedClubId =
-      normalizeAuthorityId(clubId)
+    const normalizedClubId = normalizeAuthorityId(clubId)
 
     /*
      * Once a live session belongs to a club,
      * another active-club selection may not
      * silently rebind it.
      */
-    if (
-      draft.value.clubId &&
-      normalizedClubId &&
-      draft.value.clubId !==
-        normalizedClubId
-    ) {
+    if (draft.value.clubId && normalizedClubId && draft.value.clubId !== normalizedClubId) {
       return false
     }
 
-    if (
-      !draft.value.clubId &&
-      normalizedClubId
-    ) {
-      draft.value.clubId =
-        normalizedClubId
+    if (!draft.value.clubId && normalizedClubId) {
+      draft.value.clubId = normalizedClubId
     }
 
     /*
@@ -1856,6 +1676,17 @@ export const useFriendlyMatchStore = defineStore(
     const creatorName = activeInvitation.value?.creator?.name || 'You'
 
     const opponentName = draft.value.opponent?.name || 'Opponent'
+    const resolvedRules = engineConfigForDraft(draft.value)
+
+    /*
+     * Serious/ambiguous rule mistakes must not be silently replaced by engine
+     * defaults. Once play starts this snapshot is retained unchanged.
+     */
+    if (!resolvedRules.ok) {
+      return false
+    }
+
+    draft.value.rulesSnapshot = resolvedRules.snapshot
 
     /*
      * Never recreate a score merely because Start
@@ -1871,7 +1702,7 @@ export const useFriendlyMatchStore = defineStore(
           playerB: opponentName,
         },
 
-        config: engineConfigForDraft(draft.value),
+        config: resolvedRules.config,
 
         startedAt,
         status: 'live',
@@ -1883,7 +1714,7 @@ export const useFriendlyMatchStore = defineStore(
           playerB: opponentName,
         },
 
-        config: engineConfigForDraft(draft.value),
+        config: resolvedRules.config,
 
         startedAt,
 
@@ -1922,6 +1753,17 @@ export const useFriendlyMatchStore = defineStore(
         startedAt: invitation.startedAt || startedAt,
 
         updatedAt: now,
+
+        rulesSnapshot: resolvedRules.snapshot,
+
+        matchSetup: {
+          ...(invitation.matchSetup || {}),
+          scoring: draft.value.format,
+          matchFormat: draft.value.matchFormat,
+          customFormat: draft.value.customFormat ? { ...draft.value.customFormat } : null,
+          rulesSnapshot: resolvedRules.snapshot,
+          tieBreak: draft.value.tieBreak,
+        },
       }
 
       invitations.value = invitations.value.map((item) =>
@@ -1940,10 +1782,7 @@ export const useFriendlyMatchStore = defineStore(
      * Both the draft and invitation must already agree before
      * the application navigates to Match Control.
      */
-    const liveId =
-      resolveLiveMatchId(
-        draft.value,
-      )
+    const liveId = resolveLiveMatchId(draft.value)
 
     if (!liveId) {
       return false
@@ -1953,18 +1792,15 @@ export const useFriendlyMatchStore = defineStore(
      * Bind this store instance to this specific
      * live match BEFORE future deep-watcher writes.
      */
-    activeLiveMatchId.value =
-      liveId
+    activeLiveMatchId.value = liveId
 
-    draftDetached.value =
-      false
+    draftDetached.value = false
 
     /*
      * The live record must exist before we release
      * the temporary setup record.
      */
-    const livePersisted =
-      persistCurrentDraft()
+    const livePersisted = persistCurrentDraft()
 
     if (!livePersisted) {
       /*
@@ -1974,16 +1810,12 @@ export const useFriendlyMatchStore = defineStore(
        * If it cannot be persisted, fail closed rather
        * than pretending Match Control safely started.
        */
-      activeLiveMatchId.value =
-        ''
+      activeLiveMatchId.value = ''
 
       return false
     }
 
-    persist(
-      INVITATION_STORAGE_KEY,
-      invitations.value,
-    )
+    persist(INVITATION_STORAGE_KEY, invitations.value)
 
     /*
      * Remove the old setup only if it still belongs
@@ -1991,9 +1823,7 @@ export const useFriendlyMatchStore = defineStore(
      *
      * Another tab may already be creating Court B.
      */
-    clearStartedSetupDraft(
-      liveId,
-    )
+    clearStartedSetupDraft(liveId)
 
     return true
   }
@@ -2002,6 +1832,11 @@ export const useFriendlyMatchStore = defineStore(
     draft.value.challengeId = challenge?.id || draft.value.challengeId
 
     draft.value.ladderMatchId = match?.id || draft.value.ladderMatchId
+
+    const rulesSnapshot = match?.rulesSnapshot || challenge?.rulesSnapshot
+    if (rulesSnapshot && validateMatchRulesSnapshot(rulesSnapshot).valid) {
+      draft.value.rulesSnapshot = freezeMatchRulesSnapshot(rulesSnapshot)
+    }
 
     draft.value.preMatchPositions = challenge?.preMatchPositions || {
       challenger: Number(challenge?.challengerRank || 0) || null,
@@ -2160,9 +1995,7 @@ export const useFriendlyMatchStore = defineStore(
       return false
     }
 
-    if (
-      activeLiveMatchId.value
-    ) {
+    if (activeLiveMatchId.value) {
       refreshDraft()
     }
 
@@ -2194,9 +2027,7 @@ export const useFriendlyMatchStore = defineStore(
   }
 
   function undoPoint(actorId = '') {
-    if (
-      activeLiveMatchId.value
-    ) {
+    if (activeLiveMatchId.value) {
       refreshDraft()
     }
 
@@ -2228,9 +2059,7 @@ export const useFriendlyMatchStore = defineStore(
       return false
     }
 
-    if (
-      activeLiveMatchId.value
-    ) {
+    if (activeLiveMatchId.value) {
       refreshDraft()
     }
 
@@ -2263,9 +2092,7 @@ export const useFriendlyMatchStore = defineStore(
   }
 
   function toggleServer(actorId = '') {
-    if (
-      activeLiveMatchId.value
-    ) {
+    if (activeLiveMatchId.value) {
       refreshDraft()
     }
 
@@ -2292,10 +2119,7 @@ export const useFriendlyMatchStore = defineStore(
     return true
   }
 
-  function mergeLiveDraftSnapshots(
-    current,
-    stored,
-  ) {
+  function mergeLiveDraftSnapshots(current, stored) {
     if (!current) {
       return stored
     }
@@ -2304,84 +2128,36 @@ export const useFriendlyMatchStore = defineStore(
       return current
     }
 
-    const currentId =
-      resolveLiveMatchId(
-        current,
-      )
+    const currentId = resolveLiveMatchId(current)
 
-    const storedId =
-      resolveLiveMatchId(
-        stored,
-      )
+    const storedId = resolveLiveMatchId(stored)
 
-    if (
-      !currentId ||
-      currentId !== storedId
-    ) {
+    if (!currentId || currentId !== storedId) {
       return stored
     }
 
-    const currentScoreRevision =
-      Number(
-        current.liveState
-          ?.revision || 0,
-      )
+    const currentScoreRevision = Number(current.liveState?.revision || 0)
 
-    const storedScoreRevision =
-      Number(
-        stored.liveState
-          ?.revision || 0,
-      )
+    const storedScoreRevision = Number(stored.liveState?.revision || 0)
 
-    const scoreSource =
-      storedScoreRevision >=
-      currentScoreRevision
-        ? stored
-        : current
+    const scoreSource = storedScoreRevision >= currentScoreRevision ? stored : current
 
-    const currentAuthorityRevision =
-      Number(
-        current.scorerRevision ||
-          0,
-      )
+    const currentAuthorityRevision = Number(current.scorerRevision || 0)
 
-    const storedAuthorityRevision =
-      Number(
-        stored.scorerRevision ||
-          0,
-      )
+    const storedAuthorityRevision = Number(stored.scorerRevision || 0)
 
-    let authoritySource =
-      storedAuthorityRevision >=
-      currentAuthorityRevision
-        ? stored
-        : current
+    let authoritySource = storedAuthorityRevision >= currentAuthorityRevision ? stored : current
 
     /*
      * Same authority revision:
      * use the later explicit authority timestamp.
      */
-    if (
-      storedAuthorityRevision ===
-      currentAuthorityRevision
-    ) {
-      const currentChangedAt =
-        new Date(
-          current.scorerChangedAt ||
-            0,
-        ).getTime()
+    if (storedAuthorityRevision === currentAuthorityRevision) {
+      const currentChangedAt = new Date(current.scorerChangedAt || 0).getTime()
 
-      const storedChangedAt =
-        new Date(
-          stored.scorerChangedAt ||
-            0,
-        ).getTime()
+      const storedChangedAt = new Date(stored.scorerChangedAt || 0).getTime()
 
-      authoritySource =
-        storedChangedAt >=
-        currentChangedAt
-          ? stored
-          : current
+      authoritySource = storedChangedAt >= currentChangedAt ? stored : current
     }
 
     return {
@@ -2396,39 +2172,23 @@ export const useFriendlyMatchStore = defineStore(
        * Never throw away a newer score merely because
        * another tab contains a newer scorer revision.
        */
-      liveState:
-        scoreSource.liveState,
+      liveState: scoreSource.liveState,
 
-      startedAt:
-        scoreSource.startedAt,
+      startedAt: scoreSource.startedAt,
 
-      status:
-        scoreSource.status,
+      status: scoreSource.status,
 
-      scorerId:
-        authoritySource.scorerId,
+      scorerId: authoritySource.scorerId,
 
-      scorerRevision:
-        authoritySource
-          .scorerRevision,
+      scorerRevision: authoritySource.scorerRevision,
 
-      scorerChangedAt:
-        authoritySource
-          .scorerChangedAt,
+      scorerChangedAt: authoritySource.scorerChangedAt,
 
-      scorerChangedBy:
-        authoritySource
-          .scorerChangedBy,
+      scorerChangedBy: authoritySource.scorerChangedBy,
 
-      scorerHistory:
-        Array.isArray(
-          authoritySource
-            .scorerHistory,
-        )
-          ? authoritySource
-              .scorerHistory
-              .slice(0, 20)
-          : [],
+      scorerHistory: Array.isArray(authoritySource.scorerHistory)
+        ? authoritySource.scorerHistory.slice(0, 20)
+        : [],
     }
   }
 
@@ -2447,15 +2207,10 @@ export const useFriendlyMatchStore = defineStore(
    * Laravel will eventually replace this query with an
    * authenticated server-side equivalent.
    */
-  function listLiveMatchesForUser({
-    clubId = '',
-    actorId = '',
-  } = {}) {
-    const requestedClubId =
-      normalizeAuthorityId(clubId)
+  function listLiveMatchesForUser({ clubId = '', actorId = '' } = {}) {
+    const requestedClubId = normalizeAuthorityId(clubId)
 
-    const requestedActorId =
-      normalizeAuthorityId(actorId)
+    const requestedActorId = normalizeAuthorityId(actorId)
 
     /*
      * Fail closed.
@@ -2463,54 +2218,33 @@ export const useFriendlyMatchStore = defineStore(
      * Without both club and actor identity there is no
      * legitimate personal Home projection to return.
      */
-    if (
-      !requestedClubId ||
-      !requestedActorId ||
-      typeof window === 'undefined'
-    ) {
+    if (!requestedClubId || !requestedActorId || typeof window === 'undefined') {
       return []
     }
 
     const matches = []
 
     try {
-      const storage =
-        window.localStorage
+      const storage = window.localStorage
 
-      for (
-        let index = 0;
-        index < storage.length;
-        index += 1
-      ) {
-        const key =
-          storage.key(index) || ''
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index) || ''
 
-        if (
-          !key.startsWith(
-            LIVE_MATCH_STORAGE_PREFIX,
-          )
-        ) {
+        if (!key.startsWith(LIVE_MATCH_STORAGE_PREFIX)) {
           continue
         }
 
-        const encodedMatchId =
-          key.slice(
-            LIVE_MATCH_STORAGE_PREFIX.length,
-          )
+        const encodedMatchId = key.slice(LIVE_MATCH_STORAGE_PREFIX.length)
 
         let matchId = ''
 
         try {
-          matchId =
-            decodeURIComponent(
-              encodedMatchId,
-            )
+          matchId = decodeURIComponent(encodedMatchId)
         } catch {
           continue
         }
 
-        const match =
-          readLiveDraft(matchId)
+        const match = readLiveDraft(matchId)
 
         if (
           !match ||
@@ -2525,11 +2259,7 @@ export const useFriendlyMatchStore = defineStore(
         /*
          * Active-club isolation.
          */
-        if (
-          normalizeAuthorityId(
-            match.clubId,
-          ) !== requestedClubId
-        ) {
+        if (normalizeAuthorityId(match.clubId) !== requestedClubId) {
           continue
         }
 
@@ -2545,24 +2275,13 @@ export const useFriendlyMatchStore = defineStore(
          * opponent:
          * second match participant
          */
-        const relationshipIds =
-          new Set(
-            [
-              match.ownerId,
-              match.scorerId,
-              match.opponent?.id,
-            ]
-              .map(
-                normalizeAuthorityId,
-              )
-              .filter(Boolean),
-          )
+        const relationshipIds = new Set(
+          [match.ownerId, match.scorerId, match.opponent?.id]
+            .map(normalizeAuthorityId)
+            .filter(Boolean),
+        )
 
-        if (
-          !relationshipIds.has(
-            requestedActorId,
-          )
-        ) {
+        if (!relationshipIds.has(requestedActorId)) {
           continue
         }
 
@@ -2586,13 +2305,8 @@ export const useFriendlyMatchStore = defineStore(
    * remain idle when nothing changes and react only when
    * another browser tab actually changes live-match state.
    */
-  function subscribeToLiveMatchChanges(
-    callback,
-  ) {
-    if (
-      typeof callback !== 'function' ||
-      typeof window === 'undefined'
-    ) {
+  function subscribeToLiveMatchChanges(callback) {
+    if (typeof callback !== 'function' || typeof window === 'undefined') {
       return () => {}
     }
 
@@ -2600,48 +2314,26 @@ export const useFriendlyMatchStore = defineStore(
       /*
        * key === null means localStorage was cleared.
        */
-      if (
-        event.key !== null &&
-        !event.key.startsWith(
-          LIVE_MATCH_STORAGE_PREFIX,
-        )
-      ) {
+      if (event.key !== null && !event.key.startsWith(LIVE_MATCH_STORAGE_PREFIX)) {
         return
       }
 
       callback()
     }
 
-    window.addEventListener(
-      'storage',
-      handleStorage,
-    )
+    window.addEventListener('storage', handleStorage)
 
     return () => {
-      window.removeEventListener(
-        'storage',
-        handleStorage,
-      )
+      window.removeEventListener('storage', handleStorage)
     }
   }
 
-  function hasLiveMatch(
-    matchId,
-  ) {
-    return Boolean(
-      readLiveDraft(
-        matchId,
-      ),
-    )
+  function hasLiveMatch(matchId) {
+    return Boolean(readLiveDraft(matchId))
   }
 
-  function loadLiveMatch(
-    matchId,
-  ) {
-    const id =
-      normalizeLiveMatchId(
-        matchId,
-      )
+  function loadLiveMatch(matchId) {
+    const id = normalizeLiveMatchId(matchId)
 
     if (!id) {
       return null
@@ -2651,31 +2343,21 @@ export const useFriendlyMatchStore = defineStore(
      * Persist the previously loaded live court
      * before changing this tab's working context.
      */
-    if (
-      activeLiveMatchId.value &&
-      activeLiveMatchId.value !==
-        id
-    ) {
+    if (activeLiveMatchId.value && activeLiveMatchId.value !== id) {
       persistCurrentDraft()
     }
 
-    const stored =
-      readLiveDraft(
-        id,
-      )
+    const stored = readLiveDraft(id)
 
     if (!stored) {
       return null
     }
 
-    activeLiveMatchId.value =
-      id
+    activeLiveMatchId.value = id
 
-    draftDetached.value =
-      false
+    draftDetached.value = false
 
-    draft.value =
-      stored
+    draft.value = stored
 
     syncLegacyScoreFields()
 
@@ -2683,24 +2365,19 @@ export const useFriendlyMatchStore = defineStore(
   }
 
   function refreshDraft() {
-    const liveId =
-      activeLiveMatchId.value
+    const liveId = activeLiveMatchId.value
 
     /*
      * SETUP MODE
      */
     if (!liveId) {
-      if (
-        draftDetached.value
-      ) {
+      if (draftDetached.value) {
         return null
       }
 
-      const stored =
-        readDraft()
+      const stored = readDraft()
 
-      draft.value =
-        stored
+      draft.value = stored
 
       return draft.value
     }
@@ -2711,10 +2388,7 @@ export const useFriendlyMatchStore = defineStore(
      * Read ONLY the storage record belonging
      * to the currently loaded match.
      */
-    const stored =
-      readLiveDraft(
-        liveId,
-      )
+    const stored = readLiveDraft(liveId)
 
     if (!stored) {
       /*
@@ -2726,23 +2400,16 @@ export const useFriendlyMatchStore = defineStore(
        * Do NOT write the stale live object into
        * the setup-draft key.
        */
-      activeLiveMatchId.value =
-        ''
+      activeLiveMatchId.value = ''
 
-      draftDetached.value =
-        true
+      draftDetached.value = true
 
       return null
     }
 
-    const merged =
-      mergeLiveDraftSnapshots(
-        draft.value,
-        stored,
-      )
+    const merged = mergeLiveDraftSnapshots(draft.value, stored)
 
-    draft.value =
-      merged
+    draft.value = merged
 
     syncLegacyScoreFields()
 
@@ -2850,8 +2517,7 @@ export const useFriendlyMatchStore = defineStore(
 
       matchType: draft.value.matchType || 'friendly',
 
-      clubId:
-        draft.value.clubId || '',
+      clubId: draft.value.clubId || '',
 
       status: 'completed',
 
@@ -2859,21 +2525,13 @@ export const useFriendlyMatchStore = defineStore(
 
       scorerId: draft.value.scorerId || '',
 
-      scorerRevision:
-        Number(
-          draft.value.scorerRevision || 0,
-        ),
+      scorerRevision: Number(draft.value.scorerRevision || 0),
 
-      scorerHistory:
-        Array.isArray(
-          draft.value.scorerHistory,
-        )
-          ? draft.value.scorerHistory.map(
-              (entry) => ({
-                ...entry,
-              }),
-            )
-          : [],
+      scorerHistory: Array.isArray(draft.value.scorerHistory)
+        ? draft.value.scorerHistory.map((entry) => ({
+            ...entry,
+          }))
+        : [],
 
       /*
        * Backend-ready access boundary.
@@ -2982,34 +2640,21 @@ export const useFriendlyMatchStore = defineStore(
      * Another tab may already be preparing the next
      * match for another court.
      */
-    const completedLiveMatchId =
-      activeLiveMatchId.value ||
-      resolveLiveMatchId(
-        draft.value,
-      )
+    const completedLiveMatchId = activeLiveMatchId.value || resolveLiveMatchId(draft.value)
 
-    if (
-      completedLiveMatchId
-    ) {
-      removeStored(
-        liveMatchStorageKey(
-          completedLiveMatchId,
-        ),
-      )
+    if (completedLiveMatchId) {
+      removeStored(liveMatchStorageKey(completedLiveMatchId))
     }
 
-    activeLiveMatchId.value =
-      ''
+    activeLiveMatchId.value = ''
 
     /*
      * Prevent the deep watcher from writing this empty
      * local state into the shared setup key.
      */
-    draftDetached.value =
-      true
+    draftDetached.value = true
 
-    draft.value =
-      createDraft()
+    draft.value = createDraft()
 
     return result
   }

@@ -114,7 +114,7 @@
       </div>
 
       <!-- Set format -->
-      <div v-if="challenge.matchConfig" class="cc__info-item">
+      <div v-if="rulesSummary.valid" class="cc__info-item">
         <svg
           width="13"
           height="13"
@@ -130,10 +130,7 @@
       </div>
 
       <!-- Final set rule (only if non-standard) -->
-      <div
-        v-if="challenge.matchConfig?.finalSetRule === 'super_tiebreak'"
-        class="cc__info-item cc__info-item--accent"
-      >
+      <div v-if="decidingSetLabel" class="cc__info-item cc__info-item--accent">
         <svg
           width="13"
           height="13"
@@ -144,7 +141,7 @@
         >
           <path d="M8 2l1.8 3.6L14 6.5l-3 2.9.7 4.1L8 11.4l-3.7 2.1.7-4.1-3-2.9 4.2-.9z" />
         </svg>
-        <span>Super tiebreak final set</span>
+        <span>{{ decidingSetLabel }}</span>
       </div>
     </div>
 
@@ -262,6 +259,8 @@
 <script setup>
 import { computed } from 'vue'
 import { formatAppDateTime } from '../utils/dateFormat'
+import { ladderRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/ladderMatchRules'
+import { formatMatchRulesSummary } from '../utils/matchRulesSummary'
 
 const props = defineProps({
   challenge: { type: Object, required: true },
@@ -309,28 +308,35 @@ const rankGain = computed(() => {
   return cr && dr ? cr - dr : 0
 })
 
-// Match type + format label e.g. "Singles · Best of 3"
+const rulesResult = computed(() =>
+  ladderRulesToMatchRulesSnapshot({
+    rulesSnapshot: props.challenge.rulesSnapshot,
+    ladderConfigSnapshot: props.challenge.ladderConfigSnapshot,
+    matchConfig: props.challenge.matchConfig,
+  }),
+)
+const rulesSummary = computed(() =>
+  formatMatchRulesSummary(rulesResult.value.ok ? rulesResult.value.snapshot : null),
+)
+
+// Match type + canonical format label e.g. "Singles · Best of 3 sets"
 const formatLabel = computed(() => {
   const cfg = props.challenge.matchConfig
-  if (!cfg) return 'Singles'
-  const type = cfg.matchType === 'doubles' ? 'Doubles' : 'Singles'
-  const fmt =
-    cfg.matchFormat === 'best_of_5'
-      ? 'Best of 5'
-      : cfg.matchFormat === 'best_of_3'
-        ? 'Best of 3'
-        : (cfg.matchFormat ?? 'Best of 3')
-  return `${type} · ${fmt}`
+  const type = cfg?.matchType === 'doubles' ? 'Doubles' : 'Singles'
+  return rulesSummary.value.valid ? `${type} · ${rulesSummary.value.match}` : type
 })
 
-// Set tiebreak rule label
 const setFormatLabel = computed(() => {
-  const cfg = props.challenge.matchConfig
-  if (!cfg) return ''
-  const deuce = cfg.gameScoringRule === 'sudden_death' ? 'Sudden death' : 'Advantage'
-  const tb = cfg.setWinRule === 'no_tiebreak' ? 'No tiebreak' : 'Tiebreak at 6–6'
-  return `${tb} · ${deuce}`
+  if (!rulesSummary.value.valid) return ''
+  return [rulesSummary.value.set, rulesSummary.value.tiebreak, rulesSummary.value.game]
+    .filter(Boolean)
+    .join(' · ')
 })
+const decidingSetLabel = computed(() =>
+  rulesSummary.value.decidingSet && rulesSummary.value.decidingSet !== 'Normal deciding set'
+    ? rulesSummary.value.decidingSet
+    : '',
+)
 
 const statusMeta = computed(() => {
   const map = {

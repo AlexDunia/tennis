@@ -1,14 +1,16 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { useAuthStore } from '../stores/auth'
 import { useRoute, useRouter } from 'vue-router'
 import EmptyState from '../components/EmptyState.vue'
 import PersonAvatar from '../components/PersonAvatar.vue'
 import { useChallengeStore } from '../stores/challenge'
+import { useAdminStore } from '../stores/admin'
 import { useMatchStore } from '../stores/match'
 import { useNotificationStore } from '../stores/notification'
 import { usePlayerStore } from '../stores/player'
 import { formatAppDateTime } from '../utils/dateFormat'
+import { ladderRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/ladderMatchRules'
+import { formatMatchRulesSummary } from '../utils/matchRulesSummary'
 import {
   canStartChallenge,
   challengeStateCopy,
@@ -19,7 +21,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
-const authStore = useAuthStore()
+const adminStore = useAdminStore()
 const challengeStore = useChallengeStore()
 const matchStore = useMatchStore()
 const notificationStore = useNotificationStore()
@@ -39,6 +41,18 @@ const challenge = computed(
 const match = computed(
   () => matchStore.matches.find((item) => item.challengeId === challengeId.value) || null,
 )
+const rulesResult = computed(() => {
+  const source = challenge.value
+  if (!source) return { ok: false, snapshot: null }
+  return ladderRulesToMatchRulesSnapshot({
+    rulesSnapshot: match.value?.rulesSnapshot || source.rulesSnapshot,
+    ladderConfigSnapshot: source.ladderConfigSnapshot,
+    matchConfig: match.value?.matchConfig || source.matchConfig,
+  })
+})
+const rulesSummary = computed(() =>
+  formatMatchRulesSummary(rulesResult.value.ok ? rulesResult.value.snapshot : null),
+)
 const currentPlayer = computed(() => playerStore.currentPlayer)
 const isParticipant = computed(() =>
   isChallengeParticipant(challenge.value, currentPlayer.value?.id),
@@ -47,7 +61,7 @@ const isChallenger = computed(() => challenge.value?.challengerId === currentPla
 
 const openedFromLadderCreate = computed(() => route.query.context === 'ladder-create')
 
-const isAdmin = computed(() => authStore.isAdmin)
+const canAdministerActiveClub = computed(() => adminStore.hasActiveClubPermission('club.manage'))
 
 const backTarget = computed(() =>
   openedFromLadderCreate.value ? { path: '/ladder-match/opponent' } : { name: 'Challenges' },
@@ -91,7 +105,7 @@ const canConfirmResult = computed(
 )
 const canAdminFinalizeResult = computed(
   () =>
-    isAdmin.value &&
+    canAdministerActiveClub.value &&
     state.value === 'pending_review' &&
     Boolean(match.value?.winnerId) &&
     Boolean(match.value?.score),
@@ -163,7 +177,7 @@ async function finalizeResultAsAdmin() {
     () =>
       challengeStore.resolveChallengeResult(challengeId.value, {
         actorId: currentPlayer.value?.id,
-        actorRole: authStore.user?.roleKey,
+        actorRole: canAdministerActiveClub.value ? 'club_admin' : 'player',
       }),
     'Result finalized. Ladder positions are updated.',
   )
@@ -338,21 +352,13 @@ onUnmounted(() => {
             </div>
           </div>
           <dl class="detail-rows">
-            <div>
-              <dt>Format</dt>
-              <dd>
-                {{ challenge.ladderConfigSnapshot?.matchFormatLabel || 'Best of 3 tie-break sets' }}
-              </dd>
+            <div v-for="row in rulesSummary.rows" :key="row.key">
+              <dt>{{ row.label }}</dt>
+              <dd>{{ row.value }}</dd>
             </div>
-            <div>
-              <dt>Scoring</dt>
-              <dd>
-                {{
-                  challenge.ladderConfigSnapshot?.scoring === 'noad'
-                    ? 'No-ad scoring'
-                    : 'Advantage scoring'
-                }}
-              </dd>
+            <div v-if="!rulesSummary.valid">
+              <dt>Format</dt>
+              <dd>Match format unavailable</dd>
             </div>
             <div>
               <dt>Scheduled</dt>
