@@ -78,17 +78,7 @@ function save() {
         <summary>
           <span class="summary-left"><small>First</small><strong>Match</strong></span>
           <span class="rule-result">{{ matchHeader }}</span>
-          <span class="chevron" aria-hidden="true">
-            <svg viewBox="0 0 16 16" fill="none">
-              <path
-                d="m3.5 6 4.5 4 4.5-4"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </span>
+          <span class="chevron" aria-hidden="true">&rsaquo;</span>
         </summary>
         <div class="rule-body">
           <template v-if="allowStandaloneTiebreak">
@@ -241,17 +231,7 @@ function save() {
         <summary>
           <span class="summary-left"><small>Then</small><strong>Set</strong></span>
           <span class="rule-result">{{ setHeader }}</span>
-          <span class="chevron" aria-hidden="true">
-            <svg viewBox="0 0 16 16" fill="none">
-              <path
-                d="m3.5 6 4.5 4 4.5-4"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </span>
+          <span class="chevron" aria-hidden="true">&rsaquo;</span>
         </summary>
         <div class="rule-body">
           <p class="question">How many games should someone win?</p>
@@ -355,17 +335,7 @@ function save() {
         <summary>
           <span class="summary-left"><small>Finally</small><strong>Game</strong></span>
           <span class="rule-result">{{ gameHeader }}</span>
-          <span class="chevron" aria-hidden="true">
-            <svg viewBox="0 0 16 16" fill="none">
-              <path
-                d="m3.5 6 4.5 4 4.5-4"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </span>
+          <span class="chevron" aria-hidden="true">&rsaquo;</span>
         </summary>
         <div class="rule-body">
           <p class="question">How should points work inside a game?</p>
@@ -805,7 +775,24 @@ function save() {
 .match-format-editor {
   gap: 20px;
   width: min(100%, 860px);
+  min-width: 0;
   font-family: inherit;
+}
+
+.editor-fields,
+.rule-card,
+.rule-card summary,
+.rule-body,
+.options,
+.option,
+.option > span,
+.two-columns,
+.number-field,
+.number-row,
+.final-summary,
+.final-summary dd {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .editor-intro {
@@ -884,16 +871,22 @@ function save() {
 
 .chevron {
   display: grid;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-text) 6%, var(--color-surface));
+  color: var(--color-text-soft);
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
   transform-origin: center;
+  transition: transform var(--motion-fast) var(--motion-curve);
 }
 
-.chevron svg {
-  display: block;
-  width: 18px;
-  height: 18px;
+.rule-card[open] .chevron {
+  transform: rotate(90deg);
 }
 
 .rule-body {
@@ -964,11 +957,13 @@ function save() {
 
 .number-row {
   min-height: var(--app-button-height);
+  flex-wrap: wrap;
   gap: 10px;
 }
 
 .number-row input {
   width: 104px;
+  max-width: 100%;
   min-height: var(--app-button-height);
   padding: 9px 12px;
   font-size: 14px;
@@ -1034,6 +1029,7 @@ function save() {
 }
 
 .editor-save {
+  width: 100%;
   min-height: 48px;
   font-size: 13px;
 }
@@ -1065,7 +1061,7 @@ function save() {
     grid-template-areas:
       'title chevron'
       'result result';
-    grid-template-columns: minmax(0, 1fr) 22px;
+    grid-template-columns: minmax(0, 1fr) 26px;
     row-gap: 5px;
     column-gap: 12px;
   }
@@ -1085,6 +1081,7 @@ function save() {
   .chevron {
     grid-area: chevron;
     align-self: center;
+    justify-self: end;
   }
 
   .rule-body {
@@ -1102,6 +1099,36 @@ function save() {
   .final-summary dl > div {
     grid-template-columns: 92px minmax(0, 1fr);
     gap: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .match-format-editor {
+    gap: 14px;
+  }
+
+  .editor-intro h2 {
+    font-size: 23px;
+  }
+
+  .rule-card summary,
+  .rule-body,
+  .final-summary {
+    padding-inline: 14px;
+  }
+
+  .option {
+    min-height: 76px;
+    padding: 14px;
+  }
+
+  .final-summary dl > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .number-row input {
+    flex: 1 1 96px;
   }
 }
 </style>

@@ -403,6 +403,15 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
   margin-bottom: 15px;
 }
 
+.admin-drawer__header > div,
+.drawer-section,
+.rules-card,
+.rules-card > span,
+.schedule-fields,
+.schedule-fields label {
+  min-width: 0;
+}
+
 .admin-drawer__header small {
   display: block;
   margin-bottom: 4px;
@@ -805,8 +814,11 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 .rules-modal__panel {
   position: relative;
   width: min(960px, 100%);
+  min-width: 0;
   max-height: calc(100vh - clamp(36px, 8vw, 80px));
+  overscroll-behavior: contain;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: clamp(26px, 4vw, 42px);
   border: var(--app-hairline);
   border-radius: 18px;
@@ -838,13 +850,37 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
   .rules-modal__panel {
     max-height: calc(100vh - 48px);
-    padding: 54px 16px 28px;
+    padding: 58px 16px max(28px, env(safe-area-inset-bottom));
     border-radius: 16px 16px 0 0;
   }
 
   .rules-modal__close {
     top: 12px;
     right: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-drawer__panel {
+    padding-inline: 14px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+
+  .schedule-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .rules-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rules-card button {
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--app-inner-radius);
+    text-align: center;
   }
 }
 </style>

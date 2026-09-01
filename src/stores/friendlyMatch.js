@@ -21,6 +21,7 @@ import {
   withFriendlyScoringFormat,
 } from '../domain/ruleAdapters/friendlyMatchRules'
 import { ladderRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/ladderMatchRules'
+import { liveMatchSessionRepository } from '../services/LiveMatchSessionRepository.js'
 /*
  * Separation 1E storage schema.
  *
@@ -147,6 +148,12 @@ function createDraft() {
      * the existing Vue UI.
      */
     liveState: null,
+    /*
+     * Compatibility pointer/projection only.
+     * When present, LiveMatchSession is authoritative and this store must not
+     * execute tennis score mutations of its own.
+     */
+    liveSessionId: '',
 
     status: 'draft',
     pointsA: 0,
@@ -801,6 +808,44 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
      */
     if (draft.value.status !== 'live' || !draft.value.liveState || draft.value.over) {
       return false
+    }
+
+    /*
+     * Compatibility entry for Live Operations and older authority callers.
+     * A migrated match delegates the authority transaction to the canonical
+     * repository; this store only refreshes its projection afterward.
+     */
+    if (draft.value.liveSessionId) {
+      const matchId = activeLiveMatchId.value || resolveLiveMatchId(draft.value)
+      const session = liveMatchSessionRepository.get(matchId)
+
+      if (!session) {
+        return false
+      }
+
+      const result = liveMatchSessionRepository.applyCommand(matchId, {
+        id: `assign-scorer-${matchId}-${Date.now().toString(36)}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`,
+        type: 'assign_scorer',
+        actorId: actor,
+        expectedScoreRevision: session.scoreRevision,
+        expectedAuthorityRevision: session.authorityRevision,
+        authorized: ownerAuthorized || adminOverrideAuthorized,
+        payload: {
+          scorerId: next,
+          reason: String(reason || '')
+            .trim()
+            .slice(0, 80),
+          sourceId: normalizeAuthorityId(sourceId),
+        },
+      })
+
+      if (result.ok && result.session) {
+        applyLiveSessionProjection(result.session)
+      }
+
+      return Boolean(result.ok)
     }
 
     const previous = normalizeAuthorityId(draft.value.scorerId)
@@ -1995,6 +2040,10 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       return false
     }
 
+    if (draft.value.liveSessionId) {
+      return false
+    }
+
     if (activeLiveMatchId.value) {
       refreshDraft()
     }
@@ -2027,6 +2076,10 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function undoPoint(actorId = '') {
+    if (draft.value.liveSessionId) {
+      return false
+    }
+
     if (activeLiveMatchId.value) {
       refreshDraft()
     }
@@ -2056,6 +2109,10 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
 
   function setServer(side, actorId = '') {
     if (!['you', 'opponent'].includes(side)) {
+      return false
+    }
+
+    if (draft.value.liveSessionId) {
       return false
     }
 
@@ -2092,6 +2149,10 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   function toggleServer(actorId = '') {
+    if (draft.value.liveSessionId) {
+      return false
+    }
+
     if (activeLiveMatchId.value) {
       refreshDraft()
     }
@@ -2190,6 +2251,35 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
         ? authoritySource.scorerHistory.slice(0, 20)
         : [],
     }
+  }
+
+  /*
+   * Transitional projection for existing Friendly UI/publication consumers.
+   * This method never runs tennis arithmetic. The canonical session remains
+   * the sole writer and its engineState is copied here only for compatibility.
+   */
+  function applyLiveSessionProjection(session) {
+    const matchId = normalizeLiveMatchId(session?.matchId)
+    const liveId = activeLiveMatchId.value || resolveLiveMatchId(draft.value)
+
+    if (!matchId || !liveId || matchId !== liveId || !session?.engineState) {
+      return false
+    }
+
+    draft.value.liveSessionId = normalizeLiveMatchId(session.id)
+    draft.value.liveState = normalizeScoreboard(session.engineState)
+    draft.value.startedAt = session.startedAt || draft.value.startedAt
+    draft.value.scorerId = normalizeAuthorityId(session.scorerAuthority?.scorerId)
+    draft.value.scorerRevision = Math.max(0, Number(session.authorityRevision || 0))
+    draft.value.scorerChangedAt = session.scorerAuthority?.changedAt || ''
+    draft.value.scorerChangedBy = session.scorerAuthority?.assignedBy || ''
+    draft.value.scorerHistory = Array.isArray(session.scorerAuthority?.history)
+      ? session.scorerAuthority.history.slice(0, 20).map((entry) => ({ ...entry }))
+      : []
+
+    syncLegacyScoreFields()
+    persistCurrentDraft()
+    return true
   }
 
   /*
@@ -2696,6 +2786,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     createScheduledInvitation,
     linkLadderRecords,
     startLiveMatch,
+    applyLiveSessionProjection,
     listLiveMatchesForUser,
     subscribeToLiveMatchChanges,
     hasLiveMatch,

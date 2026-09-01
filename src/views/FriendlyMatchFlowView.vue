@@ -13,6 +13,8 @@ import { verifyLadderCreationAccess } from '../services/LadderAccessService'
 import CompletedMatchResult from '../components/match/CompletedMatchResult.vue'
 import MatchFormatEditor from '../components/match/MatchFormatEditor.vue'
 import { createStandardMatchRulesSnapshot } from '../domain/matchRules'
+import { toCanonicalMatch } from '../domain/match'
+import { useLiveMatchSession } from '../composables/useLiveMatchSession'
 import { friendlyRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/friendlyMatchRules'
 import { ladderRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/ladderMatchRules'
 import { formatMatchRulesSummary } from '../utils/matchRulesSummary'
@@ -229,6 +231,81 @@ const currentIdentity = computed(() => {
 
   return authenticatedIdentity.value
 })
+
+const liveSessionApi = useLiveMatchSession({
+  actorId: computed(() => currentIdentity.value.id),
+  ownerId: computed(() => friendlyMatchStore.draft.ownerId),
+  onSessionChange(session) {
+    friendlyMatchStore.applyLiveSessionProjection(session)
+  },
+})
+
+const liveSessionView = computed(() => liveSessionApi.view.value)
+
+function canonicalMatchForCurrentLiveDraft() {
+  const draft = friendlyMatchStore.draft
+  const matchId = currentLiveMatchId.value
+
+  if (!matchId || !draft.rulesSnapshot || !['friendly', 'ladder'].includes(draft.matchType)) {
+    return null
+  }
+
+  const canonical = toCanonicalMatch(
+    {
+      id: matchId,
+      clubId: draft.clubId || adminStore.activeClubId || '',
+      source: draft.matchType,
+      challengeId: draft.challengeId,
+      court: draft.schedule?.court || '',
+      rulesSnapshot: draft.rulesSnapshot,
+      lifecycleStatus: 'live',
+      liveSessionId: draft.liveSessionId || '',
+      sides: [
+        {
+          id: draft.ownerId || currentIdentity.value.id,
+          name: draft.liveState?.players?.playerA || activeInvitation.value?.creator?.name || 'You',
+        },
+        {
+          id: draft.opponent?.id || '',
+          name: draft.liveState?.players?.playerB || draft.opponent?.name || 'Opponent',
+        },
+      ],
+    },
+    {
+      source: draft.matchType,
+      sourceRefId:
+        draft.matchType === 'ladder' ? draft.ladderMatchId || draft.challengeId : draft.matchId,
+    },
+  )
+
+  return canonical.ok ? canonical.match : null
+}
+
+function initializeCanonicalLiveSession({ allowCreate = false } = {}) {
+  const match = canonicalMatchForCurrentLiveDraft()
+
+  if (!match) {
+    inlineNote.value = 'This live match does not have a valid canonical match and rules snapshot.'
+    return false
+  }
+
+  const draft = friendlyMatchStore.draft
+  const result = liveSessionApi.initialize(match, {
+    allowCreate,
+    legacyLiveRecord: draft.liveSessionId ? null : draft,
+    scorerId: draft.scorerId || draft.ownerId,
+    assignedBy: draft.scorerChangedBy || draft.ownerId,
+    authorityRevision: draft.scorerRevision,
+    startedAt: draft.startedAt,
+  })
+
+  if (!result.ok) {
+    inlineNote.value = liveSessionApi.error.value || 'The canonical live session is unavailable.'
+    return false
+  }
+
+  return true
+}
 const activeLadderConfig = computed(() => getActiveLadderConfig())
 const ladderWindow = computed(() =>
   ladderWindowFor(currentIdentity.value, activeLadderConfig.value),
@@ -263,7 +340,9 @@ const canManageDraft = computed(
 )
 const playNowReady = computed(() => friendlyMatchStore.opponentReady)
 const canManageLiveMatch = computed(() => {
-  return friendlyMatchStore.canManageMatch(currentIdentity.value.id)
+  return liveSessionApi.session.value
+    ? liveSessionApi.permissions.value.canManage
+    : friendlyMatchStore.canManageMatch(currentIdentity.value.id)
 })
 
 const canEmergencyOverrideLiveMatch = computed(() => {
@@ -282,7 +361,11 @@ const canEmergencyOverrideLiveMatch = computed(() => {
    * The owner already has the normal
    * reclaim-control path.
    */
-  if (friendlyMatchStore.canManageMatch(actorId)) {
+  if (
+    liveSessionApi.session.value
+      ? liveSessionApi.permissions.value.canManage
+      : friendlyMatchStore.canManageMatch(actorId)
+  ) {
     return false
   }
 
@@ -290,11 +373,19 @@ const canEmergencyOverrideLiveMatch = computed(() => {
    * Somebody who already controls scoring
    * obviously does not need an override.
    */
-  if (friendlyMatchStore.canScoreMatch(actorId)) {
+  if (
+    liveSessionApi.session.value
+      ? liveSessionApi.permissions.value.canScore
+      : friendlyMatchStore.canScoreMatch(actorId)
+  ) {
     return false
   }
 
-  if (draft.status !== 'live' || !draft.liveState || draft.over) {
+  if (
+    !liveSessionApi.session.value ||
+    !['live', 'suspended'].includes(liveSessionApi.session.value.status) ||
+    draft.over
+  ) {
     return false
   }
 
@@ -322,7 +413,7 @@ const acceptedChairUmpireScorerId = computed(
 const chairUmpireHasControl = computed(() =>
   Boolean(
     acceptedChairUmpireScorerId.value &&
-    friendlyMatchStore.draft.scorerId === acceptedChairUmpireScorerId.value,
+    liveSessionApi.permissions.value.scorerId === acceptedChairUmpireScorerId.value,
   ),
 )
 
@@ -434,7 +525,11 @@ const tvPairingInviteUrl = computed(() => {
   return new URL(href, window.location.href).href
 })
 
-const canScoreLiveMatch = computed(() => friendlyMatchStore.canScoreMatch(currentIdentity.value.id))
+const canScoreLiveMatch = computed(() =>
+  liveSessionApi.session.value
+    ? liveSessionApi.permissions.value.canScore
+    : friendlyMatchStore.canScoreMatch(currentIdentity.value.id),
+)
 
 const canAccessLiveMatch = computed(() => canManageDraft.value || canScoreLiveMatch.value)
 
@@ -1142,9 +1237,15 @@ function guardStep() {
 
       const hasLiveState = Boolean(friendlyMatchStore.draft.liveState)
 
-      const isActuallyLive = friendlyMatchStore.draft.status === 'live'
+      const isActuallyLive = ['live', 'finished'].includes(friendlyMatchStore.draft.status)
 
-      if (!hasScoring || !hasOpponent || !hasLiveState || !isActuallyLive) {
+      if (
+        !hasScoring ||
+        !hasOpponent ||
+        !hasLiveState ||
+        !isActuallyLive ||
+        !liveSessionApi.session.value
+      ) {
         router.replace({
           name: 'Dashboard',
         })
@@ -1237,6 +1338,7 @@ function guardStep() {
       (!friendlyMatchStore.draft.format ||
         !friendlyMatchStore.draft.opponent ||
         !friendlyMatchStore.draft.liveState ||
+        !liveSessionApi.session.value ||
         !['live', 'finished'].includes(friendlyMatchStore.draft.status))
     ) {
       router.replace(
@@ -1436,11 +1538,16 @@ function continueFromSchedule() {
 function chooseFormat(format) {
   friendlyMatchStore.chooseFormat(format)
   if (isLadder.value) {
-    friendlyMatchStore.startLiveMatch(
+    const started = friendlyMatchStore.startLiveMatch(
       currentIdentity.value.id,
 
       adminStore.activeClubId || '',
     )
+    if (!started || !initializeCanonicalLiveSession({ allowCreate: true })) {
+      inlineNote.value =
+        inlineNote.value || 'This Ladder match could not create its canonical live session.'
+      return
+    }
     router.push(liveMatchLocation())
   } else if (isFriendly.value) router.push(flowLocation('FriendlyMatchFormat'))
 }
@@ -1601,6 +1708,10 @@ async function completeReview() {
         return
       }
 
+      if (!initializeCanonicalLiveSession({ allowCreate: true })) {
+        return
+      }
+
       publishCurrentLiveScoreboard({ type: 'start' })
 
       router.push(liveMatchLocation())
@@ -1646,6 +1757,10 @@ async function completeReview() {
       inlineNote.value =
         'This match could not be started. Check that the match is still ready and that you have permission to manage it.'
 
+      return
+    }
+
+    if (!initializeCanonicalLiveSession({ allowCreate: true })) {
       return
     }
 
@@ -2135,7 +2250,7 @@ function handoffChairUmpireControl() {
    * This reduces the chance of an older owner tab
    * writing an old score snapshot during handoff.
    */
-  friendlyMatchStore.refreshDraft()
+  liveSessionApi.refresh()
 
   const invitation = chairUmpireInvitation.value
 
@@ -2154,16 +2269,15 @@ function handoffChairUmpireControl() {
    *
    * The recipient is not notified until that succeeds.
    */
-  const transferred = friendlyMatchStore.transferScoringAuthority({
-    actorId: currentIdentity.value.id,
-
+  const transferred = liveSessionApi.assignScorer({
     scorerId,
-
+    capabilityId: invitation.invitationId,
+    reason: 'chair_umpire_handoff',
     sourceId: invitation.invitationId,
   })
 
-  if (!transferred) {
-    inlineNote.value = 'Match Control could not be handed over.'
+  if (!transferred.ok) {
+    inlineNote.value = liveSessionApi.error.value || 'Match Control could not be handed over.'
 
     return
   }
@@ -2186,7 +2300,11 @@ function handoffChairUmpireControl() {
      * If the capability notification cannot be created,
      * immediately return scoring to the owner.
      */
-    friendlyMatchStore.reclaimScoringAuthority(currentIdentity.value.id)
+    liveSessionApi.assignScorer({
+      scorerId: friendlyMatchStore.draft.ownerId,
+      reason: 'handoff_notification_failed',
+      sourceId: invitation.invitationId,
+    })
 
     inlineNote.value = 'The umpire could not receive Match Control. You still control scoring.'
 
@@ -2209,12 +2327,16 @@ function reclaimChairUmpireControl() {
     return
   }
 
-  friendlyMatchStore.refreshDraft()
+  liveSessionApi.refresh()
 
-  const reclaimed = friendlyMatchStore.reclaimScoringAuthority(currentIdentity.value.id)
+  const reclaimed = liveSessionApi.assignScorer({
+    scorerId: friendlyMatchStore.draft.ownerId,
+    reason: 'owner_reclaim',
+    sourceId: '',
+  })
 
-  if (!reclaimed) {
-    inlineNote.value = 'Match Control could not be returned to you.'
+  if (!reclaimed.ok) {
+    inlineNote.value = liveSessionApi.error.value || 'Match Control could not be returned to you.'
 
     return
   }
@@ -2250,7 +2372,7 @@ function emergencyTakeMatchControl() {
    * so an older tab does not make the decision from
    * stale scorer state.
    */
-  friendlyMatchStore.refreshDraft()
+  liveSessionApi.refresh()
 
   const actorId = authenticatedIdentity.value.id
 
@@ -2263,8 +2385,8 @@ function emergencyTakeMatchControl() {
     draft.clubId &&
     adminStore.activeClubId === draft.clubId &&
     adminStore.hasActiveClubPermission('matches.live_score') &&
-    !friendlyMatchStore.canManageMatch(actorId) &&
-    !friendlyMatchStore.canScoreMatch(actorId),
+    !liveSessionApi.permissions.value.canManage &&
+    !liveSessionApi.permissions.value.canScore,
   )
 
   if (!stillAuthorized) {
@@ -2273,16 +2395,17 @@ function emergencyTakeMatchControl() {
     return
   }
 
-  const overridden = friendlyMatchStore.emergencyOverrideScoringAuthority({
-    actorId,
+  const overridden = liveSessionApi.assignScorer(
+    {
+      scorerId: actorId,
+      reason: 'admin_emergency_override',
+      sourceId: '',
+    },
+    { actorId, authorized: true },
+  )
 
-    clubId: adminStore.activeClubId,
-
-    authorized: true,
-  })
-
-  if (!overridden) {
-    inlineNote.value = 'Match Control could not be changed.'
+  if (!overridden.ok) {
+    inlineNote.value = liveSessionApi.error.value || 'Match Control could not be changed.'
 
     return
   }
@@ -2388,9 +2511,13 @@ function removeChairUmpireInvitation() {
    * as the active scorer.
    */
   if (chairUmpireHasControl.value) {
-    const reclaimed = friendlyMatchStore.reclaimScoringAuthority(currentIdentity.value.id)
+    const reclaimed = liveSessionApi.assignScorer({
+      scorerId: friendlyMatchStore.draft.ownerId,
+      reason: 'umpire_removed',
+      sourceId: invitation.invitationId,
+    })
 
-    if (!reclaimed) {
+    if (!reclaimed.ok) {
       inlineNote.value = 'Take Match Control back before removing this umpire.'
 
       return
@@ -2695,10 +2822,11 @@ async function recordLivePoint(side) {
    * The announcement system does not calculate
    * this point.
    */
-  const recorded = friendlyMatchStore.recordPoint(side, currentIdentity.value.id)
+  const recorded = liveSessionApi.recordPoint(side)
 
-  if (!recorded) {
-    inlineNote.value = 'The score did not change. Refresh the match and try again.'
+  if (!recorded.ok) {
+    inlineNote.value =
+      liveSessionApi.error.value || 'The score did not change. Refresh the match and try again.'
 
     return
   }
@@ -2758,6 +2886,14 @@ async function finalizeFriendlyMatch() {
   }
 
   if (!friendlyMatchStore.draft.over) {
+    return
+  }
+
+  const physicalCompletion = liveSessionApi.finishPhysicalMatch()
+
+  if (!physicalCompletion.ok) {
+    inlineNote.value =
+      liveSessionApi.error.value || 'The physical match could not be marked complete.'
     return
   }
 
@@ -2868,7 +3004,7 @@ function undoLivePoint() {
     return
   }
 
-  if (!friendlyMatchStore.canUndo) {
+  if (!liveSessionView.value.canUndo) {
     inlineNote.value = 'There is no recorded point to undo.'
 
     return
@@ -2883,10 +3019,10 @@ function undoLivePoint() {
    */
   cancelTennisAnnouncements()
 
-  const undone = friendlyMatchStore.undoPoint(currentIdentity.value.id)
+  const undone = liveSessionApi.undoPoint()
 
-  if (!undone) {
-    inlineNote.value = 'The previous score could not be restored.'
+  if (!undone.ok) {
+    inlineNote.value = liveSessionApi.error.value || 'The previous score could not be restored.'
 
     return
   }
@@ -2973,7 +3109,7 @@ function setLiveServer(side) {
    * It simply means the requested correction is
    * already true.
    */
-  if (friendlyMatchStore.draft.liveState?.currentServer === requestedPlayerKey) {
+  if (liveSessionView.value.currentServer === requestedPlayerKey) {
     showLiveAnnouncement(`${requestedName} is already serving.`)
 
     return
@@ -2981,10 +3117,10 @@ function setLiveServer(side) {
 
   cancelTennisAnnouncements()
 
-  const changed = friendlyMatchStore.setServer(side, currentIdentity.value.id)
+  const changed = liveSessionApi.changeServer(side)
 
-  if (!changed) {
-    inlineNote.value = 'The server could not be corrected.'
+  if (!changed.ok) {
+    inlineNote.value = liveSessionApi.error.value || 'The server could not be corrected.'
 
     return
   }
@@ -3064,6 +3200,16 @@ async function finishMatch() {
    * lifecycle for now.
    */
   if (isLadder.value) {
+    const physicalCompletion = liveSessionApi.finishPhysicalMatch()
+
+    if (!physicalCompletion.ok) {
+      notificationStore.addToast({
+        message: liveSessionApi.error.value || 'The physical match could not be marked complete.',
+        type: 'warning',
+      })
+      return
+    }
+
     const matchId = friendlyMatchStore.draft.ladderMatchId
 
     const winnerId =
@@ -3374,11 +3520,11 @@ function recoverCurrentMatchState() {
      */
     if (friendlyMatchStore.liveMatchId !== requestedId) {
       friendlyMatchStore.loadLiveMatch(requestedId)
-
-      return
+    } else {
+      friendlyMatchStore.refreshDraft()
     }
 
-    friendlyMatchStore.refreshDraft()
+    liveSessionApi.refresh()
 
     return
   }
@@ -3430,6 +3576,10 @@ function configureStep() {
    * allowing guardStep() to judge the route.
    */
   recoverCurrentMatchState()
+
+  if (step.value === 'live') {
+    initializeCanonicalLiveSession({ allowCreate: false })
+  }
 
   syncInvitationPolling()
 
@@ -4435,32 +4585,28 @@ watch(
 
       <LiveMatchControl
         v-if="step === 'live'"
-        :player-a-name="
-          friendlyMatchStore.draft.liveState?.players?.playerA || currentIdentity.name
-        "
-        :player-b-name="friendlyMatchStore.draft.liveState?.players?.playerB || opponentName"
-        :player-a-point="friendlyMatchStore.pointLabel('you')"
-        :player-b-point="friendlyMatchStore.pointLabel('opponent')"
-        :sets-a="friendlyMatchStore.draft.setsA"
-        :sets-b="friendlyMatchStore.draft.setsB"
-        :games-a="friendlyMatchStore.draft.gamesA"
-        :games-b="friendlyMatchStore.draft.gamesB"
-        :set-scores="friendlyMatchStore.draft.setScores"
-        :current-set-number="Number(friendlyMatchStore.draft.liveState?.currentSetIndex || 0) + 1"
-        :match-format-label="friendlyMatchStore.matchFormatLabel"
-        :scoring-format-label="friendlyMatchStore.formatLabel"
-        :status-text="friendlyMatchStore.statusText"
-        :current-server="friendlyMatchStore.draft.liveState?.currentServer || 'playerA'"
-        :points-played="Number(friendlyMatchStore.draft.liveState?.pointsPlayed || 0)"
-        :started-at="friendlyMatchStore.draft.startedAt"
+        :player-a-name="liveSessionView.playerAName"
+        :player-b-name="liveSessionView.playerBName"
+        :player-a-point="liveSessionView.playerAPoint"
+        :player-b-point="liveSessionView.playerBPoint"
+        :sets-a="liveSessionView.setsA"
+        :sets-b="liveSessionView.setsB"
+        :games-a="liveSessionView.gamesA"
+        :games-b="liveSessionView.gamesB"
+        :set-scores="liveSessionView.setScores"
+        :current-set-number="liveSessionView.currentSetNumber"
+        :match-format-label="liveSessionView.matchFormatLabel"
+        :scoring-format-label="liveSessionView.scoringFormatLabel"
+        :status-text="liveSessionView.statusText"
+        :current-server="liveSessionView.currentServer"
+        :points-played="liveSessionView.pointsPlayed"
+        :started-at="liveSessionView.startedAt"
         :can-score="canScoreLiveMatch"
-        :can-undo="friendlyMatchStore.canUndo"
-        :in-tie-break="Boolean(friendlyMatchStore.draft.liveState?.currentGame?.inTieBreak)"
-        :is-match-tie-break="
-          Boolean(friendlyMatchStore.draft.liveState?.currentGame?.isMatchTieBreak)
-        "
-        :standalone-tie-break="friendlyMatchStore.draft.liveState?.config?.mode === 'tiebreak'"
-        :finished="friendlyMatchStore.draft.over"
+        :can-undo="liveSessionView.canUndo"
+        :in-tie-break="liveSessionView.inTieBreak"
+        :is-match-tie-break="liveSessionView.isMatchTieBreak"
+        :standalone-tie-break="liveSessionView.standaloneTieBreak"
+        :finished="liveSessionView.finished"
         :announcement="liveAnnouncement"
         :announcements-enabled="voiceAnnouncementsEnabled"
         :announcements-supported="voiceAnnouncementsSupported"
@@ -4471,7 +4617,7 @@ watch(
         :chair-umpire-candidates="chairUmpireCandidates"
         :chair-umpire-qr-data-url="chairUmpireQrDataUrl"
         :chair-umpire-invite-url="chairUmpireInviteUrl"
-        :chair-umpire-current-scorer-id="friendlyMatchStore.draft.scorerId"
+        :chair-umpire-current-scorer-id="liveSessionApi.permissions.value.scorerId"
         :chair-umpire-can-handoff-control="
           canManageLiveMatch && chairUmpireInvitation?.status === 'accepted'
         "
@@ -6143,8 +6289,11 @@ watch(
 .match-format-dialog__panel {
   position: relative;
   width: min(960px, 100%);
+  min-width: 0;
   max-height: calc(100vh - clamp(36px, 8vw, 80px));
+  overscroll-behavior: contain;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: clamp(26px, 4vw, 42px);
   border: var(--app-hairline);
   border-radius: 18px;
@@ -6176,7 +6325,7 @@ watch(
 
   .match-format-dialog__panel {
     max-height: calc(100vh - 48px);
-    padding: 54px 16px 28px;
+    padding: 58px 16px max(28px, env(safe-area-inset-bottom));
     border-radius: 16px 16px 0 0;
   }
 
@@ -6188,6 +6337,21 @@ watch(
   .ladder-format-review .review-row {
     grid-template-columns: 94px minmax(0, 1fr);
     gap: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .match-format-save-option {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .match-format-save-option .setting-toggle {
+    align-self: flex-start;
+  }
+
+  .ladder-format-details {
+    width: 100%;
   }
 }
 </style>
