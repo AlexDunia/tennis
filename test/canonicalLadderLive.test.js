@@ -246,7 +246,7 @@ test('a transitional Ladder route/session is imported once under Match.id', asyn
   assert.equal(backing.getItem(`gorra.friendlyMatchLive.v1.${encodeURIComponent(aliasId)}`), null)
 })
 
-test('all active Ladder entry callers target LiveMatch and Tournament remains on PlayMatch', () => {
+test('all active Ladder entry callers target LiveMatch and Tournament has migrated too', () => {
   const router = readFileSync('src/router/index.js', 'utf8')
   const flow = readFileSync('src/views/FriendlyMatchFlowView.vue', 'utf8')
   const challenge = readFileSync('src/views/ChallengeDetailsView.vue', 'utf8')
@@ -264,8 +264,9 @@ test('all active Ladder entry callers target LiveMatch and Tournament remains on
   assert.match(hub, /match\.type === 'ladder'[\s\S]*name: 'LiveMatch'/)
   assert.match(ladder, /startOrResumeLadderMatch[\s\S]*name: 'LiveMatch'/)
   assert.match(details, /openLadderLive[\s\S]*name: 'LiveMatch'/)
-  assert.match(operations, /matchType === 'ladder' \? 'LiveMatch' : 'FriendlyMatchLive'/)
-  assert.match(tournament, /router\.push\(`\/play\/\$\{match\.id\}`\)/)
+  assert.match(operations, /\['ladder', 'tournament'\]\.includes/)
+  assert.match(tournament, /startOrResumeMatch\(/)
+  assert.match(tournament, /name: 'LiveMatch'/)
   assert.doesNotMatch(details, /matchStore\.submitResult/)
 })
 

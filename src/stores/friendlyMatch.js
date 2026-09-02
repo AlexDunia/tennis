@@ -107,6 +107,9 @@ function createDraft() {
     preMatchPositions: null,
     joinToken: '',
     ownerId: '',
+    participantAId: '',
+    participantBId: '',
+    sourceContext: null,
 
     /*
      * Ownership and scoring authority are separate.
@@ -2262,14 +2265,14 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
    * This method never runs tennis arithmetic. The canonical session remains
    * the sole writer and its engineState is copied here only for compatibility.
    */
-  function attachCanonicalLiveMatch(match, canonicalMatch, session) {
+  function attachCanonicalLiveMatch(match, canonicalMatch, session, context = null) {
     const matchId = normalizeLiveMatchId(match?.id)
     const canonicalId = normalizeLiveMatchId(canonicalMatch?.id)
     if (
       !matchId ||
       matchId !== canonicalId ||
       matchId !== normalizeLiveMatchId(session?.matchId) ||
-      canonicalMatch?.source !== 'ladder' ||
+      !['ladder', 'tournament'].includes(canonicalMatch?.source) ||
       !canonicalMatch.rulesSnapshot ||
       !session?.engineState
     ) {
@@ -2280,22 +2283,36 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     const rulesSnapshot = freezeMatchRulesSnapshot(canonicalMatch.rulesSnapshot)
     const sideA = canonicalMatch.sides?.[0] || {}
     const sideB = canonicalMatch.sides?.[1] || {}
+    const isTournament = canonicalMatch.source === 'tournament'
+    const scorerId = session.scorerAuthority?.scorerId || match.scorerId || ''
 
     activeLiveMatchId.value = matchId
     draftDetached.value = false
     draft.value = normalizeStoredDraft({
       ...createDraft(),
-      matchType: 'ladder',
+      matchType: canonicalMatch.source,
       timing: match.scheduledAt ? 'later' : 'now',
       clubId: canonicalMatch.clubId || match.clubId || '',
       matchId,
-      challengeId: match.challengeId || canonicalMatch.sourceRef?.id || '',
-      ladderMatchId: matchId,
+      challengeId: isTournament ? '' : match.challengeId || canonicalMatch.sourceRef?.id || '',
+      ladderMatchId: isTournament ? '' : matchId,
       ladderConfigSnapshot: match.ladderConfigSnapshot || null,
       rulesSnapshot,
       preMatchPositions: match.preMatchPositions || null,
-      ownerId: sideA.id || match.challengerId || '',
-      scorerId: session.scorerAuthority?.scorerId || match.scorerId || '',
+      ownerId: isTournament ? scorerId : sideA.id || match.challengerId || '',
+      participantAId: sideA.id || match.player1Id || match.challengerId || '',
+      participantBId: sideB.id || match.player2Id || match.defenderId || '',
+      sourceContext: isTournament
+        ? {
+            tournamentId: match.tournamentId || canonicalMatch.sourceRef?.id || '',
+            tournamentName: context?.tournamentName || '',
+            categoryId: match.categoryId || '',
+            categoryName: context?.categoryName || '',
+            groupId: match.groupId || null,
+            round: match.matchCode || match.round || match.stage || '',
+          }
+        : null,
+      scorerId,
       scorerRevision: Number(session.authorityRevision || 0),
       scorerChangedAt: session.scorerAuthority?.changedAt || '',
       scorerChangedBy: session.scorerAuthority?.assignedBy || '',
@@ -2304,7 +2321,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
         id: sideB.id || match.defenderId || '',
         name: sideB.name || match.defenderName || 'Opponent',
         rank: Number(match.preMatchPositions?.defender || 0) || null,
-        division: 'Ladder',
+        division: isTournament ? 'Tournament' : 'Ladder',
       },
       format:
         rulesSnapshot.game?.mode === 'traditional' && rulesSnapshot.game?.deuce === 'no_ad'
@@ -2313,7 +2330,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
       matchFormat: 'custom',
       customFormat: {
         id: `canonical-${matchId}`,
-        name: 'Ladder match format',
+        name: isTournament ? 'Tournament match format' : 'Ladder match format',
         rulesSnapshot,
       },
       tieBreak:
@@ -2361,6 +2378,17 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
 
     syncLegacyScoreFields()
     persistCurrentDraft()
+    return true
+  }
+
+  function releaseCanonicalLiveMatch(matchId) {
+    const id = normalizeLiveMatchId(matchId)
+    const activeId = activeLiveMatchId.value || resolveLiveMatchId(draft.value)
+    if (!id || id !== activeId) return false
+    removeStored(liveMatchStorageKey(id))
+    activeLiveMatchId.value = ''
+    draftDetached.value = true
+    draft.value = createDraft()
     return true
   }
 
@@ -2448,7 +2476,13 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
          * second match participant
          */
         const relationshipIds = new Set(
-          [match.ownerId, match.scorerId, match.opponent?.id]
+          [
+            match.ownerId,
+            match.scorerId,
+            match.participantAId,
+            match.participantBId,
+            match.opponent?.id,
+          ]
             .map(normalizeAuthorityId)
             .filter(Boolean),
         )
@@ -2645,9 +2679,9 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
 
     finalLiveState.completedAt = finalLiveState.completedAt || new Date().toISOString()
 
-    const playerAId = draft.value.ownerId || actorId
+    const playerAId = draft.value.participantAId || draft.value.ownerId || actorId
 
-    const playerBId = draft.value.opponent?.id || ''
+    const playerBId = draft.value.participantBId || draft.value.opponent?.id || ''
 
     /*
      * Never create an anonymous completed result.
@@ -2870,6 +2904,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     startLiveMatch,
     attachCanonicalLiveMatch,
     applyLiveSessionProjection,
+    releaseCanonicalLiveMatch,
     listLiveMatchesForUser,
     subscribeToLiveMatchChanges,
     hasLiveMatch,

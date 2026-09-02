@@ -14,6 +14,7 @@ import { createLiveMatchSessionRepository } from '../src/services/LiveMatchSessi
 import {
   createLiveMatchSessionView,
   createPublicLiveMatchSessionProjection,
+  resolveLiveMatchSessionPermissions,
 } from '../src/composables/useLiveMatchSession.js'
 import { createScoreboard, recordPoint } from '../src/utils/tennisScoring.js'
 import { toTennisEngineConfig } from '../src/domain/toTennisEngineConfig.js'
@@ -326,6 +327,20 @@ test('scorer handoff advances only authority revision and protects scoring', () 
   assert.equal(forbidden.code, 'forbidden')
 })
 
+test('authorized managers keep management rights without silently becoming the scorer', () => {
+  const permissions = resolveLiveMatchSessionPermissions({
+    actorId: 'club-admin',
+    ownerId: 'match-owner',
+    scorerId: 'chair-umpire',
+    canManage: true,
+  })
+
+  assert.equal(permissions.isOwner, false)
+  assert.equal(permissions.canManage, true)
+  assert.equal(permissions.canScore, false)
+  assert.equal(permissions.canFinalize, true)
+})
+
 test('public projection is read-only and omits scorer authority secrets', () => {
   const rules = createStandardMatchRulesSnapshot()
   const match = canonicalMatch(rules)
@@ -352,6 +367,11 @@ test('newer Friendly and Play-to-Ladder live UI uses the session API while conse
   assert.doesNotMatch(source, /friendlyMatchStore\.setServer\(/)
   assert.match(source, /friendlyMatchStore\.endMatch/)
   assert.match(source, /matchStore\.submitResult/)
+  assert.match(source, /<CompletedMatchResult[\s\S]*pendingLiveResult/)
+  assert.doesNotMatch(source, /<MatchResultModal/)
+  assert.match(source, /Record tournament result/)
+  assert.match(source, /Submit result for confirmation/)
+  assert.match(source, /canManage: canAdminManageLiveMatch/)
 })
 
 test('mobile Match Format implementation keeps semantic compact toggles and narrow reflow rules', () => {

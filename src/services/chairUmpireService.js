@@ -384,6 +384,7 @@ export function declineChairUmpireInvitation({ token, actorId = '' }) {
 export function grantChairUmpireScoringControl(
   invitationId,
   actorId,
+  authorizedManager = false,
 ) {
   const invitation =
     getChairUmpireInvitation(invitationId)
@@ -393,7 +394,7 @@ export function grantChairUmpireScoringControl(
   if (
     !invitation ||
     invitation.status !== 'accepted' ||
-    invitation.createdBy !== actor ||
+    (invitation.createdBy !== actor && !authorizedManager) ||
     !chairUmpireCandidateActive(invitation)
   ) {
     return null
@@ -432,7 +433,7 @@ export function grantChairUmpireScoringControl(
     (current) => {
       if (
         current.status !== 'accepted' ||
-        current.createdBy !== actor ||
+        (current.createdBy !== actor && !authorizedManager) ||
         !chairUmpireCandidateActive(current)
       ) {
         return null
@@ -485,6 +486,7 @@ export function revokeChairUmpireScoringControl(
   invitationId,
   actorId,
   reason = 'owner_reclaimed',
+  authorizedManager = false,
 ) {
   const invitation =
     getChairUmpireInvitation(invitationId)
@@ -493,7 +495,7 @@ export function revokeChairUmpireScoringControl(
 
   if (
     !invitation ||
-    invitation.createdBy !== actor
+    (invitation.createdBy !== actor && !authorizedManager)
   ) {
     return null
   }
@@ -759,14 +761,14 @@ export function clearChairUmpireScorerSessionForThisTab() {
  *
  * This still does not modify scorerId.
  */
-export function cancelChairUmpireInvitation(invitationId, actorId) {
+export function cancelChairUmpireInvitation(invitationId, actorId, authorizedManager = false) {
   const invitation = getChairUmpireInvitation(invitationId)
 
   if (!invitation || !['waiting', 'accepted'].includes(invitation.status)) {
     return false
   }
 
-  if (invitation.createdBy !== String(actorId || '')) {
+  if (invitation.createdBy !== String(actorId || '') && !authorizedManager) {
     return false
   }
 

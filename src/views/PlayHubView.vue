@@ -7,6 +7,7 @@ import { usePlayerStore } from '../stores/player'
 import { useAdminStore } from '../stores/admin'
 import { useNotificationStore } from '../stores/notification'
 import { startOrResumeLadderMatch } from '../services/LadderLiveMatchService.js'
+import { startOrResumeMatch } from '../services/LiveMatchService.js'
 import EmptyState from '../components/EmptyState.vue'
 
 const router = useRouter()
@@ -62,7 +63,21 @@ async function continueMatch(match) {
     return
   }
   if (match.type === 'tournament') {
-    router.push({ name: 'PlayMatch', params: { matchId: match.id } })
+    const result = await startOrResumeMatch({
+      match,
+      actorId: currentPlayerId.value,
+      clubId: adminStore.activeClubId || '',
+      authorized: adminStore.hasActiveClubPermission('tournaments.score.update'),
+      explicitStart: true,
+    })
+    if (!result.ok) {
+      notificationStore.addToast({
+        message: result.message || 'This Tournament Match cannot be continued yet.',
+        type: 'warning',
+      })
+      return
+    }
+    router.push({ name: 'LiveMatch', params: { matchId: result.match.id } })
     return
   }
   router.push({ name: 'MatchDetails', params: { matchId: match.id } })

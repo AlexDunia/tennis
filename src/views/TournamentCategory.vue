@@ -5,6 +5,8 @@ import { useAdminStore } from '../stores/admin'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
+import { useNotificationStore } from '../stores/notification'
+import { startOrResumeMatch } from '../services/LiveMatchService.js'
 import BracketTree from '../components/tournament/BracketTree.vue'
 import BracketTreeMobile from '../components/tournament/BracketTreeMobile.vue'
 import CategoryStatusBadge from '../components/tournament/CategoryStatusBadge.vue'
@@ -21,6 +23,7 @@ const adminStore = useAdminStore()
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
+const notificationStore = useNotificationStore()
 
 const selectedTab = ref('overview')
 const selectedMatch = ref(null)
@@ -272,12 +275,28 @@ function viewMatch(match) {
   router.push(`/tournaments/${tournamentId.value}/match/${match.id}`)
 }
 
-function openLiveBoard(match) {
+async function openLiveBoard(match) {
   if (!canManageTournament.value) {
     return
   }
 
-  router.push(`/play/${match.id}`)
+  const result = await startOrResumeMatch({
+    match,
+    actorId: currentPlayerId.value,
+    clubId: adminStore.activeClubId || '',
+    authorized: canManageTournament.value,
+    explicitStart: true,
+    tournament: tournament.value,
+    category: category.value,
+  })
+  if (!result.ok) {
+    notificationStore.addToast({
+      message: result.message || 'This Tournament Match cannot be opened for scoring.',
+      type: 'warning',
+    })
+    return
+  }
+  router.push({ name: 'LiveMatch', params: { matchId: result.match.id } })
 }
 
 async function saveScore(payload) {

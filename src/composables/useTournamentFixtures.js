@@ -67,7 +67,7 @@ function createByeFixture({ tournamentId, categoryId, groupId, playerOne, player
     p1Games: byeScore.p1Games,
     p2Games: byeScore.p2Games,
     sets: [],
-    liveState: createLiveState(),
+    liveState: null,
     winnerId: realPlayer.playerId,
     status: 'walkover',
     scheduledDate: null,
@@ -100,7 +100,7 @@ function createPendingFixture({ tournamentId, categoryId, groupId, playerOne, pl
     p1Games: null,
     p2Games: null,
     sets: [],
-    liveState: createLiveState(),
+    liveState: null,
     winnerId: null,
     status: 'pending',
     scheduledDate: null,
@@ -116,7 +116,18 @@ export function generateRoundRobinFixtures({
   categoryId,
   groupId,
   groupPlayers = [],
+  rulesSource = null,
+  requireResolvedRules = false,
 }) {
+  const resolvedRules = tournamentRulesToMatchRulesSnapshot(rulesSource || {})
+  if (requireResolvedRules && !resolvedRules.ok) {
+    throw new Error(
+      resolvedRules.issues?.[0]?.message || 'Tournament scoring rules could not be resolved.',
+    )
+  }
+  const rulesSnapshot = resolvedRules.ok
+    ? freezeMatchRulesSnapshot(resolvedRules.snapshot)
+    : null
   const fixtures = []
 
   for (let playerIndex = 0; playerIndex < groupPlayers.length; playerIndex += 1) {
@@ -133,7 +144,11 @@ export function generateRoundRobinFixtures({
         ? createByeFixture({ tournamentId, categoryId, groupId, playerOne, playerTwo })
         : createPendingFixture({ tournamentId, categoryId, groupId, playerOne, playerTwo })
 
-      fixtures.push(fixture)
+      fixtures.push({
+        ...fixture,
+        rulesSnapshot,
+        rulesState: rulesSnapshot ? 'resolved' : 'legacy_unresolved',
+      })
     }
   }
 
@@ -143,3 +158,5 @@ export function generateRoundRobinFixtures({
 export function createTournamentLiveState() {
   return createLiveState()
 }
+import { freezeMatchRulesSnapshot } from '../domain/matchRules.js'
+import { tournamentRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/tournamentMatchRules.js'

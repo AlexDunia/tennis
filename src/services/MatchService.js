@@ -15,6 +15,11 @@ export async function updateMatch(matchId, payload) {
   return response.data
 }
 
+export async function startMatch(matchId, payload) {
+  const response = await ApiService.post(`/matches/${matchId}/start`, payload)
+  return response.data
+}
+
 export async function submitMatchResult(matchId, payload) {
   const response = await ApiService.post(`/matches/${matchId}/result`, payload)
   return response.data

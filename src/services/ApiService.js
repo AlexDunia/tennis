@@ -24,6 +24,7 @@ import {
   matchRulesSnapshotToLegacyLadderConfig,
 } from '../domain/ruleAdapters/ladderMatchRules'
 import { freezeMatchRulesSnapshot } from '../domain/matchRules'
+import { tournamentRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/tournamentMatchRules'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 const defaultDelay = 300
@@ -1011,6 +1012,8 @@ function seedTournamentFixtures(tournament) {
         groupId: group.id,
 
         groupPlayers: group.players,
+
+        rulesSource: category,
       })
 
       group.fixtureIds = groupFixtures.map((fixture) => fixture.id)
@@ -1565,12 +1568,17 @@ function getCategoryMatches(tournamentId, categoryId) {
   )
 }
 
-function syncKnockoutMatchToSharedMatch(knockoutMatch) {
+function syncKnockoutMatchToSharedMatch(knockoutMatch, category) {
   if (!knockoutMatch) {
     return
   }
 
   const existingIndex = mockDatabase.matches.findIndex((match) => match.id === knockoutMatch.id)
+
+  const resolvedRules = tournamentRulesToMatchRulesSnapshot({
+    ...category,
+    rulesSnapshot: knockoutMatch.rulesSnapshot,
+  })
 
   const sharedMatch = {
     ...knockoutMatch,
@@ -1593,6 +1601,12 @@ function syncKnockoutMatchToSharedMatch(knockoutMatch) {
 
     liveState: null,
 
+    rulesSnapshot: resolvedRules.ok
+      ? freezeMatchRulesSnapshot(resolvedRules.snapshot)
+      : knockoutMatch.rulesSnapshot || null,
+
+    rulesState: resolvedRules.ok ? 'resolved' : 'legacy_unresolved',
+
     score: formatTournamentMatchScore(knockoutMatch),
   }
 
@@ -1610,11 +1624,15 @@ function syncKnockoutMatchToSharedMatch(knockoutMatch) {
 }
 
 function syncCategoryKnockout(category) {
-  category.knockout.quarterFinals?.forEach(syncKnockoutMatchToSharedMatch)
+  category.knockout.quarterFinals?.forEach((match) =>
+    syncKnockoutMatchToSharedMatch(match, category),
+  )
 
-  category.knockout.semiFinals?.forEach(syncKnockoutMatchToSharedMatch)
+  category.knockout.semiFinals?.forEach((match) =>
+    syncKnockoutMatchToSharedMatch(match, category),
+  )
 
-  syncKnockoutMatchToSharedMatch(category.knockout.final)
+  syncKnockoutMatchToSharedMatch(category.knockout.final, category)
 }
 
 function updateKnockoutMatch(category, match) {
@@ -1855,6 +1873,69 @@ const mockAdapter = async (config) => {
 
       config,
 
+      request: {},
+    }
+  }
+
+  if (method === 'post' && path.match(/^\/matches\/[^/]+\/start$/)) {
+    const matchId = path.split('/')[2]
+    const match = mockDatabase.matches.find((item) => item.id === matchId)
+    const tournament = match?.type === 'tournament' ? findTournament(match.tournamentId) : null
+    const category =
+      match?.type === 'tournament' ? findCategory(match.tournamentId, match.categoryId) : null
+    const rules = tournamentRulesToMatchRulesSnapshot({
+      ...category,
+      rulesSnapshot: match?.rulesSnapshot,
+    })
+    const errorMessage = !match
+      ? 'Match not found'
+      : match.type !== 'tournament'
+        ? 'This start operation only accepts Tournament matches.'
+        : !body?.authorized || !body?.actorId
+          ? 'Tournament score-update permission is required to start this match.'
+          : tournament?.clubId && body?.clubId !== tournament.clubId
+            ? 'This Tournament does not belong to the active club.'
+            : !['pending', 'scheduled', 'live'].includes(match.status)
+              ? 'This Tournament match cannot be started from its current state.'
+              : !match.player1Id || !match.player2Id
+                ? 'Both Tournament sides must be known before live scoring starts.'
+                : !rules.ok
+                  ? rules.issues?.[0]?.message || 'Tournament match rules are unresolved.'
+                  : ''
+
+    if (errorMessage) {
+      return {
+        data: { success: false, data: null, message: errorMessage },
+        status: match ? 422 : 404,
+        statusText: match ? 'Unprocessable Entity' : 'Not Found',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    const rulesWereMissing = !match.rulesSnapshot
+    match.rulesSnapshot = freezeMatchRulesSnapshot(rules.snapshot)
+    match.rulesState = 'resolved'
+
+    if (match.status !== 'live') {
+      const startedAt = new Date().toISOString()
+      match.status = 'live'
+      match.startedAt = startedAt
+      match.scorerId = body.actorId
+      match.updatedAt = startedAt
+      saveTournamentState()
+    } else if (rulesWereMissing) {
+      match.updatedAt = new Date().toISOString()
+      saveTournamentState()
+    }
+
+    return {
+      data: buildResponse(buildMatchResponse(match)),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
       request: {},
     }
   }
@@ -2524,6 +2605,24 @@ const mockAdapter = async (config) => {
       }
     }
 
+    const resolvedRules = tournamentRulesToMatchRulesSnapshot(category)
+    if (!resolvedRules.ok) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message:
+            resolvedRules.issues?.[0]?.message ||
+            'Choose an unambiguous scoring format before generating fixtures.',
+        },
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
     const existingIds = new Set(mockDatabase.matches.map((match) => match.id))
 
     const newFixtures = category.groups.flatMap((group) =>
@@ -2535,6 +2634,10 @@ const mockAdapter = async (config) => {
         groupId: group.id,
 
         groupPlayers: group.players,
+
+        rulesSource: category,
+
+        requireResolvedRules: true,
       }),
     )
 
@@ -3412,6 +3515,18 @@ const mockAdapter = async (config) => {
      */
 
     if (match.type === 'tournament') {
+      const resultId = String(body?.resultId || '')
+      if (resultId && match.resultId === resultId) {
+        return {
+          data: buildResponse(buildMatchResponse(match)),
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+          request: {},
+        }
+      }
+
       match.p1Sets = body?.p1Sets
 
       match.p2Sets = body?.p2Sets
@@ -3427,6 +3542,11 @@ const mockAdapter = async (config) => {
       match.winnerName = match.winnerId === match.player1Id ? match.player1Name : match.player2Name
 
       match.status = body?.status || 'completed'
+
+      match.resultId = resultId || match.resultId || null
+
+      match.completedAt =
+        match.status === 'completed' ? match.completedAt || new Date().toISOString() : null
 
       match.score = formatTournamentMatchScore(match)
 

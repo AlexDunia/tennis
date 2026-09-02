@@ -12,6 +12,7 @@ import TournamentMatchModal from '../components/tournament/TournamentMatchModal.
 import EmptyState from '../components/EmptyState.vue'
 import { useNotificationStore } from '../stores/notification'
 import { startOrResumeLadderMatch } from '../services/LadderLiveMatchService.js'
+import { startOrResumeMatch } from '../services/LiveMatchService.js'
 
 // 2. PROPS
 // none
@@ -155,6 +156,27 @@ const openLadderLive = async () => {
   router.push({ name: 'LiveMatch', params: { matchId: result.match.id } })
 }
 
+const openTournamentLive = async () => {
+  if (!canOpenLiveBoard.value) return
+  const result = await startOrResumeMatch({
+    match: match.value,
+    actorId: playerStore.currentPlayer?.id,
+    clubId: adminStore.activeClubId || '',
+    authorized: canManageTournament.value,
+    explicitStart: true,
+    tournament: tournament.value,
+    category: tournamentCategory.value,
+  })
+  if (!result.ok) {
+    notificationStore.addToast({
+      message: result.message || 'This Tournament Match cannot be opened for scoring.',
+      type: 'warning',
+    })
+    return
+  }
+  router.push({ name: 'LiveMatch', params: { matchId: result.match.id } })
+}
+
 const loadMatchDetails = async () => {
   try {
     await Promise.all([playerStore.loadPlayers(), matchStore.loadMatches()])
@@ -245,7 +267,7 @@ onMounted(() => {
           :primary-action-label="canEditTournamentResult ? 'Enter score' : ''"
           :secondary-action-label="canOpenLiveBoard ? 'Open live board' : ''"
           @primary-action="openTournamentScoreModal"
-          @secondary-action="$router.push(`/play/${match.id}`)"
+          @secondary-action="openTournamentLive"
         />
         <template v-else>
           <h3>Tournament controls</h3>

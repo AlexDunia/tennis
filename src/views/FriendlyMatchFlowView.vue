@@ -9,6 +9,7 @@ import { usePlayerStore } from '../stores/player'
 import { useChallengeStore } from '../stores/challenge'
 import { useMatchStore } from '../stores/match'
 import { useNotificationStore } from '../stores/notification'
+import { useTournamentStore } from '../stores/tournament'
 import { verifyLadderCreationAccess } from '../services/LadderAccessService'
 import { startOrResumeLadderMatch } from '../services/LadderLiveMatchService.js'
 import CompletedMatchResult from '../components/match/CompletedMatchResult.vue'
@@ -19,6 +20,7 @@ import { useLiveMatchSession } from '../composables/useLiveMatchSession'
 import { friendlyRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/friendlyMatchRules'
 import { ladderRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/ladderMatchRules'
 import { formatMatchRulesSummary } from '../utils/matchRulesSummary'
+import { normalizeTournamentPhysicalResult } from '../domain/tournamentMatchResult.js'
 import {
   ACTIVE_LADDER_CHALLENGE_STATUSES,
   deadlineFromNow,
@@ -29,7 +31,6 @@ import {
   ladderWindowFor,
 } from '../config/ladder'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
-import MatchResultModal from '../components/friendly/MatchResultModal.vue'
 import LiveMatchControl from '../components/match/LiveMatchControl.vue'
 import {
   buildTennisAnnouncement,
@@ -72,6 +73,7 @@ const playerStore = usePlayerStore()
 const challengeStore = useChallengeStore()
 const matchStore = useMatchStore()
 const notificationStore = useNotificationStore()
+const tournamentStore = useTournamentStore()
 const inlineNote = ref('')
 const searchQuery = ref('')
 const qrDataUrl = ref('')
@@ -82,7 +84,6 @@ const externalInvitation = ref(null)
 const customFormatError = ref('')
 const customFormatRules = ref(createStandardMatchRulesSnapshot())
 const ladderFormatDialogOpen = ref(false)
-const resultModalOpen = ref(false)
 const friendlyFinalizing = ref(false)
 
 const chairUmpireOpen = ref(false)
@@ -199,6 +200,7 @@ const currentLiveMatchId = computed(
 
 const isLadder = computed(() => friendlyMatchStore.draft.matchType === 'ladder')
 const isFriendly = computed(() => friendlyMatchStore.draft.matchType === 'friendly')
+const isTournament = computed(() => friendlyMatchStore.draft.matchType === 'tournament')
 const isPlayNow = computed(() => friendlyMatchStore.draft.timing === 'now')
 const selectedOpponentId = computed(() => friendlyMatchStore.draft.opponent?.id || '')
 const opponentName = computed(() => friendlyMatchStore.draft.opponent?.name || 'Opponent')
@@ -233,9 +235,27 @@ const currentIdentity = computed(() => {
   return authenticatedIdentity.value
 })
 
+const liveMatchManagementPermission = computed(() =>
+  isTournament.value ? 'tournaments.score.update' : 'matches.live_score',
+)
+
+const canAdminManageLiveMatch = computed(() => {
+  const actorId = authenticatedIdentity.value.id
+  const draft = friendlyMatchStore.draft
+
+  return Boolean(
+    actorId &&
+    !isChairUmpireControlRoute.value &&
+    draft.clubId &&
+    adminStore.activeClubId === draft.clubId &&
+    adminStore.hasActiveClubPermission(liveMatchManagementPermission.value),
+  )
+})
+
 const liveSessionApi = useLiveMatchSession({
   actorId: computed(() => currentIdentity.value.id),
   ownerId: computed(() => friendlyMatchStore.draft.ownerId),
+  canManage: canAdminManageLiveMatch,
   onSessionChange(session) {
     friendlyMatchStore.applyLiveSessionProjection(session)
   },
@@ -247,7 +267,11 @@ function canonicalMatchForCurrentLiveDraft() {
   const draft = friendlyMatchStore.draft
   const matchId = currentLiveMatchId.value
 
-  if (!matchId || !draft.rulesSnapshot || !['friendly', 'ladder'].includes(draft.matchType)) {
+  if (
+    !matchId ||
+    !draft.rulesSnapshot ||
+    !['friendly', 'ladder', 'tournament'].includes(draft.matchType)
+  ) {
     return null
   }
 
@@ -263,11 +287,11 @@ function canonicalMatchForCurrentLiveDraft() {
       liveSessionId: draft.liveSessionId || '',
       sides: [
         {
-          id: draft.ownerId || currentIdentity.value.id,
+          id: draft.participantAId || draft.ownerId || currentIdentity.value.id,
           name: draft.liveState?.players?.playerA || activeInvitation.value?.creator?.name || 'You',
         },
         {
-          id: draft.opponent?.id || '',
+          id: draft.participantBId || draft.opponent?.id || '',
           name: draft.liveState?.players?.playerB || draft.opponent?.name || 'Opponent',
         },
       ],
@@ -275,7 +299,11 @@ function canonicalMatchForCurrentLiveDraft() {
     {
       source: draft.matchType,
       sourceRefId:
-        draft.matchType === 'ladder' ? draft.ladderMatchId || draft.challengeId : draft.matchId,
+        draft.matchType === 'ladder'
+          ? draft.ladderMatchId || draft.challengeId
+          : draft.matchType === 'tournament'
+            ? draft.sourceContext?.tournamentId
+            : draft.matchId,
     },
   )
 
@@ -364,7 +392,7 @@ const canEmergencyOverrideLiveMatch = computed(() => {
    */
   if (
     liveSessionApi.session.value
-      ? liveSessionApi.permissions.value.canManage
+      ? liveSessionApi.permissions.value.isOwner
       : friendlyMatchStore.canManageMatch(actorId)
   ) {
     return false
@@ -401,7 +429,7 @@ const canEmergencyOverrideLiveMatch = computed(() => {
    * Use active-club membership permission,
    * NOT generic/global isAdmin.
    */
-  return Boolean(adminStore.hasActiveClubPermission('matches.live_score'))
+  return Boolean(adminStore.hasActiveClubPermission(liveMatchManagementPermission.value))
 })
 
 const acceptedChairUmpireScorerId = computed(
@@ -461,6 +489,10 @@ const chairUmpireCandidates = computed(() => {
   const participantIds = new Set(
     [
       friendlyMatchStore.draft.ownerId,
+
+      friendlyMatchStore.draft.participantAId,
+
+      friendlyMatchStore.draft.participantBId,
 
       friendlyMatchStore.draft.opponent?.id,
 
@@ -532,7 +564,69 @@ const canScoreLiveMatch = computed(() =>
     : friendlyMatchStore.canScoreMatch(currentIdentity.value.id),
 )
 
-const canAccessLiveMatch = computed(() => canManageDraft.value || canScoreLiveMatch.value)
+const canAccessLiveMatch = computed(
+  () => canManageDraft.value || canManageLiveMatch.value || canScoreLiveMatch.value,
+)
+
+const pendingLiveResult = computed(() => {
+  const draft = friendlyMatchStore.draft
+
+  if (
+    step.value !== 'live' ||
+    !['ladder', 'tournament'].includes(draft.matchType) ||
+    !draft.over ||
+    !liveSessionView.value.winner
+  ) {
+    return null
+  }
+
+  const playerAId = draft.participantAId || draft.ownerId || ''
+  const playerBId = draft.participantBId || draft.opponent?.id || ''
+  const playerAName = liveSessionView.value.playerAName
+  const playerBName = liveSessionView.value.playerBName
+  const winnerId = liveSessionView.value.winner === 'playerA' ? playerAId : playerBId
+  const engineState = liveSessionView.value.engineState
+
+  return {
+    id: `result-${currentLiveMatchId.value}`,
+    matchId: draft.matchId || draft.ladderMatchId || currentLiveMatchId.value,
+    matchType: draft.matchType,
+    status: 'completed',
+    ownerId: draft.ownerId || playerAId,
+    participantIds: [playerAId, playerBId].filter(Boolean),
+    players: {
+      playerA: { id: playerAId, name: playerAName },
+      playerB: { id: playerBId, name: playerBName },
+    },
+    winnerId,
+    winnerName: winnerId === playerAId ? playerAName : playerBName,
+    score: friendlyMatchStore.scoreSummary,
+    setScores: liveSessionView.value.setScores,
+    scoringFormat: liveSessionView.value.scoringFormatLabel,
+    matchFormatLabel: liveSessionView.value.matchFormatLabel,
+    startedAt: liveSessionView.value.startedAt,
+    completedAt:
+      liveSessionApi.session.value?.completedAt ||
+      engineState?.completedAt ||
+      liveSessionApi.session.value?.lastActivityAt ||
+      new Date().toISOString(),
+    liveState: engineState,
+  }
+})
+
+const pendingLiveResultStatus = computed(() =>
+  isTournament.value ? 'Ready to record' : 'Awaiting submission',
+)
+
+const pendingLiveResultMessage = computed(() =>
+  isTournament.value
+    ? 'Record this completed score in the Tournament to finish the fixture.'
+    : 'Submit this completed score to begin the Ladder confirmation process.',
+)
+
+const canSharePendingLiveResult = computed(() =>
+  Boolean(pendingLiveResult.value?.participantIds?.includes(currentIdentity.value.id)),
+)
 
 const completedResultId = computed(() => String(route.params.resultId || ''))
 
@@ -631,6 +725,10 @@ const canRenderCurrentRoute = computed(() => {
      */
     if (draft.matchType === 'ladder') {
       return ['live', 'finished'].includes(draft.status)
+    }
+
+    if (draft.matchType === 'tournament') {
+      return ['live', 'finished'].includes(draft.status) && canAccessLiveMatch.value
     }
 
     return false
@@ -2218,7 +2316,7 @@ async function openChairUmpire() {
     return
   }
 
-  const existing = getActiveChairUmpireInvitationForMatch(matchId, currentIdentity.value.id)
+  const existing = getActiveChairUmpireInvitationForMatch(matchId)
 
   chairUmpireInvitation.value = existing
 
@@ -2241,7 +2339,7 @@ function handoffChairUmpireControl() {
   inlineNote.value = ''
 
   if (!canManageLiveMatch.value) {
-    inlineNote.value = 'Only the match owner can hand over Match Control.'
+    inlineNote.value = 'Only an authorized match manager can hand over Match Control.'
 
     return
   }
@@ -2293,6 +2391,8 @@ function handoffChairUmpireControl() {
     invitation.invitationId,
 
     currentIdentity.value.id,
+
+    canManageLiveMatch.value,
   )
 
   if (!granted) {
@@ -2324,7 +2424,7 @@ function reclaimChairUmpireControl() {
   inlineNote.value = ''
 
   if (!canManageLiveMatch.value) {
-    inlineNote.value = 'Only the match owner can take Match Control back.'
+    inlineNote.value = 'Only an authorized match manager can take Match Control back.'
 
     return
   }
@@ -2359,6 +2459,8 @@ function reclaimChairUmpireControl() {
     currentIdentity.value.id,
 
     'owner_reclaimed',
+
+    canManageLiveMatch.value,
   )
 
   if (revoked) {
@@ -2386,8 +2488,8 @@ function emergencyTakeMatchControl() {
     !draft.over &&
     draft.clubId &&
     adminStore.activeClubId === draft.clubId &&
-    adminStore.hasActiveClubPermission('matches.live_score') &&
-    !liveSessionApi.permissions.value.canManage &&
+    adminStore.hasActiveClubPermission(liveMatchManagementPermission.value) &&
+    !liveSessionApi.permissions.value.isOwner &&
     !liveSessionApi.permissions.value.canScore,
   )
 
@@ -2531,6 +2633,8 @@ function removeChairUmpireInvitation() {
       currentIdentity.value.id,
 
       'umpire_removed',
+
+      canManageLiveMatch.value,
     )
   }
 
@@ -2538,6 +2642,8 @@ function removeChairUmpireInvitation() {
     invitation.invitationId,
 
     currentIdentity.value.id,
+
+    canManageLiveMatch.value,
   )
 
   if (!cancelled) {
@@ -2955,8 +3061,6 @@ async function finalizeFriendlyMatch() {
    * We are now changing only the presentation
    * destination.
    */
-  resultModalOpen.value = false
-
   /*
    * A chair umpire can finish scoring but is not a
    * match participant.
@@ -3186,12 +3290,54 @@ async function finishMatch() {
    */
 
   if (step.value === 'result') {
-    resultModalOpen.value = false
-
     await router.replace({
       name: 'Dashboard',
     })
 
+    return
+  }
+
+  if (isTournament.value) {
+    const physicalCompletion = liveSessionApi.finishPhysicalMatch()
+    if (!physicalCompletion.ok) {
+      notificationStore.addToast({
+        message: liveSessionApi.error.value || 'The physical match could not be marked complete.',
+        type: 'warning',
+      })
+      return
+    }
+    const normalized = normalizeTournamentPhysicalResult(
+      liveSessionApi.match.value,
+      physicalCompletion.session,
+    )
+    if (!normalized.ok) {
+      notificationStore.addToast({ message: normalized.message, type: 'warning' })
+      return
+    }
+    const matchId = friendlyMatchStore.draft.matchId
+    const tournamentId = friendlyMatchStore.draft.sourceContext?.tournamentId
+    const categoryId = friendlyMatchStore.draft.sourceContext?.categoryId
+    publishCurrentLiveScoreboard({ type: 'complete' })
+    const submitted = await tournamentStore.enterMatchResult(matchId, normalized.result)
+    if (!submitted) {
+      notificationStore.addToast({
+        message: tournamentStore.error || 'The Tournament result could not be recorded.',
+        type: 'warning',
+      })
+      return
+    }
+    friendlyMatchStore.releaseCanonicalLiveMatch(matchId)
+    stopScoreboardHeartbeat()
+    stopScoreboardHeartbeat = () => {}
+    await router.push(
+      tournamentId
+        ? {
+            name: 'TournamentMatchDetails',
+            params: { tournamentId, matchId },
+            query: categoryId ? { categoryId } : {},
+          }
+        : { name: 'MatchDetails', params: { matchId } },
+    )
     return
   }
 
@@ -3243,9 +3389,11 @@ async function finishMatch() {
       return
     }
 
-    friendlyMatchStore.endMatch(currentIdentity.value.id)
+    const completedResult = friendlyMatchStore.endMatch(currentIdentity.value.id)
 
-    resultModalOpen.value = false
+    if (!completedResult) {
+      friendlyMatchStore.releaseCanonicalLiveMatch(matchId)
+    }
 
     notificationStore.addToast({
       message: 'Result submitted. Your opponent must confirm it before rankings move.',
@@ -3273,10 +3421,6 @@ async function finishMatch() {
   router.replace({
     name: 'Dashboard',
   })
-}
-
-function closeLadderResultModal() {
-  resultModalOpen.value = false
 }
 
 function initials(name = '') {
@@ -3666,24 +3810,6 @@ onUnmounted(() => {
 })
 
 watch(step, configureStep)
-watch(
-  [step, () => friendlyMatchStore.draft.over],
-
-  ([currentStep, matchOver]) => {
-    /*
-     * Friendly completed matches have their own
-     * dedicated immutable Result route now.
-     *
-     * Only Ladder temporarily retains the old modal
-     * submission experience.
-     */
-    resultModalOpen.value = Boolean(currentStep === 'live' && isLadder.value && matchOver)
-  },
-
-  {
-    immediate: true,
-  },
-)
 </script>
 
 <template>
@@ -4587,8 +4713,22 @@ watch(
         @report-issue="reportCompletedResultIssue"
       />
 
+      <CompletedMatchResult
+        v-if="step === 'live' && pendingLiveResult"
+        :result="pendingLiveResult"
+        :current-player-id="currentIdentity.id"
+        :primary-action-label="
+          isTournament ? 'Record tournament result' : 'Submit result for confirmation'
+        "
+        :result-status-label="pendingLiveResultStatus"
+        :integrity-message="pendingLiveResultMessage"
+        :can-report-issue="false"
+        :can-share="canSharePendingLiveResult"
+        @done="finishMatch"
+      />
+
       <LiveMatchControl
-        v-if="step === 'live'"
+        v-if="step === 'live' && !pendingLiveResult"
         :player-a-name="liveSessionView.playerAName"
         :player-b-name="liveSessionView.playerBName"
         :player-a-point="liveSessionView.playerAPoint"
@@ -4684,22 +4824,6 @@ watch(
         </section>
       </div>
     </main>
-    <MatchResultModal
-      v-if="canRenderCurrentRoute && isLadder && step === 'live'"
-      :open="resultModalOpen"
-      :winner="friendlyMatchStore.draft.winner"
-      :current-player-name="currentIdentity.name"
-      :opponent-name="opponentName"
-      :score="friendlyMatchStore.scoreSummary"
-      :set-scores="friendlyMatchStore.draft.setScores"
-      :match-format="friendlyMatchStore.matchFormatLabel"
-      :scoring-format="friendlyMatchStore.formatLabel"
-      primary-action-label="
-    Submit result for confirmation
-  "
-      @close="closeLadderResultModal"
-      @finish="finishMatch"
-    />
   </div>
 </template>
 

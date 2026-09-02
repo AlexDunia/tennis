@@ -11,6 +11,34 @@ function valueOf(value) {
   return unref(value)
 }
 
+export function resolveLiveMatchSessionPermissions({
+  actorId = '',
+  ownerId = '',
+  scorerId = '',
+  canManage = false,
+} = {}) {
+  const normalizedActorId = String(actorId || '')
+  const normalizedOwnerId = String(ownerId || '')
+  const normalizedScorerId = String(scorerId || '')
+  const isOwner = Boolean(
+    normalizedActorId && normalizedOwnerId && normalizedActorId === normalizedOwnerId,
+  )
+  const hasManagementGrant = Boolean(normalizedActorId && canManage)
+  const canScore = Boolean(
+    normalizedActorId && normalizedScorerId && normalizedActorId === normalizedScorerId,
+  )
+
+  return {
+    actorId: normalizedActorId,
+    ownerId: normalizedOwnerId,
+    scorerId: normalizedScorerId,
+    isOwner,
+    canManage: isOwner || hasManagementGrant,
+    canScore,
+    canFinalize: isOwner || hasManagementGrant || canScore,
+  }
+}
+
 function commandId(type, matchId) {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `${type}-${crypto.randomUUID()}`
@@ -126,14 +154,12 @@ export function useLiveMatchSession(options = {}) {
     const actorId = String(valueOf(options.actorId) || '')
     const ownerId = String(valueOf(options.ownerId) || match.value?.sides?.[0]?.id || '')
     const scorerId = session.value?.scorerAuthority?.scorerId || ''
-    return {
+    return resolveLiveMatchSessionPermissions({
       actorId,
       ownerId,
       scorerId,
-      canManage: Boolean(actorId && ownerId && actorId === ownerId),
-      canScore: Boolean(actorId && scorerId && actorId === scorerId),
-      canFinalize: Boolean(actorId && (actorId === ownerId || actorId === scorerId)),
-    }
+      canManage: Boolean(valueOf(options.canManage)),
+    })
   })
 
   function acceptSession(nextSession, meta = {}) {

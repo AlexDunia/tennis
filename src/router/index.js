@@ -677,15 +677,13 @@ router.beforeEach(async (to) => {
       if (!match) {
         return { name: 'Dashboard', query: { match: 'not-found' } }
       }
-      if (String(match.type || '').toLowerCase() === 'ladder') {
+      if (['ladder', 'tournament'].includes(String(match.type || '').toLowerCase())) {
         return { name: 'LiveMatch', params: { matchId: match.id } }
       }
-      if (String(match.type || '').toLowerCase() !== 'tournament') {
-        return {
-          name: 'MatchDetails',
-          params: { matchId: match.id },
-          query: { live: 'unsupported-source' },
-        }
+      return {
+        name: 'MatchDetails',
+        params: { matchId: match.id },
+        query: { live: 'unsupported-source' },
       }
     } catch {
       return { name: 'Dashboard', query: { match: 'unavailable' } }

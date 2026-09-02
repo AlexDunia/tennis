@@ -15,6 +15,36 @@ const props = defineProps({
     type: String,
     required: true,
   },
+
+  primaryActionLabel: {
+    type: String,
+    default: 'Return to dashboard',
+  },
+
+  resultStatusLabel: {
+    type: String,
+    default: 'Recorded',
+  },
+
+  integrityTitle: {
+    type: String,
+    default: 'The completed score is preserved.',
+  },
+
+  integrityMessage: {
+    type: String,
+    default: 'If something is wrong, report it for review instead of reopening the finished match.',
+  },
+
+  canReportIssue: {
+    type: Boolean,
+    default: true,
+  },
+
+  canShare: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 const emit = defineEmits(['done', 'report-issue'])
@@ -539,7 +569,7 @@ watch(currentIssue, (issue) => {
           <span>Result status</span>
 
           <strong>
-            {{ currentIssue ? 'Review requested' : 'Recorded' }}
+            {{ currentIssue ? 'Review requested' : resultStatusLabel }}
           </strong>
         </div>
       </section>
@@ -554,11 +584,9 @@ watch(currentIssue, (issue) => {
         </div>
 
         <p>
-          <strong> The completed score is preserved. </strong>
+          <strong> {{ integrityTitle }} </strong>
 
-          <span>
-            If something is wrong, report it for review instead of reopening the finished match.
-          </span>
+          <span> {{ integrityMessage }} </span>
         </p>
       </section>
 
@@ -586,11 +614,7 @@ watch(currentIssue, (issue) => {
               <strong> What looks wrong? </strong>
             </div>
 
-            <button
-              type="button"
-              aria-label="Close result review"
-              @click="closeIssueForm"
-            >
+            <button type="button" aria-label="Close result review" @click="closeIssueForm">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M7 7l10 10M17 7 7 17" />
               </svg>
@@ -735,6 +759,7 @@ watch(currentIssue, (issue) => {
         </Transition>
 
         <button
+          v-if="canShare"
           ref="shareTriggerRef"
           type="button"
           class="completed-result__secondary"
@@ -753,6 +778,7 @@ watch(currentIssue, (issue) => {
           <span> Share </span>
         </button>
         <button
+          v-if="canReportIssue"
           ref="issueTriggerRef"
           type="button"
           class="completed-result__secondary"
@@ -769,7 +795,7 @@ watch(currentIssue, (issue) => {
         </button>
 
         <button type="button" class="completed-result__primary" @click="emit('done')">
-          Return to dashboard
+          {{ primaryActionLabel }}
         </button>
       </footer>
     </div>
@@ -1755,9 +1781,7 @@ watch(currentIssue, (issue) => {
 
 .completed-result button:focus-visible,
 .completed-result textarea:focus-visible {
-  outline:
-    3px solid
-    rgba(0, 181, 26, 0.18);
+  outline: 3px solid rgba(0, 181, 26, 0.18);
 
   outline-offset: 2px;
 }

@@ -7,7 +7,7 @@ import { useAdminStore } from '../stores/admin'
 import { useAuthStore } from '../stores/auth'
 import { useFriendlyMatchStore } from '../stores/friendlyMatch'
 import { usePlayerStore } from '../stores/player'
-import { startOrResumeLadderMatch } from '../services/LadderLiveMatchService.js'
+import { startOrResumeMatch } from '../services/LiveMatchService.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -28,17 +28,14 @@ async function loadLiveMatch(matchId) {
   ready.value = false
   error.value = ''
   try {
-    const result = await startOrResumeLadderMatch({
+    const result = await startOrResumeMatch({
       matchId,
       actorId: actorId.value,
       clubId: adminStore.activeClubId || '',
       explicitStart: false,
     })
     if (!result.ok) {
-      error.value =
-        result.code === 'not_ladder'
-          ? 'This live route currently supports migrated Ladder matches only.'
-          : result.message || 'This live Match is unavailable or has not been started.'
+      error.value = result.message || 'This live Match is unavailable or has not been started.'
       return
     }
 
@@ -52,6 +49,7 @@ async function loadLiveMatch(matchId) {
         result.match,
         result.canonicalMatch,
         result.session,
+        result.context,
       )
     ) {
       error.value = 'The canonical live Match could not be prepared for display.'

@@ -191,6 +191,9 @@ export const useTournamentStore = defineStore('tournament', () => {
     const matchStore = useMatchStore()
     const notificationStore = useNotificationStore()
     const previousMatch = matchStore.matchById(matchId)
+    if (payload?.resultId && previousMatch?.resultId === payload.resultId) {
+      return previousMatch
+    }
     const isResultEdit = ['completed', 'walkover'].includes(previousMatch?.status)
     const result = await matchStore.submitResult(matchId, payload)
 
