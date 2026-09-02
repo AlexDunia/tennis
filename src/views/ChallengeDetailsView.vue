@@ -11,6 +11,7 @@ import { usePlayerStore } from '../stores/player'
 import { formatAppDateTime } from '../utils/dateFormat'
 import { ladderRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/ladderMatchRules'
 import { formatMatchRulesSummary } from '../utils/matchRulesSummary'
+import { startOrResumeLadderMatch } from '../services/LadderLiveMatchService.js'
 import {
   canStartChallenge,
   challengeStateCopy,
@@ -216,12 +217,18 @@ async function scheduleChallenge() {
 }
 
 async function startChallenge() {
-  const result = await runAction(
-    () => challengeStore.startChallenge(challengeId.value, currentPlayer.value?.id),
-    'Match started.',
-  )
-  const matchId = result?.match?.id || match.value?.id
-  if (matchId) router.push({ name: 'PlayMatch', params: { matchId } })
+  const result = await runAction(async () => {
+    const started = await startOrResumeLadderMatch({
+      match: match.value,
+      actorId: currentPlayer.value?.id,
+      clubId: adminStore.activeClubId || '',
+      explicitStart: true,
+    })
+    if (!started.ok) throw new Error(started.message || 'Unable to start this Ladder Match.')
+    return started
+  }, 'Match started.')
+  const matchId = result?.match?.id
+  if (matchId) router.push({ name: 'LiveMatch', params: { matchId } })
 }
 
 async function confirmResult() {
@@ -240,8 +247,21 @@ function openMatchDetails() {
   if (match.value?.id) router.push({ name: 'MatchDetails', params: { matchId: match.value.id } })
 }
 
-function continueMatch() {
-  if (match.value?.id) router.push({ name: 'PlayMatch', params: { matchId: match.value.id } })
+async function continueMatch() {
+  if (!match.value?.id) return
+  const result = await runAction(async () => {
+    const resumed = await startOrResumeLadderMatch({
+      match: match.value,
+      actorId: currentPlayer.value?.id,
+      clubId: adminStore.activeClubId || '',
+      explicitStart: true,
+    })
+    if (!resumed.ok) throw new Error(resumed.message || 'Unable to continue this Ladder Match.')
+    return resumed
+  })
+  if (result?.match?.id) {
+    router.push({ name: 'LiveMatch', params: { matchId: result.match.id } })
+  }
 }
 
 async function loadDetails() {

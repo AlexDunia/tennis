@@ -1878,6 +1878,10 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
 
     draft.value.ladderMatchId = match?.id || draft.value.ladderMatchId
 
+    if (match?.id) {
+      draft.value.matchId = match.id
+    }
+
     const rulesSnapshot = match?.rulesSnapshot || challenge?.rulesSnapshot
     if (rulesSnapshot && validateMatchRulesSnapshot(rulesSnapshot).valid) {
       draft.value.rulesSnapshot = freezeMatchRulesSnapshot(rulesSnapshot)
@@ -2258,6 +2262,84 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
    * This method never runs tennis arithmetic. The canonical session remains
    * the sole writer and its engineState is copied here only for compatibility.
    */
+  function attachCanonicalLiveMatch(match, canonicalMatch, session) {
+    const matchId = normalizeLiveMatchId(match?.id)
+    const canonicalId = normalizeLiveMatchId(canonicalMatch?.id)
+    if (
+      !matchId ||
+      matchId !== canonicalId ||
+      matchId !== normalizeLiveMatchId(session?.matchId) ||
+      canonicalMatch?.source !== 'ladder' ||
+      !canonicalMatch.rulesSnapshot ||
+      !session?.engineState
+    ) {
+      return false
+    }
+
+    const scheduledAt = match.scheduledAt ? new Date(match.scheduledAt) : null
+    const rulesSnapshot = freezeMatchRulesSnapshot(canonicalMatch.rulesSnapshot)
+    const sideA = canonicalMatch.sides?.[0] || {}
+    const sideB = canonicalMatch.sides?.[1] || {}
+
+    activeLiveMatchId.value = matchId
+    draftDetached.value = false
+    draft.value = normalizeStoredDraft({
+      ...createDraft(),
+      matchType: 'ladder',
+      timing: match.scheduledAt ? 'later' : 'now',
+      clubId: canonicalMatch.clubId || match.clubId || '',
+      matchId,
+      challengeId: match.challengeId || canonicalMatch.sourceRef?.id || '',
+      ladderMatchId: matchId,
+      ladderConfigSnapshot: match.ladderConfigSnapshot || null,
+      rulesSnapshot,
+      preMatchPositions: match.preMatchPositions || null,
+      ownerId: sideA.id || match.challengerId || '',
+      scorerId: session.scorerAuthority?.scorerId || match.scorerId || '',
+      scorerRevision: Number(session.authorityRevision || 0),
+      scorerChangedAt: session.scorerAuthority?.changedAt || '',
+      scorerChangedBy: session.scorerAuthority?.assignedBy || '',
+      scorerHistory: session.scorerAuthority?.history || [],
+      opponent: {
+        id: sideB.id || match.defenderId || '',
+        name: sideB.name || match.defenderName || 'Opponent',
+        rank: Number(match.preMatchPositions?.defender || 0) || null,
+        division: 'Ladder',
+      },
+      format:
+        rulesSnapshot.game?.mode === 'traditional' && rulesSnapshot.game?.deuce === 'no_ad'
+          ? 'noad'
+          : 'ad',
+      matchFormat: 'custom',
+      customFormat: {
+        id: `canonical-${matchId}`,
+        name: 'Ladder match format',
+        rulesSnapshot,
+      },
+      tieBreak:
+        rulesSnapshot.set?.tiedAtTarget?.mode === 'tiebreak'
+          ? `${rulesSnapshot.set.gamesToWin}-${rulesSnapshot.set.gamesToWin}`
+          : 'none',
+      schedule: {
+        date:
+          scheduledAt && Number.isFinite(scheduledAt.getTime())
+            ? scheduledAt.toISOString().slice(0, 10)
+            : '',
+        time:
+          scheduledAt && Number.isFinite(scheduledAt.getTime())
+            ? scheduledAt.toISOString().slice(11, 16)
+            : '',
+        court: match.court?.label || match.court || canonicalMatch.court?.label || '',
+      },
+      startedAt: session.startedAt || match.startedAt || '',
+      liveSessionId: session.id,
+      liveState: normalizeScoreboard(session.engineState),
+      status: session.engineState.matchWinner ? 'finished' : 'live',
+    })
+    syncLegacyScoreFields()
+    return persistCurrentDraft()
+  }
+
   function applyLiveSessionProjection(session) {
     const matchId = normalizeLiveMatchId(session?.matchId)
     const liveId = activeLiveMatchId.value || resolveLiveMatchId(draft.value)
@@ -2786,6 +2868,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     createScheduledInvitation,
     linkLadderRecords,
     startLiveMatch,
+    attachCanonicalLiveMatch,
     applyLiveSessionProjection,
     listLiveMatchesForUser,
     subscribeToLiveMatchChanges,

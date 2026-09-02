@@ -25,10 +25,10 @@ test('active Play-side challenges open the exact Challenge Details record', () =
   )
 })
 
-test('result reporting requires a visible preview and participant identity', () => {
-  assert.match(matchDetails, /resultPreviewOpen/)
-  assert.match(matchDetails, /Review before submitting/)
-  assert.match(matchDetails, /submittedBy: playerStore\.currentPlayer\?\.id/)
+test('Match Details cannot bypass canonical Ladder physical completion', () => {
+  assert.match(matchDetails, /startOrResumeLadderMatch/)
+  assert.match(matchDetails, /name: 'LiveMatch'/)
+  assert.doesNotMatch(matchDetails, /matchStore\.submitResult/)
 })
 
 test('the mock challenge API implements accepted, schedule, start, and cancellation cleanup', () => {

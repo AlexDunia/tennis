@@ -7,6 +7,7 @@ import CompeteChallengeCreateView from '../views/compete/CompeteChallengeCreateV
 import MatchDetailsView from '../views/MatchDetailsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import PlayView from '../views/PlayView.vue'
+import LiveMatchView from '../views/LiveMatchView.vue'
 import LiveScoreboardView from '../views/LiveScoreboardView.vue'
 import LiveOperationsView from '../views/LiveOperationsView.vue'
 import LiveOperationDetailView from '../views/LiveOperationDetailView.vue'
@@ -32,6 +33,7 @@ import ClubsView from '../views/ClubsView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import { useAuthStore } from '../stores/auth'
 import { useAdminStore } from '../stores/admin'
+import { getMatch } from '../services/MatchService.js'
 
 const routes = [
   {
@@ -304,13 +306,22 @@ const routes = [
   },
   {
     path: '/friendly-match/live/:matchId',
-
-    alias: '/ladder-match/live/:matchId',
-
     name: 'FriendlyMatchLive',
     component: FriendlyMatchFlowView,
     meta: {
       title: 'Live friendly match',
+      friendlyFlow: true,
+      friendlyStep: 'live',
+      primarySection: 'play',
+      immersive: true,
+    },
+  },
+  {
+    path: '/ladder-match/live/:matchId',
+    name: 'LegacyLadderLive',
+    component: LiveMatchView,
+    meta: {
+      title: 'Live match',
       friendlyFlow: true,
       friendlyStep: 'live',
       primarySection: 'play',
@@ -422,6 +433,19 @@ const routes = [
     meta: {
       title: 'Match History',
       subtitle: 'Completed matches and court activity.',
+    },
+  },
+  {
+    path: '/matches/:matchId/live',
+    name: 'LiveMatch',
+    component: LiveMatchView,
+    props: true,
+    meta: {
+      title: 'Live match',
+      friendlyFlow: true,
+      friendlyStep: 'live',
+      primarySection: 'play',
+      immersive: true,
     },
   },
   {
@@ -643,6 +667,28 @@ router.beforeEach(async (to) => {
       return hasStarted
         ? { name: 'AdminSetup', query: { step: adminStore.resumeStep } }
         : { name: 'AdminSetup', query: { view: 'start' } }
+    }
+  }
+
+  if (to.name === 'PlayMatch') {
+    try {
+      const response = await getMatch(String(to.params.matchId || ''))
+      const match = response?.success ? response.data : null
+      if (!match) {
+        return { name: 'Dashboard', query: { match: 'not-found' } }
+      }
+      if (String(match.type || '').toLowerCase() === 'ladder') {
+        return { name: 'LiveMatch', params: { matchId: match.id } }
+      }
+      if (String(match.type || '').toLowerCase() !== 'tournament') {
+        return {
+          name: 'MatchDetails',
+          params: { matchId: match.id },
+          query: { live: 'unsupported-source' },
+        }
+      }
+    } catch {
+      return { name: 'Dashboard', query: { match: 'unavailable' } }
     }
   }
 

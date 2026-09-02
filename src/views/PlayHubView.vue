@@ -4,19 +4,26 @@ import { useRouter } from 'vue-router'
 import { useFriendlyMatchStore } from '../stores/friendlyMatch'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
+import { useAdminStore } from '../stores/admin'
+import { useNotificationStore } from '../stores/notification'
+import { startOrResumeLadderMatch } from '../services/LadderLiveMatchService.js'
 import EmptyState from '../components/EmptyState.vue'
 
 const router = useRouter()
 const friendlyMatchStore = useFriendlyMatchStore()
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
+const adminStore = useAdminStore()
+const notificationStore = useNotificationStore()
 
 const currentPlayerId = computed(() => playerStore.currentPlayerId)
 const readyMatches = computed(() =>
   matchStore.matches
     .filter(
       (match) =>
-        ['pending', 'scheduled', 'pending_review'].includes(match.status) &&
+        (match.type === 'ladder'
+          ? ['accepted', 'scheduled', 'ready', 'live'].includes(match.status)
+          : ['pending', 'scheduled', 'live'].includes(match.status)) &&
         [match.player1Id, match.player2Id, match.challengerId, match.defenderId].includes(
           currentPlayerId.value,
         ),
@@ -36,8 +43,29 @@ function startMatch(mode) {
   friendlyMatchStore.chooseMatchType('friendly')
   router.push({ name: 'FriendlyMatchScoring' })
 }
-function continueMatch(match) {
-  router.push({ name: 'PlayMatch', params: { matchId: match.id } })
+async function continueMatch(match) {
+  if (match.type === 'ladder') {
+    const result = await startOrResumeLadderMatch({
+      match,
+      actorId: currentPlayerId.value,
+      clubId: adminStore.activeClubId || '',
+      explicitStart: true,
+    })
+    if (!result.ok) {
+      notificationStore.addToast({
+        message: result.message || 'This Ladder Match cannot be continued yet.',
+        type: 'warning',
+      })
+      return
+    }
+    router.push({ name: 'LiveMatch', params: { matchId: result.match.id } })
+    return
+  }
+  if (match.type === 'tournament') {
+    router.push({ name: 'PlayMatch', params: { matchId: match.id } })
+    return
+  }
+  router.push({ name: 'MatchDetails', params: { matchId: match.id } })
 }
 
 onMounted(() => {

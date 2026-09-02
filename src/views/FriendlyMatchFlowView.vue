@@ -10,6 +10,7 @@ import { useChallengeStore } from '../stores/challenge'
 import { useMatchStore } from '../stores/match'
 import { useNotificationStore } from '../stores/notification'
 import { verifyLadderCreationAccess } from '../services/LadderAccessService'
+import { startOrResumeLadderMatch } from '../services/LadderLiveMatchService.js'
 import CompletedMatchResult from '../components/match/CompletedMatchResult.vue'
 import MatchFormatEditor from '../components/match/MatchFormatEditor.vue'
 import { createStandardMatchRulesSnapshot } from '../domain/matchRules'
@@ -814,7 +815,9 @@ function flowLocation(name, options = {}) {
 }
 
 function liveMatchLocation() {
-  const matchId = friendlyMatchStore.liveMatchId
+  const matchId = isLadder.value
+    ? friendlyMatchStore.draft.ladderMatchId
+    : friendlyMatchStore.liveMatchId
 
   if (!matchId) {
     return {
@@ -822,11 +825,16 @@ function liveMatchLocation() {
     }
   }
 
-  return flowLocation('FriendlyMatchLive', {
-    params: {
-      matchId,
-    },
-  })
+  return isLadder.value
+    ? {
+        name: 'LiveMatch',
+        params: { matchId },
+      }
+    : flowLocation('FriendlyMatchLive', {
+        params: {
+          matchId,
+        },
+      })
 }
 
 const chairUmpireInviteUrl = computed(() => {
@@ -1538,17 +1546,7 @@ function continueFromSchedule() {
 function chooseFormat(format) {
   friendlyMatchStore.chooseFormat(format)
   if (isLadder.value) {
-    const started = friendlyMatchStore.startLiveMatch(
-      currentIdentity.value.id,
-
-      adminStore.activeClubId || '',
-    )
-    if (!started || !initializeCanonicalLiveSession({ allowCreate: true })) {
-      inlineNote.value =
-        inlineNote.value || 'This Ladder match could not create its canonical live session.'
-      return
-    }
-    router.push(liveMatchLocation())
+    router.push(flowLocation('FriendlyMatchFormat'))
   } else if (isFriendly.value) router.push(flowLocation('FriendlyMatchFormat'))
 }
 function chooseMatchFormat(matchFormat) {
@@ -1696,19 +1694,23 @@ async function completeReview() {
 
       friendlyMatchStore.linkLadderRecords(accepted.challenge, accepted.match)
 
-      const started = friendlyMatchStore.startLiveMatch(
-        currentIdentity.value.id,
+      const started = await startOrResumeLadderMatch({
+        match: accepted.match,
+        actorId: currentIdentity.value.id,
+        clubId: adminStore.activeClubId || '',
+        explicitStart: true,
+      })
 
-        adminStore.activeClubId || '',
-      )
-
-      if (!started) {
-        inlineNote.value = 'This Ladder match could not be started.'
-
-        return
-      }
-
-      if (!initializeCanonicalLiveSession({ allowCreate: true })) {
+      if (
+        !started.ok ||
+        !friendlyMatchStore.attachCanonicalLiveMatch(
+          started.match,
+          started.canonicalMatch,
+          started.session,
+        )
+      ) {
+        inlineNote.value =
+          started.message || 'This Ladder match could not create its canonical live session.'
         return
       }
 
@@ -3214,7 +3216,7 @@ async function finishMatch() {
 
     const winnerId =
       friendlyMatchStore.draft.winner === 'you'
-        ? currentIdentity.value.id
+        ? friendlyMatchStore.draft.ownerId
         : friendlyMatchStore.draft.opponent?.id
 
     const submitted = await matchStore.submitResult(matchId, {
@@ -3223,6 +3225,8 @@ async function finishMatch() {
       winnerId,
 
       submittedBy: currentIdentity.value.id,
+
+      resultId: physicalCompletion.session?.resultId,
 
       sets: friendlyMatchStore.draft.setScores.map((set) => ({
         ...set,

@@ -3271,14 +3271,18 @@ const mockAdapter = async (config) => {
       }
     }
 
-    if (![challenge.challengerId, challenge.defenderId].includes(body?.actorId)) {
+    if (
+      ![challenge.challengerId, challenge.defenderId, match.scorerId]
+        .filter(Boolean)
+        .includes(body?.actorId)
+    ) {
       return {
         data: {
           success: false,
 
           data: null,
 
-          message: 'Only a match player can start this match.',
+          message: 'Only a match player or the assigned scorer can start this match.',
         },
 
         status: 403,
@@ -3293,7 +3297,7 @@ const mockAdapter = async (config) => {
       }
     }
 
-    if (!['scheduled', 'ready'].includes(challenge.status)) {
+    if (!['accepted', 'scheduled', 'ready'].includes(challenge.status)) {
       return {
         data: {
           success: false,
@@ -3463,14 +3467,18 @@ const mockAdapter = async (config) => {
      * Ladder result.
      */
 
-    if (![match.challengerId, match.defenderId].includes(body?.submittedBy)) {
+    if (
+      ![match.challengerId, match.defenderId, match.scorerId]
+        .filter(Boolean)
+        .includes(body?.submittedBy)
+    ) {
       return {
         data: {
           success: false,
 
           data: null,
 
-          message: 'Only a match player can submit this result.',
+          message: 'Only a match player or the assigned scorer can submit this result.',
         },
 
         status: 403,
@@ -3507,11 +3515,40 @@ const mockAdapter = async (config) => {
       }
     }
 
+    const resultId = sanitizePlainText(body?.resultId, 160) || `result-${match.id}`
+
+    if (match.resultId) {
+      if (match.resultId === resultId && ['pending_review', 'completed'].includes(match.status)) {
+        return {
+          data: buildResponse(buildMatchResponse(match)),
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+          request: {},
+        }
+      }
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'A different physical result has already been recorded for this Match.',
+        },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
     match.score = body?.score || '6-4, 6-4'
 
     match.sets = Array.isArray(body?.sets) ? body.sets : []
 
     match.winnerId = body?.winnerId
+
+    match.resultId = resultId
 
     match.resultSubmittedBy = body?.submittedBy || match.challengerId
 
@@ -3527,6 +3564,8 @@ const mockAdapter = async (config) => {
       challenge.resultSubmittedBy = match.resultSubmittedBy
 
       challenge.resultSubmittedAt = match.resultSubmittedAt
+
+      challenge.resultId = resultId
     }
 
     saveLadderState()

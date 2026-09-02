@@ -15,6 +15,7 @@ import {
   ladderMatchConfig,
 } from '../../config/ladder'
 import { getEligibleLadderOpponents } from '../../services/LadderAccessService'
+import { startOrResumeLadderMatch } from '../../services/LadderLiveMatchService.js'
 
 const router = useRouter()
 const adminStore = useAdminStore()
@@ -195,11 +196,27 @@ async function createAdminMatch(setup) {
   })
 }
 
-function viewMatch(result) {
+async function viewMatch(result) {
   const matchId = result?.match?.id
   if (!matchId) return
-  if (result.timing === 'now') router.push({ name: 'PlayMatch', params: { matchId } })
-  else router.push({ name: 'MatchDetails', params: { matchId } })
+  if (result.timing !== 'now') {
+    router.push({ name: 'MatchDetails', params: { matchId } })
+    return
+  }
+  const started = await startOrResumeLadderMatch({
+    match: result.match,
+    actorId: currentPlayer.value?.id || '',
+    clubId: adminStore.activeClubId || '',
+    explicitStart: true,
+  })
+  if (!started.ok) {
+    notificationStore.addToast({
+      message: started.message || 'The canonical live Match could not be started.',
+      type: 'warning',
+    })
+    return
+  }
+  router.push({ name: 'LiveMatch', params: { matchId: started.match.id } })
 }
 
 watch(

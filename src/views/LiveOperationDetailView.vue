@@ -387,7 +387,7 @@ async function openMatchControl() {
   }
 
   await router.push({
-    name: 'FriendlyMatchLive',
+    name: operation.value?.matchType === 'ladder' ? 'LiveMatch' : 'FriendlyMatchLive',
 
     params: {
       matchId: matchId.value,
@@ -532,7 +532,7 @@ async function takeMatchControl() {
       takeoverOpen.value = false
 
       await router.push({
-        name: 'FriendlyMatchLive',
+        name: operation.value?.matchType === 'ladder' ? 'LiveMatch' : 'FriendlyMatchLive',
 
         params: {
           matchId: matchId.value,
@@ -567,7 +567,7 @@ async function takeMatchControl() {
     takeoverOpen.value = false
 
     await router.push({
-      name: 'FriendlyMatchLive',
+      name: operation.value?.matchType === 'ladder' ? 'LiveMatch' : 'FriendlyMatchLive',
 
       params: {
         matchId: matchId.value,
@@ -888,7 +888,7 @@ async function recoverMatch() {
      */
     if (canOpenControl.value) {
       await router.push({
-        name: 'FriendlyMatchLive',
+        name: operation.value?.matchType === 'ladder' ? 'LiveMatch' : 'FriendlyMatchLive',
 
         params: {
           matchId:

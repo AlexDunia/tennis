@@ -1,7 +1,7 @@
 <script setup>
 // 1. IMPORTS
-import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '../stores/admin'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
@@ -10,6 +10,8 @@ import { useTournamentLiveRefresh } from '../composables/useTournamentLiveRefres
 import { formatAppDateTime } from '../utils/dateFormat'
 import TournamentMatchModal from '../components/tournament/TournamentMatchModal.vue'
 import EmptyState from '../components/EmptyState.vue'
+import { useNotificationStore } from '../stores/notification'
+import { startOrResumeLadderMatch } from '../services/LadderLiveMatchService.js'
 
 // 2. PROPS
 // none
@@ -19,20 +21,18 @@ import EmptyState from '../components/EmptyState.vue'
 
 // 4. ROUTER / ROUTE
 const route = useRoute()
+const router = useRouter()
 
 // 5. STORES
 const adminStore = useAdminStore()
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
+const notificationStore = useNotificationStore()
 
 // 6. REACTIVE STATE
 const matchId = computed(() => route.params.matchId)
-const form = reactive({ winnerId: '', score: '' })
-const hasSubmitted = reactive({ value: false })
 const selectedTournamentMatch = ref(null)
-const resultPreviewOpen = ref(false)
-const submissionError = ref('')
 const hasLoaded = ref(false)
 
 // 7. COMPUTED PROPERTIES
@@ -43,11 +43,17 @@ const challenger = computed(
 const defender = computed(
   () => playerStore.players.find((player) => player.id === match.value?.defenderId) || null,
 )
-const canSubmitScore = computed(
-  () =>
-    match.value?.type !== 'tournament' &&
-    ['scheduled', 'live'].includes(match.value?.status) &&
-    [match.value?.challengerId, match.value?.defenderId].includes(playerStore.currentPlayer?.id),
+const canOpenLadderLive = computed(() => {
+  if (match.value?.type !== 'ladder') return false
+  if (!['accepted', 'scheduled', 'ready', 'live'].includes(match.value.status)) return false
+  const actorId = playerStore.currentPlayer?.id
+  return (
+    [match.value.challengerId, match.value.defenderId, match.value.scorerId].includes(actorId) ||
+    adminStore.hasActiveClubPermission('matches.live_score')
+  )
+})
+const ladderLiveActionLabel = computed(() =>
+  match.value?.status === 'live' ? 'Resume scoring' : 'Start scoring',
 )
 const tournament = computed(() => tournamentStore.activeTournament)
 const tournamentId = computed(() => route.params.tournamentId || match.value?.tournamentId || '')
@@ -106,44 +112,6 @@ const tournamentBackLink = computed(() => {
 })
 
 // 8. METHODS
-const initializeForm = () => {
-  if (!match.value) {
-    return
-  }
-
-  const requestedWinner = String(route.query.winnerId || '')
-  const playerIds = [match.value.challengerId, match.value.defenderId]
-  form.winnerId = playerIds.includes(requestedWinner)
-    ? requestedWinner
-    : match.value.winnerId || match.value.challengerId
-  form.score = String(route.query.score || match.value.score || '6-4, 6-4')
-  if (route.query.preview === '1' && canSubmitScore.value) resultPreviewOpen.value = true
-}
-
-const handleResultSubmit = () => {
-  submissionError.value = ''
-  if (!form.winnerId || !form.score.trim()) {
-    submissionError.value = 'Choose the winner and enter the final score.'
-    return
-  }
-  resultPreviewOpen.value = true
-}
-
-const confirmResultSubmit = async () => {
-  submissionError.value = ''
-  const submitted = await matchStore.submitResult(matchId.value, {
-    winnerId: form.winnerId,
-    score: form.score.trim(),
-    submittedBy: playerStore.currentPlayer?.id,
-  })
-  if (!submitted) {
-    submissionError.value = matchStore.error || 'Unable to submit this result.'
-    return
-  }
-  hasSubmitted.value = true
-  resultPreviewOpen.value = false
-}
-
 const openTournamentScoreModal = () => {
   if (!canEditTournamentResult.value) {
     return
@@ -169,13 +137,30 @@ const saveTournamentSchedule = async (payload) => {
   await tournamentStore.updateMatchSchedule(selectedTournamentMatch.value.id, payload)
 }
 
+const openLadderLive = async () => {
+  if (!canOpenLadderLive.value) return
+  const result = await startOrResumeLadderMatch({
+    match: match.value,
+    actorId: playerStore.currentPlayer?.id,
+    clubId: adminStore.activeClubId || '',
+    explicitStart: true,
+  })
+  if (!result.ok) {
+    notificationStore.addToast({
+      message: result.message || 'This Ladder Match cannot be opened for scoring.',
+      type: 'warning',
+    })
+    return
+  }
+  router.push({ name: 'LiveMatch', params: { matchId: result.match.id } })
+}
+
 const loadMatchDetails = async () => {
   try {
     await Promise.all([playerStore.loadPlayers(), matchStore.loadMatches()])
     if (match.value?.type === 'tournament') {
       await tournamentStore.fetchTournament(match.value.tournamentId)
     }
-    initializeForm()
   } finally {
     hasLoaded.value = true
   }
@@ -234,31 +219,19 @@ onMounted(() => {
       </div>
 
       <div v-if="match.type !== 'tournament'" class="result-panel section-card">
-        <h3>Submit result</h3>
-
-        <label class="field">
-          <span class="field__label">Winner</span>
-          <select v-model="form.winnerId" class="field__input">
-            <option :value="match.challengerId || match.player1Id">{{ playerOneName }}</option>
-            <option :value="match.defenderId || match.player2Id">{{ playerTwoName }}</option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span class="field__label">Score</span>
-          <input v-model="form.score" class="field__input" placeholder="6-4, 6-4" />
-        </label>
-
-        <p v-if="submissionError" class="submission-error" role="alert">{{ submissionError }}</p>
-
-        <button
-          class="submit-button"
-          type="button"
-          :disabled="!canSubmitScore || hasSubmitted.value"
-          @click="handleResultSubmit"
-        >
-          {{ hasSubmitted.value ? 'Result submitted' : 'Preview result' }}
-        </button>
+        <EmptyState
+          compact
+          variant="data-dependent"
+          illustration="scoreboard"
+          :title="match.status === 'pending_review' ? 'Result awaiting review' : 'Live scoring'"
+          :description="
+            match.status === 'pending_review'
+              ? 'The physical result has been submitted and now follows the existing Ladder review flow.'
+              : 'Start or resume this physical Match in the shared live scorer.'
+          "
+          :primary-action-label="canOpenLadderLive ? ladderLiveActionLabel : ''"
+          @primary-action="openLadderLive"
+        />
       </div>
 
       <div v-else-if="canManageTournament" class="result-panel section-card">
@@ -304,56 +277,6 @@ onMounted(() => {
           <p class="panel-copy">The official tournament result is shown in the match summary.</p>
         </template>
       </div>
-    </div>
-
-    <div
-      v-if="resultPreviewOpen"
-      class="result-preview"
-      role="presentation"
-      @click.self="resultPreviewOpen = false"
-    >
-      <section
-        class="result-preview__dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="result-preview-title"
-      >
-        <p class="match-summary__status">Review before submitting</p>
-        <h2 id="result-preview-title">Confirm the final result</h2>
-        <p class="result-preview__match">{{ playerOneName }} vs {{ playerTwoName }}</p>
-        <dl>
-          <div>
-            <dt>Winner</dt>
-            <dd>{{ form.winnerId === match.challengerId ? playerOneName : playerTwoName }}</dd>
-          </div>
-          <div>
-            <dt>Final score</dt>
-            <dd>{{ form.score }}</dd>
-          </div>
-        </dl>
-        <p class="result-preview__note">
-          The other player will be asked to confirm this result before the Ladder changes.
-        </p>
-        <p v-if="submissionError" class="submission-error" role="alert">{{ submissionError }}</p>
-        <div class="result-preview__actions">
-          <button
-            class="button-secondary"
-            type="button"
-            :disabled="matchStore.isLoading"
-            @click="resultPreviewOpen = false"
-          >
-            Edit result
-          </button>
-          <button
-            class="button-primary"
-            type="button"
-            :disabled="matchStore.isLoading"
-            @click="confirmResultSubmit"
-          >
-            {{ matchStore.isLoading ? 'Submitting…' : 'Submit final result' }}
-          </button>
-        </div>
-      </section>
     </div>
 
     <TournamentMatchModal

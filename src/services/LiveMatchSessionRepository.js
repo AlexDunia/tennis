@@ -180,6 +180,19 @@ export function createLiveMatchSessionRepository(options = {}) {
     return session
   }
 
+  function remove(matchId) {
+    const key = storageKey(matchId)
+    if (!key) return false
+    memory.delete(key)
+    if (!storage) return true
+    try {
+      storage.removeItem(key)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   function handleStorage(event) {
     if (!event?.key?.startsWith(STORAGE_PREFIX)) return
     const matchId = decodeURIComponent(event.key.slice(STORAGE_PREFIX.length))
@@ -219,6 +232,7 @@ export function createLiveMatchSessionRepository(options = {}) {
     applyCommand,
     subscribe,
     refresh,
+    remove,
     dispose,
     storageKey,
   }
