@@ -1,11 +1,19 @@
 ﻿import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { fakeRequest, createTimestamp } from '../services/api'
-import { buildAccessProfile, hasPermission as checkPermission } from '../utils/auth/accessControl'
-import { APP_DATA_MODES, setAppDataMode } from '../dataMode'
-import { APP_CURRENT_PLAYER } from '../config/currentPlayer'
+import { fakeRequest, createTimestamp } from '../services/api.js'
+import {
+  buildAccessProfile,
+  getDefaultRoleForIdentity,
+  hasPermission as checkPermission,
+} from '../utils/auth/accessControl.js'
+import { APP_DATA_MODES, setAppDataMode } from '../dataMode.js'
+import { APP_CURRENT_PLAYER } from '../config/currentPlayer.js'
 
 const STORAGE_KEY = 'sheltennis-auth'
+
+// Local-prototype compatibility only. Club authority continues to come from
+// the active membership resolved by the admin store.
+export const LOCAL_PROTOTYPE_ACCESS_ROLE = getDefaultRoleForIdentity(APP_CURRENT_PLAYER)
 
 function applyCurrentPlayerIdentity(user) {
   if (!user) return null
@@ -57,24 +65,21 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   })
 
-  async function login(credentials) {
+  async function login(credentials = {}) {
     try {
       isAuthLoading.value = true
-      const roleKey = ['club_admin', 'super_admin'].includes(credentials.roleKey)
-        ? credentials.roleKey
-        : 'player'
+      const roleKey = LOCAL_PROTOTYPE_ACCESS_ROLE
       const playerId = APP_CURRENT_PLAYER.id
       const requestedMode =
-        roleKey !== 'player' || credentials.dataMode === APP_DATA_MODES.DEMO
-          ? APP_DATA_MODES.DEMO
-          : APP_DATA_MODES.EMPTY
+        credentials.dataMode === APP_DATA_MODES.DEMO ? APP_DATA_MODES.DEMO : APP_DATA_MODES.EMPTY
       setAppDataMode(requestedMode)
       const response = await fakeRequest({
         id: APP_CURRENT_PLAYER.id,
         name: APP_CURRENT_PLAYER.name,
-        email: credentials.email || `${credentials.username}@shell.com`,
+        email: credentials.email || 'account@gorra.demo',
         playerId,
         roleKey,
+        accessCompatibility: 'local-prototype',
         lastLogin: createTimestamp(),
         avatar: APP_CURRENT_PLAYER.imageUrl,
       })

@@ -12,7 +12,7 @@
           ></span>
         </div>
         <button class="toast__close" type="button" aria-label="Dismiss notification" @click="dismiss(toast.id)">
-          x
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
         </button>
       </div>
     </transition-group>
@@ -48,9 +48,9 @@ const dismiss = (id) => notificationStore.dismissToast(id)
   overflow: hidden;
   padding: 0.95rem 1rem;
   border: 0.5px solid rgba(15, 23, 42, 0.08);
-  border-radius: 0.85rem;
-  background: #f8fafc;
-  color: #0f172a;
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--color-text);
   box-shadow: none;
   transform-origin: top right;
   animation: toastPop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -96,7 +96,7 @@ const dismiss = (id) => notificationStore.dismissToast(id)
 
 .toast__message {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 13px;
   line-height: 1.4;
 }
 
@@ -127,12 +127,20 @@ const dismiss = (id) => notificationStore.dismissToast(id)
   padding: 0.25rem 0.35rem;
   background: transparent;
   color: inherit;
-  font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
   transition:
     background 120ms ease,
     transform 120ms ease;
+}
+
+.toast__close svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 
 .toast__close:hover {

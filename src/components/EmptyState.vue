@@ -72,11 +72,11 @@ const emptyIconName = computed(() => {
 .empty-state-system {
   display: grid;
   width: 100%;
-  min-height: 150px;
+  min-height: 220px;
   place-items: center;
   align-content: center;
   gap: 12px;
-  padding: 28px 22px;
+  padding: 32px 20px 44px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -86,9 +86,9 @@ const emptyIconName = computed(() => {
 }
 
 .empty-state-system--compact {
-  min-height: 108px;
+  min-height: 148px;
   gap: 9px;
-  padding: 20px 16px;
+  padding: 24px 16px 30px;
 }
 
 .empty-state-system--left {
@@ -101,8 +101,8 @@ const emptyIconName = computed(() => {
   width: 38px;
   height: 38px;
   place-items: center;
-  border: 1px solid var(--color-border);
-  border-radius: 50%;
+  border: 0;
+  border-radius: 10px;
   background: var(--color-surface-soft);
   color: var(--color-primary-strong);
 }
@@ -118,8 +118,8 @@ const emptyIconName = computed(() => {
 
 .empty-state-system__content h3 {
   color: var(--color-text-soft);
-  font-size: 17px;
-  font-weight: 750;
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: -0.01em;
   line-height: 1.35;
 }
@@ -127,12 +127,12 @@ const emptyIconName = computed(() => {
 .empty-state-system__content p {
   margin-top: 5px;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
 .empty-state-system--compact .empty-state-system__content h3 { font-size: 15px; }
-.empty-state-system--compact .empty-state-system__content p { font-size: 12.5px; }
+.empty-state-system--compact .empty-state-system__content p { font-size: 12px; }
 
 .empty-state-system__actions {
   display: flex;
@@ -149,8 +149,8 @@ const emptyIconName = computed(() => {
 .empty-state-system--left .empty-state-system__actions { justify-content: flex-start; }
 
 @media (max-width: 540px) {
-  .empty-state-system { min-height: 132px; padding: 24px 14px; }
-  .empty-state-system--compact { min-height: 100px; padding: 18px 12px; }
+  .empty-state-system { min-height: 180px; padding: 26px 14px 34px; }
+  .empty-state-system--compact { min-height: 132px; padding: 22px 12px 26px; }
   .empty-state-system__actions { width: 100%; }
   .empty-state-system__actions :deep(button) { width: 100%; }
 }

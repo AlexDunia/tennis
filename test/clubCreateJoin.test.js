@@ -6,6 +6,7 @@ import {
   getClubDirectory,
   joinClubWithInvite,
   previewClubInvite,
+  rotateClubInvite,
 } from '../src/services/AdminService.js'
 import { hasClubMembershipPermission } from '../src/utils/auth/accessControl.js'
 
@@ -40,7 +41,7 @@ test('a person creates a club relationship without becoming a global admin', asy
 
   try {
     const created = await createClub(
-      { name: 'Greenview Tennis Club', location: 'Lagos' },
+      { name: 'Greenview Tennis Club', country: 'Nigeria', city: 'Lagos' },
       { userId: person.id },
     )
 
@@ -55,7 +56,7 @@ test('a person creates a club relationship without becoming a global admin', asy
     const directory = await getClubDirectory({ userId: person.id })
     assert.equal(directory.activeClubId, created.club.id)
     assert.equal(directory.clubs.length, 1)
-    assert.ok(directory.clubs[0].invitations.some((invite) => invite.role === 'player'))
+    assert.equal(directory.clubs[0].invitations.length, 0)
     assert.ok(localStorage.getItem(CLUB_DIRECTORY_STORAGE_KEY))
   } finally {
     if (originalWindow === undefined) delete globalThis.window
@@ -70,9 +71,10 @@ test('a valid member invitation creates one active relationship and selects its 
 
   try {
     const created = await createClub(
-      { name: 'Greenview Tennis Club', location: 'Lagos' },
+      { name: 'Greenview Tennis Club', country: 'Nigeria', city: 'Lagos' },
       { userId: 'alex' },
     )
+    await rotateClubInvite('player', { userId: 'alex' })
     const ownerDirectory = await getClubDirectory({ userId: 'alex' })
     const memberInvite = ownerDirectory.clubs[0].invitations.find(
       (invite) => invite.role === 'player',
@@ -110,10 +112,21 @@ test('Create and Join reject missing identity or invalid input', async () => {
 
   try {
     await assert.rejects(
-      () => createClub({ name: 'A', location: 'Lagos' }, { userId: 'alex' }),
+      () => createClub({ name: 'A', country: 'Nigeria', city: 'Lagos' }, { userId: 'alex' }),
       /club name/i,
     )
-    await assert.rejects(() => createClub({ name: 'Greenview', location: 'Lagos' }, {}), /sign in/i)
+    await assert.rejects(
+      () => createClub({ name: 'Greenview', country: '', city: 'Lagos' }, { userId: 'alex' }),
+      /country/i,
+    )
+    await assert.rejects(
+      () => createClub({ name: 'Greenview', country: 'Nigeria', city: '' }, { userId: 'alex' }),
+      /city/i,
+    )
+    await assert.rejects(
+      () => createClub({ name: 'Greenview', country: 'Nigeria', city: 'Lagos' }, {}),
+      /sign in/i,
+    )
     await assert.rejects(
       () => joinClubWithInvite('NOT-A-REAL-INVITE', { userId: 'jordan' }),
       /not valid/i,

@@ -19,7 +19,7 @@ test('the Clubs entry derives zero, one, and multiple states from real relations
   assert.match(clubsView, /const clubCount = computed\(\(\) => adminStore\.clubOptions\.length\)/)
   assert.match(clubsView, /if \(clubCount\.value === 0\) return 'empty'/)
   assert.match(clubsView, /if \(clubCount\.value === 1\) return 'single'/)
-  assert.match(clubsView, /You are not in a club yet\./)
+  assert.match(clubsView, /You're not in a club yet/)
   assert.match(clubsView, /clubDirectoryState === 'single'/)
   assert.match(clubsView, /v-for="club in adminStore\.clubOptions"/)
   assert.match(clubsView, /relationshipLabel\(club\.role\)/)

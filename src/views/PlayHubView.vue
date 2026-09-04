@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFriendlyMatchStore } from '../stores/friendlyMatch'
 import { useMatchStore } from '../stores/match'
@@ -16,6 +16,7 @@ const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
 const adminStore = useAdminStore()
 const notificationStore = useNotificationStore()
+const hasLoaded = ref(false)
 
 const currentPlayerId = computed(() => playerStore.currentPlayerId)
 const readyMatches = computed(() =>
@@ -44,6 +45,7 @@ function startMatch(mode) {
   friendlyMatchStore.chooseMatchType('friendly')
   router.push({ name: 'FriendlyMatchScoring' })
 }
+
 async function continueMatch(match) {
   if (match.type === 'ladder') {
     const result = await startOrResumeLadderMatch({
@@ -83,75 +85,88 @@ async function continueMatch(match) {
   router.push({ name: 'MatchDetails', params: { matchId: match.id } })
 }
 
-onMounted(() => {
-  Promise.all([playerStore.loadPlayers(), matchStore.loadMatches()])
+function matchName(match) {
+  return `${match.player1Name || match.challengerName || 'Player 1'} vs ${
+    match.player2Name || match.defenderName || 'Player 2'
+  }`
+}
+
+function matchTypeLabel(match) {
+  if (match.type === 'tournament') return 'Tournament match'
+  if (match.type === 'ladder') return 'Ladder match'
+  return 'Match'
+}
+
+onMounted(async () => {
+  try {
+    await Promise.all([playerStore.loadPlayers(), matchStore.loadMatches()])
+  } finally {
+    hasLoaded.value = true
+  }
 })
 </script>
 
 <template>
-  <section class="play-hub" aria-labelledby="play-hub-title">
-    <header class="play-hub__intro">
-      <p class="play-hub__eyebrow">Ready when you are</p>
-      <h1 id="play-hub-title">Get on court.</h1>
-      <p>
-        Choose the match you want to play. Each option continues into GORRA's existing match flow.
-      </p>
-    </header>
+  <section class="play-hub" aria-label="Personal match hub">
+    <section class="play-section" aria-labelledby="start-match-title">
+      <header class="section-heading">
+        <h2 id="start-match-title">Start a match</h2>
+        <p>Choose how you want to play.</p>
+      </header>
 
-    <div class="play-hub__actions">
-      <button
-        type="button"
-        class="play-option play-option--primary"
-        @click="startMatch('friendly')"
-      >
-        <span class="play-option__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18" /></svg>
-        </span>
-        <span
-          ><strong>Start friendly match</strong
-          ><small>Play without changing the ladder.</small></span
-        >
-        <b aria-hidden="true">›</b>
-      </button>
+      <div class="play-options">
+        <button type="button" class="play-option" @click="startMatch('friendly')">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16" /></svg>
+          </span>
+          <span class="play-option__copy">
+            <strong>Friendly match</strong>
+            <small>Play without changing the ladder.</small>
+          </span>
+        </button>
 
-      <button type="button" class="play-option" @click="startMatch('ladder')">
-        <span class="play-option__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M5 19V11M12 19V5M19 19v-6" /></svg>
-        </span>
-        <span
-          ><strong>Start ladder match</strong
-          ><small>Use the club ladder rules and eligible opponents.</small></span
-        >
-        <b aria-hidden="true">›</b>
-      </button>
-    </div>
+        <button type="button" class="play-option" @click="startMatch('ladder')">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 19v-7M12 19V5M19 19v-10" /></svg>
+          </span>
+          <span class="play-option__copy">
+            <strong>Ladder match</strong>
+            <small>Play with your club's ladder rules.</small>
+          </span>
+        </button>
+      </div>
+    </section>
 
-    <section class="play-hub__ready" aria-labelledby="ready-matches-title">
-      <div class="play-hub__section-heading">
+    <section class="play-section play-section--matches" aria-labelledby="your-matches-title">
+      <header class="section-heading section-heading--split">
         <div>
-          <p class="play-hub__eyebrow">Your matches</p>
-          <h2 id="ready-matches-title">Ready to continue</h2>
+          <h2 id="your-matches-title">Your matches</h2>
+          <p>Matches ready for your next action.</p>
         </div>
-        <span v-if="readyMatches.length">{{ readyMatches.length }}</span>
+        <span v-if="readyMatches.length" class="match-count">{{ readyMatches.length }}</span>
+      </header>
+
+      <div v-if="matchStore.isLoading && !hasLoaded" class="match-loading" aria-label="Loading your matches">
+        <span v-for="row in 3" :key="row" class="match-loading__row"></span>
       </div>
 
-      <div v-if="readyMatches.length" class="ready-list">
-        <button
-          v-for="match in readyMatches"
-          :key="match.id"
-          type="button"
-          class="ready-match"
-          @click="continueMatch(match)"
-        >
-          <span>
-            <strong>
-              {{ match.player1Name || match.challengerName || 'Player 1' }} vs
-              {{ match.player2Name || match.defenderName || 'Player 2' }}
-            </strong>
-            <small>{{ match.statusLabel || match.status }}</small>
+      <div v-else-if="readyMatches.length" class="match-list">
+        <article v-for="match in readyMatches" :key="match.id" class="match-row">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="8.5" />
+              <path d="M5.7 6.4c2.8 1.9 4.1 4.4 4.5 7.4M18.3 17.6c-2.8-1.9-4.1-4.4-4.5-7.4" />
+            </svg>
           </span>
-          <b>Continue</b>
-        </button>
+          <div class="match-row__copy">
+            <span>{{ match.statusLabel || match.status }}</span>
+            <strong>{{ matchName(match) }}</strong>
+            <small>{{ matchTypeLabel(match) }}</small>
+          </div>
+          <button type="button" class="match-row__action" @click="continueMatch(match)">
+            Continue
+          </button>
+        </article>
       </div>
 
       <EmptyState
@@ -159,8 +174,8 @@ onMounted(() => {
         compact
         variant="quiet"
         illustration="matches"
-        title="No match waiting"
-        description="Scheduled and accepted matches will appear here when they are ready."
+        title="No matches yet"
+        description="Matches involving you will appear here."
       />
     </section>
   </section>
@@ -168,194 +183,248 @@ onMounted(() => {
 
 <style scoped>
 .play-hub {
-  width: min(100%, 900px);
   display: grid;
-  gap: 28px;
+  width: 100%;
+  gap: clamp(42px, 5vw, 52px);
+  padding: 4px 0 42px;
 }
 
-.play-hub__intro,
-.play-hub__section-heading {
+.play-section {
+  display: grid;
+  gap: 16px;
+}
+
+.section-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.section-heading--split {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
 }
 
-.play-hub__intro {
-  display: grid;
-  gap: 6px;
-  max-width: 620px;
-}
-
-.play-hub__intro h1,
-.play-hub__intro p,
-.play-hub__section-heading h2,
-.play-hub__section-heading p {
+.section-heading h2,
+.section-heading p {
   margin: 0;
 }
 
-.play-hub__intro h1 {
-  font-size: 22px;
+.section-heading h2 {
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.015em;
+  line-height: 1.35;
 }
 
-.play-hub__intro > p:last-child {
-  max-width: 58ch;
+.section-heading p {
   color: var(--color-muted);
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.5;
 }
 
-.play-hub__eyebrow {
-  color: var(--color-primary-strong);
-  font-size: 11px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
-.play-hub__actions {
+.play-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
 .play-option {
-  min-height: 120px;
-  justify-content: flex-start;
-  gap: 15px;
-  padding: 20px;
+  display: grid;
+  min-height: 112px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  gap: 14px;
+  padding: 22px;
   border: 1px solid var(--color-border);
-  border-radius: var(--app-card-radius);
+  border-radius: 12px;
   background: var(--color-surface);
   color: var(--color-text);
   text-align: left;
   white-space: normal;
-  box-shadow: var(--shadow-soft);
 }
 
-.play-option--primary {
-  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+.play-option:hover {
+  border-color: var(--color-border-strong);
+  transform: translateY(-1px);
 }
 
-.play-option__icon {
+.feature-icon {
   display: grid;
-  flex: 0 0 40px;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 10px;
   background: var(--color-surface-soft);
   color: var(--color-primary-strong);
 }
 
-.play-option__icon svg {
-  width: 20px;
+.feature-icon svg {
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.play-option > span:nth-child(2) {
+.play-option__copy,
+.match-row__copy {
   display: grid;
-  flex: 1;
+  min-width: 0;
+}
+
+.play-option__copy {
   gap: 4px;
 }
 
-.play-option strong,
-.play-option small {
-  display: block;
-}
-
-.play-option strong {
+.play-option__copy strong,
+.match-row__copy strong {
+  color: var(--color-text);
   font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
 }
 
-.play-option small {
+.play-option__copy small,
+.match-row__copy small {
   color: var(--color-muted);
   font-size: 12px;
   font-weight: var(--font-weight-regular);
   line-height: 1.5;
 }
 
-.play-option > b {
-  color: var(--color-muted);
-  font-size: 22px;
-}
-
-.play-hub__ready {
-  display: grid;
-  gap: 14px;
-  padding-top: 6px;
-}
-
-.play-hub__section-heading h2 {
-  font-size: 18px;
-}
-
-.play-hub__section-heading > span {
+.match-count {
   display: grid;
   width: 28px;
   height: 28px;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 9px;
   background: var(--color-surface-soft);
   color: var(--color-primary-strong);
   font-size: 12px;
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-semibold);
 }
 
-.ready-list {
+.match-list {
   display: grid;
+  overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: var(--app-card-radius);
+  border-radius: 12px;
   background: var(--color-surface);
 }
 
-.ready-match {
-  width: 100%;
-  min-height: 72px;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border: 0;
-  border-bottom: 1px solid var(--color-border);
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text);
-  text-align: left;
-}
-
-.ready-match:last-child {
-  border-bottom: 0;
-}
-
-.ready-match span {
+.match-row {
   display: grid;
-  gap: 3px;
+  min-height: 86px;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-border);
 }
 
-.ready-match small {
-  color: var(--color-muted);
+.match-row:first-child {
+  border-top: 0;
 }
 
-.ready-match > b {
+.match-row__copy {
+  gap: 2px;
+}
+
+.match-row__copy > span {
+  color: var(--color-primary-strong);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.match-row__action {
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 9px;
+  background: var(--color-surface);
   color: var(--color-primary-strong);
   font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.match-row__action:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 32%, var(--color-border));
+  background: var(--color-surface-softest);
+}
+
+.match-loading {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.match-loading__row {
+  height: 86px;
+  border-top: 1px solid var(--color-border);
+  background: linear-gradient(100deg, #f1f5f2 20%, #fbfcfb 44%, #f1f5f2 68%);
+  background-size: 220% 100%;
+  animation: play-shimmer 1.2s ease-in-out infinite;
+}
+
+.match-loading__row:first-child {
+  border-top: 0;
+}
+
+@keyframes play-shimmer {
+  to { background-position: -120% 0; }
 }
 
 @media (max-width: 640px) {
   .play-hub {
-    gap: 24px;
+    gap: 40px;
+    padding-bottom: 30px;
   }
 
-  .play-hub__actions {
+  .play-options {
     grid-template-columns: 1fr;
-    gap: 16px;
   }
 
   .play-option {
     min-height: 104px;
-    padding: 17px;
+    padding: 18px;
+  }
+
+  .match-row {
+    grid-template-columns: 38px minmax(0, 1fr);
+    padding: 16px;
+  }
+
+  .match-row__action {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 360px) {
+  .play-option,
+  .match-row {
+    gap: 11px;
+    padding-inline: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play-option,
+  .match-loading__row {
+    animation: none;
+    transition: none;
   }
 }
 </style>

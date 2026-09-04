@@ -189,3 +189,56 @@ export function createDefaultClubSetup() {
     updatedAt: '',
   }
 }
+
+export function createMinimalClubSetup({ name = '', country = '', city = '' } = {}) {
+  const location = [city, country]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join(', ')
+
+  return {
+    schemaVersion: CLUB_SETUP_SCHEMA_VERSION,
+    configurationState: 'minimal',
+    clubId: '',
+    status: 'active',
+    completedStep: 0,
+    workspace: {
+      name,
+      logoUrl: '',
+      country,
+      city,
+      location,
+      timezone: '',
+      courts: [],
+      seasonStart: '',
+      seasonEnd: '',
+      administratorIds: [],
+      notifications: {},
+    },
+    membership: {
+      source: 'later',
+      selectedPlayerIds: [],
+      inviteEmails: '',
+      invitePhones: '',
+      privateLinkEnabled: false,
+      invitationToken: '',
+      invitationCode: '',
+      inviteRole: 'player',
+      importedMembers: [],
+      manualMembers: [],
+      roster: [],
+      allowManualEntry: true,
+    },
+    ladders: [],
+    primaryLadderId: '',
+    placement: {
+      method: '',
+      provisionalMatches: 0,
+      newMemberPolicy: '',
+      rankingOrder: [],
+    },
+    rules: {},
+    createdAt: '',
+    updatedAt: '',
+  }
+}

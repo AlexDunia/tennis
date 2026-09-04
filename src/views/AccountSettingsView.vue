@@ -1,6 +1,9 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import BaseButton from '../components/BaseButton.vue'
+import BaseInput from '../components/BaseInput.vue'
+import PersonAvatar from '../components/PersonAvatar.vue'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
 import { sanitizePlainText } from '../utils/formSafety'
@@ -21,11 +24,7 @@ const profileError = ref('')
 const passwordError = ref('')
 const passwordBusy = ref(false)
 
-const avatarText = computed(() => {
-  const value = String(profile.name || authStore.user?.name || 'Player').trim()
-  const parts = value.split(/\s+/).filter(Boolean)
-  return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : value.slice(0, 2)).toUpperCase()
-})
+const accountName = computed(() => profile.name || authStore.user?.name || 'Player')
 
 function saveProfile() {
   const name = sanitizePlainText(profile.name, 100)
@@ -80,81 +79,87 @@ async function signOut() {
 </script>
 
 <template>
-  <section class="account-settings" aria-labelledby="account-settings-title">
-    <header class="account-settings__header">
-      <span class="account-settings__avatar" aria-hidden="true">{{ avatarText }}</span>
+  <section class="account-settings" aria-label="Account settings">
+    <header class="account-context">
+      <PersonAvatar :name="accountName" :image="authStore.user?.avatar || ''" :size="52" />
       <div>
-        <p>Your account</p>
-        <h1 id="account-settings-title">Account settings</h1>
-        <span>Update the details used across GORRA.</span>
+        <p>Personal account</p>
+        <h2>{{ accountName }}</h2>
+        <span>These details belong to you, not to a club.</span>
       </div>
     </header>
 
     <div class="account-settings__grid">
       <form class="account-card" @submit.prevent="saveProfile">
-        <div class="account-card__heading">
-          <div>
-            <p>Profile</p>
-            <h2>Personal details</h2>
-          </div>
-        </div>
+        <header class="account-card__heading">
+          <h2>Personal details</h2>
+          <p>Used across your Gorra account.</p>
+        </header>
         <p v-if="profileError" class="account-alert" role="alert">{{ profileError }}</p>
-        <label
-          ><span>Name</span
-          ><input v-model="profile.name" type="text" maxlength="100" autocomplete="name" required
-        /></label>
-        <label
-          ><span>Email</span
-          ><input
-            v-model="profile.email"
-            type="email"
-            maxlength="160"
-            autocomplete="email"
-            required
-        /></label>
-        <label
-          ><span>Phone</span
-          ><input v-model="profile.phone" type="tel" maxlength="40" autocomplete="tel"
-        /></label>
-        <button class="button-primary" type="submit">Save profile</button>
+        <BaseInput
+          v-model="profile.name"
+          label="Name"
+          type="text"
+          maxlength="100"
+          autocomplete="name"
+          required
+        />
+        <BaseInput
+          v-model="profile.email"
+          label="Email"
+          type="email"
+          maxlength="160"
+          autocomplete="email"
+          required
+        />
+        <BaseInput
+          v-model="profile.phone"
+          label="Phone"
+          type="tel"
+          maxlength="40"
+          autocomplete="tel"
+        />
+        <BaseButton type="submit">Save profile</BaseButton>
       </form>
 
       <form class="account-card" @submit.prevent="updatePassword">
-        <div class="account-card__heading">
-          <div>
-            <p>Security</p>
-            <h2>Change password</h2>
-          </div>
-        </div>
+        <header class="account-card__heading">
+          <h2>Password</h2>
+          <p>Use at least 10 characters and one number.</p>
+        </header>
         <p v-if="passwordError" class="account-alert" role="alert">{{ passwordError }}</p>
-        <label
-          ><span>Current password</span
-          ><input v-model="currentPassword" type="password" autocomplete="current-password"
-        /></label>
-        <label
-          ><span>New password</span
-          ><input v-model="newPassword" type="password" minlength="10" autocomplete="new-password"
-        /></label>
-        <label
-          ><span>Confirm new password</span
-          ><input
-            v-model="confirmPassword"
-            type="password"
-            minlength="10"
-            autocomplete="new-password"
-        /></label>
-        <button class="button-secondary" type="submit" :disabled="passwordBusy">
+        <BaseInput
+          v-model="currentPassword"
+          label="Current password"
+          type="password"
+          autocomplete="current-password"
+        />
+        <BaseInput
+          v-model="newPassword"
+          label="New password"
+          type="password"
+          minlength="10"
+          autocomplete="new-password"
+        />
+        <BaseInput
+          v-model="confirmPassword"
+          label="Confirm new password"
+          type="password"
+          minlength="10"
+          autocomplete="new-password"
+        />
+        <BaseButton type="submit" variant="secondary" :disabled="passwordBusy">
           {{ passwordBusy ? 'Updating…' : 'Update password' }}
-        </button>
+        </BaseButton>
       </form>
     </div>
 
-    <section class="account-card account-card--signout">
+    <section class="session-row">
       <div>
-        <p>Session</p>
-        <h2>Sign out of this device</h2>
+        <h2>Session</h2>
+        <p>Sign out of Gorra on this device.</p>
       </div>
-      <button class="button-secondary" type="button" @click="signOut">Sign out</button>
+      <BaseButton variant="secondary" @click="signOut">Sign out</BaseButton>
     </section>
   </section>
 </template>
@@ -162,127 +167,133 @@ async function signOut() {
 <style scoped>
 .account-settings {
   display: grid;
-  gap: 24px;
-  width: min(100%, 940px);
+  width: 100%;
+  gap: 32px;
+  padding: 4px 0 42px;
 }
 
-.account-settings__header {
+.account-context {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding-bottom: 22px;
+  gap: 14px;
+  padding-bottom: 24px;
   border-bottom: 1px solid var(--color-border);
 }
 
-.account-settings__avatar {
+.account-context > div,
+.account-card__heading {
   display: grid;
-  flex: 0 0 58px;
-  width: 58px;
-  height: 58px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-surface-soft);
-  color: var(--color-primary-strong);
-  font-size: 15px;
-  font-weight: var(--font-weight-bold);
+  gap: 3px;
 }
 
-.account-settings__header div,
-.account-card__heading div {
-  display: grid;
-  gap: 2px;
-}
-
-.account-settings__header p,
-.account-settings__header h1,
-.account-settings__header span,
-.account-card p,
-.account-card h2 {
+.account-context p,
+.account-context h2,
+.account-context span,
+.account-card__heading h2,
+.account-card__heading p,
+.session-row h2,
+.session-row p {
   margin: 0;
 }
 
-.account-settings__header p,
-.account-card p {
+.account-context p {
   color: var(--color-primary-strong);
   font-size: 10px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.1em;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.account-settings__header h1 {
-  font-size: clamp(24px, 4vw, 34px);
+.account-context h2 {
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: var(--font-weight-semibold);
 }
 
-.account-settings__header div > span {
+.account-context span,
+.account-card__heading p,
+.session-row p {
   color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .account-settings__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
 .account-card {
   display: grid;
+  min-width: 0;
   align-content: start;
   gap: 14px;
-  min-width: 0;
   padding: 22px;
   border: 1px solid var(--color-border);
-  border-radius: var(--app-card-radius);
+  border-radius: 12px;
   background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
 }
 
-.account-card h2 {
-  font-size: 18px;
+.account-card__heading {
+  margin-bottom: 4px;
 }
 
-.account-card label {
-  display: grid;
-  gap: 6px;
-  color: var(--color-text-soft);
-  font-size: 12px;
+.account-card__heading h2,
+.session-row h2 {
+  color: var(--color-text);
+  font-size: 16px;
   font-weight: var(--font-weight-semibold);
 }
 
-.account-card input {
-  width: 100%;
-}
-
-.account-card button {
+.account-card :deep(.base-button) {
   justify-self: start;
   margin-top: 4px;
 }
 
 .account-alert {
+  margin: 0;
   padding: 10px 12px;
-  border: 1px solid #f2c8c8;
-  border-radius: var(--app-inner-radius);
-  background: #fff6f6;
-  color: #9e2929 !important;
-  font-size: 12px !important;
-  font-weight: var(--font-weight-semibold) !important;
-  letter-spacing: 0 !important;
-  text-transform: none !important;
+  border: 1px solid #efc8c8;
+  border-radius: 9px;
+  background: #fff7f7;
+  color: #8b2d2d;
+  font-size: 12px;
 }
 
-.account-card--signout {
-  grid-template-columns: minmax(0, 1fr) auto;
+.session-row {
+  display: flex;
+  min-height: 82px;
   align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 0;
+  border-top: 1px solid var(--color-border);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 760px) {
   .account-settings__grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 480px) {
-  .account-card--signout {
-    grid-template-columns: 1fr;
+  .account-settings {
+    gap: 28px;
+  }
+
+  .account-context,
+  .session-row {
+    align-items: flex-start;
+  }
+
+  .session-row {
+    flex-direction: column;
+  }
+
+  .session-row :deep(.base-button),
+  .account-card :deep(.base-button) {
+    width: 100%;
   }
 }
 </style>

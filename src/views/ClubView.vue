@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '../stores/admin'
 import { useMatchStore } from '../stores/match'
 import EmptyState from '../components/EmptyState.vue'
+import PersonAvatar from '../components/PersonAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,6 +19,7 @@ const isManager = computed(() => adminStore.hasActiveClubPermission('club.manage
 const activeLadders = computed(
   () => setup.value?.ladders?.filter((ladder) => ladder.enabled && !ladder.archived) || [],
 )
+const hasClubRules = computed(() => Object.keys(rules.value).length > 0)
 const clubInitials = computed(() =>
   String(activeClub.value?.name || 'Club')
     .split(/\s+/)
@@ -79,6 +81,9 @@ const members = computed(() => {
     return true
   })
 })
+const isFirstClubState = computed(
+  () => setup.value?.configurationState === 'minimal' && members.value.length === 0,
+)
 
 const ruleItems = computed(() => [
   {
@@ -99,10 +104,20 @@ const ruleItems = computed(() => [
   },
 ])
 
-function openJoinOrManage() {
-  router.push(
-    isManager.value ? { name: 'Clubs', query: { view: 'start' } } : { name: 'PlayerClubJoin' },
-  )
+function openJoinClub() {
+  router.push({ name: 'Clubs', query: { view: 'join' } })
+}
+
+function createClub() {
+  router.push({ name: 'Clubs', query: { view: 'create' } })
+}
+
+function openMembers() {
+  router.push({ name: 'Settings', query: { section: 'members' } })
+}
+
+function openRules() {
+  router.push({ name: 'Settings', query: { section: 'rules' } })
 }
 
 onMounted(() => {
@@ -121,10 +136,12 @@ onMounted(() => {
       v-else-if="!activeClub"
       variant="first-use"
       illustration="club"
-      title="Connect your tennis club"
-      description="Join your club to see its members, courts, ladder rules, and announcements here."
-      :primary-action-label="isManager ? 'Open club setup' : 'Join a club'"
-      @primary-action="openJoinOrManage"
+      title="You're not in a club yet"
+      description="Join a club or create one to open its members, courts, and rules."
+      primary-action-label="Join a club"
+      secondary-action-label="Create a club"
+      @primary-action="openJoinClub"
+      @secondary-action="createClub"
     />
 
     <template v-else>
@@ -136,6 +153,7 @@ onMounted(() => {
           <p>Your active club</p>
           <h1 id="club-page-title">{{ activeClub.name }}</h1>
           <span>{{ workspace.location || 'Club location not added yet' }}</span>
+          <small>{{ adminStore.activeClubRoleLabel }} in this club</small>
         </div>
         <div v-if="isManager" class="club-hero__actions">
           <RouterLink class="button-primary" :to="{ name: 'Settings' }"> Manage club </RouterLink>
@@ -143,72 +161,88 @@ onMounted(() => {
       </header>
 
       <section v-if="section === 'overview'" class="club-overview">
-        <div class="club-stats" aria-label="Club summary">
-          <article>
-            <span>Members</span>
-            <strong>{{ members.length }}</strong>
-          </article>
-          <article>
-            <span>Courts</span>
-            <strong>{{ workspace.courts?.length || 0 }}</strong>
-          </article>
-          <article>
-            <span>Active ladders</span>
-            <strong>{{ activeLadders.length }}</strong>
-          </article>
-        </div>
+        <section v-if="isFirstClubState" class="first-club-state">
+          <EmptyState
+            variant="first-use"
+            illustration="members"
+            align="left"
+            title="Your club is ready"
+            description="The club exists and has no added members yet. Add people when you are ready; courts, ladders, and rules can stay empty."
+            primary-action-label="Add members"
+            :show-primary-action="isManager"
+            @primary-action="openMembers"
+          />
+        </section>
+        <template v-else>
+          <div class="club-stats" aria-label="Club summary">
+            <article>
+              <span>Members</span>
+              <strong>{{ members.length }}</strong>
+            </article>
+            <article>
+              <span>Courts</span>
+              <strong>{{ workspace.courts?.length || 0 }}</strong>
+            </article>
+            <article>
+              <span>Active ladders</span>
+              <strong>{{ activeLadders.length }}</strong>
+            </article>
+          </div>
 
-        <div class="club-grid">
-          <article class="club-card">
-            <div class="club-card__heading">
-              <div>
-                <p>Courts</p>
-                <h2>Where the club plays</h2>
+          <div class="club-grid">
+            <article class="club-card">
+              <div class="club-card__heading">
+                <div>
+                  <p>Courts</p>
+                  <h2>Where the club plays</h2>
+                </div>
               </div>
-            </div>
-            <ul v-if="workspace.courts?.length" class="club-list">
-              <li v-for="court in workspace.courts" :key="court">
-                <span class="club-list__dot" aria-hidden="true"></span>
-                <span>{{ court }}</span>
-              </li>
-            </ul>
-            <p v-else class="club-card__empty">No courts have been added yet.</p>
-          </article>
+              <ul v-if="workspace.courts?.length" class="club-list">
+                <li v-for="court in workspace.courts" :key="court">
+                  <span class="club-list__dot" aria-hidden="true"></span>
+                  <span>{{ court }}</span>
+                </li>
+              </ul>
+              <p v-else class="club-card__empty">No courts have been added yet.</p>
+            </article>
 
-          <article class="club-card club-card--activity">
-            <div class="club-card__heading">
-              <div>
-                <p>Club activity</p>
-                <h2>Live right now</h2>
+            <article class="club-card club-card--activity">
+              <div class="club-card__heading">
+                <div>
+                  <p>Club activity</p>
+                  <h2>Live right now</h2>
+                </div>
               </div>
-            </div>
-            <div class="club-activity">
-              <strong>{{ activityTitle }}</strong>
-              <p>{{ activityCopy }}</p>
-            </div>
-          </article>
-        </div>
+              <div class="club-activity">
+                <strong>{{ activityTitle }}</strong>
+                <p>{{ activityCopy }}</p>
+              </div>
+            </article>
+          </div>
+        </template>
       </section>
 
-      <section v-else-if="section === 'members'" class="club-card club-card--wide">
+      <section
+        v-else-if="section === 'members'"
+        class="club-card club-card--wide"
+        :class="{ 'club-card--empty': !members.length }"
+      >
         <div class="club-card__heading">
           <div>
             <p>Directory</p>
             <h2>Club members</h2>
           </div>
-          <RouterLink v-if="isManager" class="button-secondary" :to="{ name: 'Settings' }">
+          <RouterLink
+            v-if="isManager"
+            class="button-secondary"
+            :to="{ name: 'Settings', query: { section: 'members' } }"
+          >
             Manage members
           </RouterLink>
         </div>
         <ul v-if="members.length" class="member-list">
           <li v-for="member in members" :key="member.userId || member.id || member.name">
-            <span class="member-avatar" aria-hidden="true">
-              {{
-                String(member.name || 'Member')
-                  .slice(0, 2)
-                  .toUpperCase()
-              }}
-            </span>
+            <PersonAvatar :name="member.name || 'Club member'" :size="38" />
             <span
               ><strong>{{ member.name || 'Club member' }}</strong
               ><small>{{ member.role || 'Player' }}</small></span
@@ -235,12 +269,23 @@ onMounted(() => {
             Edit rules
           </RouterLink>
         </div>
-        <dl class="rule-list">
+        <dl v-if="hasClubRules" class="rule-list">
           <div v-for="item in ruleItems" :key="item.label">
             <dt>{{ item.label }}</dt>
             <dd>{{ item.value }}</dd>
           </div>
         </dl>
+        <EmptyState
+          v-else
+          compact
+          variant="data-dependent"
+          illustration="rules"
+          title="No match rules yet"
+          description="Rules will appear after a club manager configures them."
+          primary-action-label="Add rules"
+          :show-primary-action="isManager"
+          @primary-action="openRules"
+        />
       </section>
     </template>
   </section>
@@ -249,7 +294,7 @@ onMounted(() => {
 <style scoped>
 .club-page {
   display: grid;
-  gap: 16px;
+  gap: 32px;
   width: 100%;
 }
 
@@ -270,7 +315,7 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--app-card-radius);
   background: var(--color-surface);
-  box-shadow: var(--flow-shadow-quiet);
+  box-shadow: none;
 }
 
 .club-hero__mark {
@@ -316,9 +361,14 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.club-hero__copy span {
+.club-hero__copy span,
+.club-hero__copy small {
   color: var(--color-muted);
   font-size: var(--type-meta);
+}
+
+.club-hero__copy small {
+  color: var(--color-primary-strong);
 }
 
 .club-hero__actions {
@@ -330,7 +380,14 @@ onMounted(() => {
 
 .club-overview {
   display: grid;
-  gap: 16px;
+  gap: 40px;
+}
+
+.first-club-state {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-card-radius);
+  background: var(--color-surface);
 }
 
 .club-stats {
@@ -348,7 +405,7 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--app-card-radius);
   background: var(--color-surface);
-  box-shadow: var(--flow-shadow-quiet);
+  box-shadow: none;
 }
 
 .club-stats span {
@@ -381,12 +438,20 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--app-card-radius);
   background: var(--color-surface);
-  box-shadow: var(--flow-shadow-quiet);
+  box-shadow: none;
 }
+
+
 
 .club-card--wide {
   width: 100%;
   min-height: 0;
+}
+
+.club-card--empty {
+  border: 0;
+  padding: 0;
+  background: transparent;
 }
 
 .club-card__heading {

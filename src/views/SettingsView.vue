@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '../stores/admin'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
@@ -13,7 +13,6 @@ const SETTINGS_CATEGORIES = Object.freeze([
   { id: 'members', label: 'Members', help: 'Invite, import, and roles' },
   { id: 'ladders', label: 'Ladders', help: 'Add, edit, or archive' },
   { id: 'rules', label: 'Rules & format', help: 'How ladder matches work' },
-  { id: 'account', label: 'Account', help: 'Your profile and password' },
 ])
 
 const MEMBER_ROLES = Object.freeze([
@@ -36,11 +35,17 @@ const DEFAULT_RULES = Object.freeze({
 })
 
 const router = useRouter()
+const route = useRoute()
 const adminStore = useAdminStore()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
 
-const activeCategory = ref('club')
+const requestedCategory = String(route.query.section || '')
+const activeCategory = ref(
+  SETTINGS_CATEGORIES.some((category) => category.id === requestedCategory)
+    ? requestedCategory
+    : 'club',
+)
 const pageLoading = ref(true)
 const pageError = ref('')
 const savingSection = ref('')
@@ -168,7 +173,7 @@ function hydrateSetup(value = {}) {
     enabled: ladder.enabled !== false && !ladder.archived,
     archived: Boolean(ladder.archived),
   }))
-  if (!ladderDrafts.value.length) {
+  if (!ladderDrafts.value.length && value.configurationState !== 'minimal') {
     ladderDrafts.value = [
       {
         id: 'open-singles',
@@ -199,7 +204,7 @@ function cleanLadderId(value, index) {
   return safe || `ladder-${index + 1}`
 }
 
-function buildSetupInput() {
+function buildSetupInput(section = activeCategory.value) {
   const base = cloneValue(adminStore.activeClub?.setup || adminStore.setup || {})
   const courts = club.courts
     .map((court) => sanitizePlainText(court, 60))
@@ -228,29 +233,43 @@ function buildSetupInput() {
   }))
   const activeIds = ladders.filter((ladder) => ladder.enabled).map((ladder) => ladder.id)
 
+  if (section === 'club') {
+    return {
+      workspace: {
+        ...(base.workspace || {}),
+        name: sanitizePlainText(club.name, 100),
+        logoUrl: validLogoUrl.value ? club.logoUrl.trim().slice(0, 2048) : '',
+        location: sanitizePlainText(club.location, 120),
+        courts,
+        seasonStart: club.seasonStart,
+        seasonEnd: club.seasonEnd,
+      },
+    }
+  }
+
+  if (section === 'members') {
+    return {
+      membership: {
+        ...(base.membership || {}),
+        invitationToken: base.membership?.invitationToken || memberSettings.invitationToken,
+        invitationCode: base.membership?.invitationCode || memberSettings.invitationCode,
+        inviteRole: 'player',
+        privateLinkEnabled: memberSettings.privateLinkEnabled,
+        manualMembers,
+      },
+    }
+  }
+
+  if (section === 'ladders') {
+    return {
+      ladders,
+      primaryLadderId: activeIds.includes(base.primaryLadderId)
+        ? base.primaryLadderId
+        : activeIds[0] || '',
+    }
+  }
+
   return {
-    ...base,
-    workspace: {
-      ...(base.workspace || {}),
-      name: sanitizePlainText(club.name, 100),
-      logoUrl: validLogoUrl.value ? club.logoUrl.trim().slice(0, 2048) : '',
-      location: sanitizePlainText(club.location, 120),
-      courts,
-      seasonStart: club.seasonStart,
-      seasonEnd: club.seasonEnd,
-    },
-    membership: {
-      ...(base.membership || {}),
-      invitationToken: base.membership?.invitationToken || memberSettings.invitationToken,
-      invitationCode: base.membership?.invitationCode || memberSettings.invitationCode,
-      inviteRole: 'player',
-      privateLinkEnabled: memberSettings.privateLinkEnabled,
-      manualMembers,
-    },
-    ladders,
-    primaryLadderId: activeIds.includes(base.primaryLadderId)
-      ? base.primaryLadderId
-      : activeIds[0] || '',
     rules: {
       ...(base.rules || {}),
       challengeRangeUp: Number(rules.challengeRangeUp),
@@ -319,7 +338,7 @@ async function saveClubSection(section, message = 'Changes saved.') {
 
   savingSection.value = section
   try {
-    const input = buildSetupInput()
+    const input = buildSetupInput(section)
     const saved = await adminStore.updateActiveClub(input)
     hydrateSetup(saved?.setup || saved || input)
     notificationStore.addToast({ message, type: 'success' })
@@ -334,8 +353,13 @@ async function saveClubSection(section, message = 'Changes saved.') {
 }
 
 function setCategory(category) {
+  if (category === 'account') {
+    router.push({ name: 'AccountSettings' })
+    return
+  }
   activeCategory.value = category
   pageError.value = ''
+  router.replace({ query: { ...route.query, section: category } }).catch(() => {})
 }
 
 function addCourt() {
@@ -569,8 +593,8 @@ onMounted(async () => {
   <section class="settings-page" aria-labelledby="settings-title">
     <header class="settings-page__header">
       <p class="settings-page__eyebrow">{{ activeClubName }}</p>
-      <h1 id="settings-title">Settings</h1>
-      <p>Keep your club and account details up to date.</p>
+      <h1 id="settings-title">Manage {{ activeClubName }}</h1>
+      <p>Club details, members, ladders, and match rules.</p>
     </header>
 
     <p v-if="pageError" class="settings-alert" role="alert">{{ pageError }}</p>
@@ -591,6 +615,10 @@ onMounted(async () => {
           <span>{{ category.label }}</span>
           <small>{{ category.help }}</small>
         </button>
+        <RouterLink class="settings-nav__item settings-nav__account" :to="{ name: 'AccountSettings' }">
+          <span>Account settings</span>
+          <small>Personal profile and password</small>
+        </RouterLink>
       </nav>
 
       <main class="settings-panel">
@@ -1181,16 +1209,15 @@ onMounted(async () => {
 
 <style scoped>
 .settings-page {
-  width: min(1100px, 100%);
-  margin: 0 auto;
+  width: 100%;
   color: var(--color-text);
 }
 .settings-page__header {
-  margin-bottom: 28px;
+  margin-bottom: 32px;
 }
 .settings-page__header h1 {
   margin: 4px 0 7px;
-  font-size: clamp(28px, 4vw, 38px);
+  font-size: clamp(21px, 3vw, 25px);
 }
 .settings-page__header > p:last-child,
 .settings-section__header p,
@@ -1222,9 +1249,9 @@ onMounted(async () => {
 }
 .settings-shell {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 210px minmax(0, 1fr);
   align-items: start;
-  gap: 34px;
+  gap: 32px;
 }
 .settings-nav {
   position: sticky;
@@ -1266,6 +1293,12 @@ onMounted(async () => {
   font-size: 10.5px;
   font-weight: var(--font-weight-regular);
 }
+.settings-nav__account {
+  margin-top: 5px;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 var(--app-inner-radius) var(--app-inner-radius);
+  text-decoration: none;
+}
 .settings-panel {
   min-width: 0;
 }
@@ -1282,14 +1315,14 @@ onMounted(async () => {
 }
 .settings-section__header h2 {
   margin: 5px 0 6px;
-  font-size: clamp(21px, 3vw, 26px);
+  font-size: 18px;
 }
 .settings-card {
   padding: 22px;
-  border: var(--app-hairline);
-  border-radius: var(--app-card-radius);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
   background: var(--color-surface);
-  box-shadow: 0 13px 34px rgba(15, 34, 24, 0.04);
+  box-shadow: none;
 }
 .settings-grid {
   display: grid;
@@ -1351,7 +1384,7 @@ onMounted(async () => {
   background: var(--color-border);
 }
 .settings-button {
-  min-height: 40px;
+  min-height: 42px;
   padding: 0 15px;
   border: 1px solid var(--color-border);
   border-radius: var(--app-inner-radius);
@@ -1421,7 +1454,7 @@ onMounted(async () => {
 }
 .invite-card {
   border-color: color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
-  background: linear-gradient(145deg, #fff 55%, #f3faf4);
+  background: var(--color-surface);
 }
 .invite-values {
   display: grid;

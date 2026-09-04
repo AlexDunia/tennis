@@ -11,6 +11,7 @@ import {
 } from '../config/admin'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
 import AppLogo from '../components/AppLogo.vue'
+import EmptyState from '../components/EmptyState.vue'
 import { useAdminStore } from '../stores/admin'
 import { useNotificationStore } from '../stores/notification'
 import {
@@ -49,8 +50,16 @@ const rulesEditing = ref(false)
 const rulesAccepted = ref(true)
 const customLadder = reactive({ name: '', matchType: 'singles' })
 const manualMember = reactive({ name: '', contact: '', role: 'player' })
-const minimalClub = reactive({ name: '', location: '' })
+const minimalClub = reactive({ name: '', country: '', city: '' })
 const directoryLoaded = ref(false)
+
+const COUNTRY_OPTIONS = Object.freeze([
+  'Nigeria',
+  'Ghana',
+  'South Africa',
+  'United Kingdom',
+  'United States',
+])
 
 const FLOW_VIEWS = new Set(['start', 'join', 'join-confirm'])
 const STEP_COPY = Object.freeze({
@@ -306,18 +315,22 @@ async function createMinimalClub() {
     pageError.value = 'Enter the club name.'
     return
   }
-  if (minimalClub.location.trim().length < 2) {
-    pageError.value = 'Enter the club location.'
+  if (minimalClub.country.trim().length < 2) {
+    pageError.value = 'Choose the club country.'
+    return
+  }
+  if (minimalClub.city.trim().length < 2) {
+    pageError.value = 'Enter the club city.'
     return
   }
 
   try {
     const result = await adminStore.createClub(minimalClub)
     notificationStore.addToast({
-      message: `${result.club?.name || minimalClub.name} is ready.`,
+      message: `${result.club?.name || minimalClub.name} was created.`,
       type: 'success',
     })
-    await router.push({ name: 'Clubs' })
+    await router.push({ name: 'Club' })
   } catch (error) {
     pageError.value = error?.message || 'We could not create this club.'
   }
@@ -667,10 +680,19 @@ onMounted(async () => {
           />
         </label>
         <label class="answer-field">
-          <span>Town or city</span>
+          <span>Country</span>
+          <select v-model="minimalClub.country" autocomplete="country-name" required>
+            <option value="" disabled>Choose a country</option>
+            <option v-for="country in COUNTRY_OPTIONS" :key="country" :value="country">
+              {{ country }}
+            </option>
+          </select>
+        </label>
+        <label class="answer-field">
+          <span>City</span>
           <input
-            v-model="minimalClub.location"
-            maxlength="120"
+            v-model="minimalClub.city"
+            maxlength="80"
             autocomplete="address-level2"
             placeholder="For example, Lagos"
             required
@@ -755,17 +777,17 @@ onMounted(async () => {
         </button>
       </div>
     </section>
-    <section v-else-if="clubDirectoryState === 'empty'" class="empty-clubs">
-      <span class="empty-clubs__icon" aria-hidden="true"><FlowIcon name="home" /></span>
-      <h2>You are not in a club yet.</h2>
-      <p>Create a club of your own or join one you have been invited to.</p>
-      <div class="empty-clubs__actions">
-        <button class="directory-primary" type="button" @click="openCreateClubFlow">
-          Create a club
-        </button>
-        <button type="button" @click="openJoinClubFlow">Join a club</button>
-      </div>
-    </section>
+    <EmptyState
+      v-else-if="clubDirectoryState === 'empty'"
+      class="empty-clubs"
+      illustration="club"
+      title="You're not in a club yet"
+      description="Join a club you belong to or create a new one."
+      primary-action-label="Join a club"
+      secondary-action-label="Create a club"
+      @primary-action="openJoinClubFlow"
+      @secondary-action="openCreateClubFlow"
+    />
     <section v-else class="club-relationships">
       <p v-if="clubDirectoryState === 'single'" class="single-club-note">
         This is your active club in Gorra.
@@ -1257,15 +1279,15 @@ onMounted(async () => {
 <style scoped>
 .clubs-directory {
   display: grid;
-  width: min(100%, 920px);
-  gap: 24px;
+  width: 100%;
+  gap: 28px;
   margin: 0 auto;
   padding: clamp(8px, 2vw, 20px) 0 48px;
   color: var(--color-text, #172319);
 }
 .clubs-directory__header {
   display: grid;
-  max-width: 680px;
+  max-width: 620px;
   gap: 8px;
 }
 .clubs-directory__header h1:focus {
@@ -1286,17 +1308,16 @@ onMounted(async () => {
   display: block;
   height: 92px;
   border: var(--app-hairline);
-  border-radius: var(--app-card-radius, 16px);
+  border-radius: 12px;
   background: linear-gradient(100deg, #f6f8f5 20%, #fff 42%, #f6f8f5 64%);
   background-size: 240% 100%;
   animation: directory-shimmer 1.4s ease infinite;
 }
-.empty-clubs,
 .add-club-decision,
 .relationship-form {
   padding: clamp(24px, 5vw, 44px);
   border: var(--app-hairline);
-  border-radius: var(--app-card-radius, 16px);
+  border-radius: 12px;
   background: #fff;
   box-shadow: var(--app-shadow-subtle, 0 10px 30px rgba(23, 35, 25, 0.05));
 }
@@ -1312,8 +1333,8 @@ onMounted(async () => {
   margin-bottom: 6px;
   place-items: center;
   border-radius: 14px;
-  background: #edf5ef;
-  color: #287a45;
+  background: var(--color-surface-soft);
+  color: var(--color-primary-strong);
 }
 .empty-clubs h2 {
   margin: 0;
@@ -1332,9 +1353,18 @@ onMounted(async () => {
   gap: 10px;
   margin-top: 12px;
 }
+.empty-clubs {
+  min-height: min(54vh, 500px);
+  justify-items: center;
+  padding: 24px 0 44px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
 .directory-primary {
-  border-color: #287a45;
-  background: #287a45;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
   color: #fff;
 }
 .relationship-form {
@@ -1377,7 +1407,7 @@ onMounted(async () => {
 }
 .join-preview > .flow-icon {
   width: 19px;
-  color: #287a45;
+  color: var(--color-primary-strong);
 }
 .club-relationships {
   display: grid;
@@ -1391,12 +1421,12 @@ onMounted(async () => {
 .directory-actions > button {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) auto;
-  min-height: 94px;
+  min-height: 88px;
   align-items: center;
   gap: 16px;
   padding: 18px;
   border: var(--app-hairline);
-  border-radius: var(--app-card-radius, 16px);
+  border-radius: 12px;
   background: #fff;
   color: #26362a;
   text-align: left;
@@ -1409,7 +1439,7 @@ onMounted(async () => {
 .directory-actions > button:hover {
   transform: translateY(-1px);
   border-color: rgba(40, 122, 69, 0.36);
-  box-shadow: var(--app-shadow-subtle, 0 10px 30px rgba(23, 35, 25, 0.06));
+  box-shadow: none;
 }
 .club-directory-card--active {
   border-color: rgba(40, 122, 69, 0.28);
@@ -1425,8 +1455,8 @@ onMounted(async () => {
   height: 48px;
   place-items: center;
   border-radius: 14px;
-  background: #edf5ef;
-  color: #287a45;
+  background: var(--color-surface-soft);
+  color: var(--color-primary-strong);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1448,7 +1478,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: #287a45;
+  color: var(--color-primary-strong);
   font-size: 12px;
   font-weight: 600;
 }
@@ -1504,7 +1534,7 @@ onMounted(async () => {
 .directory-actions > button > .flow-icon {
   width: 18px;
   height: 18px;
-  color: #287a45;
+  color: var(--color-primary-strong);
 }
 @keyframes directory-shimmer {
   to {
@@ -1701,7 +1731,7 @@ h1 {
   gap: 15px;
   padding: 18px;
   border: var(--app-hairline);
-  border-radius: var(--app-card-radius, 16px);
+  border-radius: 12px;
   background: #fff;
   box-shadow: var(--flow-shadow-quiet);
   color: #425044;
@@ -1725,7 +1755,7 @@ h1 {
 .confirmation-card > .flow-icon {
   width: 18px;
   height: 18px;
-  color: #287a45;
+  color: var(--color-primary-strong);
 }
 .choice-icon {
   display: grid;
@@ -1733,8 +1763,8 @@ h1 {
   height: 44px;
   place-items: center;
   border-radius: 13px;
-  background: #edf5ef;
-  color: #287a45;
+  background: var(--color-surface-soft);
+  color: var(--color-primary-strong);
 }
 .choice-icon .flow-icon {
   width: 22px;
@@ -1766,7 +1796,7 @@ h1 {
   padding: 3px 7px;
   border-radius: 999px;
   background: #e9f5ec;
-  color: #287a45;
+  color: var(--color-primary-strong);
   font-size: 0.72rem;
   font-style: normal;
 }
@@ -1812,6 +1842,9 @@ select {
   color: inherit;
   font: inherit;
   font-size: 0.95rem;
+}
+.answer-field select {
+  padding-right: 42px;
 }
 textarea {
   min-height: 96px;
@@ -1885,7 +1918,7 @@ button:disabled {
   padding: 14px;
   border-radius: 13px;
   background: #f4f7f5;
-  color: #287a45;
+  color: var(--color-primary-strong);
 }
 .heads-up-card small {
   color: #59635b;
@@ -2008,7 +2041,7 @@ button:disabled {
   font-size: 11px;
 }
 .member-preview em {
-  color: #287a45;
+  color: var(--color-primary-strong);
   font-size: 11px;
   font-style: normal;
   font-weight: 600;
@@ -2081,7 +2114,7 @@ button:disabled {
   width: 16px;
   height: 16px;
   margin-top: 1px;
-  color: #287a45;
+  color: var(--color-primary-strong);
 }
 .rule-actions {
   display: flex;
@@ -2251,7 +2284,6 @@ button:disabled {
     grid-column: 2;
     justify-self: start;
   }
-  .empty-clubs,
   .add-club-decision,
   .relationship-form {
     padding: 22px 18px;

@@ -24,26 +24,24 @@ defineProps({
 <style scoped>
 .base-button {
   border: 1px solid transparent;
-  border-radius: 0.5rem;
-  min-height: 38px;
-  padding: 0 14px;
-  font-size: 0.95rem;
-  font-weight: var(--font-weight-bold);
+  border-radius: var(--app-inner-radius, 9px);
+  min-height: var(--app-button-height, 44px);
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   transition:
-    background 0.12s ease-in-out,
-    border-color 0.12s ease-in-out,
-    color 0.12s ease-in-out,
-    transform 0.12s ease-in-out,
-    box-shadow 0.12s ease-in-out;
+    background var(--motion-short, 150ms) var(--motion-curve, ease),
+    border-color var(--motion-short, 150ms) var(--motion-curve, ease),
+    color var(--motion-short, 150ms) var(--motion-curve, ease),
+    transform var(--motion-short, 150ms) var(--motion-curve, ease);
 }
 
 .base-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
 }
 
 .base-button:active:not(:disabled) {
@@ -51,27 +49,31 @@ defineProps({
 }
 
 .base-button--primary {
-  background: var(--color-accent-bright);
+  background: var(--button-primary-bg, var(--color-accent-bright));
   color: var(--color-light);
-  border-color: transparent;
+  border-color: var(--button-primary-bg, var(--color-accent-bright));
+}
+
+.base-button--primary:hover:not(:disabled) {
+  background: var(--button-primary-bg-hover, var(--color-primary-strong));
+  border-color: var(--button-primary-bg-hover, var(--color-primary-strong));
 }
 
 .base-button--secondary {
-  background: transparent;
-  color: var(--color-accent-bright);
-  border-color: var(--color-accent-bright);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
 }
 
 .base-button--ghost {
   background: transparent;
-  color: var(--color-text);
-  border-color: var(--color-border);
+  color: var(--color-primary-strong);
+  border-color: transparent;
 }
 
 .base-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
-  box-shadow: none;
 }
 </style>

@@ -652,24 +652,6 @@ router.beforeEach(async (to) => {
     return { name: 'SignIn', query: { redirect: to.fullPath } }
   }
 
-  const isClubFlow = ['AdminSetup', 'Clubs'].includes(String(to.name || ''))
-  if (!to.meta.public && !isClubFlow) {
-    const adminStore = useAdminStore()
-    try {
-      if (!adminStore.activeClubId) await adminStore.loadClubs()
-    } catch {
-      // Active-club routes handle unavailable club context below. Other routes
-      // must not turn an account-level role into club-level setup authority.
-    }
-    if (adminStore.hasActiveClubPermission('club.manage') && !adminStore.isConfigured) {
-      await adminStore.loadSetup()
-      const hasStarted = Number(adminStore.setup?.completedStep || 0) > 0
-      return hasStarted
-        ? { name: 'AdminSetup', query: { step: adminStore.resumeStep } }
-        : { name: 'AdminSetup', query: { view: 'start' } }
-    }
-  }
-
   if (to.name === 'PlayMatch') {
     try {
       const response = await getMatch(String(to.params.matchId || ''))

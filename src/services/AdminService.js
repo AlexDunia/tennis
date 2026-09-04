@@ -4,6 +4,7 @@ import {
   CLUB_DIRECTORY_STORAGE_KEY,
   CLUB_SETUP_STORAGE_KEY,
   createDefaultClubSetup,
+  createMinimalClubSetup,
 } from '../config/admin.js'
 import { hasPermission } from '../utils/auth/accessControl.js'
 import {
@@ -609,32 +610,58 @@ export async function saveClubSetup(input, actor) {
 
 export async function createClub(input, actor) {
   const userId = requireUserId(actor)
-  const defaults = createDefaultClubSetup()
-  const memberInvite = createStoredInvite('player')
-  const setup = normalizeClubSetup({
-    ...defaults,
-    completedStep: ADMIN_SETUP_STEPS.length,
-    workspace: {
-      ...defaults.workspace,
-      name: input?.name,
-      location: input?.location,
+  let directory = loadDirectory(actor)
+  let setup = normalizeClubSetup(createMinimalClubSetup(input))
+
+  if (setup.workspace.name.length < 2) {
+    throw createServiceError('Enter the club name.', 'VALIDATION_ERROR')
+  }
+  if (setup.workspace.country.length < 2) {
+    throw createServiceError('Choose the club country.', 'VALIDATION_ERROR')
+  }
+  if (setup.workspace.city.length < 2) {
+    throw createServiceError('Enter the club city.', 'VALIDATION_ERROR')
+  }
+
+  const timestamp = nowIso()
+  const clubId = uniqueClubId(setup.workspace.name, directory)
+  setup = setupWithCreator(
+    {
+      ...setup,
+      clubId,
+      status: 'active',
+      completedStep: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
     },
-    membership: {
-      ...defaults.membership,
-      invitationToken: memberInvite.token,
-      invitationCode: memberInvite.code,
-    },
+    userId,
+  )
+
+  directory.clubs.push({
+    id: clubId,
+    name: setup.workspace.name,
+    setup,
+    invites: [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
   })
+  const membership = {
+    userId,
+    clubId,
+    role: 'admin',
+    status: 'active',
+    joinedAt: timestamp,
+  }
+  addMembership(directory, membership)
+  directory.activeClubByUser[userId] = clubId
+  delete directory.draftsByUser[userId]
+  directory = writeDirectory(directory, userId)
 
-  const savedSetup = await saveClubSetup(setup, { userId })
-  const directory = await getClubDirectory({ userId })
-  const club = directory.clubs.find((item) => item.id === savedSetup.clubId) || null
-  const membership =
-    directory.memberships.find(
-      (item) => item.userId === userId && item.clubId === savedSetup.clubId,
-    ) || null
-
-  return { club, membership }
+  const result = publicDirectoryForUser(directory, userId)
+  return {
+    club: result.clubs.find((club) => club.id === clubId) || null,
+    membership,
+  }
 }
 
 function extractInviteCandidates(input) {
@@ -786,16 +813,19 @@ export async function updateActiveClubSetup(input, actor) {
   if (clubIndex === -1) throw createServiceError('This club could not be found.', 'NOT_FOUND')
 
   const current = directory.clubs[clubIndex]
+  const keepsMinimalSetup = current.setup.configurationState === 'minimal'
   let setup = normalizeClubSetup(mergeSetup(current.setup, input))
   setup = {
     ...setup,
     clubId,
     status: 'active',
-    completedStep: ADMIN_SETUP_STEPS.length,
+    completedStep: keepsMinimalSetup ? current.setup.completedStep : ADMIN_SETUP_STEPS.length,
     createdAt: current.setup.createdAt,
     updatedAt: nowIso(),
   }
-  const validation = validateCompleteClubSetup(setup)
+  const validation = keepsMinimalSetup
+    ? { valid: true, errors: [] }
+    : validateCompleteClubSetup(setup)
   if (!validation.valid) {
     throw createServiceError(
       validation.errors[0]?.message || 'Check the club details and try again.',

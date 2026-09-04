@@ -107,12 +107,22 @@ test('switching active club changes relationship permissions without changing th
   }
 })
 
-test('the setup route guard derives authority from the active club relationship', () => {
+test('incomplete club setup is not forced by the global route guard', () => {
   const routerSource = readFileSync(new URL('../src/router/index.js', import.meta.url), 'utf8')
 
-  assert.match(
+  assert.doesNotMatch(
     routerSource,
     /hasActiveClubPermission\('club\.manage'\) && !adminStore\.isConfigured/,
   )
-  assert.doesNotMatch(routerSource, /!to\.meta\.public && authStore\.isAdmin && !isClubFlow/)
+})
+
+test('direct admin setup remains available under its existing authorization', () => {
+  const routerSource = readFileSync(new URL('../src/router/index.js', import.meta.url), 'utf8')
+  const setupRoute = routerSource.match(
+    /path: '\/admin\/setup',[\s\S]*?name: 'AdminSetup',[\s\S]*?\n\s*},/,
+  )?.[0]
+
+  assert.ok(setupRoute)
+  assert.match(setupRoute, /permission: 'club\.manage'/)
+  assert.match(routerSource, /else if \(to\.meta\.permission && !authStore\.hasPermission/)
 })

@@ -154,12 +154,13 @@ function normalizeLadders(input, defaults) {
 export function normalizeClubSetup(input = {}) {
   const value = asObject(input)
   const defaults = createDefaultClubSetup()
+  const isMinimal = value.configurationState === 'minimal'
   const workspace = asObject(value.workspace)
   const membership = asObject(value.membership)
   const placement = asObject(value.placement)
   const rules = asObject(value.rules)
   const notificationInput = asObject(workspace.notifications)
-  const ladders = normalizeLadders(value.ladders, defaults.ladders)
+  const ladders = normalizeLadders(value.ladders, isMinimal ? [] : defaults.ladders)
   const activeLadderIds = ladders
     .filter((ladder) => ladder.enabled && !ladder.archived)
     .map((ladder) => ladder.id)
@@ -170,33 +171,54 @@ export function normalizeClubSetup(input = {}) {
 
   return {
     schemaVersion: CLUB_SETUP_SCHEMA_VERSION,
+    ...(isMinimal ? { configurationState: 'minimal' } : {}),
     clubId: sanitizeDirectoryId(value.clubId),
     status: value.status === 'active' ? 'active' : 'draft',
     completedStep: clampInteger(value.completedStep, 0, ADMIN_SETUP_STEPS.length, 0),
     workspace: {
       name: sanitizePlainText(workspace.name, 100),
       logoUrl: isSafeImageSource(workspace.logoUrl) ? String(workspace.logoUrl).slice(0, 2048) : '',
-      location: sanitizePlainText(workspace.location, 120),
-      timezone: isAllowed(workspace.timezone, TIMEZONE_OPTIONS, defaults.workspace.timezone),
+      ...(isMinimal || workspace.country || workspace.city
+        ? {
+            country: sanitizePlainText(workspace.country, 80),
+            city: sanitizePlainText(workspace.city, 80),
+          }
+        : {}),
+      location:
+        sanitizePlainText(workspace.location, 120) ||
+        [sanitizePlainText(workspace.city, 80), sanitizePlainText(workspace.country, 80)]
+          .filter(Boolean)
+          .join(', '),
+      timezone: isAllowed(
+        workspace.timezone,
+        TIMEZONE_OPTIONS,
+        isMinimal ? '' : defaults.workspace.timezone,
+      ),
       courts: uniqueTextList(workspace.courts, {
-        fallback: defaults.workspace.courts,
+        fallback: isMinimal ? [] : defaults.workspace.courts,
         maxItems: 30,
         maxLength: 60,
       }),
-      seasonStart: sanitizeDate(workspace.seasonStart, defaults.workspace.seasonStart),
-      seasonEnd: sanitizeDate(workspace.seasonEnd, defaults.workspace.seasonEnd),
+      seasonStart: sanitizeDate(
+        workspace.seasonStart,
+        isMinimal ? '' : defaults.workspace.seasonStart,
+      ),
+      seasonEnd: sanitizeDate(workspace.seasonEnd, isMinimal ? '' : defaults.workspace.seasonEnd),
       administratorIds: uniqueIds(workspace.administratorIds, 30),
-      notifications: {
-        email: notificationInput.email !== false,
-        sms: Boolean(notificationInput.sms),
-        challengeReminders: notificationInput.challengeReminders !== false,
-      },
+      notifications:
+        isMinimal && !Object.keys(notificationInput).length
+          ? {}
+          : {
+              email: notificationInput.email !== false,
+              sms: Boolean(notificationInput.sms),
+              challengeReminders: notificationInput.challengeReminders !== false,
+            },
     },
     membership: {
       source: isAllowed(
         membership.source,
         ['existing-roster', 'import-list', 'email-phone', 'private-link', 'manual', 'later'],
-        defaults.membership.source,
+        isMinimal ? 'later' : defaults.membership.source,
       ),
       selectedPlayerIds: uniqueIds(membership.selectedPlayerIds),
       inviteEmails: sanitizePlainText(membership.inviteEmails, 4000),
@@ -215,48 +237,59 @@ export function normalizeClubSetup(input = {}) {
     },
     ladders,
     primaryLadderId,
-    placement: {
-      method: isAllowed(
-        placement.method,
-        PLACEMENT_METHODS.filter((item) => item.available).map((item) => item.id),
-        defaults.placement.method,
-      ),
-      provisionalMatches: clampInteger(placement.provisionalMatches, 1, 10, 3),
-      newMemberPolicy: 'bottom-provisional',
-      rankingOrder: uniqueIds(placement.rankingOrder),
-    },
-    rules: {
-      challengeRangeUp: clampInteger(rules.challengeRangeUp, 1, 20, 3),
-      allowDownwardChallenges: Boolean(rules.allowDownwardChallenges),
-      maxActiveChallenges: clampInteger(rules.maxActiveChallenges, 1, 5, 1),
-      responseHours: clampInteger(rules.responseHours, 1, 168, 48),
-      completionDays: clampInteger(rules.completionDays, 1, 30, 7),
-      rematchCooldownDays: clampInteger(rules.rematchCooldownDays, 0, 90, 7),
-      repeatedDeclineLimit: clampInteger(rules.repeatedDeclineLimit, 1, 10, 3),
-      inactivityDays: clampInteger(rules.inactivityDays, 7, 365, 30),
-      noShowPolicy: isAllowed(
-        rules.noShowPolicy,
-        ['walkover-after-review', 'automatic-walkover', 'admin-review'],
-        'walkover-after-review',
-      ),
-      movementSystem: isAllowed(
-        rules.movementSystem,
-        MOVEMENT_SYSTEMS.filter((item) => item.available).map((item) => item.id),
-        'position-swap',
-      ),
-      matchPreset: isAllowed(
-        rules.matchPreset,
-        MATCH_FORMAT_PRESETS.map((item) => item.id),
-        'time-smart',
-      ),
-      scoring: rules.scoring === 'noad' ? 'noad' : 'ad',
-      resultConfirmation: isAllowed(
-        rules.resultConfirmation,
-        ['both-players', 'either-player', 'admin-only'],
-        'both-players',
-      ),
-      disputeResolution: isAllowed(rules.disputeResolution, ['admin'], 'admin'),
-    },
+    placement:
+      isMinimal && !placement.method
+        ? {
+            method: '',
+            provisionalMatches: 0,
+            newMemberPolicy: '',
+            rankingOrder: uniqueIds(placement.rankingOrder),
+          }
+        : {
+            method: isAllowed(
+              placement.method,
+              PLACEMENT_METHODS.filter((item) => item.available).map((item) => item.id),
+              defaults.placement.method,
+            ),
+            provisionalMatches: clampInteger(placement.provisionalMatches, 1, 10, 3),
+            newMemberPolicy: 'bottom-provisional',
+            rankingOrder: uniqueIds(placement.rankingOrder),
+          },
+    rules:
+      isMinimal && !Object.keys(rules).length
+        ? {}
+        : {
+            challengeRangeUp: clampInteger(rules.challengeRangeUp, 1, 20, 3),
+            allowDownwardChallenges: Boolean(rules.allowDownwardChallenges),
+            maxActiveChallenges: clampInteger(rules.maxActiveChallenges, 1, 5, 1),
+            responseHours: clampInteger(rules.responseHours, 1, 168, 48),
+            completionDays: clampInteger(rules.completionDays, 1, 30, 7),
+            rematchCooldownDays: clampInteger(rules.rematchCooldownDays, 0, 90, 7),
+            repeatedDeclineLimit: clampInteger(rules.repeatedDeclineLimit, 1, 10, 3),
+            inactivityDays: clampInteger(rules.inactivityDays, 7, 365, 30),
+            noShowPolicy: isAllowed(
+              rules.noShowPolicy,
+              ['walkover-after-review', 'automatic-walkover', 'admin-review'],
+              'walkover-after-review',
+            ),
+            movementSystem: isAllowed(
+              rules.movementSystem,
+              MOVEMENT_SYSTEMS.filter((item) => item.available).map((item) => item.id),
+              'position-swap',
+            ),
+            matchPreset: isAllowed(
+              rules.matchPreset,
+              MATCH_FORMAT_PRESETS.map((item) => item.id),
+              'time-smart',
+            ),
+            scoring: rules.scoring === 'noad' ? 'noad' : 'ad',
+            resultConfirmation: isAllowed(
+              rules.resultConfirmation,
+              ['both-players', 'either-player', 'admin-only'],
+              'both-players',
+            ),
+            disputeResolution: isAllowed(rules.disputeResolution, ['admin'], 'admin'),
+          },
     createdAt: sanitizeIsoTimestamp(value.createdAt),
     updatedAt: sanitizeIsoTimestamp(value.updatedAt),
   }

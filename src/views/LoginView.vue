@@ -2,63 +2,52 @@
 import { computed, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useAdminStore } from '../stores/admin'
 import { APP_DATA_MODES } from '../dataMode'
+import { resolvePostAuthDestination } from '../utils/onboarding/resolvePostAuthDestination.js'
 import AppLogo from '../components/AppLogo.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
-const selectedRole = ref('')
+const adminStore = useAdminStore()
 const errorMessage = ref('')
 const useDemoData = ref(false)
-const roleOptions = [
-  {
-    key: 'player',
-    label: 'I am a player',
-    description: 'Join your club and start playing.',
-  },
-  {
-    key: 'club_admin',
-    label: 'Club admin',
-    description: 'Create your club, shape its ladders, and welcome members.',
-  },
-]
 
 const isSignUp = computed(() => route.meta.authMode === 'signup')
 
-function chooseRole(roleKey) {
-  selectedRole.value = roleKey
-  errorMessage.value = ''
-  if (!isSignUp.value) enterWorkspace(roleKey)
-}
+async function resolveEntryDestination() {
+  const intentResolution = resolvePostAuthDestination({
+    redirect: route.query.redirect,
+    invite: route.query.invite,
+  })
+  if (intentResolution) return intentResolution.destination
 
-async function enterWorkspace(roleKey = selectedRole.value) {
-  if (authStore.isAuthLoading) return
-  if (!roleKey) {
-    errorMessage.value = 'Choose the option that sounds like you.'
-    return
+  await adminStore.loadClubs()
+  const clubResolution = resolvePostAuthDestination({
+    activeClubs: adminStore.clubOptions,
+  })
+
+  if (
+    clubResolution.activeClubId &&
+    clubResolution.activeClubId !== adminStore.activeClubId
+  ) {
+    await adminStore.switchClub(clubResolution.activeClubId)
   }
 
+  return clubResolution.destination
+}
+
+async function enterWorkspace() {
+  if (authStore.isAuthLoading) return
+
   try {
-    selectedRole.value = roleKey
     errorMessage.value = ''
-    const isAdmin = roleKey === 'club_admin' || roleKey === 'super_admin'
     await authStore.login({
-      username: isAdmin ? 'Heredina' : 'Club Player',
-      email: isAdmin ? 'admin@gorra.demo' : 'player@gorra.demo',
-      roleKey,
-      dataMode: isAdmin || useDemoData.value ? APP_DATA_MODES.DEMO : APP_DATA_MODES.EMPTY,
+      dataMode:
+        !isSignUp.value && useDemoData.value ? APP_DATA_MODES.DEMO : APP_DATA_MODES.EMPTY,
     })
-    if (isSignUp.value) {
-      const destination = route.query.invite
-        ? { name: 'Clubs', query: { view: 'join', invite: route.query.invite } }
-        : { name: 'Clubs' }
-      await router.push(destination)
-      return
-    }
-    const redirect = String(route.query.redirect || '')
-    const safeRedirect = redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : ''
-    await router.push(safeRedirect || { name: 'Dashboard' })
+    await router.push(await resolveEntryDestination())
   } catch (error) {
     errorMessage.value = error?.message || 'We could not open the workspace. Please try again.'
   }
@@ -78,84 +67,44 @@ async function enterWorkspace(roleKey = selectedRole.value) {
       </RouterLink>
 
       <div class="auth-panel__content">
-        <div v-if="isSignUp" class="auth-progress" aria-label="Signup progress">
-          <span class="auth-progress__step auth-progress__step--done"><i>OK</i> Account</span>
-          <span class="auth-progress__line" aria-hidden="true"></span>
-          <span class="auth-progress__step auth-progress__step--active" aria-current="step"
-            ><i>2</i> Your role</span
-          >
-        </div>
         <p class="auth-access-kicker">
           {{ isSignUp ? 'Getting started' : 'Welcome back' }}
         </p>
-        <h1>{{ isSignUp ? 'How will you use Gorra?' : 'How would you like to enter?' }}</h1>
+        <h1>{{ isSignUp ? 'Create your Gorra account' : 'Welcome back' }}</h1>
         <p class="auth-access-intro">
           {{
             isSignUp
-              ? 'Choose the role that fits today. We will tailor every next step around it.'
-              : 'Choose a role to open the application.'
+              ? 'One personal account follows you across every club you join, create, or help run.'
+              : 'Continue to your Gorra account. Your access comes from each club relationship.'
           }}
         </p>
 
-        <div
-          class="auth-role-picker"
-          role="group"
-          aria-label="Choose account type"
-          :aria-busy="authStore.isAuthLoading"
-        >
-          <button
-            v-for="option in roleOptions"
-            :key="option.key"
-            type="button"
-            class="auth-role-option"
-            :class="{ 'auth-role-option--active': selectedRole === option.key }"
-            :aria-pressed="selectedRole === option.key"
-            :disabled="authStore.isAuthLoading"
-            @click="chooseRole(option.key)"
-          >
-            <span class="auth-role-option__icon" aria-hidden="true">
-              <svg v-if="option.key !== 'player'" viewBox="0 0 24 24">
-                <path d="M12 3 4.5 6v5.2c0 4.6 3.2 8.1 7.5 9.8 4.3-1.7 7.5-5.2 7.5-9.8V6L12 3Z" />
-                <path d="m8.5 12 2.2 2.2 4.8-5" />
-              </svg>
-              <svg v-else viewBox="0 0 24 24">
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4.5 21c.8-4.2 3.4-6.5 7.5-6.5s6.7 2.3 7.5 6.5" />
-              </svg>
-            </span>
-            <span>
-              <strong>{{
-                authStore.isAuthLoading && selectedRole === option.key ? 'Opening…' : option.label
-              }}</strong>
-              <small>{{ option.description }}</small>
-            </span>
-            <span class="auth-role-option__check" aria-hidden="true">
-              <svg viewBox="0 0 18 18"><path d="m4 9 3 3 7-7" /></svg>
-            </span>
-          </button>
-        </div>
-
-        <button
-          v-if="isSignUp"
-          class="auth-submit auth-continue"
-          type="button"
-          :disabled="!selectedRole || authStore.isAuthLoading"
-          @click="enterWorkspace()"
-        >
-          {{ authStore.isAuthLoading ? 'Opening…' : 'Continue' }}
-        </button>
-
-        <label v-else class="auth-data-option">
+        <label v-if="!isSignUp" class="auth-data-option">
           <input v-model="useDemoData" type="checkbox" />
           <span>
-            <strong>Use sample club data for User</strong>
+            <strong>Use sample club data</strong>
             <small>Leave this off to open the true fresh-account experience.</small>
           </span>
         </label>
 
+        <button
+          class="auth-submit"
+          type="button"
+          :disabled="authStore.isAuthLoading"
+          @click="enterWorkspace"
+        >
+          {{
+            authStore.isAuthLoading
+              ? 'Opening…'
+              : isSignUp
+                ? 'Create account'
+                : 'Sign in'
+          }}
+        </button>
+
         <p v-if="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</p>
-        <p v-if="!isSignUp" class="auth-quick-note">
-          User opens the fresh match dashboard. Admin always keeps the original populated club data.
+        <p class="auth-quick-note">
+          This local prototype uses the configured demo identity. No password is required.
         </p>
       </div>
     </main>
@@ -266,52 +215,9 @@ async function enterWorkspace(roleKey = selectedRole.value) {
   padding: 44px 0 30px;
 }
 
-.auth-progress {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 30px;
-  color: #819087;
-  font-size: 10.5px;
-  font-weight: var(--font-weight-medium);
-}
-.auth-progress__step {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-.auth-progress__step i {
-  display: grid;
-  width: 23px;
-  height: 23px;
-  place-items: center;
-  border: 1px solid #dce4de;
-  border-radius: 50%;
-  background: #fff;
-  font-size: 8px;
-  font-style: normal;
-}
-.auth-progress__step--done i {
-  border-color: #c8e9cf;
-  background: #eaf7ed;
-  color: #16743a;
-}
-.auth-progress__step--active {
-  color: #172319;
-}
-.auth-progress__step--active i {
-  border-color: #172319;
-  color: #172319;
-}
-.auth-progress__line {
-  width: 32px;
-  height: 1px;
-  background: #dce4de;
-}
-
 h1 {
   max-width: 390px;
-  margin: 0 0 36px;
+  margin: 0 0 12px;
   color: #172319;
   font-size: clamp(34px, 3vw, 43px);
   font-weight: var(--font-weight-bold);
@@ -337,7 +243,7 @@ h1 {
 }
 
 .auth-access-intro {
-  margin: -24px 0 32px;
+  margin: 0 0 28px;
   color: var(--color-muted);
   font-size: 14px;
   line-height: 1.55;
@@ -385,113 +291,6 @@ h1 {
   text-align: center;
 }
 
-.auth-role-picker {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: -18px 0 24px;
-}
-
-.auth-role-option {
-  position: relative;
-  display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) 22px;
-  min-height: 90px;
-  align-items: center;
-  column-gap: 15px;
-  padding: 18px;
-  border: var(--app-hairline);
-  border-radius: var(--app-card-radius);
-  background: #fff;
-  box-shadow: var(--flow-shadow-quiet);
-  color: #172319;
-  text-align: left;
-  white-space: normal;
-  transition:
-    transform 220ms var(--motion-curve),
-    border-color 220ms ease,
-    background 220ms ease,
-    box-shadow 220ms var(--motion-curve);
-}
-.auth-role-option:hover:not(:disabled) {
-  transform: translateY(-3px);
-  border-color: #c9d7cd;
-  box-shadow: 0 15px 34px rgba(15, 34, 24, 0.08);
-}
-
-.auth-role-option--active {
-  border-color: color-mix(in srgb, var(--color-primary) 34%, var(--color-border));
-  background: color-mix(in srgb, var(--color-primary) 2.5%, #fff);
-  box-shadow: 0 14px 34px rgba(19, 107, 54, 0.09);
-}
-
-.auth-role-option__icon {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border-radius: 13px;
-  background: #edf5ef;
-  color: #087524;
-}
-
-.auth-role-option__icon svg {
-  width: 19px;
-  height: 19px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.auth-role-option__check {
-  display: grid;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  border: 1px solid #d8e1da;
-  border-radius: 50%;
-  color: transparent;
-  transition:
-    transform 220ms var(--motion-spring),
-    color 180ms ease,
-    border-color 180ms ease,
-    background 180ms ease;
-}
-.auth-role-option__check svg {
-  width: 13px;
-  height: 13px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.auth-role-option--active .auth-role-option__check {
-  transform: scale(1.08);
-  border-color: var(--color-primary-strong);
-  background: var(--color-primary-strong);
-  color: #fff;
-}
-.auth-role-option strong,
-.auth-role-option small {
-  display: block;
-}
-.auth-role-option strong {
-  font-size: 16px;
-  font-weight: var(--font-weight-semibold);
-}
-.auth-role-option small {
-  margin-top: 5px;
-  color: #69776c;
-  font-size: 13px;
-  font-weight: var(--font-weight-regular);
-  line-height: 1.5;
-}
-.auth-continue {
-  margin-bottom: 18px;
-}
-
 .auth-form {
   display: grid;
   gap: 20px;
@@ -531,6 +330,7 @@ h1 {
 .auth-submit {
   width: 100%;
   min-height: 50px;
+  margin-top: 24px;
   border: 1px solid var(--color-primary);
   border-radius: 8px;
   background: var(--color-primary);
@@ -660,12 +460,8 @@ h1 {
     padding-top: 48px;
   }
 
-  .auth-role-picker {
-    grid-template-columns: 1fr;
-  }
-
   h1 {
-    margin-bottom: 30px;
+    margin-bottom: 12px;
     font-size: 34px;
   }
 }

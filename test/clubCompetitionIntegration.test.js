@@ -33,8 +33,8 @@ test('Play and Friendly Match remain available without active-club permission ga
 })
 
 test('new zero-club accounts enter the real Clubs area without role-based onboarding', () => {
-  assert.match(loginSource, /\? \{ name: 'Clubs', query: \{ view: 'join', invite:/)
-  assert.match(loginSource, /: \{ name: 'Clubs' \}/)
+  assert.match(loginSource, /resolvePostAuthDestination/)
+  assert.match(loginSource, /activeClubs: adminStore\.clubOptions/)
   assert.doesNotMatch(
     loginSource,
     /const destination = isAdmin[\s\S]*name: 'AdminSetup'[\s\S]*name: 'PlayerClubJoin'/,

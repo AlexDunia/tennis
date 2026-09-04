@@ -1,5 +1,11 @@
 <template>
-  <div class="layout" :class="{ 'layout--sidebar-collapsed': sidebarCollapsed }">
+  <div
+    class="layout"
+    :class="{
+      'layout--sidebar-collapsed': sidebarCollapsed,
+      'layout--migrated': isMigratedSurface,
+    }"
+  >
     <aside v-if="showSidebar" class="sidebar">
       <div class="brand-row">
         <a
@@ -495,6 +501,15 @@ const isFriendlyFlow = computed(() => route.meta.friendlyFlow === true)
 const isOnboardingFlow = computed(() => route.meta.onboardingFlow === true)
 const isFocusedFlow = computed(() => isFriendlyFlow.value || isOnboardingFlow.value)
 const isImmersiveRoute = computed(() => route.meta.immersive === true)
+const migratedRouteNames = new Set([
+  'Dashboard',
+  'Play',
+  'Clubs',
+  'Club',
+  'Settings',
+  'AccountSettings',
+])
+const isMigratedSurface = computed(() => migratedRouteNames.has(String(route.name || '')))
 const isWideWorkspace = computed(
   () => isTournamentCreate.value || isTournamentViewer.value || isLadderWorkspace.value,
 )
@@ -874,6 +889,35 @@ onUnmounted(() => {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: 'Poppins', sans-serif;
+}
+
+.layout--migrated {
+  --app-shell-content-width: 87%;
+  --color-bg: #fbfcfb;
+  --color-bg-muted: #f7fcf8;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f7fcf8;
+  --color-surface-soft: #eef9f0;
+  --color-surface-softest: #f7fcf8;
+  --color-primary: #08ad2b;
+  --color-primary-strong: #067d20;
+  --color-accent-bright: #08ad2b;
+  --color-text: #28332c;
+  --color-text-soft: #465149;
+  --color-muted: #7d8780;
+  --color-border: #e4e9e5;
+  --color-border-strong: #d6ddd8;
+  --button-primary-bg: #08ad2b;
+  --button-primary-bg-hover: #079624;
+  --focus-ring: rgba(8, 173, 43, 0.24);
+  --app-card-radius: 12px;
+  --app-inner-radius: 9px;
+  --flow-shadow-quiet: 0 8px 24px rgba(40, 51, 44, 0.025);
+  font-family: Inter, 'Avenir Next', 'Segoe UI', sans-serif;
+}
+
+.layout--migrated .main {
+  background: var(--color-bg);
 }
 
 .layout--sidebar-collapsed {
@@ -2113,6 +2157,10 @@ onUnmounted(() => {
   .layout {
     --app-header-height: 82px;
     --app-bottom-nav-height: 64px;
+  }
+
+  .layout--migrated {
+    --app-shell-content-width: calc(100% - 28px);
   }
 
   .sidebar {

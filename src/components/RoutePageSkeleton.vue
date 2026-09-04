@@ -41,6 +41,11 @@ const variant = computed(() => {
       CreateChallenge: 'challenge-create',
       Notifications: 'notifications',
       Profile: 'profile',
+      Play: 'play',
+      Clubs: 'clubs',
+      Club: 'club',
+      Settings: 'settings',
+      AccountSettings: 'account-settings',
       PlayMatch: 'live-scoreboard',
       AdminSetup: 'onboarding-admin',
       PlayerClubJoin: 'onboarding-join',
@@ -332,6 +337,55 @@ const opponentRows = computed(() =>
         <span class="sk sk-line w-28"></span>
         <span class="sk sk-dashboard-glance"></span>
       </div>
+    </template>
+
+    <template v-else-if="variant === 'play'">
+      <span class="sk sk-line w-18"></span>
+      <div class="two-grid">
+        <span class="sk sk-format"></span><span class="sk sk-format"></span>
+      </div>
+      <span class="sk sk-line w-18"></span>
+      <div class="stack gap-0">
+        <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-list-row"></span>
+      </div>
+    </template>
+
+    <template v-else-if="variant === 'clubs'">
+      <div class="intro-block">
+        <span class="sk sk-line w-24 title"></span><span class="sk sk-line w-42"></span>
+      </div>
+      <div class="stack gap-12">
+        <span v-for="row in [1, 2, 3]" :key="row" class="sk sk-list-row"></span>
+      </div>
+    </template>
+
+    <template v-else-if="variant === 'club'">
+      <span class="sk sk-status-card"></span>
+      <div class="three-grid">
+        <span v-for="card in [1, 2, 3]" :key="card" class="sk sk-stat"></span>
+      </div>
+      <div class="two-grid">
+        <span class="sk sk-card mid"></span><span class="sk sk-card mid"></span>
+      </div>
+    </template>
+
+    <template v-else-if="variant === 'settings'">
+      <div class="two-grid">
+        <span class="sk sk-card tall"></span>
+        <div class="stack gap-12">
+          <span class="sk sk-line w-28 title"></span>
+          <span class="sk sk-card tall"></span>
+          <span class="sk sk-button push"></span>
+        </div>
+      </div>
+    </template>
+
+    <template v-else-if="variant === 'account-settings'">
+      <span class="sk sk-person"></span>
+      <div class="two-grid">
+        <span class="sk sk-card tall"></span><span class="sk sk-card tall"></span>
+      </div>
+      <span class="sk sk-list-row"></span>
     </template>
 
     <template v-else-if="variant === 'rankings'">

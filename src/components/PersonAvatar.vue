@@ -32,14 +32,15 @@ const avatarStyle = computed(() => ({
 <style scoped>
 .person-avatar {
   border-radius: 999px;
-  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-soft);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  font-size: 0.9rem;
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-strong);
 }
 
 .person-avatar img {
