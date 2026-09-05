@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { CLUB_INVITE_KINDS } from '../config/admin.js'
 import { useAdminStore } from '../stores/admin'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
@@ -52,6 +53,7 @@ const savingSection = ref('')
 const importInput = ref(null)
 const importFileName = ref('')
 const inviteReady = ref(false)
+const memberInviteBusyId = ref('')
 const passwordBusy = ref(false)
 const passwordError = ref('')
 const currentPassword = ref('')
@@ -89,29 +91,80 @@ const adminMemberCount = computed(
   () => memberSettings.manualMembers.filter((member) => member.role === 'admin').length,
 )
 const isSaving = computed(() => Boolean(savingSection.value) || adminStore.isSaving)
+
+const persistedMembersById = computed(() => {
+  const membership = adminStore.activeClub?.setup?.membership || {}
+  const records = [
+    ...(Array.isArray(membership.manualMembers) ? membership.manualMembers : []),
+    ...(Array.isArray(membership.importedMembers) ? membership.importedMembers : []),
+    ...(Array.isArray(membership.roster) ? membership.roster : []),
+  ]
+
+  const byId = new Map()
+
+  records.forEach((member) => {
+    const id = String(member?.id || '').trim()
+    if (!id) return
+
+    // Duplicate IDs are unsafe for an identity claim. Represent them as
+    // unresolved here and let the service remain the final authority.
+    if (byId.has(id)) {
+      byId.set(id, null)
+      return
+    }
+
+    byId.set(id, member)
+  })
+
+  return byId
+})
+
+const activeMemberInvitesByMemberId = computed(() => {
+  const byMemberId = new Map()
+
+  ;(adminStore.activeClub?.invitations || []).forEach((invite) => {
+    if (
+      invite.enabled === false ||
+      invite.kind !== CLUB_INVITE_KINDS.MEMBER_RECORD ||
+      !invite.memberId ||
+      byMemberId.has(invite.memberId)
+    ) {
+      return
+    }
+
+    byMemberId.set(invite.memberId, invite)
+  })
+
+  return byMemberId
+})
+
 const selectedInvite = computed(() => {
   const role = normalizeRole(memberSettings.inviteRole)
+
   const storedInvite = (adminStore.activeClub?.invitations || []).find(
-    (invite) => invite.enabled !== false && invite.role === role,
+    (invite) =>
+      invite.enabled !== false &&
+      invite.kind === CLUB_INVITE_KINDS.GENERIC &&
+      invite.role === role,
   )
 
   if (storedInvite) return storedInvite
   if (role !== 'player' || !memberSettings.invitationToken) return null
 
   return {
+    kind: CLUB_INVITE_KINDS.GENERIC,
     role: 'player',
     roleLabel: 'Player',
     token: memberSettings.invitationToken,
     code: memberSettings.invitationCode,
   }
 })
+
 const inviteLink = computed(() => {
   const secret = selectedInvite.value?.token || selectedInvite.value?.code
-  if (!secret || typeof window === 'undefined') return ''
-  const path = `${window.location.origin}${window.location.pathname}`
-  const clubName = encodeURIComponent(activeClubName.value)
-  return `${path}#/signup?club=${clubName}&invite=${encodeURIComponent(secret)}`
+  return buildSignupInviteLink(secret)
 })
+
 const visibleInviteCode = computed(() => selectedInvite.value?.code || selectedInvite.value?.token)
 
 function cloneValue(value) {
@@ -133,6 +186,58 @@ function makeLocalId(prefix) {
 
 function normalizeRole(value) {
   return MEMBER_ROLES.some((role) => role.value === value) ? value : 'player'
+}
+
+function buildSignupInviteLink(secretInput) {
+  const secret = String(secretInput || '').trim()
+
+  if (!secret || typeof window === 'undefined') return ''
+
+  const path = `${window.location.origin}${window.location.pathname}`
+  const clubName = encodeURIComponent(activeClubName.value)
+
+  return `${path}#/signup?club=${clubName}&invite=${encodeURIComponent(secret)}`
+}
+
+function persistedMemberRecord(member) {
+  const memberId = String(member?.id || '').trim()
+  if (!memberId) return null
+
+  return persistedMembersById.value.get(memberId) || null
+}
+
+function memberContact(member) {
+  return sanitizePlainText(member?.contact || member?.email || member?.phone || '', 160)
+}
+
+function memberIsConnected(member) {
+  return Boolean(sanitizePlainText(member?.userId, 100))
+}
+
+function memberHasUnsavedChanges(member) {
+  const persisted = persistedMemberRecord(member)
+  if (!persisted) return true
+
+  return (
+    sanitizePlainText(member?.name, 100) !== sanitizePlainText(persisted.name, 100) ||
+    memberContact(member) !== memberContact(persisted) ||
+    normalizeRole(member?.role) !== normalizeRole(persisted.role) ||
+    sanitizePlainText(member?.userId, 100) !== sanitizePlainText(persisted.userId, 100)
+  )
+}
+
+function memberAccountInvite(member) {
+  const memberId = String(member?.id || '').trim()
+  if (!memberId) return null
+
+  return activeMemberInvitesByMemberId.value.get(memberId) || null
+}
+
+function memberAccountInviteLink(member) {
+  const invite = memberAccountInvite(member)
+  const secret = invite?.token || invite?.code
+
+  return buildSignupInviteLink(secret)
 }
 
 function hydrateSetup(value = {}) {
@@ -398,8 +503,9 @@ function handleInviteRoleChange() {
   inviteReady.value = Boolean(selectedInvite.value?.token || selectedInvite.value?.code)
 }
 
-async function copyInvite(value, label) {
-  if (!inviteReady.value || !value) return
+async function copyText(value, label) {
+  if (!value) return
+
   if (!navigator.clipboard?.writeText) {
     notificationStore.addToast({
       message: 'Copy is not available here. Select the text instead.',
@@ -407,14 +513,66 @@ async function copyInvite(value, label) {
     })
     return
   }
+
   try {
     await navigator.clipboard.writeText(value)
-    notificationStore.addToast({ message: `${label} copied.`, type: 'success' })
+    notificationStore.addToast({
+      message: `${label} copied.`,
+      type: 'success',
+    })
   } catch {
     notificationStore.addToast({
       message: 'Copy did not work. Select the text instead.',
       type: 'error',
     })
+  }
+}
+
+async function copyInvite(value, label) {
+  if (!inviteReady.value) return
+  await copyText(value, label)
+}
+
+async function copyMemberAccountInvite(member) {
+  const link = memberAccountInviteLink(member)
+  if (!link) return
+
+  await copyText(link, 'Account invite link')
+}
+
+async function generateMemberAccountInvite(member) {
+  if (memberIsConnected(member)) return
+
+  const persisted = persistedMemberRecord(member)
+
+  if (!persisted || memberHasUnsavedChanges(member)) {
+    notificationStore.addToast({
+      message: 'Save this member before making an account invite.',
+      type: 'info',
+    })
+    return
+  }
+
+  pageError.value = ''
+  memberInviteBusyId.value = member.id
+
+  try {
+    await adminStore.createMemberInvite(member.id)
+
+    notificationStore.addToast({
+      message: `Account invite ready for ${member.name || 'this member'}.`,
+      type: 'success',
+    })
+  } catch (error) {
+    pageError.value =
+      error?.message || 'We could not make this account invite. Try again.'
+
+    notificationStore.addToast({
+      message: pageError.value,
+      type: 'error',
+    })
+  } finally {
+    memberInviteBusyId.value = ''
   }
 }
 
@@ -872,18 +1030,30 @@ onMounted(async () => {
                     required
                   />
                 </label>
+
                 <label class="settings-field">
                   <span>Email or phone</span>
-                  <input v-model="member.contact" type="text" maxlength="160" autocomplete="off" />
+                  <input
+                    v-model="member.contact"
+                    type="text"
+                    maxlength="160"
+                    autocomplete="off"
+                  />
                 </label>
+
                 <label class="settings-field">
                   <span>Role</span>
                   <select :value="member.role" @change="changeMemberRole(member, $event)">
-                    <option v-for="role in MEMBER_ROLES" :key="role.value" :value="role.value">
+                    <option
+                      v-for="role in MEMBER_ROLES"
+                      :key="role.value"
+                      :value="role.value"
+                    >
                       {{ role.label }}
                     </option>
                   </select>
                 </label>
+
                 <button
                   class="settings-icon-button member-row__remove"
                   type="button"
@@ -892,6 +1062,97 @@ onMounted(async () => {
                 >
                   Remove
                 </button>
+
+                <div class="member-row__account">
+                  <div class="member-account-copy">
+                    <span
+                      v-if="memberIsConnected(member)"
+                      class="member-account-state member-account-state--connected"
+                    >
+                      <span aria-hidden="true"></span>
+                      Connected account
+                    </span>
+
+                    <span
+                      v-else-if="memberAccountInvite(member)"
+                      class="member-account-state member-account-state--ready"
+                    >
+                      <span aria-hidden="true"></span>
+                      Account invite ready
+                    </span>
+
+                    <span v-else class="member-account-state">
+                      <span aria-hidden="true"></span>
+                      Club record
+                    </span>
+
+                    <small v-if="memberIsConnected(member)">
+                      This club record is connected to a Gorra account.
+                    </small>
+
+                    <small v-else-if="memberHasUnsavedChanges(member)">
+                      Save changes before making an account invite.
+                    </small>
+
+                    <small v-else-if="memberAccountInvite(member)">
+                      This private link connects this exact club record.
+                    </small>
+
+                    <small v-else>
+                      Invite this person to connect this club record to their Gorra account.
+                    </small>
+                  </div>
+
+                  <div
+                    v-if="!memberIsConnected(member) && !memberHasUnsavedChanges(member)"
+                    class="member-account-actions"
+                  >
+                    <template v-if="memberAccountInvite(member)">
+                      <div class="copy-field member-account-link">
+                        <input
+                          :value="memberAccountInviteLink(member)"
+                          type="text"
+                          readonly
+                          :aria-label="`Account invite for ${member.name || 'member'}`"
+                        />
+                        <button
+                          type="button"
+                          :disabled="!memberAccountInviteLink(member)"
+                          @click="copyMemberAccountInvite(member)"
+                        >
+                          Copy link
+                        </button>
+                      </div>
+
+                      <button
+                        class="settings-button settings-button--quiet member-account-new"
+                        type="button"
+                        :disabled="isSaving || Boolean(memberInviteBusyId)"
+                        @click="generateMemberAccountInvite(member)"
+                      >
+                        {{
+                          memberInviteBusyId === member.id
+                            ? 'Making…'
+                            : 'Make new link'
+                        }}
+                      </button>
+                    </template>
+
+                    <button
+                      v-else
+                      class="settings-button settings-button--quiet"
+                      type="button"
+                      :disabled="isSaving || Boolean(memberInviteBusyId)"
+                      @click="generateMemberAccountInvite(member)"
+                    >
+                      {{
+                        memberInviteBusyId === member.id
+                          ? 'Making…'
+                          : 'Make account invite'
+                      }}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
             <p v-else class="settings-empty">No one has been added here yet.</p>
@@ -1511,6 +1772,85 @@ onMounted(async () => {
 .member-row__remove {
   margin-bottom: 3px;
 }
+
+.member-row__account {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding-top: 11px;
+  border-top: var(--app-hairline);
+}
+
+.member-account-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.member-account-copy small {
+  color: var(--color-muted);
+  font-size: 10.5px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.45;
+}
+
+.member-account-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  color: var(--color-muted);
+  font-size: 10.5px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.member-account-state > span {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #aab3ac;
+}
+
+.member-account-state--ready {
+  color: var(--color-primary-strong);
+}
+
+.member-account-state--ready > span {
+  background: var(--color-primary);
+}
+
+.member-account-state--connected {
+  color: #43714d;
+}
+
+.member-account-state--connected > span {
+  background: #60a76f;
+}
+
+.member-account-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.member-account-link {
+  width: min(410px, 40vw);
+}
+
+.member-account-link input {
+  min-width: 0;
+  font-size: 11px;
+}
+
+.member-account-new {
+  flex: none;
+  min-width: auto;
+}
 .ladder-row {
   position: relative;
   display: grid;
@@ -1639,6 +1979,20 @@ onMounted(async () => {
   .member-row__remove {
     justify-self: start;
   }
+
+  .member-row__account {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .member-account-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .member-account-link {
+    width: min(100%, 520px);
+  }
   .ladder-row {
     grid-template-columns: 6px minmax(0, 1fr) 150px;
   }
@@ -1648,6 +2002,20 @@ onMounted(async () => {
   }
 }
 @media (max-width: 620px) {
+  .member-account-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .member-account-link {
+    width: 100%;
+  }
+
+  .member-account-new,
+  .member-account-actions > .settings-button {
+    width: 100%;
+  }
+
   .settings-page__header {
     margin-bottom: 20px;
   }

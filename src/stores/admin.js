@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { ADMIN_SETUP_STEPS, createDefaultClubSetup } from '../config/admin.js'
 import {
   createClub as createClubRelationship,
+  createMemberRecordInvite,
   discardClubSetupDraft,
   getClubDirectory,
   getClubSetup,
@@ -274,6 +275,37 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
+  async function createMemberInvite(memberId) {
+    const safeMemberId = sanitizeDirectoryId(memberId)
+
+    if (!safeMemberId) {
+      const inviteError = new Error('Choose a valid member.')
+      error.value = inviteError.message
+      throw inviteError
+    }
+
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      const invite = await createMemberRecordInvite(safeMemberId, currentActor)
+      const directory = await getClubDirectory(currentActor)
+
+      applyDirectory(directory)
+
+      setup.value =
+        directory.clubs.find((club) => club.id === directory.activeClubId)?.setup || setup.value
+
+      return invite
+    } catch (inviteError) {
+      error.value = inviteError?.message || 'Unable to make this account invite.'
+      throw inviteError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
   async function discardDraft() {
     isSaving.value = true
     error.value = ''
@@ -327,6 +359,7 @@ export const useAdminStore = defineStore('admin', () => {
     switchClub,
     updateActiveClub,
     rotateInvite,
+    createMemberInvite,
     discardDraft,
     clearError,
   }
