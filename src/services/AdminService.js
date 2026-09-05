@@ -25,6 +25,12 @@ import {
   locateMemberRecordsByUserId,
   replaceMemberRecord,
 } from '../utils/admin/memberRecords.js'
+import {
+  addManualMemberPatch,
+  memberCollectionsPatch,
+  mergeMemberImportIntoSetup,
+} from '../utils/club/memberData.js'
+import { isSafeImageSource, sanitizePlainText } from '../utils/formSafety.js'
 
 const LEGACY_SETUP_SCHEMA_VERSION = 1
 const MANAGER_ROLES = new Set(['admin', 'co-admin'])
@@ -472,6 +478,31 @@ function assertClubManager(directory, userId, clubId) {
   return membership
 }
 
+function activeClubWriteContext(directory, userId, { manager = false } = {}) {
+  const clubId = directory.activeClubByUser[userId]
+
+  if (!clubId) {
+    throw createServiceError('Choose a club first.', 'NO_ACTIVE_CLUB')
+  }
+
+  const membership = manager
+    ? assertClubManager(directory, userId, clubId)
+    : assertClubAccess(directory, userId, clubId)
+
+  const clubIndex = directory.clubs.findIndex((club) => club.id === clubId)
+
+  if (clubIndex === -1) {
+    throw createServiceError('This club could not be found.', 'NOT_FOUND')
+  }
+
+  return {
+    clubId,
+    clubIndex,
+    club: directory.clubs[clubIndex],
+    membership,
+  }
+}
+
 function setupWithCreator(setup, userId) {
   return {
     ...setup,
@@ -765,18 +796,40 @@ function extractInviteCandidates(input) {
 
 function findStoredInvite(directory, input) {
   const candidates = extractInviteCandidates(input)
-  if (!candidates.code && !candidates.token) return null
+
+  if (!candidates.code && !candidates.token) {
+    return null
+  }
+
+  const matches = []
+
   for (const club of directory.clubs) {
     if (club.setup.status !== 'active') continue
-    const invite = club.invites.find(
-      (item) =>
-        item.enabled &&
-        ((candidates.code && item.code === candidates.code) ||
-          (candidates.token && item.token === candidates.token)),
-    )
-    if (invite) return { club, invite }
+
+    for (const invite of club.invites) {
+      if (!invite.enabled) continue
+
+      const codeMatches =
+        Boolean(candidates.code) &&
+        invite.code === candidates.code
+
+      const tokenMatches =
+        Boolean(candidates.token) &&
+        invite.token === candidates.token
+
+      if (!codeMatches && !tokenMatches) continue
+
+      matches.push({ club, invite })
+
+      // Never resolve an ambiguous credential according to storage order.
+      // A future backend should enforce credential uniqueness transactionally.
+      if (matches.length > 1) {
+        return null
+      }
+    }
   }
-  return null
+
+  return matches[0] || null
 }
 
 function requireExactMemberRecord(club, memberIdInput) {
@@ -1237,6 +1290,226 @@ export async function rotateClubInvite(roleInput, actor) {
     (club) => club.id === clubId,
   )
   return savedClub.invitations.find((item) => item.code === invite.code)
+}
+
+export async function addClubMemberRecord(input, actor) {
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+
+  const result = addManualMemberPatch(context.club.setup, input)
+  const timestamp = nowIso()
+  const nextSetup = normalizeClubSetup({
+    ...context.club.setup,
+    membership: result.membership,
+    updatedAt: timestamp,
+  })
+
+  directory.clubs[context.clubIndex] = {
+    ...context.club,
+    name: nextSetup.workspace.name,
+    setup: nextSetup,
+    updatedAt: timestamp,
+  }
+
+  directory = writeDirectory(directory, userId)
+
+  const savedClub = directory.clubs.find((club) => club.id === context.clubId)
+  const savedMember = requireExactMemberRecord(savedClub, result.record.id).member
+
+  return {
+    club: publicDirectoryForUser(directory, userId).clubs.find(
+      (club) => club.id === context.clubId,
+    ),
+    member: savedMember,
+  }
+}
+
+export async function updateClubMemberRecord(memberIdInput, input = {}, actor) {
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId)
+  const target = requireExactMemberRecord(context.club, memberIdInput)
+
+  const canManage = MANAGER_ROLES.has(context.membership.role)
+  const linkedUserId = sanitizeDirectoryId(target.member.userId)
+  const isSelf = Boolean(linkedUserId && linkedUserId === userId)
+
+  if (!canManage && !isSelf) {
+    throw createServiceError(
+      'You do not have permission to change this member.',
+      'FORBIDDEN',
+    )
+  }
+
+  const name = sanitizePlainText(
+    input.name === undefined ? target.member.name : input.name,
+    100,
+  )
+  const email = sanitizePlainText(
+    input.email === undefined ? target.member.email : input.email,
+    254,
+  ).toLowerCase()
+  const phone = sanitizePlainText(
+    input.phone === undefined ? target.member.phone : input.phone,
+    30,
+  )
+
+  if (name.length < 2) {
+    throw createServiceError('Add the member name.', 'INVALID_MEMBER')
+  }
+
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email)) {
+    throw createServiceError('Enter a working email address.', 'INVALID_EMAIL')
+  }
+
+  const requestedPhoto =
+    input.photoUrl === undefined ? target.member.photoUrl : String(input.photoUrl || '')
+
+  if (requestedPhoto && !isSafeImageSource(requestedPhoto)) {
+    throw createServiceError('That member photo could not be used safely.', 'INVALID_IMAGE')
+  }
+
+  const nextRole = canManage && input.role !== undefined
+    ? normalizeClubRole(input.role)
+    : target.member.role
+
+  if (canManage && linkedUserId && nextRole !== target.member.role) {
+    const linkedMembership = membershipFor(directory, linkedUserId, context.clubId)
+
+    if (!linkedMembership || linkedMembership.status !== 'active') {
+      throw createServiceError(
+        'This connected member is missing its club relationship.',
+        'LINKED_MEMBERSHIP_MISSING',
+      )
+    }
+
+    if (
+      MANAGER_ROLES.has(linkedMembership.role) &&
+      !MANAGER_ROLES.has(nextRole)
+    ) {
+      const activeManagers = directory.memberships.filter(
+        (membership) =>
+          membership.clubId === context.clubId &&
+          membership.status === 'active' &&
+          MANAGER_ROLES.has(membership.role),
+      )
+
+      if (activeManagers.length <= 1) {
+        throw createServiceError(
+          'Keep at least one club admin.',
+          'LAST_CLUB_MANAGER',
+        )
+      }
+    }
+
+    linkedMembership.role = nextRole
+  }
+
+  const membership = memberCollectionsPatch(
+    context.club.setup,
+    target.member.id,
+    (current) => ({
+      ...current,
+      name,
+      email,
+      phone,
+      gender: sanitizePlainText(
+        input.gender === undefined ? current.gender : input.gender,
+        30,
+      ),
+      dob: sanitizePlainText(
+        input.dob === undefined ? current.dob : input.dob,
+        10,
+      ),
+      level: sanitizePlainText(
+        input.level === undefined ? current.level : input.level,
+        50,
+      ),
+      rating: sanitizePlainText(
+        input.rating === undefined ? current.rating : input.rating,
+        40,
+      ),
+      memberNumber: sanitizePlainText(
+        input.memberNumber === undefined ? current.memberNumber : input.memberNumber,
+        80,
+      ),
+      yearOfEntry: sanitizePlainText(
+        input.yearOfEntry === undefined ? current.yearOfEntry : input.yearOfEntry,
+        4,
+      ),
+      photoUrl: requestedPhoto,
+      role: nextRole,
+    }),
+  )
+
+  const timestamp = nowIso()
+  const nextSetup = normalizeClubSetup({
+    ...context.club.setup,
+    membership,
+    updatedAt: timestamp,
+  })
+
+  directory.clubs[context.clubIndex] = {
+    ...context.club,
+    name: nextSetup.workspace.name,
+    setup: nextSetup,
+    updatedAt: timestamp,
+  }
+
+  directory = writeDirectory(directory, userId)
+
+  const savedClub = directory.clubs.find((club) => club.id === context.clubId)
+  const savedMember = requireExactMemberRecord(savedClub, target.member.id).member
+
+  return {
+    club: publicDirectoryForUser(directory, userId).clubs.find(
+      (club) => club.id === context.clubId,
+    ),
+    member: savedMember,
+  }
+}
+
+export async function importClubMemberData(draft, actor) {
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+
+  if (!Array.isArray(draft?.people) || !draft.people.length) {
+    throw createServiceError('There are no members to import.', 'EMPTY_IMPORT')
+  }
+
+  if (draft.people.length > 5000) {
+    throw createServiceError('Import no more than 5,000 members at a time.', 'IMPORT_TOO_LARGE')
+  }
+
+  const merged = mergeMemberImportIntoSetup(context.club.setup, draft)
+  const timestamp = nowIso()
+  const nextSetup = normalizeClubSetup({
+    ...context.club.setup,
+    membership: merged.membership,
+    ladders: merged.ladders,
+    primaryLadderId: merged.primaryLadderId,
+    updatedAt: timestamp,
+  })
+
+  directory.clubs[context.clubIndex] = {
+    ...context.club,
+    name: nextSetup.workspace.name,
+    setup: nextSetup,
+    updatedAt: timestamp,
+  }
+
+  directory = writeDirectory(directory, userId)
+
+  return {
+    club: publicDirectoryForUser(directory, userId).clubs.find(
+      (club) => club.id === context.clubId,
+    ),
+    addedCount: merged.addedCount,
+    updatedCount: merged.updatedCount,
+    addedLadderCount: merged.addedLadderCount,
+  }
 }
 
 export async function discardClubSetupDraft(actor) {

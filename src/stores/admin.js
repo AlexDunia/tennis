@@ -2,6 +2,9 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ADMIN_SETUP_STEPS, createDefaultClubSetup } from '../config/admin.js'
 import {
+  addClubMemberRecord,
+  importClubMemberData,
+  updateClubMemberRecord,
   createClub as createClubRelationship,
   createMemberRecordInvite,
   discardClubSetupDraft,
@@ -306,6 +309,73 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
+  async function addMemberRecord(input) {
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      const result = await addClubMemberRecord(input, currentActor)
+      const directory = await getClubDirectory(currentActor)
+      applyDirectory(directory)
+      setup.value =
+        directory.clubs.find((club) => club.id === directory.activeClubId)?.setup ||
+        setup.value
+      return result
+    } catch (memberError) {
+      error.value = memberError?.message || 'Unable to add this member.'
+      throw memberError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function saveMemberRecord(memberId, input) {
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      const result = await updateClubMemberRecord(
+        sanitizeDirectoryId(memberId),
+        input,
+        currentActor,
+      )
+      const directory = await getClubDirectory(currentActor)
+      applyDirectory(directory)
+      setup.value =
+        directory.clubs.find((club) => club.id === directory.activeClubId)?.setup ||
+        setup.value
+      return result
+    } catch (memberError) {
+      error.value = memberError?.message || 'Unable to update this member.'
+      throw memberError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function importMemberData(draft) {
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      const result = await importClubMemberData(draft, currentActor)
+      const directory = await getClubDirectory(currentActor)
+      applyDirectory(directory)
+      setup.value =
+        directory.clubs.find((club) => club.id === directory.activeClubId)?.setup ||
+        setup.value
+      return result
+    } catch (importError) {
+      error.value = importError?.message || 'Unable to import this club data.'
+      throw importError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
   async function discardDraft() {
     isSaving.value = true
     error.value = ''
@@ -360,6 +430,9 @@ export const useAdminStore = defineStore('admin', () => {
     updateActiveClub,
     rotateInvite,
     createMemberInvite,
+    addMemberRecord,
+    saveMemberRecord,
+    importMemberData,
     discardDraft,
     clearError,
   }

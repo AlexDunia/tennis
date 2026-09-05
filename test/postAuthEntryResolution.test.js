@@ -85,6 +85,65 @@ test('signin club invitation uses the same post-auth destination', () => {
   assert.doesNotMatch(loginSource, /if \(isSignUp\.value\) \{[\s\S]*route\.query\.invite/)
 })
 
+test('signup and signin can switch modes without losing invitation intent', () => {
+  assert.match(
+    loginSource,
+    /const alternateAuthDestination = computed/,
+  )
+
+  assert.match(
+    loginSource,
+    /route\.query\.invite/,
+  )
+
+  assert.match(
+    loginSource,
+    /route\.query\.redirect/,
+  )
+
+  assert.match(
+    loginSource,
+    /route\.query\.club/,
+  )
+
+  assert.match(
+    loginSource,
+    /Already have a Gorra account\?/,
+  )
+
+  assert.match(
+    loginSource,
+    /New to Gorra\?/,
+  )
+
+  assert.match(
+    loginSource,
+    /:to="alternateAuthDestination"/,
+  )
+})
+
+test('an already-authenticated explicit invitation resumes without claiming from the auth page', () => {
+  assert.match(
+    loginSource,
+    /onMounted\(async \(\) => \{[\s\S]*?if \(!authStore\.isAuthenticated\) return/,
+  )
+
+  assert.match(
+    loginSource,
+    /resolvePostAuthDestination\(\{[\s\S]*?redirect: route\.query\.redirect,[\s\S]*?invite: route\.query\.invite/,
+  )
+
+  assert.match(
+    loginSource,
+    /await router\.replace\(intentResolution\.destination\)/,
+  )
+
+  assert.doesNotMatch(
+    loginSource,
+    /onMounted[\s\S]*?joinClubWithInvite/,
+  )
+})
+
 test('a safe internal redirect wins over club invitation and club-state routing', () => {
   const resolution = resolvePostAuthDestination({
     redirect: '/matches/match-42/live?resume=1',

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useAdminStore } from '../stores/admin'
@@ -15,6 +15,21 @@ const errorMessage = ref('')
 const useDemoData = ref(false)
 
 const isSignUp = computed(() => route.meta.authMode === 'signup')
+
+const alternateAuthDestination = computed(() => ({
+  name: isSignUp.value ? 'SignIn' : 'SignUp',
+  query: {
+    ...(route.query.invite
+      ? { invite: route.query.invite }
+      : {}),
+    ...(route.query.redirect
+      ? { redirect: route.query.redirect }
+      : {}),
+    ...(route.query.club
+      ? { club: route.query.club }
+      : {}),
+  },
+}))
 
 async function resolveEntryDestination() {
   const intentResolution = resolvePostAuthDestination({
@@ -52,6 +67,25 @@ async function enterWorkspace() {
     errorMessage.value = error?.message || 'We could not open the workspace. Please try again.'
   }
 }
+
+onMounted(async () => {
+  if (!authStore.isAuthenticated) return
+
+  const intentResolution = resolvePostAuthDestination({
+    redirect: route.query.redirect,
+    invite: route.query.invite,
+  })
+
+  if (!intentResolution) return
+
+  try {
+    await router.replace(intentResolution.destination)
+  } catch (error) {
+    errorMessage.value =
+      error?.message ||
+      'We could not continue this invitation. Please try again.'
+  }
+})
 </script>
 
 <template>
@@ -101,6 +135,17 @@ async function enterWorkspace() {
                 : 'Sign in'
           }}
         </button>
+
+        <p class="auth-switch">
+          {{
+            isSignUp
+              ? 'Already have a Gorra account?'
+              : 'New to Gorra?'
+          }}
+          <RouterLink :to="alternateAuthDestination">
+            {{ isSignUp ? 'Sign in' : 'Create account' }}
+          </RouterLink>
+        </p>
 
         <p v-if="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</p>
         <p class="auth-quick-note">

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { CLUB_DIRECTORY_STORAGE_KEY } from '../src/config/admin.js'
 import {
   createClub,
   createMemberRecordInvite,
@@ -393,6 +394,87 @@ test('one Gorra account cannot claim two different member records in the same cl
           userId: 'henry-account',
         }),
       /already connected to another member record/i,
+    )
+  })
+})
+
+test('ambiguous invitation codes fail closed instead of selecting a club by storage order', async () => {
+  await withStorage(async () => {
+    const manager = { userId: 'alex' }
+
+    const firstClub = await createClub(
+      {
+        name: 'Greenview Tennis Club',
+        country: 'Nigeria',
+        city: 'Lagos',
+      },
+      manager,
+    )
+
+    const firstInvite = await rotateClubInvite(
+      'player',
+      manager,
+    )
+
+    const secondClub = await createClub(
+      {
+        name: 'Lakeside Tennis Club',
+        country: 'Nigeria',
+        city: 'Abuja',
+      },
+      manager,
+    )
+
+    const secondInvite = await rotateClubInvite(
+      'player',
+      manager,
+    )
+
+    const rawDirectory = JSON.parse(
+      window.localStorage.getItem(
+        CLUB_DIRECTORY_STORAGE_KEY,
+      ),
+    )
+
+    const storedSecondClub = rawDirectory.clubs.find(
+      (club) => club.id === secondClub.club.id,
+    )
+
+    const storedSecondInvite =
+      storedSecondClub.invites.find(
+        (invite) => invite.code === secondInvite.code,
+      )
+
+    assert.ok(storedSecondInvite)
+
+    // Simulate corrupted/legacy storage containing the same human-readable
+    // invitation code for two different clubs.
+    storedSecondInvite.code = firstInvite.code
+
+    window.localStorage.setItem(
+      CLUB_DIRECTORY_STORAGE_KEY,
+      JSON.stringify(rawDirectory),
+    )
+
+    await assert.rejects(
+      () =>
+        previewClubInvite(
+          firstInvite.code,
+          { userId: 'invited-person' },
+        ),
+      /not valid/i,
+    )
+
+    // The high-entropy token remains unambiguous and still resolves
+    // the intended first club.
+    const tokenPreview = await previewClubInvite(
+      firstInvite.token,
+      { userId: 'invited-person' },
+    )
+
+    assert.equal(
+      tokenPreview.clubId,
+      firstClub.club.id,
     )
   })
 })

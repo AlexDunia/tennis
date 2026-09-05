@@ -193,10 +193,22 @@ function buildSignupInviteLink(secretInput) {
 
   if (!secret || typeof window === 'undefined') return ''
 
-  const path = `${window.location.origin}${window.location.pathname}`
-  const clubName = encodeURIComponent(activeClubName.value)
+  const resolved = router.resolve({
+    name: 'SignUp',
+    query: {
+      club: activeClubName.value,
+      invite: secret,
+    },
+  })
 
-  return `${path}#/signup?club=${clubName}&invite=${encodeURIComponent(secret)}`
+  try {
+    return new URL(
+      resolved.href,
+      window.location.origin,
+    ).href
+  } catch {
+    return ''
+  }
 }
 
 function persistedMemberRecord(member) {
@@ -918,7 +930,7 @@ onMounted(async () => {
             <div class="settings-subhead">
               <div>
                 <h3>Club invite</h3>
-                <p>Anyone with this invite can ask to join.</p>
+                <p>Anyone with this invite can join this club.</p>
               </div>
               <button
                 class="settings-button settings-button--quiet"

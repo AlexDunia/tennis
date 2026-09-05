@@ -5,6 +5,7 @@ import App from './App.vue'
 import router from './router'
 import { hardenFormSubmissions } from './utils/formSafety'
 import './assets/main.css'
+import './assets/club-reference32.css'
 import './assets/tournament.css'
 
 const app = createApp(App)

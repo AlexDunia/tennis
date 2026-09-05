@@ -4,6 +4,7 @@
     :class="{
       'layout--sidebar-collapsed': sidebarCollapsed,
       'layout--migrated': isMigratedSurface,
+      'layout--club-theme': String(route.name || '').startsWith('Club') || route.name === 'Settings',
     }"
   >
     <aside v-if="showSidebar" class="sidebar">
@@ -579,7 +580,11 @@ const contextualItems = computed(() => {
   return []
 })
 const showContextualNavigation = computed(
-  () => showAppChrome.value && contextualItems.value.length > 0 && !isTournamentCreate.value,
+  () =>
+    showAppChrome.value &&
+    contextualItems.value.length > 0 &&
+    !isTournamentCreate.value &&
+    activePrimarySection.value !== 'club',
 )
 
 const primaryIndex = computed(() =>
@@ -1408,6 +1413,10 @@ onUnmounted(() => {
 }
 
 @media (min-width: 768px) {
+  .content:not(.content--fullscreen):not(.content--public) {
+    width: 90%;
+  }
+
   .app-header--with-sidebar .header-content {
     grid-template-columns: minmax(0, 1fr) auto;
   }

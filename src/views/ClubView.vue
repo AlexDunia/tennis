@@ -1,628 +1,291 @@
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import FlowIcon from '../components/friendly/FlowIcon.vue'
 import { useAdminStore } from '../stores/admin'
-import { useMatchStore } from '../stores/match'
-import EmptyState from '../components/EmptyState.vue'
-import PersonAvatar from '../components/PersonAvatar.vue'
+import { useNotificationStore } from '../stores/notification'
+import { useTournamentStore } from '../stores/tournament'
+import { collectClubMembers } from '../utils/club/memberData.js'
+import { isSafeImageSource } from '../utils/formSafety.js'
 
-const route = useRoute()
 const router = useRouter()
 const adminStore = useAdminStore()
-const matchStore = useMatchStore()
+const tournamentStore = useTournamentStore()
+const notificationStore = useNotificationStore()
+const photoInput = ref(null)
+const pageError = ref('')
+const photoBusy = ref(false)
 
-const activeClub = computed(() => adminStore.activeClub)
-const setup = computed(() => activeClub.value?.setup || null)
+const club = computed(() => adminStore.activeClub)
+const setup = computed(() => club.value?.setup || null)
 const workspace = computed(() => setup.value?.workspace || {})
-const rules = computed(() => setup.value?.rules || {})
-const isManager = computed(() => adminStore.hasActiveClubPermission('club.manage'))
+const members = computed(() => collectClubMembers(setup.value || {}))
 const activeLadders = computed(
   () => setup.value?.ladders?.filter((ladder) => ladder.enabled && !ladder.archived) || [],
 )
-const hasClubRules = computed(() => Object.keys(rules.value).length > 0)
+const tournaments = computed(() =>
+  tournamentStore.tournaments.filter(
+    (tournament) => tournament.clubId && tournament.clubId === club.value?.id,
+  ),
+)
+const canManage = computed(() => adminStore.hasActiveClubPermission('club.manage'))
+
 const clubInitials = computed(() =>
-  String(activeClub.value?.name || 'Club')
+  String(club.value?.name || 'Club')
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((word) => word[0])
+    .map((part) => part[0])
     .join('')
     .toUpperCase(),
 )
-const clubMatches = computed(() =>
-  matchStore.matches.filter(
-    (match) => !match.clubId || !activeClub.value?.id || match.clubId === activeClub.value.id,
-  ),
-)
-const liveMatches = computed(() =>
-  clubMatches.value.filter((match) => ['live', 'in_progress'].includes(match.status)),
-)
-const scheduledMatches = computed(() =>
-  clubMatches.value.filter((match) => ['accepted', 'scheduled'].includes(match.status)),
-)
-const activityTitle = computed(() =>
-  liveMatches.value.length
-    ? `${liveMatches.value.length} ${liveMatches.value.length === 1 ? 'match' : 'matches'} live now`
-    : 'No matches live right now',
-)
-const activityCopy = computed(() => {
-  if (liveMatches.value.length) {
-    const activeCourts = new Set(liveMatches.value.map((match) => match.court).filter(Boolean)).size
-    return activeCourts
-      ? `Across ${activeCourts} ${activeCourts === 1 ? 'court' : 'courts'}`
-      : 'Follow every active court from Live Operations.'
+
+const clubState = computed(() => {
+  if (!members.value.length) {
+    return {
+      icon: 'users',
+      title: 'Bring your players in',
+      copy: 'Invite people, import your current list or add someone yourself.',
+      label: 'Add members',
+      to: { name: 'ClubMembers' },
+    }
   }
 
-  return scheduledMatches.value.length
-    ? `${scheduledMatches.value.length} scheduled next`
-    : 'Scheduled and live matches will appear here.'
-})
-const section = computed(() => {
-  const value = String(route.query.section || 'overview')
-  return ['overview', 'members', 'rules'].includes(value) ? value : 'overview'
+  if (!activeLadders.value.length) {
+    return {
+      icon: 'trophy',
+      title: 'Your players are in',
+      copy: `${members.value.length} ${members.value.length === 1 ? 'member is' : 'members are'} ready. Create a ladder when the club is ready for ranked play.`,
+      label: 'Create ladder',
+      to: { name: 'Rankings' },
+    }
+  }
+
+  const ladder = activeLadders.value[0]
+  const playerCount = members.value.filter((member) =>
+    (member.ladderMemberships || []).some(
+      (membership) =>
+        membership.ladderId === ladder.id ||
+        String(membership.ladderName || '').toLowerCase() ===
+          String(ladder.name || '').toLowerCase(),
+    ),
+  ).length
+
+  return {
+    icon: 'trophy',
+    title: `${ladder.name} is ready`,
+    copy: `${playerCount || members.value.length} players · current club data is in Gorra.`,
+    label: 'Open ladder',
+    to: { name: 'Rankings' },
+  }
 })
 
-const members = computed(() => {
-  const membership = setup.value?.membership || {}
-  const source = [
-    ...(membership.roster || []),
-    ...(membership.manualMembers || []),
-    ...(membership.importedMembers || []),
+const manageItems = computed(() => {
+  const items = [
+    {
+      icon: 'users',
+      title: 'Members',
+      copy: 'Invite, import and manage your people.',
+      action: 'Open members',
+      to: { name: 'ClubMembers' },
+    },
+    {
+      icon: 'ladder',
+      title: 'Ladders',
+      copy: 'Positions, rules, challenges and activity.',
+      action: 'Open ladders',
+      to: { name: 'Rankings' },
+    },
+    {
+      icon: 'trophy',
+      title: 'Tournaments',
+      copy: 'Events, draws, fixtures and results.',
+      action: 'Open tournaments',
+      to: { name: 'Tournaments' },
+    },
   ]
-  const seen = new Set()
-  return source.filter((member) => {
-    const key = String(
-      member.userId || member.id || member.email || member.phone || member.name || '',
-    )
-      .trim()
-      .toLowerCase()
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+
+  if (canManage.value) {
+    items.push({
+      icon: 'sliders',
+      title: 'Club settings',
+      copy: 'Club, people, play defaults and courts.',
+      action: 'Open settings',
+      to: { name: 'ClubSettingsHub' },
+    })
+  }
+
+  return items
 })
-const isFirstClubState = computed(
-  () => setup.value?.configurationState === 'minimal' && members.value.length === 0,
-)
 
-const ruleItems = computed(() => [
-  {
-    label: 'Challenge range',
-    value: `Up to ${rules.value.challengeRangeUp || 3} places above`,
-  },
-  {
-    label: 'Response time',
-    value: `${rules.value.responseHours || 48} hours`,
-  },
-  {
-    label: 'Match window',
-    value: `${rules.value.completionDays || 7} days`,
-  },
-  {
-    label: 'Scoring',
-    value: rules.value.scoring === 'no-ad' ? 'No-ad scoring' : 'Advantage scoring',
-  },
-])
-
-function openJoinClub() {
-  router.push({ name: 'Clubs', query: { view: 'join' } })
+function open(to) {
+  router.push(to)
 }
 
-function createClub() {
-  router.push({ name: 'Clubs', query: { view: 'create' } })
+function chooseClubPhoto() {
+  if (canManage.value && !photoBusy.value) photoInput.value?.click()
 }
 
-function openMembers() {
-  router.push({ name: 'Settings', query: { section: 'members' } })
+function readImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error('We could not read that image.'))
+    reader.readAsDataURL(file)
+  })
 }
 
-function openRules() {
-  router.push({ name: 'Settings', query: { section: 'rules' } })
+async function updateClubPhoto(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+
+  pageError.value = ''
+
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    pageError.value = 'Choose a JPG, PNG or WebP image.'
+    return
+  }
+
+  if (file.size > 1_400_000) {
+    pageError.value = 'Choose an image smaller than 1.4 MB.'
+    return
+  }
+
+  photoBusy.value = true
+
+  try {
+    const logoUrl = await readImage(file)
+    if (!isSafeImageSource(logoUrl)) throw new Error('That image could not be used safely.')
+
+    await adminStore.updateActiveClub({
+      workspace: {
+        ...workspace.value,
+        logoUrl,
+      },
+    })
+
+    notificationStore.addToast({
+      message: 'Club photo updated.',
+      type: 'success',
+    })
+  } catch (error) {
+    pageError.value = error?.message || 'We could not update the club photo.'
+  } finally {
+    photoBusy.value = false
+  }
 }
 
-onMounted(() => {
-  Promise.all([adminStore.loadClubs(), matchStore.loadMatches()]).catch(() => {})
+onMounted(async () => {
+  pageError.value = ''
+
+  try {
+    await adminStore.loadClubs()
+    if (!adminStore.activeClub) return
+    await tournamentStore.fetchTournaments()
+  } catch (error) {
+    pageError.value = error?.message || 'We could not open this club.'
+  }
 })
 </script>
 
 <template>
-  <section class="club-page" aria-labelledby="club-page-title">
-    <div v-if="adminStore.isLoading && !activeClub" class="club-loading" aria-live="polite">
-      <span class="skeleton skeleton-line"></span>
-      <span class="skeleton skeleton-line"></span>
-    </div>
+  <main class="gorra-club-ref ref-page">
+    <p v-if="pageError" class="ref-inline-alert" role="alert">{{ pageError }}</p>
 
-    <EmptyState
-      v-else-if="!activeClub"
-      variant="first-use"
-      illustration="club"
-      title="You're not in a club yet"
-      description="Join a club or create one to open its members, courts, and rules."
-      primary-action-label="Join a club"
-      secondary-action-label="Create a club"
-      @primary-action="openJoinClub"
-      @secondary-action="createClub"
-    />
-
-    <template v-else>
-      <header class="club-hero">
-        <div class="club-hero__mark" aria-hidden="true">
-          {{ clubInitials }}
-        </div>
-        <div class="club-hero__copy">
-          <p>Your active club</p>
-          <h1 id="club-page-title">{{ activeClub.name }}</h1>
-          <span>{{ workspace.location || 'Club location not added yet' }}</span>
-          <small>{{ adminStore.activeClubRoleLabel }} in this club</small>
-        </div>
-        <div v-if="isManager" class="club-hero__actions">
-          <RouterLink class="button-primary" :to="{ name: 'Settings' }"> Manage club </RouterLink>
-        </div>
-      </header>
-
-      <section v-if="section === 'overview'" class="club-overview">
-        <section v-if="isFirstClubState" class="first-club-state">
-          <EmptyState
-            variant="first-use"
-            illustration="members"
-            align="left"
-            title="Your club is ready"
-            description="The club exists and has no added members yet. Add people when you are ready; courts, ladders, and rules can stay empty."
-            primary-action-label="Add members"
-            :show-primary-action="isManager"
-            @primary-action="openMembers"
-          />
-        </section>
-        <template v-else>
-          <div class="club-stats" aria-label="Club summary">
-            <article>
-              <span>Members</span>
-              <strong>{{ members.length }}</strong>
-            </article>
-            <article>
-              <span>Courts</span>
-              <strong>{{ workspace.courts?.length || 0 }}</strong>
-            </article>
-            <article>
-              <span>Active ladders</span>
-              <strong>{{ activeLadders.length }}</strong>
-            </article>
-          </div>
-
-          <div class="club-grid">
-            <article class="club-card">
-              <div class="club-card__heading">
-                <div>
-                  <p>Courts</p>
-                  <h2>Where the club plays</h2>
-                </div>
-              </div>
-              <ul v-if="workspace.courts?.length" class="club-list">
-                <li v-for="court in workspace.courts" :key="court">
-                  <span class="club-list__dot" aria-hidden="true"></span>
-                  <span>{{ court }}</span>
-                </li>
-              </ul>
-              <p v-else class="club-card__empty">No courts have been added yet.</p>
-            </article>
-
-            <article class="club-card club-card--activity">
-              <div class="club-card__heading">
-                <div>
-                  <p>Club activity</p>
-                  <h2>Live right now</h2>
-                </div>
-              </div>
-              <div class="club-activity">
-                <strong>{{ activityTitle }}</strong>
-                <p>{{ activityCopy }}</p>
-              </div>
-            </article>
-          </div>
-        </template>
-      </section>
-
-      <section
-        v-else-if="section === 'members'"
-        class="club-card club-card--wide"
-        :class="{ 'club-card--empty': !members.length }"
-      >
-        <div class="club-card__heading">
-          <div>
-            <p>Directory</p>
-            <h2>Club members</h2>
-          </div>
-          <RouterLink
-            v-if="isManager"
-            class="button-secondary"
-            :to="{ name: 'Settings', query: { section: 'members' } }"
+    <section v-if="club" aria-labelledby="active-club-name">
+      <section class="ref-club-identity">
+        <div class="ref-club-identity-main">
+          <button
+            class="ref-club-photo"
+            type="button"
+            :disabled="!canManage || photoBusy"
+            :aria-label="canManage ? 'Change club photo' : undefined"
+            @click="chooseClubPhoto"
           >
-            Manage members
-          </RouterLink>
-        </div>
-        <ul v-if="members.length" class="member-list">
-          <li v-for="member in members" :key="member.userId || member.id || member.name">
-            <PersonAvatar :name="member.name || 'Club member'" :size="38" />
-            <span
-              ><strong>{{ member.name || 'Club member' }}</strong
-              ><small>{{ member.role || 'Player' }}</small></span
-            >
-          </li>
-        </ul>
-        <EmptyState
-          v-else
-          compact
-          variant="data-dependent"
-          illustration="members"
-          title="No member directory yet"
-          description="Members will appear after the club roster is added."
-        />
-      </section>
+            <img v-if="workspace.logoUrl" :src="workspace.logoUrl" alt="" />
+            <span v-else>{{ clubInitials }}</span>
+            <span v-if="canManage" class="ref-club-photo-edit" aria-hidden="true">
+              <FlowIcon name="profile" />
+            </span>
+          </button>
+          <input
+            ref="photoInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            hidden
+            @change="updateClubPhoto"
+          />
 
-      <section v-else class="club-card club-card--wide">
-        <div class="club-card__heading">
           <div>
-            <p>Competition rules</p>
-            <h2>How matches work here</h2>
+            <h1 id="active-club-name">{{ club.name }}</h1>
+            <p>{{ workspace.location || 'Club location not added yet' }}</p>
+            <small>{{ adminStore.activeClubRoleLabel }} in this club</small>
           </div>
-          <RouterLink v-if="isManager" class="button-secondary" :to="{ name: 'Settings' }">
-            Edit rules
-          </RouterLink>
         </div>
-        <dl v-if="hasClubRules" class="rule-list">
-          <div v-for="item in ruleItems" :key="item.label">
-            <dt>{{ item.label }}</dt>
-            <dd>{{ item.value }}</dd>
-          </div>
-        </dl>
-        <EmptyState
-          v-else
-          compact
-          variant="data-dependent"
-          illustration="rules"
-          title="No match rules yet"
-          description="Rules will appear after a club manager configures them."
-          primary-action-label="Add rules"
-          :show-primary-action="isManager"
-          @primary-action="openRules"
-        />
+
+        <div class="ref-club-stats" aria-label="Club summary">
+          <span><strong>{{ members.length }}</strong> members</span>
+          <i aria-hidden="true"></i>
+          <span><strong>{{ activeLadders.length }}</strong> ladders</span>
+          <i aria-hidden="true"></i>
+          <span><strong>{{ tournaments.length }}</strong> tournaments</span>
+        </div>
       </section>
-    </template>
-  </section>
+
+      <section class="ref-club-state">
+        <span class="ref-feature-icon" aria-hidden="true">
+          <FlowIcon :name="clubState.icon" />
+        </span>
+
+        <div class="ref-club-state-copy">
+          <strong>{{ clubState.title }}</strong>
+          <span>{{ clubState.copy }}</span>
+        </div>
+
+        <button class="ref-button primary small" type="button" @click="open(clubState.to)">
+          {{ clubState.label }}
+        </button>
+      </section>
+
+      <section class="ref-club-manage">
+        <header class="ref-section-heading">
+          <h2>Manage your club</h2>
+        </header>
+
+        <div class="ref-choice-stack">
+          <button
+            v-for="item in manageItems"
+            :key="item.title"
+            class="ref-choice-row"
+            type="button"
+            @click="open(item.to)"
+          >
+            <span class="ref-feature-icon" aria-hidden="true">
+              <FlowIcon :name="item.icon" />
+            </span>
+
+            <span class="ref-choice-row-copy">
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.copy }}</span>
+              <small>{{ item.action }}</small>
+            </span>
+
+            <FlowIcon name="arrow-right" />
+          </button>
+        </div>
+      </section>
+    </section>
+
+    <section v-else class="ref-page-narrow">
+      <div class="ref-flow-head">
+        <p class="ref-kicker">Club</p>
+        <h1>No active club</h1>
+        <p>Choose a club to continue.</p>
+      </div>
+      <button class="ref-button primary" type="button" @click="open({ name: 'Clubs' })">
+        Open your clubs
+      </button>
+    </section>
+  </main>
 </template>
-
-<style scoped>
-.club-page {
-  display: grid;
-  gap: 32px;
-  width: 100%;
-}
-
-.club-loading {
-  display: grid;
-  gap: 10px;
-  padding: 28px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--app-card-radius);
-}
-
-.club-hero {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-height: 112px;
-  padding: 20px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--app-card-radius);
-  background: var(--color-surface);
-  box-shadow: none;
-}
-
-.club-hero__mark {
-  display: grid;
-  flex: 0 0 52px;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border-radius: var(--app-inner-radius);
-  background: #052e20;
-  color: #d9f77b;
-  font-size: var(--type-meta);
-  font-weight: var(--font-weight-bold);
-}
-
-.club-hero__copy {
-  display: grid;
-  flex: 1;
-  gap: 2px;
-  min-width: 0;
-}
-
-.club-hero__copy p,
-.club-hero__copy h1,
-.club-hero__copy span {
-  margin: 0;
-}
-
-.club-hero__copy p,
-.club-card__heading p {
-  color: var(--color-primary-strong);
-  font-size: 10px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.club-hero__copy h1 {
-  overflow: hidden;
-  color: var(--color-text);
-  font-size: var(--type-section-title);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.club-hero__copy span,
-.club-hero__copy small {
-  color: var(--color-muted);
-  font-size: var(--type-meta);
-}
-
-.club-hero__copy small {
-  color: var(--color-primary-strong);
-}
-
-.club-hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.club-overview {
-  display: grid;
-  gap: 40px;
-}
-
-.first-club-state {
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--app-card-radius);
-  background: var(--color-surface);
-}
-
-.club-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.club-stats article {
-  display: grid;
-  min-height: 88px;
-  align-content: center;
-  gap: 4px;
-  padding: 16px 18px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--app-card-radius);
-  background: var(--color-surface);
-  box-shadow: none;
-}
-
-.club-stats span {
-  color: var(--color-primary-strong);
-  font-size: 10px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.club-stats strong {
-  color: var(--color-text);
-  font-size: var(--type-section-title);
-  line-height: 1.15;
-}
-
-.club-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.club-card {
-  display: grid;
-  align-content: start;
-  gap: 14px;
-  min-width: 0;
-  min-height: 180px;
-  padding: 20px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--app-card-radius);
-  background: var(--color-surface);
-  box-shadow: none;
-}
-
-
-
-.club-card--wide {
-  width: 100%;
-  min-height: 0;
-}
-
-.club-card--empty {
-  border: 0;
-  padding: 0;
-  background: transparent;
-}
-
-.club-card__heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.club-card__heading p,
-.club-card__heading h2 {
-  margin: 0;
-}
-
-.club-card__heading h2 {
-  font-size: var(--type-card-title);
-}
-
-.club-card__heading > a,
-.club-card__heading > button {
-  min-height: 32px;
-  padding: 0;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-primary-strong);
-  font-size: 11px;
-  font-weight: var(--font-weight-semibold);
-  text-decoration: none;
-}
-
-.club-list,
-.member-list {
-  display: grid;
-  gap: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.club-list li,
-.member-list li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 32px;
-  font-size: var(--type-row-title);
-}
-
-.member-list li {
-  min-height: 58px;
-  border-top: 1px solid var(--color-border);
-}
-
-.club-list__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-primary);
-}
-
-.club-card__empty {
-  margin: 0;
-  color: var(--color-muted);
-}
-
-.club-activity {
-  display: grid;
-  align-content: start;
-  gap: var(--space-row-copy);
-  padding-top: 2px;
-}
-
-.club-activity > strong {
-  color: var(--color-text);
-  font-size: var(--type-row-title);
-}
-
-.club-activity > p {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: var(--type-meta);
-}
-
-.club-details,
-.rule-list {
-  display: grid;
-  gap: 0;
-  margin: 0;
-}
-
-.club-details > div,
-.rule-list > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 13px 0;
-  border-top: 1px solid var(--color-border);
-}
-
-.club-details dt,
-.rule-list dt {
-  color: var(--color-muted);
-}
-
-.club-details dd,
-.rule-list dd {
-  margin: 0;
-  color: var(--color-text);
-  font-weight: var(--font-weight-semibold);
-  text-align: right;
-}
-
-.member-avatar {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-surface-soft);
-  color: var(--color-primary-strong);
-  font-size: 11px;
-  font-weight: var(--font-weight-bold);
-}
-
-.member-list li > span:last-child {
-  display: grid;
-  gap: 1px;
-}
-
-.member-list small {
-  color: var(--color-muted);
-  text-transform: capitalize;
-}
-
-@media (max-width: 720px) {
-  .club-hero {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    min-height: 0;
-  }
-
-  .club-hero__actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .club-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .club-card {
-    min-height: 0;
-  }
-}
-
-@media (max-width: 480px) {
-  .club-stats {
-    grid-template-columns: 1fr;
-  }
-
-  .club-stats article {
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    min-height: 82px;
-  }
-
-  .club-card__heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-</style>

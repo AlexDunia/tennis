@@ -99,7 +99,7 @@ test('member rows expose restrained Club record, invite-ready, and Connected acc
   assert.match(settingsViewSource, /Make new link/)
 })
 
-test('member account invites reuse the existing signup invitation path', () => {
+test('member account invites use the canonical history-mode SignUp route', () => {
   assert.match(
     settingsViewSource,
     /function buildSignupInviteLink\(secretInput\)/,
@@ -107,7 +107,17 @@ test('member account invites reuse the existing signup invitation path', () => {
 
   assert.match(
     settingsViewSource,
-    /#\/signup\?club=\$\{clubName\}&invite=\$\{encodeURIComponent\(secret\)\}/,
+    /router\.resolve\(\{[\s\S]*?name: 'SignUp'[\s\S]*?invite: secret/,
+  )
+
+  assert.match(
+    settingsViewSource,
+    /new URL\([\s\S]*?resolved\.href[\s\S]*?window\.location\.origin/,
+  )
+
+  assert.doesNotMatch(
+    settingsViewSource,
+    /#\/signup/,
   )
 
   assert.match(

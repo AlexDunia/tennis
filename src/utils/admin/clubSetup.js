@@ -92,6 +92,39 @@ export function sanitizeInvitationCode(value) {
   return /^[A-Z0-9]{6,16}$/.test(code) ? code : ''
 }
 
+function normalizeMemberLadderMemberships(values = []) {
+  const seen = new Set()
+
+  return (Array.isArray(values) ? values : [])
+    .slice(0, 24)
+    .map((input) => {
+      const ladderName = sanitizePlainText(input?.ladderName || input?.ladder, 70)
+      const ladderId = sanitizeDirectoryId(input?.ladderId)
+      const position = Number.parseInt(input?.position, 10)
+
+      if (!ladderName || !Number.isInteger(position) || position < 1 || position > 10000) {
+        return null
+      }
+
+      const key = `${ladderName.toLowerCase()}::${position}`
+      if (seen.has(key)) return null
+      seen.add(key)
+
+      return {
+        ladderId,
+        ladderName,
+        position,
+      }
+    })
+    .filter(Boolean)
+}
+
+function normalizeMemberYear(value) {
+  const year = Number.parseInt(String(value || ''), 10)
+  const maximum = new Date().getFullYear() + 1
+  return Number.isInteger(year) && year >= 1900 && year <= maximum ? String(year) : ''
+}
+
 function normalizeMemberRecord(input, index, sourceFallback) {
   const value = asObject(input)
   const source = isAllowed(value.source, MEMBER_SOURCES, sourceFallback)
@@ -107,9 +140,25 @@ function normalizeMemberRecord(input, index, sourceFallback) {
     name,
     email,
     phone,
+    gender: sanitizePlainText(value.gender, 30),
+    dob: sanitizeDate(value.dob),
+    level: sanitizePlainText(value.level || value.playingLevel, 50),
+    rating: sanitizePlainText(value.rating, 40),
+    memberNumber: sanitizePlainText(
+      value.memberNumber || value.referenceNumber || value.member_number,
+      80,
+    ),
+    yearOfEntry: normalizeMemberYear(value.yearOfEntry || value.year_of_entry),
+    photoUrl: isSafeImageSource(value.photoUrl || value.photo) ? String(value.photoUrl || value.photo) : '',
+    ladderMemberships: normalizeMemberLadderMemberships(
+      value.ladderMemberships || value.ladders,
+    ),
     role: normalizeClubRole(value.role),
     source,
-    status: normalizeMembershipStatus(value.status, source === 'existing' ? 'active' : 'invited'),
+    status: normalizeMembershipStatus(
+      value.status,
+      source === 'existing' ? 'active' : 'invited',
+    ),
   }
 }
 

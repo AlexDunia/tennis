@@ -18,6 +18,11 @@ import PlayHubView from '../views/PlayHubView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import HistoryView from '../views/HistoryView.vue'
 import ClubView from '../views/ClubView.vue'
+import ClubMembersView from '../views/ClubMembersView.vue'
+import ClubMemberImportView from '../views/ClubMemberImportView.vue'
+import ClubMemberManualView from '../views/ClubMemberManualView.vue'
+import ClubMemberDetailView from '../views/ClubMemberDetailView.vue'
+import ClubSettingsHubView from '../views/ClubSettingsHubView.vue'
 import AccountSettingsView from '../views/AccountSettingsView.vue'
 import TournamentCategoryView from '../views/TournamentCategory.vue'
 import TournamentCreateView from '../views/TournamentCreate.vue'
@@ -374,6 +379,62 @@ const routes = [
     meta: {
       title: 'Club',
       subtitle: 'Your club, members, courts, and rules.',
+      primarySection: 'club',
+    },
+  },
+  {
+    path: '/club/members',
+    name: 'ClubMembers',
+    component: ClubMembersView,
+    meta: {
+      title: 'Members',
+      subtitle: 'Everyone in your active club.',
+      primarySection: 'club',
+    },
+  },
+  {
+    path: '/club/members/import',
+    name: 'ClubMemberImport',
+    component: ClubMemberImportView,
+    meta: {
+      title: 'Bring your data to Gorra',
+      subtitle: 'Import members and existing ladder information.',
+      permission: 'club.manage',
+      activeClubPermission: true,
+      primarySection: 'club',
+    },
+  },
+  {
+    path: '/club/members/add',
+    name: 'ClubMemberManual',
+    component: ClubMemberManualView,
+    meta: {
+      title: 'Add member',
+      subtitle: 'Add one club member record.',
+      permission: 'club.manage',
+      activeClubPermission: true,
+      primarySection: 'club',
+    },
+  },
+  {
+    path: '/club/members/:memberId',
+    name: 'ClubMemberDetail',
+    component: ClubMemberDetailView,
+    meta: {
+      title: 'Member',
+      subtitle: 'Club member details.',
+      primarySection: 'club',
+    },
+  },
+  {
+    path: '/club/manage',
+    name: 'ClubSettingsHub',
+    component: ClubSettingsHubView,
+    meta: {
+      title: 'Club settings',
+      subtitle: 'Manage how this club works.',
+      permission: 'club.manage',
+      activeClubPermission: true,
       primarySection: 'club',
     },
   },
