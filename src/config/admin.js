@@ -3,6 +3,16 @@ export const CLUB_DIRECTORY_STORAGE_KEY = 'gorra.admin.clubDirectory.v2'
 export const CLUB_SETUP_SCHEMA_VERSION = 2
 export const CLUB_DIRECTORY_SCHEMA_VERSION = 2
 
+export const CLUB_INVITE_KINDS = Object.freeze({
+  GENERIC: 'generic-club',
+  MEMBER_RECORD: 'member-record',
+})
+
+// A club can currently normalize up to 500 records in each member collection.
+// Leave room for member-specific invitations without silently truncating valid
+// records, while still keeping browser-local prototype data bounded.
+export const MAX_CLUB_INVITATIONS = 1600
+
 export const ADMIN_SETUP_STEPS = Object.freeze([
   { key: 'workspace', label: 'Club workspace', eyebrow: 'Step 1 of 5' },
   { key: 'members', label: 'Add members', eyebrow: 'Step 2 of 5' },

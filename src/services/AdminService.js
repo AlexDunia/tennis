@@ -2,7 +2,9 @@ import {
   ADMIN_SETUP_STEPS,
   CLUB_DIRECTORY_SCHEMA_VERSION,
   CLUB_DIRECTORY_STORAGE_KEY,
+  CLUB_INVITE_KINDS,
   CLUB_SETUP_STORAGE_KEY,
+  MAX_CLUB_INVITATIONS,
   createDefaultClubSetup,
   createMinimalClubSetup,
 } from '../config/admin.js'
@@ -18,6 +20,11 @@ import {
   sanitizeInvitationToken,
   validateCompleteClubSetup,
 } from '../utils/admin/clubSetup.js'
+import {
+  locateMemberRecord,
+  locateMemberRecordsByUserId,
+  replaceMemberRecord,
+} from '../utils/admin/memberRecords.js'
 
 const LEGACY_SETUP_SCHEMA_VERSION = 1
 const MANAGER_ROLES = new Set(['admin', 'co-admin'])
@@ -77,8 +84,27 @@ function normalizeInvite(input = {}) {
   const code = sanitizeInvitationCode(input.code)
   const token = sanitizeInvitationToken(input.token)
   if (!code && !token) return null
+
+  const requestedKind =
+    input.kind === CLUB_INVITE_KINDS.MEMBER_RECORD
+      ? CLUB_INVITE_KINDS.MEMBER_RECORD
+      : CLUB_INVITE_KINDS.GENERIC
+
+  const memberId =
+    requestedKind === CLUB_INVITE_KINDS.MEMBER_RECORD
+      ? sanitizeDirectoryId(input.memberId || input.member_id)
+      : ''
+
+  // Never downgrade a malformed member-record invitation into a reusable
+  // generic invitation. Older invitations without a kind remain generic.
+  if (requestedKind === CLUB_INVITE_KINDS.MEMBER_RECORD && !memberId) {
+    return null
+  }
+
   return {
     id: sanitizeDirectoryId(input.id, code ? `invite-${code.toLowerCase()}` : ''),
+    kind: requestedKind,
+    memberId,
     code,
     token,
     role: normalizeClubRole(input.role),
@@ -95,7 +121,7 @@ function normalizeClubRecord(input = {}) {
 
   const inviteKeys = new Set()
   const invites = (Array.isArray(input.invites) ? input.invites : [])
-    .slice(0, 30)
+    .slice(0, MAX_CLUB_INVITATIONS)
     .map(normalizeInvite)
     .filter((invite) => {
       if (!invite) return false
@@ -231,17 +257,41 @@ function uniqueClubId(name, directory) {
   throw createServiceError('Unable to make a club ID. Try a different club name.', 'ID_CONFLICT')
 }
 
-function createStoredInvite(role, tokenInput = '', codeInput = '') {
+function createStoredInvite(role, tokenInput = '', codeInput = '', options = {}) {
+  const kind =
+    options.kind === CLUB_INVITE_KINDS.MEMBER_RECORD
+      ? CLUB_INVITE_KINDS.MEMBER_RECORD
+      : CLUB_INVITE_KINDS.GENERIC
+
+  const memberId =
+    kind === CLUB_INVITE_KINDS.MEMBER_RECORD
+      ? sanitizeDirectoryId(options.memberId)
+      : ''
+
+  if (kind === CLUB_INVITE_KINDS.MEMBER_RECORD && !memberId) {
+    throw createServiceError(
+      'Choose a valid member before making this invite.',
+      'INVALID_MEMBER_ID',
+    )
+  }
+
   const token = sanitizeInvitationToken(tokenInput) || createPrivateInvitationToken()
   const code = sanitizeInvitationCode(codeInput) || createPrivateInvitationCode()
+
   if (!token || !code) {
     throw createServiceError(
       'Unable to make a secure invite. Please try again.',
       'CRYPTO_UNAVAILABLE',
     )
   }
+
   return {
-    id: `invite-${code.toLowerCase()}`,
+    id:
+      kind === CLUB_INVITE_KINDS.MEMBER_RECORD
+        ? `member-invite-${memberId}-${code.toLowerCase()}`.slice(0, 160)
+        : `invite-${code.toLowerCase()}`,
+    kind,
+    memberId,
     code,
     token,
     role: normalizeClubRole(role),
@@ -250,14 +300,16 @@ function createStoredInvite(role, tokenInput = '', codeInput = '') {
   }
 }
 
-function createFreshStoredInvite(role, existingInvites) {
+function createFreshStoredInvite(role, existingInvites, options = {}) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const invite = createStoredInvite(role)
+    const invite = createStoredInvite(role, '', '', options)
     const collides = existingInvites.some(
       (item) => item.code === invite.code || item.token === invite.token,
     )
+
     if (!collides) return invite
   }
+
   throw createServiceError(
     'Unable to make a new secure invite. Please try again.',
     'INVITE_CONFLICT',
@@ -265,33 +317,46 @@ function createFreshStoredInvite(role, existingInvites) {
 }
 
 function makeInviteForSetup(setup, existingInvites = []) {
-  if (!setup.membership.privateLinkEnabled) return { setup, invites: existingInvites }
+  if (!setup.membership.privateLinkEnabled) {
+    return {
+      setup,
+      invites: existingInvites.slice(0, MAX_CLUB_INVITATIONS),
+    }
+  }
 
   const memberInvite = createStoredInvite(
     'player',
     setup.membership.invitationToken,
     setup.membership.invitationCode,
   )
+
   const storedCoAdminInvite = existingInvites.find(
-    (invite) => invite.enabled && invite.role === 'co-admin',
+    (invite) =>
+      invite.enabled &&
+      invite.kind === CLUB_INVITE_KINDS.GENERIC &&
+      invite.role === 'co-admin',
   )
+
   const coAdminInvite = storedCoAdminInvite || createStoredInvite('co-admin')
+
   const inviteKeys = new Set([
     memberInvite.code,
     memberInvite.token,
     coAdminInvite.code,
     coAdminInvite.token,
   ])
-  const invites = [
-    memberInvite,
-    coAdminInvite,
-    ...existingInvites.filter(
-      (invite) =>
-        !['player', 'co-admin'].includes(invite.role) &&
-        !inviteKeys.has(invite.code) &&
-        !inviteKeys.has(invite.token),
-    ),
-  ]
+
+  const preservedInvites = existingInvites.filter((invite) => {
+    if (invite.kind === CLUB_INVITE_KINDS.MEMBER_RECORD) return true
+
+    return (
+      !['player', 'co-admin'].includes(invite.role) &&
+      !inviteKeys.has(invite.code) &&
+      !inviteKeys.has(invite.token)
+    )
+  })
+
+  const invites = [memberInvite, coAdminInvite, ...preservedInvites]
 
   return {
     setup: {
@@ -303,7 +368,7 @@ function makeInviteForSetup(setup, existingInvites = []) {
         inviteRole: 'player',
       },
     },
-    invites: invites.slice(0, 30),
+    invites: invites.slice(0, MAX_CLUB_INVITATIONS),
   }
 }
 
@@ -714,11 +779,146 @@ function findStoredInvite(directory, input) {
   return null
 }
 
-export async function previewClubInvite(input, actor) {
-  const directory = loadDirectory(actor, { migrate: Boolean(actorUserId(actor)) })
-  const match = findStoredInvite(directory, input)
-  if (!match) throw createServiceError('This invite code is not valid.', 'INVALID_INVITE')
+function requireExactMemberRecord(club, memberIdInput) {
+  const result = locateMemberRecord(club.setup, memberIdInput)
+
+  if (result.count === 0) {
+    throw createServiceError(
+      'This member record could not be found.',
+      'MEMBER_NOT_FOUND',
+    )
+  }
+
+  if (result.count > 1 || !result.match) {
+    throw createServiceError(
+      'This member record is ambiguous. Ask a club admin to review it.',
+      'AMBIGUOUS_MEMBER_RECORD',
+    )
+  }
+
+  return result.match
+}
+
+function memberInviteSummary(member) {
   return {
+    id: sanitizeDirectoryId(member.id),
+    name: String(member.name || ''),
+    email: String(member.email || ''),
+  }
+}
+
+function sameStoredInvite(left, right) {
+  if (left?.token && right?.token && left.token === right.token) return true
+  return Boolean(left?.code && right?.code && left.code === right.code)
+}
+
+export async function createMemberRecordInvite(memberIdInput, actor) {
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+
+  const clubId = directory.activeClubByUser[userId]
+  if (!clubId) {
+    throw createServiceError('Choose a club first.', 'NO_ACTIVE_CLUB')
+  }
+
+  assertClubManager(directory, userId, clubId)
+
+  const clubIndex = directory.clubs.findIndex((club) => club.id === clubId)
+  if (clubIndex === -1) {
+    throw createServiceError('This club could not be found.', 'NOT_FOUND')
+  }
+
+  const current = directory.clubs[clubIndex]
+  const target = requireExactMemberRecord(current, memberIdInput)
+
+  if (sanitizeDirectoryId(target.member.userId)) {
+    throw createServiceError(
+      'This member record is already connected to a Gorra account.',
+      'MEMBER_ALREADY_LINKED',
+    )
+  }
+
+  const role = normalizeClubRole(target.member.role)
+
+  const invite = createFreshStoredInvite(role, current.invites, {
+    kind: CLUB_INVITE_KINDS.MEMBER_RECORD,
+    memberId: target.member.id,
+  })
+
+  const timestamp = nowIso()
+
+  const previousInvites = current.invites.map((item) => {
+    const sameMember =
+      item.kind === CLUB_INVITE_KINDS.MEMBER_RECORD &&
+      item.memberId === target.member.id
+
+    return sameMember ? { ...item, enabled: false } : item
+  })
+
+  directory.clubs[clubIndex] = {
+    ...current,
+    invites: [invite, ...previousInvites].slice(0, MAX_CLUB_INVITATIONS),
+    updatedAt: timestamp,
+  }
+
+  directory = writeDirectory(directory, userId)
+
+  const savedClub = publicDirectoryForUser(directory, userId).clubs.find(
+    (club) => club.id === clubId,
+  )
+
+  const savedInvite = savedClub?.invitations.find(
+    (item) => item.code === invite.code,
+  )
+
+  return {
+    ...savedInvite,
+    inviteKind: CLUB_INVITE_KINDS.MEMBER_RECORD,
+    member: memberInviteSummary(target.member),
+  }
+}
+
+export async function previewClubInvite(input, actor) {
+  const directory = loadDirectory(actor, {
+    migrate: Boolean(actorUserId(actor)),
+  })
+
+  const match = findStoredInvite(directory, input)
+
+  if (!match) {
+    throw createServiceError(
+      'This invite code is not valid.',
+      'INVALID_INVITE',
+    )
+  }
+
+  if (match.invite.kind === CLUB_INVITE_KINDS.MEMBER_RECORD) {
+    const target = requireExactMemberRecord(
+      match.club,
+      match.invite.memberId,
+    )
+
+    if (sanitizeDirectoryId(target.member.userId)) {
+      throw createServiceError(
+        'This member record is already connected to a Gorra account.',
+        'MEMBER_ALREADY_LINKED',
+      )
+    }
+
+    const role = normalizeClubRole(target.member.role)
+
+    return {
+      inviteKind: CLUB_INVITE_KINDS.MEMBER_RECORD,
+      clubId: match.club.id,
+      clubName: match.club.name,
+      role,
+      roleLabel: ROLE_LABELS[role],
+      member: memberInviteSummary(target.member),
+    }
+  }
+
+  return {
+    inviteKind: CLUB_INVITE_KINDS.GENERIC,
     clubId: match.club.id,
     clubName: match.club.name,
     role: match.invite.role,
@@ -733,25 +933,164 @@ function strongerRole(currentRole, invitedRole) {
 export async function joinClubWithInvite(input, actor) {
   const userId = requireUserId(actor)
   let directory = loadDirectory(actor)
-  const match = findStoredInvite(directory, input)
-  if (!match) throw createServiceError('This invite code is not valid.', 'INVALID_INVITE')
 
-  const existing = membershipFor(directory, userId, match.club.id)
+  const match = findStoredInvite(directory, input)
+
+  if (!match) {
+    throw createServiceError(
+      'This invite code is not valid.',
+      'INVALID_INVITE',
+    )
+  }
+
+  if (match.invite.kind === CLUB_INVITE_KINDS.MEMBER_RECORD) {
+    const clubIndex = directory.clubs.findIndex(
+      (club) => club.id === match.club.id,
+    )
+
+    if (clubIndex === -1) {
+      throw createServiceError(
+        'This club could not be found.',
+        'NOT_FOUND',
+      )
+    }
+
+    const current = directory.clubs[clubIndex]
+    const target = requireExactMemberRecord(
+      current,
+      match.invite.memberId,
+    )
+
+    const linkedUserId = sanitizeDirectoryId(target.member.userId)
+
+    if (linkedUserId && linkedUserId !== userId) {
+      throw createServiceError(
+        'This member record is already connected to another Gorra account.',
+        'MEMBER_ALREADY_LINKED',
+      )
+    }
+
+    const otherLinkedRecords = locateMemberRecordsByUserId(
+      current.setup,
+      userId,
+    ).filter(
+      (location) =>
+        sanitizeDirectoryId(location.member.id) !==
+        sanitizeDirectoryId(target.member.id),
+    )
+
+    if (otherLinkedRecords.length) {
+      throw createServiceError(
+        'Your Gorra account is already connected to another member record in this club.',
+        'ACCOUNT_ALREADY_LINKED',
+      )
+    }
+
+    const role = normalizeClubRole(target.member.role)
+    const timestamp = nowIso()
+
+    const nextSetup = {
+      ...replaceMemberRecord(current.setup, target, (member) => ({
+        ...member,
+        userId,
+        status: 'active',
+      })),
+      updatedAt: timestamp,
+    }
+
+    const existingMembership = membershipFor(
+      directory,
+      userId,
+      current.id,
+    )
+
+    const membership = {
+      userId,
+      clubId: current.id,
+      role: existingMembership
+        ? strongerRole(existingMembership.role, role)
+        : role,
+      status: 'active',
+      joinedAt: existingMembership?.joinedAt || timestamp,
+    }
+
+    addMembership(directory, membership)
+
+    directory.clubs[clubIndex] = {
+      ...current,
+      setup: nextSetup,
+      invites: current.invites.map((item) => {
+        const belongsToClaimedMember =
+          item.kind === CLUB_INVITE_KINDS.MEMBER_RECORD &&
+          item.memberId === target.member.id
+
+        const isRedeemedInvite = sameStoredInvite(
+          item,
+          match.invite,
+        )
+
+        return belongsToClaimedMember || isRedeemedInvite
+          ? { ...item, enabled: false }
+          : item
+      }),
+      updatedAt: timestamp,
+    }
+
+    directory.activeClubByUser[userId] = current.id
+    directory = writeDirectory(directory, userId)
+
+    const result = publicDirectoryForUser(directory, userId)
+    const savedClub = result.clubs.find(
+      (club) => club.id === current.id,
+    )
+
+    const savedMembership =
+      membershipFor(directory, userId, current.id) || membership
+
+    const savedTarget = requireExactMemberRecord(
+      directory.clubs.find((club) => club.id === current.id),
+      target.member.id,
+    )
+
+    return {
+      inviteKind: CLUB_INVITE_KINDS.MEMBER_RECORD,
+      club: savedClub,
+      membership: savedMembership,
+      role,
+      roleLabel: ROLE_LABELS[role],
+      member: memberInviteSummary(savedTarget.member),
+    }
+  }
+
+  const existing = membershipFor(
+    directory,
+    userId,
+    match.club.id,
+  )
+
   const membership = {
     userId,
     clubId: match.club.id,
-    role: existing ? strongerRole(existing.role, match.invite.role) : match.invite.role,
+    role: existing
+      ? strongerRole(existing.role, match.invite.role)
+      : match.invite.role,
     status: 'active',
     joinedAt: existing?.joinedAt || nowIso(),
   }
+
   addMembership(directory, membership)
   directory.activeClubByUser[userId] = match.club.id
   directory = writeDirectory(directory, userId)
 
   const result = publicDirectoryForUser(directory, userId)
+
   return {
-    club: result.clubs.find((club) => club.id === match.club.id),
-    membership,
+    inviteKind: CLUB_INVITE_KINDS.GENERIC,
+    club: result.clubs.find(
+      (club) => club.id === match.club.id,
+    ),
+    membership:
+      membershipFor(directory, userId, match.club.id) || membership,
     role: match.invite.role,
     roleLabel: ROLE_LABELS[match.invite.role],
   }
@@ -882,7 +1221,14 @@ export async function rotateClubInvite(roleInput, actor) {
   directory.clubs[clubIndex] = {
     ...current,
     setup,
-    invites: [invite, ...current.invites.filter((item) => item.role !== role)].slice(0, 30),
+    invites: [
+      invite,
+      ...current.invites.filter(
+        (item) =>
+          item.kind === CLUB_INVITE_KINDS.MEMBER_RECORD ||
+          item.role !== role,
+      ),
+    ].slice(0, MAX_CLUB_INVITATIONS),
     updatedAt: timestamp,
   }
   directory = writeDirectory(directory, userId)
