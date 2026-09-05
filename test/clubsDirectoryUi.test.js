@@ -7,92 +7,107 @@ const clubsView = readFileSync(
   'utf8',
 )
 
+const clubView = readFileSync(
+  'src/views/ClubView.vue',
+  'utf8',
+)
+
 const layoutView = readFileSync(
   'src/layouts/DefaultLayout.vue',
   'utf8',
 )
 
-test('zero-club state exposes Join and Create immediately', () => {
+const clubReferenceCss = readFileSync(
+  'src/assets/club-reference32.css',
+  'utf8',
+)
+
+test('Club is one simple directory with one heading and one paragraph', () => {
+  assert.match(clubsView, /\|\| 'Club'/)
   assert.match(
     clubsView,
-    /clubDirectoryState === 'empty'/,
+    /Join a club, create one, or open one you already belong to\./,
   )
 
-  assert.match(
+  assert.doesNotMatch(
     clubsView,
-    /<strong>Join a club<\/strong>/,
-  )
-
-  assert.match(
-    clubsView,
-    /<strong>Create a club<\/strong>/,
-  )
-})
-
-test('existing clubs use the compact left-mark and stacked-copy card pattern', () => {
-  assert.match(
-    clubsView,
-    /class="club-directory-card__mark"/,
-  )
-
-  assert.match(
-    clubsView,
-    /class="club-directory-card__copy"/,
-  )
-
-  assert.match(
-    clubsView,
-    /clubInitials\(club\.name\)/,
-  )
-
-  assert.match(
-    clubsView,
-    /relationshipLabel\(club\.role\)/,
+    /<p class="eyebrow">Clubs<\/p>/,
   )
 })
 
-test('existing-club directory progressively discloses Join and Create behind Add club', () => {
-  assert.match(
-    clubsView,
-    /class="add-club-button"/,
-  )
+test('Join and Create are always visible on the normal Club directory', () => {
+  assert.match(clubsView, /<strong>Join a club<\/strong>/)
+  assert.match(clubsView, /<strong>Create a club<\/strong>/)
+  assert.match(clubsView, /Use an invitation from a club\./)
+  assert.match(clubsView, /Start a new club you manage\./)
 
-  assert.match(
-    clubsView,
-    /@click="showAddClubDecision"/,
-  )
-
-  assert.match(
+  assert.doesNotMatch(
     clubsView,
     /routeView === 'directory-add'/,
   )
+})
+
+test('existing clubs render underneath the actions as one club per row', () => {
+  assert.match(clubsView, /id="your-clubs-heading">Your clubs<\/h2>/)
+  assert.match(clubsView, /class="ref-club-directory"/)
+  assert.match(clubsView, /class="ref-club-directory-row"/)
+  assert.match(clubsView, /class="ref-club-directory-logo"/)
 
   assert.match(
-    clubsView,
-    /Back to your clubs/,
+    clubReferenceCss,
+    /\.ref-club-directory\s*\{[\s\S]*grid-template-columns:\s*1fr/,
+  )
+
+  assert.match(
+    clubReferenceCss,
+    /grid-template-columns:\s*66px minmax\(0,\s*1fr\) 18px/,
   )
 })
 
-test('directory cards keep icon or club mark beside title and supporting copy', () => {
+test('the current club stays clickable and every club opens the real Club surface', () => {
   assert.match(
     clubsView,
-    /grid-template-columns:\s*48px minmax\(0,\s*1fr\) 20px/,
+    /if \(clubId !== adminStore\.activeClubId\)[\s\S]*await adminStore\.switchClub\(clubId\)/,
   )
 
   assert.match(
     clubsView,
-    /directory-choice-card__icon/,
+    /await router\.push\(\{ name: 'Club' \}\)/,
   )
 
-  assert.match(
+  assert.doesNotMatch(
     clubsView,
-    /directory-choice-card__copy/,
+    /:disabled="adminStore\.isLoading \|\| club\.isActive"/,
   )
 })
 
-test('the club chooser does not render active-club contextual navigation', () => {
+test('the Club landing does not duplicate Members with a second Add members state card', () => {
+  assert.doesNotMatch(clubView, /const clubState = computed/)
+  assert.doesNotMatch(clubView, /class="ref-club-state"/)
+
+  assert.match(clubView, />Manage your club<\/h2>/)
+  assert.match(clubView, /title: 'Members'/)
+  assert.match(clubView, /name: 'ClubMembers'/)
+})
+
+test('the one sidebar Club item opens the directory, not a second hidden Club concept', () => {
   assert.match(
     layoutView,
-    /route\.name !== 'Clubs'/,
+    /to: \{ name: 'Clubs' \}, section: 'club', label: 'Club'/,
   )
+
+  assert.doesNotMatch(
+    layoutView,
+    /to: \{ name: 'Club' \}, section: 'club', label: 'Club'/,
+  )
+
+  assert.match(layoutView, />All clubs<\/span>/)
+})
+
+test('Club-family screens own their heading instead of repeating shell captions', () => {
+  assert.match(layoutView, /const clubOwnsPageHeading = computed/)
+  assert.match(layoutView, /name === 'Clubs'/)
+  assert.match(layoutView, /name === 'ClubMembers'/)
+  assert.match(layoutView, /name === 'ClubSettingsHub'/)
+  assert.match(layoutView, /v-else-if="showRoutePageContext"/)
 })

@@ -1,4 +1,5 @@
 <script setup>
+import FlowIcon from '../../components/friendly/FlowIcon.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PersonAvatar from '../../components/PersonAvatar.vue'
@@ -121,14 +122,21 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="challenge-create">
-    <header class="create-heading">
+  <main class="gorra-compete-ref compete-page challenge-create">
+    <button
+      class="compete-back"
+      type="button"
+      @click="router.push({ name: 'Rankings' })"
+    >
+      <FlowIcon name="arrow-right" />
+      Back to ladder
+    </button>
+
+    <header class="compete-page-head">
       <div>
-        <p class="type-eyebrow">Club Ladder</p>
-        <h1>Create a challenge</h1>
-        <p>Choose an eligible opponent. Your club’s Ladder rules are applied automatically.</p>
+        <h1>New challenge</h1>
+        <p>Choose someone you can challenge.</p>
       </div>
-      <RouterLink class="button-secondary" :to="{ name: 'Rankings' }">Back to Ladder</RouterLink>
     </header>
 
     <div
@@ -141,156 +149,147 @@ onMounted(async () => {
 
     <section v-else-if="!accessDecision.allowed" class="access-blocker" role="status">
       <div>
-        <p class="type-eyebrow">Active challenge</p>
         <h2>Finish your current challenge first</h2>
         <p>{{ accessDecision.message }}</p>
       </div>
+
       <RouterLink
         v-if="activeChallenge"
-        class="button-primary"
+        class="compete-primary"
         :to="{ name: 'ChallengeDetails', params: { challengeId: activeChallenge.id } }"
-        >View active challenge</RouterLink
       >
+        View active challenge
+      </RouterLink>
     </section>
 
-    <form v-else class="create-layout" @submit.prevent="submitChallenge">
-      <div class="create-main">
-        <section class="create-card opponent-picker">
-          <div class="card-heading">
-            <div>
-              <p class="type-eyebrow">1 · Opponent</p>
-              <h2>Choose who to challenge</h2>
-              <p v-if="ladderWindow">
-                Your eligible window is rank #{{ ladderWindow.highest }}–#{{ ladderWindow.lowest }}.
-              </p>
-            </div>
-          </div>
-          <label class="search-field">
-            <span class="visually-hidden">Search eligible players</span>
+    <form
+      v-else
+      class="challenge-form-simple"
+      @submit.prevent="submitChallenge"
+    >
+      <section class="compete-section">
+        <header class="compete-section-head">
+          <h2>Choose opponent</h2>
+          <p v-if="ladderWindow">
+            Ranks #{{ ladderWindow.highest }}–#{{ ladderWindow.lowest }} are available to you.
+          </p>
+        </header>
+
+        <label class="challenge-search">
+          <span class="visually-hidden">Search eligible players</span>
+          <input
+            v-model="search"
+            type="search"
+            placeholder="Search eligible players"
+            autocomplete="off"
+          />
+        </label>
+
+        <div
+          v-if="eligibleOpponents.length"
+          class="opponent-list"
+          role="radiogroup"
+          aria-label="Eligible Ladder opponents"
+        >
+          <button
+            v-for="player in eligibleOpponents"
+            :key="player.id"
+            type="button"
+            class="opponent-row"
+            :class="{ 'opponent-row--selected': selectedOpponentId === player.id }"
+            role="radio"
+            :aria-checked="selectedOpponentId === player.id"
+            @click="chooseOpponent(player)"
+          >
+            <PersonAvatar
+              :name="player.name"
+              :image="player.imageUrl"
+              :size="42"
+            />
+
+            <span class="opponent-row__copy">
+              <strong>{{ player.name }}</strong>
+              <small>Rank #{{ player.rank }}</small>
+            </span>
+
+            <span class="opponent-row__select">
+              {{ selectedOpponentId === player.id ? 'Selected' : 'Choose' }}
+            </span>
+          </button>
+        </div>
+
+        <p v-else class="empty-opponents">
+          No eligible players match this search.
+        </p>
+      </section>
+
+      <section v-if="selectedOpponent" class="compete-section">
+        <header class="compete-section-head">
+          <h2>When will you play?</h2>
+          <p>Optional. You can agree the details after the challenge is accepted.</p>
+        </header>
+
+        <div class="challenge-fields">
+          <label>
+            <span>Date and time</span>
+            <input v-model="form.scheduledAt" type="datetime-local" />
+          </label>
+
+          <label>
+            <span>Court</span>
             <input
-              v-model="search"
-              type="search"
-              placeholder="Search eligible players"
-              autocomplete="off"
+              v-model="form.court"
+              type="text"
+              maxlength="80"
+              placeholder="For example, Court 3"
             />
           </label>
-          <div
-            v-if="eligibleOpponents.length"
-            class="opponent-list"
-            role="radiogroup"
-            aria-label="Eligible Ladder opponents"
-          >
-            <button
-              v-for="player in eligibleOpponents"
-              :key="player.id"
-              type="button"
-              class="opponent-row"
-              :class="{ 'opponent-row--selected': selectedOpponentId === player.id }"
-              role="radio"
-              :aria-checked="selectedOpponentId === player.id"
-              @click="chooseOpponent(player)"
-            >
-              <PersonAvatar :name="player.name" :image="player.imageUrl" :size="42" />
-              <span class="opponent-row__copy"
-                ><strong>{{ player.name }}</strong
-                ><small
-                  >Rank #{{ player.rank }} · {{ player.division || 'Club Ladder' }}</small
-                ></span
-              >
-              <span class="opponent-row__select">{{
-                selectedOpponentId === player.id ? 'Selected' : 'Choose'
-              }}</span>
-            </button>
-          </div>
-          <p v-else class="empty-opponents">No eligible players match this search.</p>
-        </section>
+        </div>
 
-        <section class="create-card schedule-card">
-          <div class="card-heading">
-            <div>
-              <p class="type-eyebrow">2 · Timing</p>
-              <h2>Propose a schedule</h2>
-              <p>Optional. Your opponent can accept first and agree the details later.</p>
-            </div>
-          </div>
-          <div class="form-grid">
-            <label
-              ><span>Date and time</span><input v-model="form.scheduledAt" type="datetime-local"
-            /></label>
-            <label
-              ><span>Court</span
-              ><input
-                v-model="form.court"
-                type="text"
-                maxlength="80"
-                placeholder="For example, Court 3"
-            /></label>
-          </div>
-          <label class="note-field"
-            ><span>Message to opponent</span
-            ><textarea
-              v-model="form.note"
-              rows="3"
-              maxlength="500"
-              placeholder="Add a short note (optional)"
-            ></textarea>
-          </label>
-        </section>
-      </div>
+        <label class="challenge-message">
+          <span>Message <small>Optional</small></span>
+          <textarea
+            v-model="form.note"
+            rows="3"
+            maxlength="500"
+            placeholder="Add a short note"
+          ></textarea>
+        </label>
+      </section>
 
-      <aside class="create-sidebar">
-        <section class="rules-card">
-          <div class="rules-card__heading">
-            <span aria-hidden="true">🔒</span>
-            <div>
-              <p class="type-eyebrow">Club rules</p>
-              <h2>Fixed by {{ adminStore.activeClub?.name || 'your club' }}</h2>
-            </div>
-          </div>
-          <dl>
-            <div>
-              <dt>Match type</dt>
-              <dd>Singles</dd>
-            </div>
-            <div>
-              <dt>Format</dt>
-              <dd>{{ config.matchFormatLabel }}</dd>
-            </div>
-            <div>
-              <dt>Scoring</dt>
-              <dd>{{ config.scoring === 'noad' ? 'No-ad' : 'Advantage' }}</dd>
-            </div>
-            <div>
-              <dt>Reply within</dt>
-              <dd>{{ config.responseHours }} hours</dd>
-            </div>
-            <div>
-              <dt>Complete within</dt>
-              <dd>{{ config.completionDays }} days</dd>
-            </div>
-          </dl>
-          <p class="rules-note">
-            Players cannot customize Ladder scoring. This keeps every match consistent with club
-            administration.
-          </p>
-        </section>
+      <section v-if="selectedOpponent" class="challenge-rule-note">
+        <FlowIcon name="check" aria-hidden="true" />
+        <span>
+          <strong>
+            {{ adminStore.activeClub?.name || 'Your club' }} rules apply
+          </strong>
+          <span>
+            {{ config.matchFormatLabel }}
+            · {{ config.scoring === 'noad' ? 'No-ad' : 'Advantage' }}
+          </span>
+        </span>
+      </section>
 
-        <section v-if="selectedOpponent" class="selection-summary">
-          <p class="type-eyebrow">Challenge summary</p>
-          <h2>You vs {{ selectedOpponent.name }}</h2>
-          <p>{{ movement.label }}</p>
-          <span
-            >{{ selectedOpponent.name }} will be tagged and see this in Received challenges.</span
-          >
-        </section>
+      <p v-if="submitError" class="submit-error" role="alert">
+        {{ submitError }}
+      </p>
 
-        <p v-if="submitError" class="submit-error" role="alert">{{ submitError }}</p>
-        <button class="button-primary submit-challenge" type="submit" :disabled="!canSubmit">
+      <footer v-if="selectedOpponent" class="challenge-submit-row">
+        <div class="challenge-submit-copy">
+          <strong>You vs {{ selectedOpponent.name }}</strong>
+          <span>{{ movement.label }}</span>
+        </div>
+
+        <button
+          class="compete-primary"
+          type="submit"
+          :disabled="!canSubmit"
+        >
           {{ challengeStore.isLoading ? 'Sending…' : 'Send challenge' }}
         </button>
-      </aside>
+      </footer>
     </form>
-  </section>
+  </main>
 </template>
 
 <style scoped>

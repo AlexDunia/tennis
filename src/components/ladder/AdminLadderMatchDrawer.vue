@@ -189,7 +189,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
       <template v-if="!result">
         <header class="admin-drawer__header">
           <div>
-            <small>Set up match</small>
+            <small>Ladder match</small>
             <h2 id="admin-ladder-drawer-title">
               {{ playerA?.name }} <span>vs</span> {{ playerB?.name }}
             </h2>
@@ -230,7 +230,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
               @click="timing = 'now'"
             >
               <strong>Play now</strong>
-              <span>Create a match ready for live scoring.</span>
+              <span>Start when both players are ready.</span>
             </button>
             <button
               type="button"
@@ -239,7 +239,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
               @click="timing = 'scheduled'"
             >
               <strong>Schedule</strong>
-              <span>Choose a clear date and time.</span>
+              <span>Choose when they will play.</span>
             </button>
           </div>
         </fieldset>
@@ -813,13 +813,12 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
 .rules-modal__panel {
   position: relative;
-  width: min(960px, 100%);
+  width: min(780px, 100%);
   min-width: 0;
   max-height: calc(100vh - clamp(36px, 8vw, 80px));
   overscroll-behavior: contain;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: clamp(26px, 4vw, 42px);
+  overflow: hidden;
+  padding: 0;
   border: var(--app-hairline);
   border-radius: 18px;
   background: var(--color-bg);
@@ -850,7 +849,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
   .rules-modal__panel {
     max-height: calc(100vh - 48px);
-    padding: 58px 16px max(28px, env(safe-area-inset-bottom));
+    padding: 0;
     border-radius: 16px 16px 0 0;
   }
 
@@ -883,4 +882,171 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
     text-align: center;
   }
 }
+
+/* Compact dialog presentation uses the ladder's existing type, surface and motion tokens. */
+.rules-modal__panel {
+  animation: rules-panel-in var(--motion-card) var(--motion-curve) both;
+}
+.rules-modal__close {
+  z-index: 3;
+  cursor: pointer;
+}
+.rules-modal__close:hover { background: var(--color-surface-soft); }
+.rules-modal__close:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.rules-modal__panel :deep(.match-format-editor) {
+  max-height: calc(100dvh - clamp(36px, 8vw, 80px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+  scroll-padding-block: 150px 88px;
+  padding: 0 24px 24px;
+  gap: 16px;
+}
+.rules-modal__panel :deep(.editor-intro) {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-inline: -24px;
+  padding: 24px 72px 20px 24px;
+  border-bottom: var(--app-hairline);
+  background: var(--color-surface);
+  box-shadow: var(--flow-shadow-quiet);
+}
+.rules-modal__panel :deep(.editor-intro h2) {
+  font-size: 24px;
+  line-height: 1.25;
+}
+.rules-modal__panel :deep(.editor-intro > p:not(.editor-eyebrow)) {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.rules-modal__panel :deep(.editor-eyebrow) {
+  margin-bottom: 8px;
+  font-size: var(--type-meta);
+}
+.rules-modal__panel :deep(.editor-fields) { gap: 12px; }
+.rules-modal__panel :deep(.rule-card) {
+  transition: border-color var(--motion-short) var(--motion-curve),
+    box-shadow var(--motion-card) var(--motion-curve);
+}
+.rules-modal__panel :deep(.rule-card[open]) {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--flow-shadow-hover);
+}
+.rules-modal__panel :deep(.rule-card summary) {
+  min-height: 66px;
+  padding: 12px 16px;
+  gap: 12px;
+  grid-template-columns: minmax(100px, 1fr) minmax(0, auto) 26px;
+  transition: background var(--motion-short) var(--motion-curve);
+}
+.rules-modal__panel :deep(.rule-card summary:hover) { background: var(--color-surface-soft); }
+.rules-modal__panel :deep(.rule-result) {
+  padding: 4px 9px;
+  border-radius: var(--app-inner-radius);
+  background: var(--color-surface-soft);
+  font-size: 12px;
+}
+.rules-modal__panel :deep(.rule-card[open] .rule-result) { color: var(--color-primary-strong); }
+.rules-modal__panel :deep(.chevron) {
+  transition: transform var(--motion-short) var(--motion-curve);
+}
+.rules-modal__panel :deep(.rule-body) {
+  padding: 18px 16px;
+  background: var(--color-surface);
+  animation: rules-content-in var(--motion-card) var(--motion-curve);
+}
+.rules-modal__panel :deep(.help) { margin-bottom: 12px; }
+.rules-modal__panel :deep(.inside-divider) { margin-block: 18px; }
+.rules-modal__panel :deep(.option) {
+  min-height: 78px;
+  padding: 12px;
+  gap: 10px;
+  transition: border-color var(--motion-short) var(--motion-curve),
+    background var(--motion-short) var(--motion-curve),
+    box-shadow var(--motion-short) var(--motion-curve);
+}
+.rules-modal__panel :deep(.editor-fields:not(:disabled) .option:hover) {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--flow-shadow-quiet);
+}
+.rules-modal__panel :deep(.editor-fields:not(:disabled) .option.active) {
+  border-color: var(--color-primary);
+}
+.rules-modal__panel :deep(.plain-note) {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-left: 2px solid var(--color-border-strong);
+  background: var(--color-surface-soft);
+}
+.rules-modal__panel :deep(.sub-rule) {
+  padding: 14px;
+  border-color: var(--color-border);
+  background: var(--color-surface-soft);
+  animation: rules-content-in var(--motion-card) var(--motion-curve);
+}
+.rules-modal__panel :deep(.final-summary) {
+  margin-top: 0;
+  padding: 16px;
+  background: var(--color-surface-soft);
+  box-shadow: none;
+}
+.rules-modal__panel :deep(.final-summary h3) { font-size: var(--type-card-title); }
+.rules-modal__panel :deep(.final-summary dl) { margin-top: 12px; }
+.rules-modal__panel :deep(.final-summary dl > div) { padding-block: 10px; }
+.rules-modal__panel :deep(.final-summary dl > div:last-child) {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.rules-modal__panel :deep(.editor-save) {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  min-height: var(--app-button-height);
+  box-shadow: 0 0 0 12px var(--color-surface), var(--shadow-soft);
+  cursor: pointer;
+  transition: background var(--motion-short) var(--motion-curve),
+    transform var(--motion-press) var(--motion-curve);
+}
+.rules-modal__panel :deep(.editor-save:hover) { background: var(--button-primary-bg-hover); }
+.rules-modal__panel :deep(.editor-save:active) { transform: scale(0.99); }
+@keyframes rules-panel-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes rules-content-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 640px) {
+  .rules-modal__panel { max-height: calc(100dvh - 24px); }
+  .rules-modal__panel :deep(.match-format-editor) {
+    max-height: calc(100dvh - 24px);
+    padding: 0 16px max(24px, env(safe-area-inset-bottom));
+  }
+  .rules-modal__panel :deep(.editor-intro) {
+    margin-inline: -16px;
+    padding: 20px 58px 16px 16px;
+  }
+  .rules-modal__panel :deep(.editor-intro h2) { font-size: var(--type-section-title); }
+  .rules-modal__panel :deep(.rule-card summary) {
+    grid-template-columns: minmax(0, 1fr) 26px;
+    gap: 6px 12px;
+  }
+  .rules-modal__panel :deep(.rule-result) { justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rules-modal__panel,
+  .rules-modal__close,
+  .rules-modal__panel :deep(*) {
+    animation: none;
+    transition: none;
+  }
+}
+
 </style>

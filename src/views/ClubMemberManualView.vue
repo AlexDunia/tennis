@@ -1,4 +1,5 @@
 <script setup>
+import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
@@ -57,18 +58,22 @@ onMounted(async () => {
     error.value = loadError?.message || 'We could not open this club.'
   }
 })
+useShellNestedHeader(() => ({
+  label: 'Back to members',
+  back: () => router.push({ name: 'ClubMembers' }),
+  crumbs: [
+    { label: 'Club', to: { name: 'Club' } },
+    { label: 'Members', to: { name: 'ClubMembers' } },
+    { label: 'Add member' },
+  ],
+}))
 </script>
 
 <template>
   <main class="gorra-club-ref ref-page ref-page-narrow">
-    <button class="ref-back" type="button" @click="router.push({ name: 'ClubMembers' })">
-      <FlowIcon name="arrow-right" />
-      Back to members
-    </button>
 
     <header class="ref-page-head">
       <div class="ref-page-head-main">
-        <p class="ref-kicker">Add member</p>
         <h1>Add someone yourself</h1>
         <p>
           Enter what you already know. Gorra checks the same information the member would normally

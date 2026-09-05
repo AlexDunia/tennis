@@ -1,4 +1,5 @@
 <script setup>
+import FlowIcon from '../../components/friendly/FlowIcon.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PersonAvatar from '../../components/PersonAvatar.vue'
@@ -38,6 +39,10 @@ function otherPlayerName(challenge) {
     'Club player'
   )
 }
+
+function otherPlayerRank(challenge) {
+  return otherPlayer(challenge)?.rank || null
+}
 function statusLine(challenge) {
   if (challenge.status === 'awaiting')
     return queue.value === 'received' ? 'response needed' : 'waiting for a response'
@@ -62,14 +67,22 @@ onMounted(loadView)
 </script>
 
 <template>
-  <section class="challenge-queues">
-    <div class="queue-topline">
-      <p>Open a challenge to see its next action, schedule, score, and Ladder outcome.</p>
-      <RouterLink class="button-primary" :to="{ name: 'CreateChallenge' }"
-        >New challenge</RouterLink
+  <main class="gorra-compete-ref compete-page challenge-queues">
+    <header class="compete-page-head">
+      <div>
+        <h1>Challenges</h1>
+        <p>Challenges you send and receive.</p>
+      </div>
+
+      <RouterLink
+        class="compete-primary"
+        :to="{ name: 'CreateChallenge' }"
       >
-    </div>
-    <div class="queue-toggle" role="tablist" aria-label="Challenge queue">
+        New challenge
+      </RouterLink>
+    </header>
+
+    <div class="queue-toggle compete-tabs" role="tablist" aria-label="Challenge queue">
       <button
         type="button"
         role="tab"
@@ -80,6 +93,7 @@ onMounted(loadView)
         Received
         <span v-if="receivedChallenges.length">{{ receivedChallenges.length }}</span>
       </button>
+
       <button
         type="button"
         role="tab"
@@ -101,30 +115,44 @@ onMounted(loadView)
         <h2>We could not load your challenges</h2>
         <p>{{ error }}</p>
       </div>
-      <button class="button-secondary" type="button" @click="loadView">Try again</button>
+
+      <button class="compete-secondary" type="button" @click="loadView">
+        Try again
+      </button>
     </section>
 
     <div v-else-if="visibleChallenges.length" class="challenge-list">
-      <article v-for="challenge in visibleChallenges" :key="challenge.id" class="challenge-row">
+      <button
+        v-for="challenge in visibleChallenges"
+        :key="challenge.id"
+        class="challenge-row"
+        type="button"
+        :aria-label="`Open challenge with ${otherPlayerName(challenge)}`"
+        @click="openChallenge(challenge)"
+      >
         <PersonAvatar
           :name="otherPlayerName(challenge)"
           :image="otherPlayer(challenge)?.imageUrl || ''"
           :size="42"
         />
 
-        <div class="challenge-row__copy">
+        <span class="challenge-row__copy">
           <strong>{{ otherPlayerName(challenge) }}</strong>
-          <span>{{ statusLine(challenge) }}</span>
-        </div>
+          <small>
+            {{
+              otherPlayerRank(challenge)
+                ? `Rank #${otherPlayerRank(challenge)}`
+                : 'Club player'
+            }}
+          </small>
+        </span>
 
-        <button
-          class="button-secondary challenge-row__action"
-          type="button"
-          @click="openChallenge(challenge)"
-        >
-          View details
-        </button>
-      </article>
+        <span class="challenge-row__state">
+          {{ statusLine(challenge) }}
+        </span>
+
+        <FlowIcon name="arrow-right" aria-hidden="true" />
+      </button>
     </div>
 
     <section v-else class="queue-empty">
@@ -133,12 +161,12 @@ onMounted(loadView)
       <p>
         {{
           queue === 'received'
-            ? 'New challenges from nearby players will appear here.'
-            : 'Challenges you send will stay here while you track them.'
+            ? 'New challenges will appear here.'
+            : 'Challenges you send will appear here.'
         }}
       </p>
     </section>
-  </section>
+  </main>
 </template>
 
 <style scoped>

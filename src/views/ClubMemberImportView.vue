@@ -1,4 +1,6 @@
 <script setup>
+import MemberListArt from '../components/club/MemberListArt.vue'
+import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
@@ -31,6 +33,7 @@ const notificationStore = useNotificationStore()
 const fileInput = ref(null)
 const pasteDialog = ref(null)
 const helpDialog = ref(null)
+const templateDialog = ref(null)
 const error = ref('')
 const busy = ref(false)
 const dragging = ref(false)
@@ -206,11 +209,6 @@ function extraTargetValue(sourceIndex) {
   return workspace.mappings[sourceIndex] || ''
 }
 
-function extraTargetDisabled(targetKey, sourceIndex) {
-  if (!targetKey) return false
-  const current = importTargetSourceIndex(workspace, targetKey)
-  return current !== null && current !== sourceIndex
-}
 
 function mapExtra(sourceIndex, targetKey) {
   const current = workspace.mappings[sourceIndex]
@@ -409,18 +407,58 @@ function changeFile() {
   error.value = ''
 }
 
-function downloadTemplate() {
-  const headers = importScenarioTemplate(workspace.scenario)
-  const csv = `${headers.map((header) => `"${String(header).replaceAll('"', '""')}"`).join(',')}\r\n`
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+function templateHeaders() {
+  return importScenarioTemplate(workspace.scenario)
+}
+
+function templateBaseName() {
+  return `${workspace.scenario}-gorra-template`
+}
+
+function downloadTemplateCsv() {
+  const headers = templateHeaders()
+  const csv = `${headers
+    .map((header) => `"${String(header).replaceAll('"', '""')}"`)
+    .join(',')}\r\n`
+
+  const blob = new Blob([csv], {
+    type: 'text/csv;charset=utf-8',
+  })
+
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
+
   anchor.href = url
-  anchor.download = `${workspace.scenario}-gorra-template.csv`
+  anchor.download = `${templateBaseName()}.csv`
+
   document.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
   URL.revokeObjectURL(url)
+
+  templateDialog.value?.close()
+}
+
+async function downloadTemplateXlsx() {
+  const XLSX = await import('xlsx')
+  const sheet = XLSX.utils.aoa_to_sheet([templateHeaders()])
+  const workbook = XLSX.utils.book_new()
+
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Gorra import')
+  XLSX.writeFile(workbook, `${templateBaseName()}.xlsx`)
+
+  templateDialog.value?.close()
+}
+
+async function copyTemplateHeadings() {
+  await navigator.clipboard.writeText(templateHeaders().join('\t'))
+
+  notificationStore.addToast({
+    message: 'Template headings copied.',
+    type: 'success',
+  })
+
+  templateDialog.value?.close()
 }
 
 async function confirmImport() {
@@ -473,21 +511,129 @@ onMounted(async () => {
     error.value = loadError?.message || 'We could not open this club.'
   }
 })
+const importPageCopy = computed(() => {
+  const optional =
+    'Optional fields: phone, gender, date of birth, playing level, rating and member / reference number.'
+
+  if (workspace.scenario === 'one-ladder') {
+    return {
+      title: 'Import your member list',
+      required: ['first name', 'last name', 'email', 'position', 'year of entry'],
+      optional,
+    }
+  }
+
+  if (workspace.scenario === 'multiple-ladders') {
+    return {
+      title: 'Import your member list',
+      required: [
+        'first name',
+        'last name',
+        'email',
+        'ladder',
+        'position',
+        'year of entry',
+      ],
+      optional,
+    }
+  }
+
+  return {
+    title: 'Import your member list',
+    required: ['first name', 'last name', 'email', 'year of entry'],
+    optional,
+  }
+})
+
+function requiredJoiner(index, length) {
+  if (index === length - 1) return ''
+  if (index === length - 2) return ' and '
+  return ', '
+}
+
+const importModeCrumb = computed(
+  () => MEMBER_IMPORT_SCENARIOS[workspace.scenario]?.title || '',
+)
+
+useShellNestedHeader(() => {
+  const crumbs = [
+    { label: 'Club', to: { name: 'Club' } },
+    { label: 'Members', to: { name: 'ClubMembers' } },
+    { label: 'Import' },
+  ]
+
+  if (stage.value !== 'scenario' && importModeCrumb.value) {
+    crumbs.push({ label: importModeCrumb.value })
+  }
+
+  if (stage.value === 'review') {
+    crumbs.push({ label: 'Review' })
+  }
+
+  return {
+    label:
+      stage.value === 'scenario'
+        ? 'Back to members'
+        : stage.value === 'prepare'
+          ? 'Back to import types'
+          : 'Back to upload',
+    back,
+    crumbs,
+  }
+})
 </script>
 
 <template>
   <main class="gorra-club-ref ref-page">
-    <button class="ref-back" type="button" @click="back">
-      <FlowIcon name="arrow-right" />
-      {{ stage === 'scenario' ? 'Back to members' : stage === 'prepare' ? 'Back to import types' : 'Back' }}
-    </button>
 
     <p v-if="error" class="ref-inline-alert" role="alert">{{ error }}</p>
+
+    <header
+      v-if="stage !== 'scenario'"
+      class="ref-import-page-head"
+    >
+      <div class="ref-import-head-copy">
+        <h1>{{ importPageCopy.title }}</h1>
+
+        <p class="ref-import-required-copy">
+          Upload your CSV. We need
+          <template
+            v-for="(label, index) in importPageCopy.required"
+            :key="label"
+          >
+            <strong>{{ label }}</strong>{{ requiredJoiner(index, importPageCopy.required.length) }}
+          </template>.
+        </p>
+
+        <p class="ref-import-optional-copy">
+          {{ importPageCopy.optional }}
+        </p>
+
+        <button
+          class="ref-import-template-link"
+          type="button"
+          @click="templateDialog?.showModal()"
+        >
+          <FlowIcon name="download" />
+          <span>Download template</span>
+          <FlowIcon name="chevron-down" />
+        </button>
+      </div>
+
+      <button
+        class="ref-how-to-button"
+        type="button"
+        aria-label="How to prepare this file"
+        title="How to prepare this file"
+        @click="helpDialog?.showModal()"
+      >
+        <FlowIcon name="help" />
+      </button>
+    </header>
 
     <section v-if="stage === 'scenario'" class="ref-import-choice">
       <header class="ref-page-head">
         <div class="ref-page-head-main">
-          <p class="ref-kicker">Bring your data to Gorra</p>
           <h1>What are you bringing in?</h1>
           <p>Choose what is already in your file.</p>
         </div>
@@ -502,7 +648,7 @@ onMounted(async () => {
           @click="chooseScenario(item.id)"
         >
           <span class="ref-feature-icon" aria-hidden="true">
-            <FlowIcon :name="item.id === 'members-only' ? 'users' : 'ladder'" />
+            <FlowIcon :name="item.id === 'members-only' ? 'users' : item.id === 'one-ladder' ? 'ordered-list' : 'layers'" />
           </span>
           <span>
             <strong>{{ item.title }}</strong>
@@ -514,113 +660,81 @@ onMounted(async () => {
     </section>
 
     <section v-else-if="stage === 'prepare'" class="ref-page-narrow">
-      <header class="ref-page-head">
-        <div class="ref-page-head-main">
-          <p class="ref-kicker">Bring your data to Gorra</p>
-          <h1>{{ schema.pageTitle }}</h1>
-          <p>
-            {{
-              workspace.scenario === 'members-only'
-                ? 'Upload your member list.'
-                : workspace.scenario === 'one-ladder'
-                  ? 'Upload the list you already use for this ladder.'
-                  : 'Upload the list you already use for your ladders.'
-            }}
-          </p>
+      <label
+        v-if="workspace.scenario === 'one-ladder'"
+        class="ref-form-field ref-one-ladder-context"
+      >
+        <span>Which ladder is this list for?</span>
+
+        <input
+          v-model="workspace.oneLadderName"
+          type="text"
+          maxlength="70"
+          placeholder="Men's Singles"
+          required
+        />
+
+        <small>
+          Examples: Men's Singles, Women's Singles, Open Doubles.
+          Set it once here — your file does not need a Ladder column.
+        </small>
+      </label>
+
+      <section
+        class="ref-import-empty-state"
+        :class="{ dragging }"
+        @dragover.prevent="dragging = true"
+        @dragleave.prevent="dragging = false"
+        @drop.prevent="handleDrop"
+      >
+        <MemberListArt
+          :variant="
+            workspace.scenario === 'one-ladder'
+              ? 'one-ladder'
+              : workspace.scenario === 'multiple-ladders'
+                ? 'multiple-ladders'
+                : 'members'
+          "
+        />
+
+        <div class="ref-import-empty-actions">
+          <button
+            class="ref-button primary"
+            type="button"
+            :disabled="busy"
+            @click="fileInput?.click()"
+          >
+            {{ busy ? 'Reading…' : 'Choose file' }}
+          </button>
+
+          <button
+            class="ref-button"
+            type="button"
+            :disabled="busy"
+            @click="openPaste"
+          >
+            Paste spreadsheet
+          </button>
         </div>
 
-        <button class="ref-button" type="button" @click="helpDialog?.showModal()">
-          Help
-        </button>
-      </header>
+        <div class="ref-import-drop-note">
+          CSV or Excel (.xlsx) · up to 5 MB · you review everything before it is added
+        </div>
 
-      <div class="ref-import-work-card">
-        <section class="ref-import-format">
-          <h3>What Gorra needs</h3>
-          <p>
-            Required fields are highlighted. Optional information can be empty.
-          </p>
-
-          <label v-if="workspace.scenario === 'one-ladder'" class="ref-form-field" style="margin-top: 16px; max-width: 420px">
-            <span>Ladder name</span>
-            <input
-              v-model="workspace.oneLadderName"
-              type="text"
-              maxlength="70"
-              placeholder="For example, Men's Singles"
-              required
-            />
-            <small>Enter it once here. Your file does not need a Ladder column.</small>
-          </label>
-
-          <div class="ref-template-wrap" aria-label="Import template columns">
-            <div class="ref-template-row header">
-              <span
-                v-for="[key, label] in [...schema.required, ...schema.optional]"
-                :key="key"
-                class="ref-template-cell"
-                :class="{ required: schema.required.some(([requiredKey]) => requiredKey === key) }"
-              >
-                {{ label }}
-              </span>
-            </div>
-            <div class="ref-template-row">
-              <span
-                v-for="[key] in [...schema.required, ...schema.optional]"
-                :key="key"
-                class="ref-template-cell"
-              >
-                {{ schema.required.some(([requiredKey]) => requiredKey === key) ? 'Required' : 'Optional' }}
-              </span>
-            </div>
-          </div>
-
-          <button class="ref-text-action" type="button" style="margin-top: 12px" @click="downloadTemplate">
-            Download template
-          </button>
-        </section>
-
-        <section
-          class="ref-import-upload"
-          :class="{ dragging }"
-          @dragover.prevent="dragging = true"
-          @dragleave.prevent="dragging = false"
-          @drop.prevent="handleDrop"
-        >
-          <span class="ref-feature-icon" aria-hidden="true">
-            <FlowIcon name="upload" />
-          </span>
-
-          <div class="ref-import-upload-copy">
-            <strong>Choose your list</strong>
-            <span>CSV or Excel (.xlsx) · up to 5 MB · you review everything before it is added.</span>
-          </div>
-
-          <div class="ref-import-upload-actions">
-            <button class="ref-button primary" type="button" :disabled="busy" @click="fileInput?.click()">
-              {{ busy ? 'Reading…' : 'Choose file' }}
-            </button>
-            <button class="ref-button" type="button" :disabled="busy" @click="openPaste">
-              Paste spreadsheet
-            </button>
-          </div>
-
-          <input
-            ref="fileInput"
-            type="file"
-            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            hidden
-            @change="chooseFile"
-          />
-        </section>
-      </div>
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+          @change="chooseFile"
+        />
+      </section>
     </section>
 
     <section v-else-if="stage === 'unrecognized'" class="ref-page-narrow">
-      <header class="ref-page-head">
+      <header class="ref-section-heading">
         <div class="ref-page-head-main">
-          <p class="ref-kicker">Check this file</p>
-          <h1>This does not look like a member list yet.</h1>
+          <h2>This does not look like a member list yet.</h2>
           <p>Gorra could not confidently find people in this file. Try a different sheet or paste the rows directly.</p>
         </div>
       </header>
@@ -632,16 +746,15 @@ onMounted(async () => {
     </section>
 
     <section v-else-if="stage === 'mismatch'" class="ref-page-narrow">
-      <header class="ref-page-head">
+      <header class="ref-section-heading">
         <div class="ref-page-head-main">
-          <p class="ref-kicker">There is more in this file</p>
-          <h1>
+          <h2>
             {{
               workspace.suggestedScenario === 'multiple-ladders'
                 ? 'Gorra found multiple ladders.'
                 : 'Gorra found ladder positions.'
             }}
-          </h1>
+          </h2>
           <p>You can use that information now or keep importing members only.</p>
         </div>
       </header>
@@ -674,18 +787,17 @@ onMounted(async () => {
     </section>
 
     <section v-else class="ref-import-review">
-      <header class="ref-page-head">
-        <div class="ref-page-head-main">
-          <p class="ref-kicker">Check the list</p>
-          <h1>{{ workspace.fileName }}</h1>
-          <p>Change a value or a column here. Nothing is added until you confirm.</p>
-          <p v-if="workspace.sheetName" class="ref-import-fixes">
-            Sheet: {{ workspace.sheetName }}
-          </p>
-        </div>
+      <div class="ref-import-file-meta">
+        <span>{{ workspace.fileName }}</span>
 
-        <button class="ref-button" type="button" @click="changeFile">Change file</button>
-      </header>
+        <button
+          class="ref-text-action"
+          type="button"
+          @click="changeFile"
+        >
+          Change file
+        </button>
+      </div>
 
       <label
         v-if="workspace.scenario === 'one-ladder'"
@@ -764,7 +876,6 @@ onMounted(async () => {
                           v-for="option in sourceOptions(column.field.key)"
                           :key="option.index"
                           :value="option.index"
-                          :disabled="option.disabled"
                         >
                           {{ option.label }}
                         </option>
@@ -788,7 +899,6 @@ onMounted(async () => {
                           v-for="[key, label] in MEMBER_IMPORT_FIELD_OPTIONS"
                           :key="key || 'none'"
                           :value="key"
-                          :disabled="extraTargetDisabled(key, column.extra.index)"
                         >
                           {{ label }}
                         </option>
@@ -867,6 +977,73 @@ onMounted(async () => {
         {{ workspace.fixes.join(' · ') }}
       </p>
     </section>
+
+    <dialog ref="templateDialog" class="ref-dialog">
+      <div class="ref-dialog-inner">
+        <header class="ref-dialog-head">
+          <div>
+            <h2>Download template</h2>
+            <p>Use whichever file your club already works with.</p>
+          </div>
+
+          <button
+            class="ref-dialog-close"
+            type="button"
+            aria-label="Close"
+            @click="templateDialog?.close()"
+          >
+            <FlowIcon name="close" />
+          </button>
+        </header>
+
+        <div class="ref-template-download-options">
+          <button
+            class="ref-template-download-option"
+            type="button"
+            @click="downloadTemplateXlsx"
+          >
+            <span class="ref-feature-icon">
+              <FlowIcon name="file-spreadsheet" />
+            </span>
+            <span>
+              <strong>Excel</strong>
+              <small>.xlsx · recommended</small>
+            </span>
+            <FlowIcon name="download" />
+          </button>
+
+          <button
+            class="ref-template-download-option"
+            type="button"
+            @click="downloadTemplateCsv"
+          >
+            <span class="ref-feature-icon">
+              <FlowIcon name="file-text" />
+            </span>
+            <span>
+              <strong>CSV</strong>
+              <small>.csv · works everywhere</small>
+            </span>
+            <FlowIcon name="download" />
+          </button>
+
+          <button
+            class="ref-template-download-option"
+            type="button"
+            @click="copyTemplateHeadings"
+          >
+            <span class="ref-feature-icon">
+              <FlowIcon name="copy" />
+            </span>
+            <span>
+              <strong>Copy headings</strong>
+              <small>Paste into an existing sheet</small>
+            </span>
+            <FlowIcon name="arrow-right" />
+          </button>
+        </div>
+      </div>
+    </dialog>
 
     <dialog ref="pasteDialog" class="ref-dialog">
       <div class="ref-dialog-inner">

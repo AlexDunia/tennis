@@ -40,45 +40,6 @@ const clubInitials = computed(() =>
     .toUpperCase(),
 )
 
-const clubState = computed(() => {
-  if (!members.value.length) {
-    return {
-      icon: 'users',
-      title: 'Bring your players in',
-      copy: 'Invite people, import your current list or add someone yourself.',
-      label: 'Add members',
-      to: { name: 'ClubMembers' },
-    }
-  }
-
-  if (!activeLadders.value.length) {
-    return {
-      icon: 'trophy',
-      title: 'Your players are in',
-      copy: `${members.value.length} ${members.value.length === 1 ? 'member is' : 'members are'} ready. Create a ladder when the club is ready for ranked play.`,
-      label: 'Create ladder',
-      to: { name: 'Rankings' },
-    }
-  }
-
-  const ladder = activeLadders.value[0]
-  const playerCount = members.value.filter((member) =>
-    (member.ladderMemberships || []).some(
-      (membership) =>
-        membership.ladderId === ladder.id ||
-        String(membership.ladderName || '').toLowerCase() ===
-          String(ladder.name || '').toLowerCase(),
-    ),
-  ).length
-
-  return {
-    icon: 'trophy',
-    title: `${ladder.name} is ready`,
-    copy: `${playerCount || members.value.length} players · current club data is in Gorra.`,
-    label: 'Open ladder',
-    to: { name: 'Rankings' },
-  }
-})
 
 const manageItems = computed(() => {
   const items = [
@@ -233,20 +194,6 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="ref-club-state">
-        <span class="ref-feature-icon" aria-hidden="true">
-          <FlowIcon :name="clubState.icon" />
-        </span>
-
-        <div class="ref-club-state-copy">
-          <strong>{{ clubState.title }}</strong>
-          <span>{{ clubState.copy }}</span>
-        </div>
-
-        <button class="ref-button primary small" type="button" @click="open(clubState.to)">
-          {{ clubState.label }}
-        </button>
-      </section>
 
       <section class="ref-club-manage">
         <header class="ref-section-heading">

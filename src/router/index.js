@@ -397,8 +397,8 @@ const routes = [
     name: 'ClubMemberImport',
     component: ClubMemberImportView,
     meta: {
-      title: 'Bring your data to Gorra',
-      subtitle: 'Import members and existing ladder information.',
+      title: 'Import members',
+      subtitle: '',
       permission: 'club.manage',
       activeClubPermission: true,
       primarySection: 'club',

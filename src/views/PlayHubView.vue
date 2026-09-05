@@ -213,7 +213,7 @@ onMounted(async () => {
 
 .section-heading h2 {
   color: var(--color-text);
-  font-size: 18px;
+  font-size: 19px;
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.015em;
   line-height: 1.35;
@@ -221,7 +221,7 @@ onMounted(async () => {
 
 .section-heading p {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -286,7 +286,7 @@ onMounted(async () => {
 .play-option__copy strong,
 .match-row__copy strong {
   color: var(--color-text);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: var(--font-weight-semibold);
   line-height: 1.35;
 }
@@ -294,7 +294,7 @@ onMounted(async () => {
 .play-option__copy small,
 .match-row__copy small {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: var(--font-weight-regular);
   line-height: 1.5;
 }
@@ -307,7 +307,7 @@ onMounted(async () => {
   border-radius: 9px;
   background: var(--color-surface-soft);
   color: var(--color-primary-strong);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: var(--font-weight-semibold);
 }
 
@@ -339,7 +339,7 @@ onMounted(async () => {
 
 .match-row__copy > span {
   color: var(--color-primary-strong);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.06em;
   line-height: 1.4;
@@ -353,7 +353,7 @@ onMounted(async () => {
   border-radius: 9px;
   background: var(--color-surface);
   color: var(--color-primary-strong);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: var(--font-weight-semibold);
 }
 

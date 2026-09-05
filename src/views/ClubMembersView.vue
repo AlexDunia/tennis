@@ -1,4 +1,6 @@
 <script setup>
+import MemberListArt from '../components/club/MemberListArt.vue'
+import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
@@ -213,14 +215,18 @@ onMounted(async () => {
     pageError.value = error?.message || 'We could not load the member directory.'
   }
 })
+useShellNestedHeader(() => ({
+  label: 'Back to club',
+  back: () => router.push({ name: 'Club' }),
+  crumbs: [
+    { label: 'Club', to: { name: 'Club' } },
+    { label: 'Members' },
+  ],
+}))
 </script>
 
 <template>
   <main class="gorra-club-ref ref-page ref-members-page">
-    <button class="ref-back" type="button" @click="router.push({ name: 'Club' })">
-      <FlowIcon name="arrow-right" />
-      Back to club
-    </button>
 
     <header class="ref-members-head">
       <div class="ref-members-head-copy">
@@ -240,7 +246,11 @@ onMounted(async () => {
 
     <p v-if="pageError" class="ref-inline-alert" role="alert">{{ pageError }}</p>
 
-    <section class="ref-member-list-shell" aria-label="Club member directory">
+    <section
+      v-if="members.length"
+      class="ref-member-list-shell"
+      aria-label="Club member directory"
+    >
       <div class="ref-member-toolbar">
         <label class="ref-search">
           <FlowIcon name="search" />
@@ -327,6 +337,19 @@ onMounted(async () => {
       <p v-else class="ref-member-empty">
         {{ members.length ? 'No members match this search.' : 'No members have been added yet.' }}
       </p>
+    </section>
+
+    <section
+      v-else
+      class="ref-members-empty-state"
+      aria-label="No active members"
+    >
+      <MemberListArt variant="members" />
+
+      <div class="ref-members-empty-copy">
+        <h2>You currently have no active members</h2>
+        <p>People added to this club will appear here.</p>
+      </div>
     </section>
 
     <section

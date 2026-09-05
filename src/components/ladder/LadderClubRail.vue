@@ -51,7 +51,7 @@ function selectLadder(ladderId) {
         <span v-else class="ladder-rail__initials" aria-hidden="true">{{ clubInitials }}</span>
         <span class="ladder-rail__club-copy">
           <strong>{{ clubName }}</strong>
-          <small>Club ladders</small>
+          <small>Ladders</small>
         </span>
       </div>
 

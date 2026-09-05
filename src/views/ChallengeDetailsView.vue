@@ -291,7 +291,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="challenge-details">
+  <main class="gorra-compete-ref compete-page challenge-details">
     <div v-if="!hasLoaded" class="details-loading" aria-label="Loading challenge">
       <span v-for="index in 4" :key="index" class="skeleton-line"></span>
     </div>
@@ -315,7 +315,9 @@ onUnmounted(() => {
     />
 
     <template v-else>
-      <RouterLink class="details-back" :to="backTarget"> ← {{ backLabel }} </RouterLink>
+      <RouterLink class="compete-back" :to="backTarget">
+        ← {{ backLabel }}
+      </RouterLink>
       <section class="challenge-hero">
         <div class="challenge-hero__identity">
           <PersonAvatar
@@ -326,23 +328,24 @@ onUnmounted(() => {
             "
             :size="58"
           />
+
           <div>
-            <p class="type-eyebrow">{{ stateCopy.label }}</p>
             <h1>{{ stateCopy.title }}</h1>
             <p>{{ stateCopy.description }}</p>
+            <span class="challenge-opponent-meta">
+              {{ opponentName }}
+              <template v-if="opponentCurrentRank">
+                · Rank #{{ opponentCurrentRank }}
+              </template>
+            </span>
           </div>
         </div>
-        <span class="status-pill" :data-state="state">{{ stateCopy.label }}</span>
       </section>
 
       <div class="details-grid">
         <section class="details-card opponent-card">
           <div class="card-heading">
-            <div>
-              <p class="type-eyebrow">Opponent</p>
-              <h2>{{ opponentName }}</h2>
-            </div>
-            <span>Rank #{{ opponentCurrentRank || '—' }}</span>
+            <h2>Positions</h2>
           </div>
           <dl class="rank-grid">
             <div>
@@ -366,10 +369,7 @@ onUnmounted(() => {
 
         <section class="details-card match-card">
           <div class="card-heading">
-            <div>
-              <p class="type-eyebrow">Match details</p>
-              <h2>Club Ladder match</h2>
-            </div>
+            <h2>Match</h2>
           </div>
           <dl class="detail-rows">
             <div v-for="row in rulesSummary.rows" :key="row.key">
@@ -556,7 +556,7 @@ onUnmounted(() => {
 
         <div v-else-if="state === 'pending_review'" class="result-review">
           <div>
-            <p class="type-eyebrow">Submitted result</p>
+
             <h2>{{ winnerName }} won</h2>
             <p class="final-score">
               {{ match?.score || 'Score awaiting review' }}
@@ -594,7 +594,7 @@ onUnmounted(() => {
 
         <div v-else-if="state === 'completed'" class="result-review">
           <div>
-            <p class="type-eyebrow">Final result</p>
+
             <h2>{{ winnerName }} won</h2>
             <p class="final-score">{{ match?.score || 'Result confirmed' }}</p>
           </div>
@@ -619,7 +619,7 @@ onUnmounted(() => {
         </div>
       </section>
     </template>
-  </section>
+  </main>
 </template>
 
 <style scoped>

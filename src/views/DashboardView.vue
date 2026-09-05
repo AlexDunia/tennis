@@ -304,7 +304,7 @@ onMounted(async () => {
 
 .section-heading h2 {
   color: var(--color-text);
-  font-size: 18px;
+  font-size: 19px;
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.015em;
   line-height: 1.35;
@@ -312,7 +312,7 @@ onMounted(async () => {
 
 .section-heading > p:first-child {
   color: var(--color-primary-strong);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: var(--font-weight-semibold);
 }
 
@@ -335,7 +335,7 @@ onMounted(async () => {
 
 .ladder-card__copy span {
   color: var(--color-primary-strong);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -348,18 +348,18 @@ onMounted(async () => {
 
 .ladder-card__copy h3 {
   color: var(--color-text);
-  font-size: 16px;
+  font-size: 17px;
   font-weight: var(--font-weight-semibold);
 }
 
 .ladder-card__copy p {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .ladder-card__copy p strong {
   color: var(--color-text);
-  font-size: 20px;
+  font-size: 21px;
 }
 
 .quick-grid,
@@ -399,7 +399,7 @@ onMounted(async () => {
 .action-row strong,
 .event-row h3 {
   color: var(--color-text);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: var(--font-weight-semibold);
   line-height: 1.35;
 }
@@ -409,7 +409,7 @@ onMounted(async () => {
 .event-row p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: var(--font-weight-regular);
   line-height: 1.5;
 }
@@ -469,7 +469,7 @@ onMounted(async () => {
   padding: 0;
   background: transparent;
   color: var(--color-primary-strong);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: var(--font-weight-semibold);
 }
 
@@ -500,11 +500,11 @@ onMounted(async () => {
 .event-row time span,
 .event-row time small {
   color: var(--color-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .event-row time strong {
-  font-size: 18px;
+  font-size: 19px;
   font-weight: var(--font-weight-semibold);
 }
 
@@ -525,19 +525,19 @@ onMounted(async () => {
 
 .summary-grid span {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .summary-grid strong {
   color: var(--color-text);
-  font-size: 20px;
+  font-size: 21px;
   font-weight: var(--font-weight-semibold);
   line-height: 1.2;
 }
 
 .summary-grid small {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .no-club {
@@ -559,13 +559,13 @@ onMounted(async () => {
 }
 
 .friendly-access h2 {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: var(--font-weight-semibold);
 }
 
 .friendly-access p {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .dashboard-status {
@@ -579,7 +579,7 @@ onMounted(async () => {
   border-radius: 9px;
   background: var(--color-surface);
   color: var(--color-text-soft);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .dashboard-status:empty {

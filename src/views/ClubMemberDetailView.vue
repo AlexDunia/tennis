@@ -1,4 +1,5 @@
 <script setup>
+import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
@@ -238,14 +239,19 @@ onMounted(async () => {
     pageError.value = error?.message || 'We could not open this member.'
   }
 })
+useShellNestedHeader(() => ({
+  label: 'Back to members',
+  back: () => router.push({ name: 'ClubMembers' }),
+  crumbs: [
+    { label: 'Club', to: { name: 'Club' } },
+    { label: 'Members', to: { name: 'ClubMembers' } },
+    { label: member.value?.name || 'Member' },
+  ],
+}))
 </script>
 
 <template>
   <main class="gorra-club-ref ref-page ref-page-narrow">
-    <button class="ref-back" type="button" @click="router.push({ name: 'ClubMembers' })">
-      <FlowIcon name="arrow-right" />
-      Back to members
-    </button>
 
     <template v-if="member">
       <section class="ref-member-detail-hero">

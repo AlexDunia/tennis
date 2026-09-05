@@ -686,41 +686,54 @@ export function importTargetSourceIndex(workspace, targetKey) {
   return mappedSourceIndex(workspace, targetKey)
 }
 
-function sourceUsedByOtherTarget(workspace, sourceIndex, targetKey) {
-  const mapped = workspace.mappings?.[sourceIndex]
-  return Boolean(mapped && mapped !== targetKey)
-}
-
 export function importSourceOptionsForTarget(workspace, targetKey) {
   const current = mappedSourceIndex(workspace, targetKey)
+
   return (workspace.headers || []).map((header, index) => ({
     index,
     label: header || `Column ${index + 1}`,
     selected: index === current,
-    disabled: sourceUsedByOtherTarget(workspace, index, targetKey) && index !== current,
+    disabled: false,
   }))
 }
 
 export function remapImportTarget(workspace, targetKey, newSourceIndex) {
-  Object.entries(workspace.mappings || {}).forEach(([index, target]) => {
+  const nextMappings = {
+    ...(workspace.mappings || {}),
+  }
+
+  const nextSources = {
+    ...(workspace.mappingSources || {}),
+  }
+
+  Object.entries(nextMappings).forEach(([index, target]) => {
     if (target === targetKey) {
-      workspace.mappings[index] = ''
-      workspace.mappingSources[index] = 'confirmed'
+      nextMappings[index] = ''
+      nextSources[index] = 'confirmed'
     }
   })
 
-  if (newSourceIndex === null || newSourceIndex === '') return
-
-  const index = Number(newSourceIndex)
-  if (!Number.isInteger(index) || index < 0 || index >= workspace.headers.length) return
-
-  const existing = workspace.mappings[index]
-  if (existing && existing !== targetKey) {
-    workspace.mappings[index] = ''
+  if (newSourceIndex === null || newSourceIndex === '') {
+    workspace.mappings = nextMappings
+    workspace.mappingSources = nextSources
+    return
   }
 
-  workspace.mappings[index] = targetKey
-  workspace.mappingSources[index] = 'confirmed'
+  const index = Number(newSourceIndex)
+
+  if (
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= workspace.headers.length
+  ) {
+    return
+  }
+
+  nextMappings[index] = targetKey
+  nextSources[index] = 'confirmed'
+
+  workspace.mappings = nextMappings
+  workspace.mappingSources = nextSources
 }
 
 export function importReviewFields(workspace) {

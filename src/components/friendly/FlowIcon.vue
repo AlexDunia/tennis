@@ -153,6 +153,34 @@ defineProps({
     <template v-else-if="name === 'club'">
       <path d="m4 11 8-7 8 7M6.5 9.5V20h11V9.5M10 20v-6h4v6" />
     </template>
+    <template v-else-if="name === 'ordered-list'">
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <path d="M4 5h1v3M3.5 8H6M4 11.5c.3-.5.8-.8 1.3-.8.8 0 1.4.5 1.4 1.2 0 .5-.3.9-.8 1.3L4 15h3M4 17h2l-2 3h2" />
+    </template>
+
+    <template v-else-if="name === 'layers'">
+      <path d="m12 3 8 4-8 4-8-4 8-4Z" />
+      <path d="m4 12 8 4 8-4M4 17l8 4 8-4" />
+    </template>
+
+    <template v-else-if="name === 'help'">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.8 9.3a2.4 2.4 0 0 1 4.7.7c0 1.8-2.5 2-2.5 3.7M12 17h.01" />
+    </template>
+
+    <template v-else-if="name === 'chevron-down'">
+      <path d="m7 9 5 5 5-5" />
+    </template>
+
+    <template v-else-if="name === 'file-spreadsheet'">
+      <path d="M6 3h8l4 4v14H6V3Z" />
+      <path d="M14 3v5h5M9 12h6M9 16h6M12 10v8" />
+    </template>
+
+    <template v-else-if="name === 'file-text'">
+      <path d="M6 3h8l4 4v14H6V3Z" />
+      <path d="M14 3v5h5M9 12h6M9 16h6" />
+    </template>
   </svg>
 </template>
 

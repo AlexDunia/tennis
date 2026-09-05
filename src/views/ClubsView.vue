@@ -122,8 +122,10 @@ const RECOMMENDED_RULES = Object.freeze([
 
 const routeView = computed(() => {
   if (route.name === 'Clubs') {
-    const view = String(route.query.view || '')
-    return ['add', 'create', 'join'].includes(view) ? `directory-${view}` : 'directory'
+    const view = String(route.query.view || '').toLowerCase()
+    if (view === 'create') return 'directory-create'
+    if (view === 'join') return 'directory-join'
+    return 'directory'
   }
   const value = String(route.query.view || '')
   if (FLOW_VIEWS.has(value)) return value
@@ -133,45 +135,45 @@ const isDirectoryExperience = computed(() => routeView.value.startsWith('directo
 const directoryHeading = computed(
   () =>
     ({
-      'directory-add': 'Add a club',
       'directory-create': 'Create a club',
       'directory-join': 'Join a club',
-    })[routeView.value] || 'Your clubs',
+    })[routeView.value] || 'Club',
 )
+
 const directoryDescription = computed(
   () =>
     ({
-      'directory-add': 'Join an existing club or create a new one.',
-      'directory-create': 'Start with the essentials. You can configure everything else later.',
+      'directory-create': 'Add the basics. You can set up everything else later.',
       'directory-join': 'Use the invitation sent by your club.',
-    })[routeView.value] || 'Clubs you belong to or help run.',
+    })[routeView.value] ||
+    'Join a club, create one, or open one you already belong to.',
 )
 const directoryClubs = computed(() => {
   const optionsById = new Map(
     adminStore.clubOptions.map((club) => [club.id, club]),
   )
 
-  return adminStore.clubs.map((club) => {
-    const relationship = optionsById.get(club.id)
-    const workspace = club.setup?.workspace || {}
+  return adminStore.clubs
+    .map((club) => {
+      const relationship = optionsById.get(club.id)
+      const workspace = club.setup?.workspace || {}
 
-    return {
-      id: club.id,
-      name: club.name,
-      role: relationship?.role || 'player',
-      location: workspace.location || '',
-      logoUrl: workspace.logoUrl || '',
-      isActive: club.id === adminStore.activeClubId,
-    }
-  })
+      return {
+        id: club.id,
+        name: club.name,
+        role: relationship?.role || 'player',
+        location: workspace.location || '',
+        logoUrl: workspace.logoUrl || '',
+        isActive: club.id === adminStore.activeClubId,
+      }
+    })
+    .sort((left, right) => {
+      if (left.isActive !== right.isActive) return left.isActive ? -1 : 1
+      return String(left.name || '').localeCompare(String(right.name || ''))
+    })
 })
 
 const clubCount = computed(() => directoryClubs.value.length)
-const clubDirectoryState = computed(() => {
-  if (clubCount.value === 0) return 'empty'
-  if (clubCount.value === 1) return 'single'
-  return 'multiple'
-})
 const stepIndex = computed(() => {
   const index = ONBOARDING_STEPS.findIndex((item) => item.key === route.query.step)
   return index >= 0 ? index : 0
@@ -354,9 +356,6 @@ function showClubDirectory() {
   router.push({ name: 'Clubs' })
 }
 
-function showAddClubDecision() {
-  router.push({ name: 'Clubs', query: { view: 'add' } })
-}
 
 function openCreateClubFlow() {
   router.push({ name: 'Clubs', query: { view: 'create' } })
@@ -445,11 +444,7 @@ async function submitDirectoryJoin() {
       type: 'success',
     })
 
-    await router.push(
-      memberRecordClaim
-        ? { name: 'Club' }
-        : { name: 'Clubs' },
-    )
+    await router.push({ name: 'Club' })
   } catch (error) {
     pageError.value =
       error?.message ||
@@ -476,16 +471,23 @@ function clubInitials(name) {
 }
 
 async function selectClub(clubId) {
-  if (!clubId || clubId === adminStore.activeClubId) return
+  if (!clubId || adminStore.isLoading) return
+
   pageError.value = ''
+
   try {
-    await adminStore.switchClub(clubId)
-    notificationStore.addToast({
-      message: `${adminStore.activeClub?.name || 'Your club'} is now active.`,
-      type: 'success',
-    })
+    if (clubId !== adminStore.activeClubId) {
+      await adminStore.switchClub(clubId)
+
+      notificationStore.addToast({
+        message: `${adminStore.activeClub?.name || 'Your club'} is now active.`,
+        type: 'success',
+      })
+    }
+
+    await router.push({ name: 'Club' })
   } catch (error) {
-    pageError.value = error?.message || 'We could not switch clubs.'
+    pageError.value = error?.message || 'We could not open this club.'
   }
 }
 
@@ -748,13 +750,14 @@ onMounted(async () => {
 <template>
   <main
     v-if="isDirectoryExperience"
-    class="clubs-directory"
+    class="gorra-club-ref ref-page ref-page-narrow ref-clubs-directory-page"
     :aria-busy="adminStore.isLoading || !directoryLoaded"
   >
-    <header class="clubs-directory__header">
-      <p class="eyebrow">Clubs</p>
-      <h1 ref="heading" tabindex="-1">{{ directoryHeading }}</h1>
-      <p>{{ directoryDescription }}</p>
+    <header class="ref-page-head">
+      <div class="ref-page-head-main">
+        <h1 ref="heading" tabindex="-1">{{ directoryHeading }}</h1>
+        <p>{{ directoryDescription }}</p>
+      </div>
     </header>
 
     <p v-if="pageError" class="flow-alert" role="alert">{{ pageError }}</p>
@@ -766,7 +769,7 @@ onMounted(async () => {
       class="relationship-form"
       @submit.prevent="createMinimalClub"
     >
-      <button class="directory-back" type="button" @click="showAddClubDecision">
+      <button class="directory-back" type="button" @click="showClubDirectory">
         <FlowIcon name="arrow-right" /> Back
       </button>
       <div class="relationship-fields">
@@ -816,7 +819,7 @@ onMounted(async () => {
       class="relationship-form"
       @submit.prevent="submitDirectoryJoin"
     >
-      <button class="directory-back" type="button" @click="showAddClubDecision">
+      <button class="directory-back" type="button" @click="showClubDirectory">
         <FlowIcon name="arrow-right" /> Back
       </button>
       <label class="answer-field">
@@ -888,188 +891,92 @@ onMounted(async () => {
         {{ directoryJoinSubmitLabel }}
       </button>
     </form>
-    <section
-      v-else-if="routeView === 'directory-add'"
-      class="add-club-decision"
-    >
-      <button
-        class="directory-back"
-        type="button"
-        @click="showClubDirectory"
-      >
-        <FlowIcon name="arrow-right" />
-        Back to your clubs
-      </button>
-
-      <div class="directory-entry">
-        <button
-          class="directory-choice-card"
-          type="button"
-          @click="openJoinClubFlow"
-        >
-          <span class="directory-choice-card__icon" aria-hidden="true">
-            <FlowIcon name="login" />
-          </span>
-
-          <span class="directory-choice-card__copy">
-            <strong>Join a club</strong>
-            <small>Use an invitation from an existing club.</small>
-          </span>
-
-          <FlowIcon
-            class="directory-choice-card__arrow"
-            name="arrow-right"
-            aria-hidden="true"
-          />
-        </button>
-
-        <button
-          class="directory-choice-card"
-          type="button"
-          @click="openCreateClubFlow"
-        >
-          <span class="directory-choice-card__icon" aria-hidden="true">
-            <FlowIcon name="plus" />
-          </span>
-
-          <span class="directory-choice-card__copy">
-            <strong>Create a club</strong>
-            <small>Start a new club that you will manage.</small>
-          </span>
-
-          <FlowIcon
-            class="directory-choice-card__arrow"
-            name="arrow-right"
-            aria-hidden="true"
-          />
-        </button>
-      </div>
-    </section>
-    <section
-      v-else-if="clubDirectoryState === 'empty'"
-      class="directory-entry"
-      aria-label="Get started with a club"
-    >
-      <button
-        class="directory-choice-card"
-        type="button"
-        @click="openJoinClubFlow"
-      >
-        <span class="directory-choice-card__icon" aria-hidden="true">
-          <FlowIcon name="login" />
-        </span>
-
-        <span class="directory-choice-card__copy">
-          <strong>Join a club</strong>
-          <small>Use an invitation from a club you belong to.</small>
-        </span>
-
-        <FlowIcon
-          class="directory-choice-card__arrow"
-          name="arrow-right"
-          aria-hidden="true"
-        />
-      </button>
-
-      <button
-        class="directory-choice-card"
-        type="button"
-        @click="openCreateClubFlow"
-      >
-        <span class="directory-choice-card__icon" aria-hidden="true">
-          <FlowIcon name="plus" />
-        </span>
-
-        <span class="directory-choice-card__copy">
-          <strong>Create a club</strong>
-          <small>Start a new club that you will manage.</small>
-        </span>
-
-        <FlowIcon
-          class="directory-choice-card__arrow"
-          name="arrow-right"
-          aria-hidden="true"
-        />
-      </button>
-    </section>
-    <section v-else class="club-relationships">
-      <div
-        class="club-directory-grid"
-        :class="'club-directory-grid--' + clubDirectoryState"
-      >
-        <button
-          v-for="club in directoryClubs"
-          :key="club.id"
-          class="club-directory-card"
-          :class="{
-            'club-directory-card--active': club.isActive,
-          }"
-          type="button"
-          :aria-current="club.isActive ? 'true' : undefined"
-          :disabled="adminStore.isLoading || club.isActive"
-          @click="selectClub(club.id)"
-        >
-          <span class="club-directory-card__mark" aria-hidden="true">
-            <img
-              v-if="club.logoUrl"
-              :src="club.logoUrl"
-              alt=""
-            />
-            <span v-else>
-              {{ clubInitials(club.name) }}
-            </span>
-          </span>
-
-          <span class="club-directory-card__copy">
-            <strong>{{ club.name }}</strong>
-
-            <small>
-              {{ relationshipLabel(club.role) }}
-              <template v-if="club.location">
-                · {{ club.location }}
-              </template>
-            </small>
-
-            <span
-              v-if="club.isActive"
-              class="club-directory-card__status"
-            >
-              Active club
+    <template v-else>
+      <section class="ref-club-entry-actions" aria-label="Club actions">
+        <div class="ref-choice-stack">
+          <button
+            class="ref-choice-row"
+            type="button"
+            @click="openJoinClubFlow"
+          >
+            <span class="ref-feature-icon" aria-hidden="true">
+              <FlowIcon name="login" />
             </span>
 
-            <span
-              v-else
-              class="club-directory-card__status club-directory-card__status--action"
-            >
-              Open club
+            <span class="ref-choice-row-copy">
+              <strong>Join a club</strong>
+              <span>Use an invitation from a club.</span>
             </span>
-          </span>
 
-          <FlowIcon
-            v-if="!club.isActive"
-            class="club-directory-card__arrow"
-            name="arrow-right"
-            aria-hidden="true"
-          />
+            <FlowIcon name="arrow-right" />
+          </button>
 
-          <FlowIcon
-            v-else
-            class="club-directory-card__check"
-            name="check"
-            aria-hidden="true"
-          />
-        </button>
-      </div>
+          <button
+            class="ref-choice-row"
+            type="button"
+            @click="openCreateClubFlow"
+          >
+            <span class="ref-feature-icon" aria-hidden="true">
+              <FlowIcon name="plus" />
+            </span>
 
-      <button
-        class="add-club-button"
-        type="button"
-        @click="showAddClubDecision"
+            <span class="ref-choice-row-copy">
+              <strong>Create a club</strong>
+              <span>Start a new club you manage.</span>
+            </span>
+
+            <FlowIcon name="arrow-right" />
+          </button>
+        </div>
+      </section>
+
+      <section
+        v-if="directoryClubs.length"
+        class="ref-owned-clubs"
+        aria-labelledby="your-clubs-heading"
       >
-        <FlowIcon name="plus" />
-        Add club
-      </button>
-    </section>
+        <header class="ref-section-heading">
+          <h2 id="your-clubs-heading">Your clubs</h2>
+        </header>
+
+        <div class="ref-club-directory">
+          <button
+            v-for="club in directoryClubs"
+            :key="club.id"
+            class="ref-club-directory-row"
+            :class="{ active: club.isActive }"
+            type="button"
+            :aria-current="club.isActive ? 'true' : undefined"
+            :disabled="adminStore.isLoading"
+            @click="selectClub(club.id)"
+          >
+            <span class="ref-club-directory-logo" aria-hidden="true">
+              <img
+                v-if="club.logoUrl"
+                :src="club.logoUrl"
+                alt=""
+              />
+              <span v-else>{{ clubInitials(club.name) }}</span>
+            </span>
+
+            <span class="ref-club-directory-copy">
+              <strong>{{ club.name }}</strong>
+
+              <span>
+                {{ relationshipLabel(club.role) }}
+                <template v-if="club.location">
+                  · {{ club.location }}
+                </template>
+              </span>
+
+              <small>{{ club.isActive ? 'Current club' : 'Open club' }}</small>
+            </span>
+
+            <FlowIcon name="arrow-right" aria-hidden="true" />
+          </button>
+        </div>
+      </section>
+    </template>
   </main>
   <main v-else class="clubs-flow">
     <div class="flow-atmosphere" aria-hidden="true">

@@ -81,27 +81,12 @@
             </button>
 
             <a
-              v-if="adminStore.hasActiveClubPermission('club.manage')"
-              :href="getNavigationHref({ name: 'Settings' })"
+              :href="getNavigationHref({ name: 'Clubs' })"
               class="club-menu__all"
               role="menuitem"
-              @click="handleNavigationClick({ name: 'Settings' }, $event)"
+              @click="handleNavigationClick({ name: 'Clubs' }, $event)"
             >
-              <span>Club settings</span>
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="m8 5 5 5-5 5" />
-              </svg>
-            </a>
-
-            <a
-              :href="getNavigationHref({ name: 'Club', query: { section: 'overview' } })"
-              class="club-menu__all"
-              role="menuitem"
-              @click="
-                handleNavigationClick({ name: 'Club', query: { section: 'overview' } }, $event)
-              "
-            >
-              <span>Open club</span>
+              <span>All clubs</span>
               <svg viewBox="0 0 20 20" aria-hidden="true">
                 <path d="m8 5 5 5-5 5" />
               </svg>
@@ -160,40 +145,83 @@
             <AppLogo class="global-identity__logo" :on-dark="false" />
           </a>
 
-          <div class="header-main">
-            <button
-              v-if="headerBackLabel"
-              class="header-back"
-              type="button"
-              :aria-label="headerBackLabel"
-              :title="headerBackLabel"
-              @click="handleHeaderBack"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
-            </button>
-
-            <ol
-              v-if="isTournamentCreate"
-              class="header-steps"
-              aria-label="Tournament creation progress"
-            >
-              <li
-                v-for="(step, index) in tournamentCreateSteps"
-                :key="step"
-                :class="{
-                  'header-step--done': index < tournamentCreateStepIndex,
-                  'header-step--active': index === tournamentCreateStepIndex,
-                }"
+          <div class="header-main" :class="{ 'header-main--nested': nestedHeader }">
+            <div v-if="nestedHeader" class="nested-header-context">
+              <button
+                class="nested-header-back"
+                type="button"
+                @click="handleHeaderBack"
               >
-                <span>{{ index < tournamentCreateStepIndex ? 'OK' : index + 1 }}</span>
-                <strong>{{ tournamentCreateTitles[step] }}</strong>
-              </li>
-            </ol>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+                <span>{{ nestedHeader.label }}</span>
+              </button>
 
-            <div v-else-if="!isLadderWorkspace" class="page-context">
-              <h1>{{ currentTitle }}</h1>
-              <p>{{ currentSubtitle }}</p>
+              <ol
+                v-if="nestedHeader.crumbs.length"
+                class="nested-header-crumbs"
+                aria-label="Breadcrumb"
+              >
+                <li
+                  v-for="(crumb, index) in nestedHeader.crumbs"
+                  :key="`${crumb.label}-${index}`"
+                >
+                  <a
+                    v-if="crumb.to"
+                    :href="getNavigationHref(crumb.to)"
+                    @click="handleNavigationClick(crumb.to, $event)"
+                  >
+                    {{ crumb.label }}
+                  </a>
+
+                  <span v-else>{{ crumb.label }}</span>
+
+                  <i
+                    v-if="index < nestedHeader.crumbs.length - 1"
+                    aria-hidden="true"
+                  >
+                    ›
+                  </i>
+                </li>
+              </ol>
             </div>
+
+            <template v-else>
+              <button
+                v-if="headerBackLabel"
+                class="header-back"
+                type="button"
+                :aria-label="headerBackLabel"
+                :title="headerBackLabel"
+                @click="handleHeaderBack"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+              </button>
+
+              <ol
+                v-if="isTournamentCreate"
+                class="header-steps"
+                aria-label="Tournament creation progress"
+              >
+                <li
+                  v-for="(step, index) in tournamentCreateSteps"
+                  :key="step"
+                  :class="{
+                    'header-step--done': index < tournamentCreateStepIndex,
+                    'header-step--active': index === tournamentCreateStepIndex,
+                  }"
+                >
+                  <span>{{ index < tournamentCreateStepIndex ? 'OK' : index + 1 }}</span>
+                  <strong>{{ tournamentCreateTitles[step] }}</strong>
+                </li>
+              </ol>
+
+              <div v-else-if="showRoutePageContext" class="page-context">
+                <h1>{{ currentTitle }}</h1>
+                <p>{{ currentSubtitle }}</p>
+              </div>
+            </template>
           </div>
 
           <div class="header-actions">
@@ -394,6 +422,7 @@ const adminStore = useAdminStore()
 
 const accountMenuRoot = ref(null)
 const clubMenuRoot = ref(null)
+const nestedHeader = ref(null)
 const accountMenuOpen = ref(false)
 const clubMenuOpen = ref(false)
 const switchingClubId = ref('')
@@ -449,7 +478,7 @@ const navigationItems = Object.freeze([
     label: 'Tournament',
     icon: tournamentIcon,
   },
-  { to: { name: 'Club' }, section: 'club', label: 'Club', icon: clubIcon },
+  { to: { name: 'Clubs' }, section: 'club', label: 'Club', icon: clubIcon },
 ])
 
 const accountItems = computed(() => {
@@ -514,6 +543,38 @@ const isMigratedSurface = computed(() => migratedRouteNames.has(String(route.nam
 const isWideWorkspace = computed(
   () => isTournamentCreate.value || isTournamentViewer.value || isLadderWorkspace.value,
 )
+const clubOwnsPageHeading = computed(() => {
+  const name = String(route.name || '')
+
+  return (
+    name === 'Clubs' ||
+    name === 'Club' ||
+    name === 'ClubMembers' ||
+    name === 'ClubMemberImport' ||
+    name === 'ClubMemberManual' ||
+    name === 'ClubMemberDetail' ||
+    name === 'ClubSettingsHub' ||
+    name === 'Settings'
+  )
+})
+
+const competeOwnsPageHeading = computed(() => {
+  const name = String(route.name || '')
+
+  return (
+    name === 'Challenges' ||
+    name === 'CreateChallenge' ||
+    name === 'ChallengeDetails'
+  )
+})
+
+const showRoutePageContext = computed(
+  () =>
+    !isLadderWorkspace.value &&
+    !clubOwnsPageHeading.value &&
+    !competeOwnsPageHeading.value,
+)
+
 const showAppChrome = computed(
   () => !isPublicRoute.value && !isFocusedFlow.value && !isImmersiveRoute.value,
 )
@@ -780,9 +841,26 @@ function endAdminMatchDrawer() {
   adminMatchDrawerOwnsSidebar.value = false
 }
 
+function setNestedHeader(owner, config = {}) {
+  nestedHeader.value = {
+    owner,
+    label: String(config.label || ''),
+    back: typeof config.back === 'function' ? config.back : null,
+    crumbs: Array.isArray(config.crumbs) ? config.crumbs : [],
+  }
+}
+
+function clearNestedHeader(owner) {
+  if (nestedHeader.value?.owner === owner) {
+    nestedHeader.value = null
+  }
+}
+
 provide('gorraShell', {
   beginAdminMatchDrawer,
   endAdminMatchDrawer,
+  setNestedHeader,
+  clearNestedHeader,
 })
 
 function formatClubRole(role) {
@@ -790,15 +868,26 @@ function formatClubRole(role) {
 }
 
 async function switchClub(clubId) {
-  if (!clubId || clubId === adminStore.activeClubId) return
+  if (!clubId) return
+
+  if (clubId === adminStore.activeClubId) {
+    clubMenuOpen.value = false
+    await router.push({ name: 'Club' }).catch(() => {})
+    return
+  }
+
   switchingClubId.value = clubId
+
   try {
     await adminStore.switchClub(clubId)
     clubMenuOpen.value = false
+
     notificationStore.addToast({
       message: `${currentClubName.value} is now active.`,
       type: 'success',
     })
+
+    await router.push({ name: 'Club' })
   } catch (error) {
     notificationStore.addToast({
       message: error?.message || 'Unable to switch clubs.',
@@ -810,6 +899,11 @@ async function switchClub(clubId) {
 }
 
 function handleHeaderBack() {
+  if (nestedHeader.value?.back) {
+    nestedHeader.value.back()
+    return
+  }
+
   if (isTournamentViewer.value) {
     if (window.history.length > 1) router.back()
     else {
@@ -886,6 +980,86 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.nested-header-context {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.nested-header-back {
+  width: fit-content;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+  text-align: left;
+}
+
+.nested-header-back:hover {
+  color: var(--color-text);
+}
+
+.nested-header-back svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nested-header-crumbs {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: color-mix(in srgb, var(--color-text) 43%, transparent);
+  font-size: 9.5px;
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.nested-header-crumbs li {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.nested-header-crumbs a,
+.nested-header-crumbs span {
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nested-header-crumbs a:hover {
+  color: var(--color-text-soft);
+}
+
+.nested-header-crumbs i {
+  color: color-mix(in srgb, var(--color-text) 28%, transparent);
+  font-style: normal;
+}
+
+.app-header .header-main--nested {
+  display: flex;
+}
+
 .layout {
   --app-header-height: 76px;
   --app-bottom-nav-height: 66px;

@@ -102,12 +102,10 @@ const guideTitle = computed(() => {
   return `${selectedPlayer.value.name} selected`
 })
 const guideText = computed(() => {
-  if (!selectedPlayer.value) return 'GORRA will highlight the opponents they can challenge.'
+  if (!selectedPlayer.value) return 'Then choose someone highlighted as eligible.'
   if (!eligiblePlayers.value.length) return 'No eligible opponents are available right now.'
-  if (!selectedOpponent.value) {
-    return `Choose one of the ${eligiblePlayers.value.length} highlighted players.`
-  }
-  return 'Set up the match in the panel.'
+  if (!selectedOpponent.value) return 'Choose one highlighted opponent.'
+  return 'Finish setting up the match in the panel.'
 })
 
 function pointsFor(player) {
@@ -261,7 +259,10 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
 </script>
 
 <template>
-  <section class="ladder-view" :class="{ 'ladder-view--drawer': drawerOpen }">
+  <section
+    class="gorra-compete-ref gorra-ladder-ref ladder-view"
+    :class="{ 'ladder-view--drawer': drawerOpen }"
+  >
     <LadderClubRail
       :club="activeClub"
       :ladders="ladders"
@@ -285,19 +286,34 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
       </section>
 
       <template v-else>
-        <nav class="ladder-breadcrumb" aria-label="Breadcrumb">
-          <span>Clubs</span><i aria-hidden="true">›</i>
-          <RouterLink :to="{ name: 'Club' }">{{ activeClub?.name || 'Your club' }}</RouterLink>
-          <i aria-hidden="true">›</i><span>Ladder</span><i aria-hidden="true">›</i>
-          <strong>{{ activeLadder?.name }}</strong>
-        </nav>
 
         <header class="ladder-heading">
           <div>
             <h1>{{ activeLadder?.name || 'Ladder' }}</h1>
-            <p>{{ players.length }} {{ players.length === 1 ? 'player' : 'players' }}</p>
+            <p>
+              {{ players.length }} {{ players.length === 1 ? 'player' : 'players' }}
+              <template v-if="activeClub?.name">
+                · {{ activeClub.name }}
+              </template>
+            </p>
           </div>
-          <p v-if="canAdminSetUpMatch">Select any player, then choose an eligible opponent.</p>
+
+          <div class="ladder-heading__actions">
+            <RouterLink
+              class="compete-secondary"
+              :to="{ name: 'Challenges' }"
+            >
+              Challenges
+            </RouterLink>
+
+            <RouterLink
+              v-if="!canAdminSetUpMatch"
+              class="compete-primary"
+              :to="{ name: 'CreateChallenge' }"
+            >
+              New challenge
+            </RouterLink>
+          </div>
         </header>
 
         <section v-if="canAdminSetUpMatch && players.length" class="selection-guide">
