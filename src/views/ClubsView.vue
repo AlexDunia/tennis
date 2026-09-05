@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ADMIN_SETUP_STEPS,
+  CLUB_INVITE_KINDS,
   LADDER_TEMPLATES,
   PLACEMENT_METHODS,
   TIMEZONE_OPTIONS,
@@ -193,6 +194,23 @@ const canSkipStep = computed(
   () => routeView.value === 'wizard' && activeStep.value?.key !== 'workspace',
 )
 const showActionFooter = computed(() => routeView.value !== 'start' && canContinue.value)
+
+const isMemberRecordInvite = computed(
+  () => pendingInvite.value?.inviteKind === CLUB_INVITE_KINDS.MEMBER_RECORD,
+)
+
+const directoryJoinSubmitLabel = computed(() => {
+  if (adminStore.isSaving) {
+    return isMemberRecordInvite.value ? 'Connecting account…' : 'Joining club…'
+  }
+
+  if (!pendingInvite.value) return 'Check invitation'
+
+  return isMemberRecordInvite.value
+    ? 'Join and connect account'
+    : 'Join this club'
+})
+
 const primaryLabel = computed(() => {
   if (adminStore.isSaving) return 'Saving…'
   if (routeView.value === 'join') return 'Check invite code'
@@ -341,22 +359,64 @@ function resetDirectoryInvite() {
   pageError.value = ''
 }
 
+async function previewDirectoryInvite() {
+  pageError.value = ''
+  pendingInvite.value = null
+
+  const invite = inviteCode.value.trim()
+
+  if (invite.length < 6) {
+    pageError.value = 'Enter the invitation sent by your club.'
+    return null
+  }
+
+  try {
+    const preview = await adminStore.previewInvite(invite)
+    pendingInvite.value = preview
+    return preview
+  } catch (error) {
+    pageError.value = error?.message || 'We could not verify this invitation.'
+    return null
+  }
+}
+
 async function submitDirectoryJoin() {
   pageError.value = ''
-  try {
-    if (!pendingInvite.value) {
-      pendingInvite.value = await adminStore.previewInvite(inviteCode.value)
-      return
-    }
 
+  if (!pendingInvite.value) {
+    await previewDirectoryInvite()
+    return
+  }
+
+  try {
     const joined = await adminStore.joinClub(inviteCode.value)
+
+    const memberRecordClaim =
+      joined.inviteKind === CLUB_INVITE_KINDS.MEMBER_RECORD
+
+    const clubName =
+      joined.club?.name ||
+      pendingInvite.value?.clubName ||
+      'your club'
+
     notificationStore.addToast({
-      message: `You joined ${joined.club?.name || pendingInvite.value.clubName}.`,
+      message: memberRecordClaim
+        ? `Your account is connected to ${clubName}.`
+        : `You joined ${clubName}.`,
       type: 'success',
     })
-    await router.push({ name: 'Clubs' })
+
+    await router.push(
+      memberRecordClaim
+        ? { name: 'Club' }
+        : { name: 'Clubs' },
+    )
   } catch (error) {
-    pageError.value = error?.message || 'We could not join this club.'
+    pageError.value =
+      error?.message ||
+      (isMemberRecordInvite.value
+        ? 'We could not connect this club record.'
+        : 'We could not join this club.')
   }
 }
 
@@ -620,7 +680,9 @@ onMounted(async () => {
     if (isDirectoryExperience.value) {
       if (routeView.value === 'directory-join' && route.query.invite) {
         inviteCode.value = String(route.query.invite).slice(0, 2048)
+        await previewDirectoryInvite()
       }
+
       await focusHeading()
       return
     }
@@ -729,7 +791,11 @@ onMounted(async () => {
           @input="resetDirectoryInvite"
         />
       </label>
-      <section v-if="pendingInvite" class="join-preview" aria-live="polite">
+      <section
+        v-if="pendingInvite && !isMemberRecordInvite"
+        class="join-preview"
+        aria-live="polite"
+      >
         <span class="choice-icon"><FlowIcon name="home" /></span>
         <span>
           <strong>{{ pendingInvite.clubName }}</strong>
@@ -737,21 +803,50 @@ onMounted(async () => {
         </span>
         <FlowIcon name="check" />
       </section>
+
+      <section
+        v-else-if="pendingInvite"
+        class="member-claim-preview"
+        aria-live="polite"
+      >
+        <div class="member-claim-preview__person">
+          <span class="member-claim-preview__label">Club record</span>
+          <strong>{{ pendingInvite.member?.name || 'Club member' }}</strong>
+          <small>
+            {{ pendingInvite.member?.email || 'No email on this club record' }}
+          </small>
+        </div>
+
+        <dl class="member-claim-preview__facts">
+          <div>
+            <dt>Club</dt>
+            <dd>{{ pendingInvite.clubName }}</dd>
+          </div>
+
+          <div>
+            <dt>Role</dt>
+            <dd>{{ pendingInvite.roleLabel }}</dd>
+          </div>
+        </dl>
+
+        <p>
+          <strong>{{ pendingInvite.clubName }}</strong>
+          already has this member record. Joining will connect it to your Gorra account.
+        </p>
+      </section>
       <p class="relationship-form__note">
-        Invitations are verified before a relationship is connected to your account.
+        {{
+          isMemberRecordInvite
+            ? 'This invitation connects only this exact club record to your account.'
+            : 'Invitations are verified before a relationship is connected to your account.'
+        }}
       </p>
       <button
         class="directory-primary relationship-submit"
         type="submit"
         :disabled="adminStore.isSaving || inviteCode.trim().length < 6"
       >
-        {{
-          adminStore.isSaving
-            ? 'Joining club…'
-            : pendingInvite
-              ? 'Join this club'
-              : 'Check invitation'
-        }}
+        {{ directoryJoinSubmitLabel }}
       </button>
     </form>
     <section v-else-if="routeView === 'directory-add'" class="add-club-decision">
@@ -1408,6 +1503,90 @@ onMounted(async () => {
 .join-preview > .flow-icon {
   width: 19px;
   color: var(--color-primary-strong);
+}
+
+.member-claim-preview {
+  display: grid;
+  gap: 18px;
+  padding: 4px 0 0;
+}
+
+.member-claim-preview__person {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.member-claim-preview__label {
+  width: fit-content;
+  color: var(--color-primary-strong);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.member-claim-preview__person strong {
+  color: var(--color-text);
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.member-claim-preview__person small {
+  color: #687269;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.member-claim-preview__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border-top: var(--app-hairline);
+  border-bottom: var(--app-hairline);
+}
+
+.member-claim-preview__facts > div {
+  display: grid;
+  gap: 4px;
+  padding: 13px 0;
+}
+
+.member-claim-preview__facts > div + div {
+  padding-left: 18px;
+  border-left: var(--app-hairline);
+}
+
+.member-claim-preview__facts dt {
+  color: #7b867e;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.member-claim-preview__facts dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.member-claim-preview > p {
+  max-width: 58ch;
+  margin: 0;
+  color: #687269;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.member-claim-preview > p strong {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
 }
 .club-relationships {
   display: grid;
@@ -2245,6 +2424,16 @@ button:disabled {
 @media (max-width: 760px) {
   .relationship-fields {
     grid-template-columns: 1fr;
+  }
+
+  .member-claim-preview__facts {
+    grid-template-columns: 1fr;
+  }
+
+  .member-claim-preview__facts > div + div {
+    padding-left: 0;
+    border-top: var(--app-hairline);
+    border-left: 0;
   }
   .directory-actions {
     grid-template-columns: 1fr;
