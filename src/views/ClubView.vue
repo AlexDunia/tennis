@@ -182,6 +182,7 @@ useShellNestedHeader(() => ({
             :key="item.title"
             class="ref-choice-row"
             type="button"
+            :aria-label="`${item.action} for ${club.name}`"
             @click="open(item.to)"
           >
             <span class="ref-feature-icon" aria-hidden="true">
@@ -191,10 +192,12 @@ useShellNestedHeader(() => ({
             <span class="ref-choice-row-copy">
               <strong>{{ item.title }}</strong>
               <span>{{ item.copy }}</span>
-              <small>{{ item.action }}</small>
             </span>
 
-            <FlowIcon name="arrow-right" />
+            <span class="ref-button primary club-manage-action">
+              {{ item.action }}
+              <FlowIcon name="arrow-right" aria-hidden="true" />
+            </span>
           </button>
         </div>
       </section>
@@ -286,6 +289,25 @@ useShellNestedHeader(() => ({
 
   .club-appearance-actions .ref-button {
     width: 100%;
+  }
+}
+
+.ref-club-manage .ref-choice-row {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+}
+
+.club-manage-action {
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .ref-club-manage .ref-choice-row {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .club-manage-action {
+    grid-column: 2;
+    justify-self: start;
   }
 }
 </style>

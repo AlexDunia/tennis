@@ -458,18 +458,10 @@ async function selectClub(clubId) {
   if (!clubId || adminStore.isLoading) return
 
   pageError.value = ''
-
   try {
-    if (clubId !== adminStore.activeClubId) {
-      await adminStore.switchClub(clubId)
-
-      notificationStore.addToast({
-        message: `${adminStore.activeClub?.name || 'Your club'} is now active.`,
-        type: 'success',
-      })
-    }
-
-    await router.push({ name: 'Club' })
+    await router.push(clubId === adminStore.activeClubId
+      ? { name: 'Club' }
+      : { name: 'ClubVisit', params: { clubId } })
   } catch (error) {
     pageError.value = error?.message || 'We could not open this club.'
   }
@@ -874,6 +866,7 @@ onMounted(async () => {
             :class="{ active: club.isActive }"
             type="button"
             :aria-current="club.isActive ? 'true' : undefined"
+            :aria-label="`Open club: ${club.name}${club.isActive ? ' (current club)' : ''}`"
             :disabled="adminStore.isLoading"
             @click="selectClub(club.id)"
           >
@@ -896,10 +889,18 @@ onMounted(async () => {
                 </template>
               </span>
 
-              <small>{{ club.isActive ? 'Current club' : 'Open club' }}</small>
+              <small v-if="club.isActive" class="club-current-badge">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="m5 10 3 3 7-7" />
+                </svg>
+                Current club
+              </small>
             </span>
 
-            <FlowIcon name="arrow-right" aria-hidden="true" />
+            <span class="ref-button primary club-open-action">
+              Open club
+              <FlowIcon name="arrow-right" aria-hidden="true" />
+            </span>
           </button>
         </div>
         <EmptyState
@@ -2701,5 +2702,56 @@ button:disabled {
 
 .club-directory-section .ref-club-directory-row:not(:last-child) {
   margin-bottom: 16px;
+}
+
+.ref-club-directory .ref-club-directory-row {
+  grid-template-columns: 66px minmax(0, 1fr) auto;
+}
+
+.layout.layout--club-theme .content .club-directory-section .ref-club-directory-row.active {
+  border-color: rgba(0, 181, 26, .22);
+  background: color-mix(in srgb, var(--tournament-green) 9%, white);
+  box-shadow: var(--club-card-hover-shadow);
+  transform: none;
+}
+
+.ref-club-directory-copy .club-current-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  color: var(--color-primary-strong);
+  font-weight: 600;
+}
+
+.club-current-badge svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.club-open-action {
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .ref-club-directory .ref-club-directory-row {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .ref-club-directory .ref-club-directory-logo {
+    width: 48px;
+    height: 48px;
+  }
+
+  .club-open-action {
+    grid-column: 2;
+    justify-self: start;
+  }
 }
 </style>

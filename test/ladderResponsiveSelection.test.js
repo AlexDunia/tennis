@@ -118,3 +118,103 @@ test(
     )
   },
 )
+
+test(
+  'challenge focus scrolls inside the Ladder instead of freezing the page',
+  () => {
+    assert.match(
+      ladder,
+      /ref="ladderListRef"/,
+    )
+
+    assert.match(
+      ladder,
+      /focusChallengeViewport/,
+    )
+
+    assert.match(
+      ladder,
+      /--challenge-window-max-height/,
+    )
+
+    assert.match(
+      ladder,
+      /overscroll-behavior:\s*contain/,
+    )
+
+    assert.match(
+      ladder,
+      /overflow-y:\s*auto/,
+    )
+
+    assert.match(
+      ladder,
+      /window\.scrollBy/,
+    )
+
+    assert.doesNotMatch(
+      ladder,
+      /document\.addEventListener\('wheel'/,
+    )
+
+    assert.doesNotMatch(
+      ladder,
+      /document\.addEventListener\('touchmove'/,
+    )
+
+    assert.doesNotMatch(
+      ladder,
+      /document\.documentElement[\s\S]*overflow[\s\S]*hidden/,
+    )
+  },
+)
+
+test(
+  'large challenge ranges keep the selected player visible inside the internal viewport',
+  () => {
+    assert.match(
+      ladder,
+      /groupHeight > availableHeight/,
+    )
+
+    assert.match(
+      ladder,
+      /challengerBottom[\s\S]*availableHeight/,
+    )
+
+    assert.match(
+      ladder,
+      /hasRelevantAbove/,
+    )
+
+    assert.match(
+      ladder,
+      /hasRelevantBelow/,
+    )
+  },
+)
+
+test(
+  'cancelling challenge focus restores the player management context and original page position',
+  () => {
+    assert.match(
+      ladder,
+      /challengeOriginScrollY/,
+    )
+
+    assert.match(
+      ladder,
+      /challengeOriginListScrollTop/,
+    )
+
+    assert.match(
+      ladder,
+      /managedPlayerId\.value = playerId/,
+    )
+
+    assert.match(
+      ladder,
+      /window\.scrollTo/,
+    )
+  },
+)

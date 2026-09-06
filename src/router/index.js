@@ -20,6 +20,7 @@ import PlayHubView from '../views/PlayHubView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import HistoryView from '../views/HistoryView.vue'
 import ClubView from '../views/ClubView.vue'
+import ClubVisitView from '../views/ClubVisitView.vue'
 import ClubMembersView from '../views/ClubMembersView.vue'
 import ClubMemberImportView from '../views/ClubMemberImportView.vue'
 import ClubMemberManualView from '../views/ClubMemberManualView.vue'
@@ -399,6 +400,16 @@ const routes = [
     },
   },
   {
+    path: '/clubs/:clubId/:section(members|ladders|tournaments|settings)?',
+    name: 'ClubVisit',
+    component: ClubVisitView,
+    meta: {
+      title: 'Visiting club',
+      subtitle: 'Explore this club without changing your active club.',
+      primarySection: 'club',
+    },
+  },
+  {
     path: '/club',
     name: 'Club',
     component: ClubView,
@@ -737,6 +748,23 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   if (!to.meta.public && !authStore.isAuthenticated) {
     return { name: 'SignIn', query: { redirect: to.fullPath } }
+  }
+
+  if (to.name === 'ClubVisit') {
+    const adminStore = useAdminStore()
+    try {
+      await adminStore.loadClubs()
+    } catch {
+      return { name: 'Clubs', query: { access: 'unavailable' } }
+    }
+    const clubId = String(to.params.clubId || '')
+    const membership = adminStore.membershipForClub(clubId)
+    if (!adminStore.clubs.some((club) => club.id === clubId) || membership?.status !== 'active') {
+      return { name: 'Clubs', query: { access: 'club' } }
+    }
+    if (to.params.section === 'settings' && !adminStore.hasClubPermission(clubId, 'club.manage')) {
+      return { name: 'ClubVisit', params: { clubId } }
+    }
   }
 
   if (to.name === 'PlayMatch') {

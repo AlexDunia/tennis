@@ -2,6 +2,7 @@
 import {
   computed,
   inject,
+  nextTick,
   onMounted,
   onUnmounted,
   ref,
@@ -55,6 +56,14 @@ const missingMatchDialogOpen = ref(false)
 const removeDialogOpen = ref(false)
 const ladderActionBusy = ref(false)
 const ladderRevision = ref(0)
+
+const ladderListRef = ref(null)
+
+const playerRowRefs = new Map()
+
+const challengeOriginScrollY = ref(0)
+
+const challengeOriginListScrollTop = ref(0)
 
 const currentPlayer = computed(() => playerStore.currentPlayer)
 const basePlayers = computed(() => playerStore.sortedLadder)
@@ -280,44 +289,17 @@ const challengeSelectionActive = computed(
     ),
 )
 
-watch(challengeSelectionActive, (active, _previous, onCleanup) => {
-  if (!active || typeof document === 'undefined') return
+const challengeFocusPlayers = computed(() => {
+  if (!selectedPlayer.value) return []
 
-  const elements = [document.documentElement, document.body]
-  const previousStyles = elements.map((element) => ({
-    overflow: element.style.getPropertyValue('overflow'),
-    priority: element.style.getPropertyPriority('overflow'),
-  }))
+  return players.value.filter(
+    (player) =>
+      player.id === selectedPlayer.value.id ||
+      eligiblePlayerIds.value.has(player.id),
+  )
+})
 
-  const preventScroll = (event) => event.preventDefault()
-  const preventScrollKey = (event) => {
-    const scrollKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ']
-    const isControl = event.target instanceof Element &&
-      event.target.closest('button, [role="button"], input, textarea, select, [contenteditable="true"]')
-    if (scrollKeys.includes(event.key) && !(event.key === ' ' && isControl)) {
-      event.preventDefault()
-    }
-  }
 
-  elements.forEach((element) => element.style.setProperty('overflow', 'hidden'))
-  document.addEventListener('wheel', preventScroll, { passive: false, capture: true })
-  document.addEventListener('touchmove', preventScroll, { passive: false, capture: true })
-  document.addEventListener('keydown', preventScrollKey, true)
-
-  onCleanup(() => {
-    elements.forEach((element, index) => {
-      const previous = previousStyles[index]
-      if (previous.overflow) {
-        element.style.setProperty('overflow', previous.overflow, previous.priority)
-      } else {
-        element.style.removeProperty('overflow')
-      }
-    })
-    document.removeEventListener('wheel', preventScroll, true)
-    document.removeEventListener('touchmove', preventScroll, true)
-    document.removeEventListener('keydown', preventScrollKey, true)
-  })
-}, { flush: 'post' })
 
 const usesPoints = computed(
   () =>
@@ -417,6 +399,287 @@ function playerRowState(player) {
   }
 }
 
+function setPlayerRowRef(playerId, element) {
+  if (!playerId) return
+
+  if (element) {
+    playerRowRefs.set(playerId, element)
+    return
+  }
+
+  playerRowRefs.delete(playerId)
+}
+
+function challengeScrollBehavior() {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.matchMedia !== 'function'
+  ) {
+    return 'auto'
+  }
+
+  return window.matchMedia(
+    '(prefers-reduced-motion: reduce)',
+  ).matches
+    ? 'auto'
+    : 'smooth'
+}
+
+function challengeViewportInsets() {
+  if (typeof document === 'undefined') {
+    return {
+      top: 88,
+      bottom: 16,
+    }
+  }
+
+  const header =
+    document.querySelector('.app-header')
+
+  const bottomNav =
+    document.querySelector('.bottom-nav')
+
+  return {
+    top:
+      Math.ceil(
+        header?.getBoundingClientRect()
+          ?.height || 76,
+      ) + 12,
+    bottom:
+      Math.ceil(
+        bottomNav?.getBoundingClientRect()
+          ?.height || 0,
+      ) + 12,
+  }
+}
+
+function clampScrollTop(
+  value,
+  list,
+  viewportHeight,
+) {
+  return Math.min(
+    Math.max(0, value),
+    Math.max(
+      0,
+      list.scrollHeight - viewportHeight,
+    ),
+  )
+}
+
+async function focusChallengeViewport() {
+  if (
+    !challengeSelectionActive.value ||
+    typeof window === 'undefined'
+  ) {
+    return
+  }
+
+  await nextTick()
+
+  const list = ladderListRef.value
+  const challenger = selectedPlayer.value
+
+  if (!list || !challenger) return
+
+  const relevantElements =
+    challengeFocusPlayers.value
+      .map((player) =>
+        playerRowRefs.get(player.id),
+      )
+      .filter(Boolean)
+
+  const challengerElement =
+    playerRowRefs.get(challenger.id)
+
+  if (
+    !relevantElements.length ||
+    !challengerElement
+  ) {
+    return
+  }
+
+  const insets = challengeViewportInsets()
+
+  const availableHeight = Math.max(
+    220,
+    window.innerHeight -
+      insets.top -
+      insets.bottom,
+  )
+
+  list.style.setProperty(
+    '--challenge-window-max-height',
+    `${availableHeight}px`,
+  )
+
+  /*
+   * Move the Ladder window itself below the fixed app header.
+   * We do not scroll a player underneath the header.
+   */
+  const listRect =
+    list.getBoundingClientRect()
+
+  const pageDelta =
+    listRect.top - insets.top
+
+  if (Math.abs(pageDelta) > 3) {
+    window.scrollBy({
+      top: pageDelta,
+      behavior: challengeScrollBehavior(),
+    })
+  }
+
+  /*
+   * Then position the INTERNAL Ladder viewport.
+   *
+   * If all relevant people fit:
+   * → start at the first eligible person.
+   *
+   * If they do not fit:
+   * → keep the selected challenger visible;
+   * → show the nearest eligible people around them;
+   * → the user can scroll this Ladder window for the rest.
+   */
+  const firstElement =
+    relevantElements[0]
+
+  const lastElement =
+    relevantElements[
+      relevantElements.length - 1
+    ]
+
+  const firstTop =
+    firstElement.offsetTop
+
+  const lastBottom =
+    lastElement.offsetTop +
+    lastElement.offsetHeight
+
+  const groupHeight =
+    lastBottom - firstTop
+
+  const challengerTop =
+    challengerElement.offsetTop
+
+  const challengerBottom =
+    challengerTop +
+    challengerElement.offsetHeight
+
+  const challengerIndex =
+    challengeFocusPlayers.value.findIndex(
+      (player) =>
+        player.id === challenger.id,
+    )
+
+  const hasRelevantAbove =
+    challengerIndex > 0
+
+  const hasRelevantBelow =
+    challengerIndex >= 0 &&
+    challengerIndex <
+      challengeFocusPlayers.value.length -
+        1
+
+  let targetScrollTop = firstTop - 6
+
+  if (groupHeight > availableHeight - 12) {
+    if (
+      hasRelevantAbove &&
+      !hasRelevantBelow
+    ) {
+      /*
+       * Traditional upward challenge:
+       * challenger sits near the bottom so the nearest
+       * eligible opponents are visible immediately.
+       */
+      targetScrollTop =
+        challengerBottom -
+        availableHeight +
+        8
+    } else if (
+      hasRelevantBelow &&
+      !hasRelevantAbove
+    ) {
+      /*
+       * Downward-only range:
+       * challenger begins near the top.
+       */
+      targetScrollTop =
+        challengerTop - 8
+    } else {
+      /*
+       * Mixed up/down range:
+       * keep challenger around the middle.
+       */
+      targetScrollTop =
+        challengerTop -
+        Math.round(
+          availableHeight * 0.45,
+        )
+    }
+  }
+
+  list.scrollTo({
+    top: clampScrollTop(
+      targetScrollTop,
+      list,
+      availableHeight,
+    ),
+    behavior: challengeScrollBehavior(),
+  })
+
+  /*
+   * This makes keyboard/PageUp/PageDown scrolling target
+   * the Ladder window instead of the page.
+   */
+  list.focus({
+    preventScroll: true,
+  })
+}
+
+watch(
+  challengeSelectionActive,
+  (active) => {
+    if (!active) return
+
+    void focusChallengeViewport()
+  },
+  {
+    flush: 'post',
+  },
+)
+
+function handleChallengeListClick(event) {
+  if (
+    !challengeSelectionActive.value ||
+    typeof Element === 'undefined'
+  ) {
+    return
+  }
+
+  const target = event.target
+
+  if (!(target instanceof Element)) {
+    return
+  }
+
+  /*
+   * Selected and eligible rows own their normal click behavior.
+   * Anything else inside the focused Ladder area acts as
+   * click-away and restores the player's options.
+   */
+  if (
+    target.closest(
+      '.ladder-row--selected, .ladder-row--eligible',
+    )
+  ) {
+    return
+  }
+
+  void cancelChallengeSelection()
+}
+
 function handlePlayerRow(player) {
   if (!canManageLadder.value) return
 
@@ -498,7 +761,7 @@ function resetChallengeSelection() {
   drawerResult.value = null
 }
 
-function cancelChallengeSelection() {
+async function cancelChallengeSelection() {
   const playerId =
     selectedPlayerId.value
 
@@ -506,15 +769,32 @@ function cancelChallengeSelection() {
   selectedOpponentId.value = ''
   drawerResult.value = null
 
-  /*
-   * Set up challenge was launched from this member's
-   * already-open management card.
-   *
-   * Cancelling returns to exactly that state instead
-   * of collapsing the member completely.
-   */
   if (playerId) {
     managedPlayerId.value = playerId
+  }
+
+  await nextTick()
+
+  const list = ladderListRef.value
+
+  if (list) {
+    list.style.removeProperty(
+      '--challenge-window-max-height',
+    )
+
+    list.scrollTop =
+      challengeOriginListScrollTop.value
+  }
+
+  if (
+    typeof window !== 'undefined'
+  ) {
+    window.scrollTo({
+      top:
+        challengeOriginScrollY.value,
+      behavior:
+        challengeScrollBehavior(),
+    })
   }
 }
 
@@ -558,6 +838,14 @@ function startAdminChallenge(player) {
     })
     return
   }
+
+  if (typeof window !== 'undefined') {
+    challengeOriginScrollY.value =
+      window.scrollY
+  }
+
+  challengeOriginListScrollTop.value =
+    ladderListRef.value?.scrollTop || 0
 
   managedPlayerId.value = ''
   selectedPlayerId.value = player.id
@@ -999,6 +1287,8 @@ onUnmounted(() =>
       tabindex="-1"
       aria-label="Cancel challenge selection"
       @click="cancelChallengeSelection"
+      @wheel.prevent
+      @touchmove.prevent
     ></button>
     <LadderClubRail
       :club="activeClub"
@@ -1093,12 +1383,34 @@ onUnmounted(() =>
 
         <section
           v-if="players.length"
+          ref="ladderListRef"
           class="ladder-list"
-          aria-label="Club Ladder ranking"
+          :aria-label="
+            challengeSelectionActive
+              ? 'Choose an eligible Ladder opponent'
+              : 'Club Ladder ranking'
+          "
+          :tabindex="
+            challengeSelectionActive
+              ? 0
+              : undefined
+          "
+          @click="handleChallengeListClick"
+          @keydown.esc.prevent="
+            challengeSelectionActive &&
+            cancelChallengeSelection()
+          "
         >
           <article
             v-for="player in players"
             :key="player.id"
+            :ref="
+              (element) =>
+                setPlayerRowRef(
+                  player.id,
+                  element,
+                )
+            "
             class="ladder-player-item"
           >
             <div
@@ -1470,8 +1782,78 @@ onUnmounted(() =>
 }
 
 .ladder-list {
+  position: relative;
   display: grid;
   gap: 9px;
+  min-width: 0;
+}
+
+.ladder-view--selection
+  .ladder-list {
+  position: sticky;
+  z-index: 72;
+  top:
+    calc(
+      var(--app-header-height) +
+      12px
+    );
+  max-height:
+    var(
+      --challenge-window-max-height,
+      calc(
+        100dvh -
+        var(--app-header-height) -
+        24px
+      )
+    );
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 4px 5px;
+  border-radius:
+    calc(
+      var(--app-card-radius) +
+      2px
+    );
+  overscroll-behavior:
+    contain;
+  scroll-padding-block:
+    6px 10px;
+  scrollbar-width: thin;
+  scrollbar-color:
+    rgba(22, 61, 43, 0.2)
+    transparent;
+  -webkit-overflow-scrolling:
+    touch;
+}
+
+.ladder-view--selection
+  .ladder-list:focus {
+  outline: none;
+}
+
+.ladder-view--selection
+  .ladder-list:focus-visible {
+  outline:
+    1px solid
+    rgba(22, 61, 43, 0.18);
+  outline-offset: 3px;
+}
+
+.ladder-view--selection
+  .ladder-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ladder-view--selection
+  .ladder-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ladder-view--selection
+  .ladder-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background:
+    rgba(22, 61, 43, 0.18);
 }
 
 .ladder-player-item {
@@ -1821,6 +2203,25 @@ onUnmounted(() =>
 }
 
 @media (max-width: 767px) {
+  .ladder-view--selection
+    .ladder-list {
+    top:
+      calc(
+        var(--app-header-height) +
+        8px
+      );
+
+    max-height:
+      var(
+        --challenge-window-max-height,
+        calc(
+          100dvh -
+          var(--app-header-height) -
+          var(--app-bottom-nav-height) -
+          18px
+        )
+      );
+  }
   .ladder-row__status {
     min-width: 0;
   }
