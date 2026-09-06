@@ -146,7 +146,16 @@ const directoryClubs = computed(() => {
       return {
         id: club.id,
         name: club.name,
-        role: relationship?.role || 'player',
+        role:
+          relationship?.role ||
+          'player',
+
+        roleLabel:
+          relationship?.roleLabel ||
+          adminStore.clubRoleLabel(
+            club.id,
+          ) ||
+          'Member',
         location: workspace.location || '',
         logoUrl: workspace.logoUrl || '',
         isActive: club.id === adminStore.activeClubId,
@@ -438,11 +447,7 @@ async function submitDirectoryJoin() {
   }
 }
 
-function relationshipLabel(role) {
-  if (role === 'admin') return 'Admin'
-  if (role === 'co-admin') return 'Co-admin'
-  return 'Member'
-}
+
 
 function clubInitials(name) {
   return String(name || 'Club')
@@ -883,7 +888,7 @@ onMounted(async () => {
               <strong>{{ club.name }}</strong>
 
               <span>
-                {{ relationshipLabel(club.role) }}
+                {{ club.roleLabel }}
                 <template v-if="club.location">
                   · {{ club.location }}
                 </template>
@@ -897,9 +902,11 @@ onMounted(async () => {
               </small>
             </span>
 
-            <span class="ref-button primary club-open-action">
-              Open club
-              <FlowIcon name="arrow-right" aria-hidden="true" />
+            <span
+              class="club-directory-chevron"
+              aria-hidden="true"
+            >
+              <FlowIcon name="arrow-right" />
             </span>
           </button>
         </div>
@@ -2734,13 +2741,9 @@ button:disabled {
   stroke-linejoin: round;
 }
 
-.club-open-action {
-  white-space: nowrap;
-}
-
 @media (max-width: 600px) {
   .ref-club-directory .ref-club-directory-row {
-    grid-template-columns: 48px minmax(0, 1fr);
+    grid-template-columns: 48px minmax(0, 1fr) 28px;
     gap: 12px;
   }
 
@@ -2749,9 +2752,34 @@ button:disabled {
     height: 48px;
   }
 
-  .club-open-action {
-    grid-column: 2;
-    justify-self: start;
+}
+.club-directory-chevron {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  justify-self: end;
+  border-radius: 8px;
+  color: #8a958d;
+}
+
+.club-directory-chevron :deep(svg) {
+  width: 15px;
+  height: 15px;
+}
+
+.ref-club-directory-row:hover
+  .club-directory-chevron {
+  color: var(--color-primary-strong);
+}
+
+@media (max-width: 620px) {
+  .club-directory-chevron {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
   }
 }
+
 </style>

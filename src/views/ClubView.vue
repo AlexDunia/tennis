@@ -173,7 +173,13 @@ useShellNestedHeader(() => ({
 
       <section class="ref-club-manage">
         <header class="ref-section-heading">
-          <h2>Manage your club</h2>
+          <h2>
+            {{
+              canManage
+                ? 'Manage your club'
+                : 'Your club'
+            }}
+          </h2>
         </header>
 
         <div class="ref-choice-stack">
@@ -192,12 +198,13 @@ useShellNestedHeader(() => ({
             <span class="ref-choice-row-copy">
               <strong>{{ item.title }}</strong>
               <span>{{ item.copy }}</span>
+              <small>{{ item.action }}</small>
             </span>
 
-            <span class="ref-button primary club-manage-action">
-              {{ item.action }}
-              <FlowIcon name="arrow-right" aria-hidden="true" />
-            </span>
+            <FlowIcon
+              name="arrow-right"
+              aria-hidden="true"
+            />
           </button>
         </div>
       </section>
@@ -292,23 +299,6 @@ useShellNestedHeader(() => ({
   }
 }
 
-.ref-club-manage .ref-choice-row {
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-}
 
-.club-manage-action {
-  white-space: nowrap;
-}
-
-@media (max-width: 600px) {
-  .ref-club-manage .ref-choice-row {
-    grid-template-columns: 42px minmax(0, 1fr);
-  }
-
-  .club-manage-action {
-    grid-column: 2;
-    justify-self: start;
-  }
-}
 </style>
 

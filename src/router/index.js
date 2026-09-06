@@ -404,8 +404,9 @@ const routes = [
     name: 'ClubVisit',
     component: ClubVisitView,
     meta: {
-      title: 'Visiting club',
-      subtitle: 'Explore this club without changing your active club.',
+      title: 'Club preview',
+      subtitle:
+        'View this club without changing your active club.',
       primarySection: 'club',
     },
   },
@@ -751,19 +752,75 @@ router.beforeEach(async (to) => {
   }
 
   if (to.name === 'ClubVisit') {
-    const adminStore = useAdminStore()
+    const adminStore =
+      useAdminStore()
+
     try {
       await adminStore.loadClubs()
     } catch {
-      return { name: 'Clubs', query: { access: 'unavailable' } }
+      return {
+        name: 'Clubs',
+        query: {
+          access: 'unavailable',
+        },
+      }
     }
-    const clubId = String(to.params.clubId || '')
-    const membership = adminStore.membershipForClub(clubId)
-    if (!adminStore.clubs.some((club) => club.id === clubId) || membership?.status !== 'active') {
-      return { name: 'Clubs', query: { access: 'club' } }
+
+    const clubId = String(
+      to.params.clubId || '',
+    )
+
+    const membership =
+      adminStore.membershipForClub(
+        clubId,
+      )
+
+    const clubExists =
+      adminStore.clubs.some(
+        (club) =>
+          club.id === clubId,
+      )
+
+    if (
+      !clubExists ||
+      membership?.status !== 'active'
+    ) {
+      return {
+        name: 'Clubs',
+        query: {
+          access: 'club',
+        },
+      }
     }
-    if (to.params.section === 'settings' && !adminStore.hasClubPermission(clubId, 'club.manage')) {
-      return { name: 'ClubVisit', params: { clubId } }
+
+    /*
+     * Active Club always uses the real operational
+     * /club experience.
+     */
+    if (
+      clubId ===
+      adminStore.activeClubId
+    ) {
+      return {
+        name: 'Club',
+      }
+    }
+
+    /*
+     * Old links such as:
+     * /clubs/greenview/members
+     * /clubs/greenview/settings
+     *
+     * canonicalize to the lightweight preview.
+     */
+    if (to.params.section) {
+      return {
+        name: 'ClubVisit',
+        params: {
+          clubId,
+        },
+        replace: true,
+      }
     }
   }
 

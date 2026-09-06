@@ -1,102 +1,157 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ClubIdentityHero from '../components/club/ClubIdentityHero.vue'
+import PersonAvatar from '../components/PersonAvatar.vue'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
-import { useAdminStore } from '../stores/admin'
 import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
+import { useAdminStore } from '../stores/admin'
+import { useNotificationStore } from '../stores/notification'
 import { collectClubMembers } from '../utils/club/memberData.js'
 import { getTournaments } from '../services/TournamentService'
-import { effectiveLadderRoster } from '../services/LadderAdminService.js'
-import { resolveLadderConfigFromSetup, ladderMatchConfig } from '../config/ladder.js'
-import { ladderRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/ladderMatchRules.js'
-import { formatMatchRulesSummary } from '../utils/matchRulesSummary.js'
 
 const route = useRoute()
 const router = useRouter()
 const adminStore = useAdminStore()
+const notificationStore = useNotificationStore()
+
 const switching = ref(false)
-const error = ref('')
-const tournamentError = ref('')
 const loadingTournaments = ref(true)
+const pageError = ref('')
+const tournamentError = ref('')
 const allTournaments = ref([])
-const search = ref('')
+
 const clubId = computed(() => String(route.params.clubId || ''))
-const club = computed(() => adminStore.clubs.find((item) => item.id === clubId.value))
+const club = computed(() =>
+  adminStore.clubs.find((item) => item.id === clubId.value) || null,
+)
 const setup = computed(() => club.value?.setup || {})
 const workspace = computed(() => setup.value.workspace || {})
-const visiting = computed(() => clubId.value !== adminStore.activeClubId)
-const section = computed(() => String(route.params.section || ''))
+const relationship = computed(() => adminStore.membershipForClub(clubId.value))
+const relationshipLabel = computed(
+  () => adminStore.clubRoleLabel(clubId.value) || 'Member',
+)
+const activeClubName = computed(
+  () => adminStore.activeClub?.name || 'your current club',
+)
+
+const location = computed(() => {
+  if (workspace.value.location) return workspace.value.location
+
+  return [workspace.value.city, workspace.value.country]
+    .filter(Boolean)
+    .join(', ')
+})
+
 const members = computed(() => collectClubMembers(setup.value))
-const visibleMembers = computed(() => members.value.filter((member) =>
-  `${member.name || ''} ${member.email || ''}`.toLowerCase().includes(search.value.toLowerCase()),
-))
-const ladders = computed(() => (setup.value.ladders || []).filter((item) => item.enabled !== false && !item.archived))
-const tournaments = computed(() => allTournaments.value.filter((item) => item.clubId === clubId.value))
-const canManage = computed(() => adminStore.hasClubPermission(clubId.value, 'club.manage'))
-const member = computed(() => members.value.find((item) => item.id === route.query.member))
-const tournament = computed(() => tournaments.value.find((item) => item.id === route.query.tournament))
-const ladder = computed(() => ladders.value.find((item) => item.id === route.query.ladder) || ladders.value[0])
-const ladderRules = computed(() => resolveLadderConfigFromSetup(setup.value, ladder.value?.id || ''))
-const scoring = computed(() => {
-  const result = ladderRulesToMatchRulesSnapshot({ matchConfig: ladderMatchConfig(ladderRules.value) })
-  return result.ok ? formatMatchRulesSummary(result.snapshot).rows : []
-})
-const ladderPlayers = computed(() => {
-  if (!ladder.value) return []
-  const current = ladder.value
-  const explicitIds = current.playerIds || current.memberIds
-  const roster = members.value.filter((person) => {
-    if (Array.isArray(explicitIds)) return explicitIds.includes(person.id)
-    if (Array.isArray(person.ladderIds)) return person.ladderIds.includes(current.id)
-    if (person.ladderMemberships?.length) return person.ladderMemberships.some((entry) =>
-      entry.ladderId === current.id || entry.ladderName === current.name,
+const activeLadders = computed(() =>
+  (setup.value.ladders || []).filter(
+    (ladder) => ladder.enabled !== false && !ladder.archived,
+  ),
+)
+const tournaments = computed(() =>
+  allTournaments.value.filter((tournament) => tournament.clubId === clubId.value),
+)
+
+const memberPreview = computed(() => members.value.slice(0, 5))
+const ladderPreview = computed(() => activeLadders.value.slice(0, 4))
+const tournamentPreview = computed(() => tournaments.value.slice(0, 4))
+
+function ladderPlayerCount(ladder) {
+  const explicitIds = ladder.playerIds || ladder.memberIds
+
+  if (Array.isArray(explicitIds)) {
+    return new Set(explicitIds).size
+  }
+
+  return members.value.filter((member) => {
+    if (Array.isArray(member.ladderIds)) {
+      return member.ladderIds.includes(ladder.id)
+    }
+
+    return (member.ladderMemberships || []).some(
+      (entry) =>
+        entry.ladderId === ladder.id ||
+        entry.ladderName === ladder.name,
     )
-    return current.id === (setup.value.primaryLadderId || ladders.value[0]?.id)
-  }).map((person) => ({
-    ...person,
-    rank: person.ladderMemberships?.find((entry) => entry.ladderId === current.id || entry.ladderName === current.name)?.position || person.ladderRank || person.rank,
-  })).sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity))
-  return effectiveLadderRoster({ clubId: clubId.value, ladderId: current.id }, roster)
-})
-const pages = computed(() => [
-  { section: '', title: 'Overview', action: 'Open club', icon: 'friendly', to: 'Club' },
-  { section: 'members', title: 'Members', action: 'Open members', icon: 'users', to: 'ClubMembers' },
-  { section: 'ladders', title: 'Ladders', action: 'Open ladders', icon: 'ladder', to: 'Rankings' },
-  { section: 'tournaments', title: 'Tournaments', action: 'Open tournaments', icon: 'trophy', to: 'Tournaments' },
-  ...(canManage.value ? [{ section: 'settings', title: 'Club settings', action: 'Open settings', icon: 'sliders', to: 'ClubSettingsHub' }] : []),
-])
-function visitLink(nextSection = '', query = {}) {
-  return { name: 'ClubVisit', params: { clubId: clubId.value, section: nextSection || undefined }, query }
+  }).length
 }
+
 async function makeActive() {
-  if (switching.value || !club.value) return
-  const targetClubId = clubId.value
-  const destination = pages.value.find((page) => page.section === section.value)?.to || 'Club'
+  if (
+    switching.value ||
+    !club.value ||
+    club.value.id === adminStore.activeClubId
+  ) {
+    return
+  }
+
   switching.value = true
-  error.value = ''
+  pageError.value = ''
+
   try {
-    await adminStore.switchClub(targetClubId)
-    await router.replace({ name: destination })
-  } catch (cause) {
-    error.value = cause?.message || 'We could not switch clubs.'
+    const clubName = club.value.name
+
+    await adminStore.switchClub(club.value.id)
+
+    notificationStore.addToast({
+      title: 'Club switched',
+      message: `${clubName} is now your active club.`,
+      type: 'success',
+    })
+
+    await router.replace({ name: 'Club' })
+  } catch (error) {
+    pageError.value =
+      error?.message ||
+      'We could not switch clubs.'
   } finally {
     switching.value = false
   }
 }
+
 useShellNestedHeader(() => ({
-  label: club.value?.name || 'Visiting club',
-  backLabel: section.value ? 'Back to club' : 'Back to clubs',
-  back: () => router.push(section.value ? visitLink() : { name: 'Clubs' }),
-  crumbs: [{ label: 'Clubs' }, { label: club.value?.name || 'Club' }, { label: pages.value.find((page) => page.section === section.value)?.title || 'Overview' }],
+  label: club.value?.name || 'Club',
+  subtitle: 'Club preview',
+  backLabel: 'Back to clubs',
+  back: () => router.push({ name: 'Clubs' }),
+  crumbs: [
+    { label: 'Club' },
+    { label: club.value?.name || 'Club' },
+  ],
 }))
+
 onMounted(async () => {
+  pageError.value = ''
+
+  try {
+    if (!adminStore.clubs.length) {
+      await adminStore.loadClubs()
+    }
+  } catch (error) {
+    pageError.value =
+      error?.message ||
+      'We could not open this club.'
+  }
+
   try {
     const response = await getTournaments()
-    if (!response.success) throw new Error(response.message || 'Could not load tournaments.')
-    allTournaments.value = Array.isArray(response.data) ? response.data : []
-  } catch (cause) {
-    tournamentError.value = cause?.message || 'Could not load tournaments.'
+
+    if (!response.success) {
+      throw new Error(
+        response.message ||
+          'Could not load tournaments.',
+      )
+    }
+
+    allTournaments.value =
+      Array.isArray(response.data)
+        ? response.data
+        : []
+  } catch (error) {
+    tournamentError.value =
+      error?.message ||
+      'Could not load tournaments.'
   } finally {
     loadingTournaments.value = false
   }
@@ -104,112 +159,510 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main v-if="club" class="gorra-club-ref ref-page club-visit" :class="{ 'club-visit--away': visiting }">
-    <aside v-if="visiting" class="club-visit-banner" aria-label="Visiting another club">
-      <span>Current club: <strong>{{ adminStore.activeClub?.name || 'None selected' }}</strong></span>
-      <span>Visiting: <strong>{{ club.name }}</strong></span>
-      <button type="button" :disabled="switching" @click="makeActive">
-        {{ switching ? 'Switching...' : `Switch to ${club.name}` }}
+  <main
+    v-if="club && relationship"
+    class="gorra-club-ref ref-page club-preview"
+  >
+    <p
+      v-if="pageError"
+      class="ref-inline-alert"
+      role="alert"
+    >
+      {{ pageError }}
+    </p>
+
+    <ClubIdentityHero
+      :name="club.name"
+      :location="location"
+      :role-label="`${relationshipLabel} in this club`"
+      :logo-url="workspace.logoUrl || ''"
+      :cover-url="workspace.coverUrl || ''"
+      :cover-preset="workspace.coverPreset || 'court-green'"
+      :member-count="members.length"
+      :ladder-count="activeLadders.length"
+      :tournament-count="tournaments.length"
+      :editable="false"
+    />
+
+    <section
+      class="club-preview-context"
+      aria-label="Club context"
+    >
+      <div class="club-preview-context__copy">
+        <span
+          class="club-preview-context__icon"
+          aria-hidden="true"
+        >
+          <FlowIcon name="home" />
+        </span>
+
+        <span>
+          <strong>
+            You’re viewing {{ club.name }}.
+          </strong>
+
+          <small>
+            {{ activeClubName }} remains your active club.
+          </small>
+        </span>
+      </div>
+
+      <button
+        class="ref-button primary club-preview-context__switch"
+        type="button"
+        :disabled="switching"
+        @click="makeActive"
+      >
+        {{
+          switching
+            ? 'Switching…'
+            : 'Switch to this club'
+        }}
+
+        <FlowIcon
+          name="arrow-right"
+          aria-hidden="true"
+        />
       </button>
-    </aside>
-    <p v-if="error" class="ref-inline-alert" role="alert">{{ error }}</p>
-    <nav class="club-visit-nav" aria-label="Visiting club sections">
-      <RouterLink v-for="page in pages" :key="page.section" :to="visitLink(page.section)" :aria-current="section === page.section ? 'page' : undefined">
-        {{ page.title }}
-      </RouterLink>
-    </nav>
+    </section>
 
-    <template v-if="!section">
-      <ClubIdentityHero :name="club.name" :location="workspace.location || ''" :logo-url="workspace.logoUrl || ''" :cover-url="workspace.coverUrl || ''" :cover-preset="workspace.coverPreset || 'court-green'" :member-count="members.length" :ladder-count="ladders.length" :tournament-count="tournaments.length" :editable="false" />
-      <section class="ref-club-manage">
-        <header class="ref-section-heading"><h2>Explore {{ club.name }}</h2></header>
-        <div class="ref-choice-stack">
-          <RouterLink v-for="page in pages.filter((item) => item.section)" :key="page.section" class="ref-choice-row visit-choice" :to="visitLink(page.section)">
-            <span class="ref-feature-icon"><FlowIcon :name="page.icon" /></span>
-            <strong>{{ page.title }}</strong>
-            <span class="ref-button primary">{{ page.action }} <FlowIcon name="arrow-right" /></span>
-          </RouterLink>
+    <section
+      class="club-preview-section"
+      aria-labelledby="club-preview-members"
+    >
+      <header class="club-preview-section__head">
+        <div>
+          <p>Members</p>
+          <h2 id="club-preview-members">
+            People in this club
+          </h2>
         </div>
-      </section>
-    </template>
 
-    <section v-else-if="section === 'members'" class="visit-section">
-      <h1>Members of {{ club.name }}</h1>
-      <template v-if="member">
-        <RouterLink :to="visitLink('members')">Back to members</RouterLink>
-        <article class="visit-card"><h2>{{ member.name }}</h2><p>{{ member.role || 'Member' }}</p><p>{{ member.email || 'No email added' }}</p><p>{{ member.phone || 'No phone added' }}</p></article>
-      </template>
-      <template v-else>
-        <label class="ref-search"><FlowIcon name="search" /><input v-model="search" type="search" placeholder="Search members" aria-label="Search this club's members" /></label>
-        <RouterLink v-for="person in visibleMembers" :key="person.id" class="visit-card visit-member" :to="visitLink('members', { member: person.id })">
-          <span><strong>{{ person.name || 'Club member' }}</strong><small>{{ person.role || 'Member' }}</small></span><span class="visit-link">View member <FlowIcon name="arrow-right" /></span>
-        </RouterLink>
-        <p v-if="!visibleMembers.length">{{ search ? 'No members match your search.' : 'No members have been added to this club.' }}</p>
-      </template>
+        <span>
+          {{ members.length }}
+          {{
+            members.length === 1
+              ? 'member'
+              : 'members'
+          }}
+        </span>
+      </header>
+
+      <div
+        v-if="memberPreview.length"
+        class="club-preview-list"
+      >
+        <article
+          v-for="person in memberPreview"
+          :key="person.id"
+          class="club-preview-person"
+        >
+          <PersonAvatar
+            :name="person.name || 'Club member'"
+            :image="person.photoUrl || person.imageUrl || ''"
+            :size="38"
+          />
+
+          <span>
+            <strong>
+              {{ person.name || 'Club member' }}
+            </strong>
+
+            <small>
+              {{
+                person.role === 'co-admin'
+                  ? 'Co-admin'
+                  : person.role === 'admin'
+                    ? 'Admin'
+                    : 'Member'
+              }}
+            </small>
+          </span>
+        </article>
+
+        <p
+          v-if="members.length > memberPreview.length"
+          class="club-preview-more"
+        >
+          +{{ members.length - memberPreview.length }} more members
+        </p>
+      </div>
+
+      <p
+        v-else
+        class="club-preview-empty"
+      >
+        No members have been added yet.
+      </p>
     </section>
 
-    <section v-else-if="section === 'ladders'" class="visit-section">
-      <h1>Ladders at {{ club.name }}</h1>
-      <nav class="club-visit-nav" aria-label="Choose a ladder"><RouterLink v-for="item in ladders" :key="item.id" :to="visitLink('ladders', { ladder: item.id })" :aria-current="ladder?.id === item.id ? 'page' : undefined">{{ item.name }}</RouterLink></nav>
-      <template v-if="ladder">
-        <h2>{{ ladder.name }}</h2>
-        <article v-for="person in ladderPlayers" :key="person.id" class="visit-card visit-member"><span>#{{ person.rank }} &nbsp; {{ person.name }}</span><small v-if="person.challengePaused">Paused</small></article>
-        <p v-if="!ladderPlayers.length">No players on this ladder yet.</p>
-        <details class="visit-card"><summary>Rules for {{ ladder.name }}</summary><p>Challenge up to {{ ladderRules.challengeRangeUp }} positions above.</p><dl><div v-for="row in scoring" :key="row.key"><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div></dl></details>
-      </template>
-      <p v-else>No ladders have been added to this club.</p>
+    <section
+      class="club-preview-section"
+      aria-labelledby="club-preview-ladders"
+    >
+      <header class="club-preview-section__head">
+        <div>
+          <p>Ladders</p>
+          <h2 id="club-preview-ladders">
+            Active ladders
+          </h2>
+        </div>
+
+        <span>{{ activeLadders.length }}</span>
+      </header>
+
+      <div
+        v-if="ladderPreview.length"
+        class="club-preview-list"
+      >
+        <article
+          v-for="ladder in ladderPreview"
+          :key="ladder.id"
+          class="club-preview-row"
+        >
+          <span
+            class="club-preview-row__icon"
+            aria-hidden="true"
+          >
+            <FlowIcon name="ladder" />
+          </span>
+
+          <span>
+            <strong>{{ ladder.name }}</strong>
+
+            <small>
+              {{
+                ladder.matchType === 'doubles'
+                  ? 'Doubles'
+                  : 'Singles'
+              }}
+              · {{ ladderPlayerCount(ladder) }} players
+            </small>
+          </span>
+        </article>
+
+        <p
+          v-if="activeLadders.length > ladderPreview.length"
+          class="club-preview-more"
+        >
+          +{{ activeLadders.length - ladderPreview.length }} more ladders
+        </p>
+      </div>
+
+      <p
+        v-else
+        class="club-preview-empty"
+      >
+        No active ladders yet.
+      </p>
     </section>
 
-    <section v-else-if="section === 'tournaments'" class="visit-section">
-      <h1>Tournaments at {{ club.name }}</h1>
-      <p v-if="loadingTournaments" role="status">Loading tournaments...</p>
-      <p v-else-if="tournamentError" role="alert">{{ tournamentError }}</p>
-      <template v-else-if="tournament">
-        <RouterLink :to="visitLink('tournaments')">Back to tournaments</RouterLink>
-        <article class="visit-card"><h2>{{ tournament.name }}</h2><p>{{ tournament.description }}</p><p>{{ tournament.startDate }} <template v-if="tournament.endDate">to {{ tournament.endDate }}</template></p><p>{{ tournament.venue?.name || tournament.location }}</p></article>
-        <article v-for="event in tournament.categories || tournament.events || []" :key="event.id || event.name" class="visit-card"><h3>{{ event.name }}</h3><p>{{ event.status || event.format }}</p></article>
-      </template>
-      <template v-else>
-        <RouterLink v-for="event in tournaments" :key="event.id" class="visit-card visit-member" :to="visitLink('tournaments', { tournament: event.id })"><strong>{{ event.name }}</strong><span class="visit-link">View tournament <FlowIcon name="arrow-right" /></span></RouterLink>
-        <p v-if="!tournaments.length">No tournaments have been added to this club.</p>
-      </template>
-    </section>
+    <section
+      class="club-preview-section"
+      aria-labelledby="club-preview-tournaments"
+    >
+      <header class="club-preview-section__head">
+        <div>
+          <p>Tournaments</p>
+          <h2 id="club-preview-tournaments">
+            Club tournaments
+          </h2>
+        </div>
 
-    <section v-else-if="section === 'settings' && canManage" class="visit-section">
-      <h1>Settings for {{ club.name }}</h1>
-      <article class="visit-card"><h2>Club details</h2><dl><div><dt>Name</dt><dd>{{ club.name }}</dd></div><div><dt>Location</dt><dd>{{ workspace.location || 'Not set' }}</dd></div><div><dt>Time zone</dt><dd>{{ workspace.timezone || 'Not set' }}</dd></div></dl></article>
-      <article class="visit-card"><h2>Courts</h2><p v-for="(court, index) in workspace.courts || []" :key="court.id || index">{{ court.name || court }}</p><p v-if="!workspace.courts?.length">No courts added.</p></article>
-      <p>Switch to {{ club.name }} to manage its settings.</p>
+        <span>
+          {{
+            loadingTournaments
+              ? '…'
+              : tournaments.length
+          }}
+        </span>
+      </header>
+
+      <p
+        v-if="loadingTournaments"
+        class="club-preview-empty"
+        role="status"
+      >
+        Loading tournaments…
+      </p>
+
+      <p
+        v-else-if="tournamentError"
+        class="club-preview-empty"
+        role="alert"
+      >
+        {{ tournamentError }}
+      </p>
+
+      <div
+        v-else-if="tournamentPreview.length"
+        class="club-preview-list"
+      >
+        <article
+          v-for="event in tournamentPreview"
+          :key="event.id"
+          class="club-preview-row"
+        >
+          <span
+            class="club-preview-row__icon"
+            aria-hidden="true"
+          >
+            <FlowIcon name="trophy" />
+          </span>
+
+          <span>
+            <strong>{{ event.name }}</strong>
+            <small>
+              {{ event.status || 'Tournament' }}
+            </small>
+          </span>
+        </article>
+
+        <p
+          v-if="tournaments.length > tournamentPreview.length"
+          class="club-preview-more"
+        >
+          +{{ tournaments.length - tournamentPreview.length }} more tournaments
+        </p>
+      </div>
+
+      <p
+        v-else
+        class="club-preview-empty"
+      >
+        No tournaments have been added yet.
+      </p>
+    </section>
+  </main>
+
+  <main
+    v-else
+    class="gorra-club-ref ref-page"
+  >
+    <section class="ref-page-narrow">
+      <div class="ref-flow-head">
+        <p class="ref-kicker">Club</p>
+        <h1>Club unavailable</h1>
+        <p>
+          Open one of the clubs you belong to.
+        </p>
+      </div>
+
+      <button
+        class="ref-button primary"
+        type="button"
+        @click="router.push({ name: 'Clubs' })"
+      >
+        Back to your clubs
+      </button>
     </section>
   </main>
 </template>
 
 <style scoped>
-.club-visit--away { padding-top: 76px; }
-.club-visit-banner { position: fixed; z-index: 45; top: var(--app-header-height); left: 50%; transform: translateX(-50%); width: max-content; max-width: 85vw; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px 14px; padding: 9px 14px; border: 1px solid var(--color-border); border-radius: 0 0 10px 10px; background: #f5faf6; color: var(--color-text-soft); box-shadow: 0 3px 12px rgba(15, 34, 24, .06); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
-.club-visit-banner > span { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.club-visit-banner button { padding: 0; border: 0; background: transparent; color: var(--color-primary-strong); font: inherit; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.club-visit-banner button:disabled { opacity: .5; cursor: wait; }
-.club-visit-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
-.club-visit-nav a { padding: 8px 11px; border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text-soft); font-size: 11px; text-decoration: none; }
-.club-visit-nav a[aria-current='page'] { background: #edf7ef; border-color: var(--color-primary); color: var(--color-primary-strong); }
-.visit-choice { grid-template-columns: 42px minmax(0, 1fr) auto; text-decoration: none; }
-.visit-section { display: grid; gap: 14px; }
-.visit-section h1 { margin: 0 0 8px; font-size: 22px; }
-.visit-section h2 { font-size: 16px; }
-.visit-card { padding: 16px; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; color: var(--color-text); text-decoration: none; font-size: 12px; }
-.visit-member { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.visit-member small { display: block; margin-top: 4px; color: var(--color-muted); }
-.visit-link { display: inline-flex; align-items: center; gap: 6px; color: var(--color-primary-strong); font-weight: 600; }
-.visit-link svg { width: 15px; height: 15px; }
-.visit-card dl > div { display: grid; grid-template-columns: 95px minmax(0, 1fr); gap: 12px; padding: 7px 0; }
-.visit-card dt { color: var(--color-muted); }
-.visit-card dd { margin: 0; overflow-wrap: anywhere; }
-@media (max-width: 767px) {
-  .club-visit--away { padding-top: 112px; }
-  .club-visit-banner { width: 85vw; font-size: 10px; }
-  .visit-choice { grid-template-columns: 34px minmax(0, 1fr); }
-  .visit-choice > .ref-button { grid-column: 2; justify-self: start; }
-  .visit-member { align-items: flex-start; flex-direction: column; }
+.club-preview {
+  display: grid;
+  gap: 28px;
+  padding-bottom: 42px;
+}
+
+.club-preview-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-card-radius);
+  background: #fbfcfb;
+}
+
+.club-preview-context__copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+.club-preview-context__icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(8, 173, 43, 0.075);
+  color: var(--color-primary-strong);
+}
+
+.club-preview-context__icon :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.club-preview-context__copy > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.club-preview-context strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 11.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.club-preview-context small {
+  color: var(--color-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.club-preview-context__switch {
+  min-height: 42px;
+  flex: 0 0 auto;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.club-preview-context__switch :deep(svg) {
+  width: 14px;
+  height: 14px;
+}
+
+.club-preview-section {
+  display: grid;
+  gap: 12px;
+}
+
+.club-preview-section__head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 2px;
+}
+
+.club-preview-section__head p,
+.club-preview-section__head h2 {
+  margin: 0;
+}
+
+.club-preview-section__head p {
+  margin-bottom: 3px;
+  color: var(--color-primary-strong);
+  font-size: 8.8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.club-preview-section__head h2 {
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.club-preview-section__head > span {
+  color: var(--color-muted);
+  font-size: 9.5px;
+}
+
+.club-preview-list {
+  display: grid;
+  gap: 8px;
+}
+
+.club-preview-person,
+.club-preview-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-card-radius);
+  background: #fff;
+}
+
+.club-preview-person > span,
+.club-preview-row > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.club-preview-person strong,
+.club-preview-row strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 10.8px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.club-preview-person small,
+.club-preview-row small {
+  color: var(--color-muted);
+  font-size: 9.4px;
+  line-height: 1.35;
+}
+
+.club-preview-row__icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--color-surface-soft);
+  color: var(--color-primary-strong);
+}
+
+.club-preview-row__icon :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.club-preview-more,
+.club-preview-empty {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 9.8px;
+  line-height: 1.45;
+}
+
+.club-preview-more {
+  padding: 3px 2px 0;
+}
+
+@media (max-width: 700px) {
+  .club-preview {
+    gap: 24px;
+  }
+
+  .club-preview-context {
+    display: grid;
+    gap: 12px;
+    padding: 13px;
+  }
+
+  .club-preview-context__switch {
+    width: 100%;
+  }
+
+  .club-preview-context strong {
+    white-space: normal;
+  }
+
+  .club-preview-section__head {
+    align-items: start;
+  }
 }
 </style>
+

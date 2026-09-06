@@ -64,33 +64,102 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   const activeClub = computed(
-    () => clubs.value.find((club) => club.id === activeClubId.value) || null,
+    () =>
+      clubs.value.find(
+        (club) =>
+          club.id === activeClubId.value,
+      ) || null,
   )
+
+  const membershipForClub = computed(
+    () => (clubId) => {
+      const userId = currentUserId()
+
+      return (
+        memberships.value.find(
+          (membership) =>
+            membership.userId === userId &&
+            membership.clubId === clubId,
+        ) || null
+      )
+    },
+  )
+
+  const clubRoleLabel = computed(
+    () => (clubId) => {
+      const membership =
+        membershipForClub.value(clubId)
+
+      if (!membership) return ''
+
+      const club = clubs.value.find(
+        (item) => item.id === clubId,
+      )
+
+      if (
+        club?.createdByUserId &&
+        membership.userId ===
+          club.createdByUserId
+      ) {
+        return 'Owner'
+      }
+
+      if (membership.role === 'admin') {
+        return 'Admin'
+      }
+
+      if (
+        membership.role === 'co-admin'
+      ) {
+        return 'Co-admin'
+      }
+
+      return 'Member'
+    },
+  )
+
   const clubOptions = computed(() => {
     const userId = currentUserId()
-    return clubs.value.map((club) => ({
-      id: club.id,
-      name: club.name,
-      role:
+
+    return clubs.value.map((club) => {
+      const membership =
         memberships.value.find(
-          (membership) => membership.userId === userId && membership.clubId === club.id,
-        )?.role || 'player',
-    }))
+          (item) =>
+            item.userId === userId &&
+            item.clubId === club.id,
+        )
+
+      return {
+        id: club.id,
+        name: club.name,
+        role:
+          membership?.role ||
+          'player',
+        roleLabel:
+          clubRoleLabel.value(club.id) ||
+          'Member',
+        isOwner:
+          Boolean(
+            club.createdByUserId &&
+              membership?.userId ===
+                club.createdByUserId,
+          ),
+      }
+    })
   })
-  const hasMultipleClubs = computed(() => clubOptions.value.length > 1)
-  const membershipForClub = computed(() => (clubId) => {
-    const userId = currentUserId()
-    return (
-      memberships.value.find(
-        (membership) => membership.userId === userId && membership.clubId === clubId,
-      ) || null
-    )
-  })
+
+  const hasMultipleClubs = computed(
+    () => clubOptions.value.length > 1,
+  )
   const activeMembership = computed(() => membershipForClub.value(activeClubId.value))
   const activeClubRole = computed(() => activeMembership.value?.role || '')
-  const activeClubRoleLabel = computed(() =>
-    ['admin', 'co-admin'].includes(activeClubRole.value) ? 'Admin' : 'Player',
-  )
+  const activeClubRoleLabel =
+    computed(
+      () =>
+        clubRoleLabel.value(
+          activeClubId.value,
+        ) || 'Member',
+    )
   const activeClubPermissions = computed(() => activeMembership.value?.permissions || [])
   const isActiveClubAdmin = computed(() => Boolean(activeMembership.value?.isManager))
   const hasClubPermission = computed(
@@ -433,6 +502,7 @@ export const useAdminStore = defineStore('admin', () => {
     clubOptions,
     hasMultipleClubs,
     membershipForClub,
+    clubRoleLabel,
     activeMembership,
     activeClubRole,
     activeClubRoleLabel,
