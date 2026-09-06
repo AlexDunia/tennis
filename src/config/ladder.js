@@ -9,6 +9,7 @@ export const LADDER_CONFIG = Object.freeze({
   responseHours: 48,
   completionDays: 7,
   movementSystem: 'position-swap',
+  matchType: 'singles',
   scoring: 'ad',
   matchFormat: 'best-of-3',
   matchFormatLabel: 'Best of 3 tie-break sets',
@@ -44,6 +45,10 @@ export function getActiveLadderConfig() {
       inactivityDays: Number(rules.inactivityDays) || 30,
       noShowPolicy: rules.noShowPolicy || 'walkover-after-review',
       movementSystem: rules.movementSystem || LADDER_CONFIG.movementSystem,
+      matchType:
+        ladder?.matchType === 'doubles'
+          ? 'doubles'
+          : 'singles',
       scoring: rules.scoring === 'noad' ? 'noad' : 'ad',
       matchPreset: isTimeSmart ? 'time-smart' : 'standard-club',
       matchFormat: isTimeSmart ? 'match-tiebreak-third' : 'best-of-3',
@@ -109,7 +114,10 @@ export function ladderMovementFor(challenger, opponent, config = getActiveLadder
 
 export function ladderMatchConfig(config = getActiveLadderConfig()) {
   return {
-    matchType: 'singles',
+    matchType:
+      config.matchType === 'doubles'
+        ? 'doubles'
+        : 'singles',
     matchFormat: 'best_of_3',
     setWinRule: 'standard',
     gameScoringRule: config.scoring === 'noad' ? 'sudden_death' : 'normal',

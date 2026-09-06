@@ -115,7 +115,35 @@ onMounted(async () => {
     </template>
 
     <div v-else class="dashboard-stack">
-      <section class="dashboard-panel dashboard-section" aria-labelledby="club-context-title">
+      <section
+        class="dashboard-panel dashboard-section dashboard-hero"
+        aria-labelledby="club-context-title"
+      >
+        <div
+          class="dashboard-hero__decor"
+          aria-hidden="true"
+        >
+          <svg
+            class="dashboard-hero__court"
+            viewBox="0 0 520 210"
+            fill="none"
+          >
+            <rect
+              x="38"
+              y="24"
+              width="444"
+              height="162"
+              rx="2"
+            />
+            <path
+              d="M82 24v162M438 24v162M38 105h444M82 66h356M82 144h356M260 66v78"
+            />
+          </svg>
+
+          <span class="dashboard-hero__ball dashboard-hero__ball--one"></span>
+          <span class="dashboard-hero__ball dashboard-hero__ball--two"></span>
+          <span class="dashboard-hero__ball dashboard-hero__ball--three"></span>
+        </div>
         <header class="section-heading">
           <p>{{ activeClubName }}</p>
           <h2 id="club-context-title">Welcome back, {{ currentPlayerFirstName }}.</h2>
@@ -282,6 +310,143 @@ onMounted(async () => {
 .dashboard-section {
   display: grid;
   gap: 16px;
+}
+
+.dashboard-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  gap: 18px;
+  padding: 28px;
+  border-radius: 18px;
+  background: #078c2f;
+}
+
+.dashboard-hero > :not(.dashboard-hero__decor) {
+  position: relative;
+  z-index: 2;
+}
+
+.dashboard-hero__decor {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.dashboard-hero__court {
+  position: absolute;
+  top: 50%;
+  right: -34px;
+  width: min(54%, 520px);
+  transform: translateY(-50%);
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1.3;
+}
+
+.dashboard-hero__ball {
+  position: absolute;
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #d8ff47;
+  box-shadow:
+    inset -4px -5px 0 rgba(40, 75, 28, 0.09),
+    0 8px 20px rgba(5, 68, 27, 0.12);
+  animation:
+    dashboard-ball-bounce 4.8s
+    cubic-bezier(.44, .04, .44, 1)
+    infinite;
+}
+
+.dashboard-hero__ball::before,
+.dashboard-hero__ball::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 12px;
+  border: 1.25px solid rgba(31, 81, 32, 0.38);
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+}
+
+.dashboard-hero__ball::before {
+  top: 1px;
+  left: -2px;
+  transform: rotate(45deg);
+}
+
+.dashboard-hero__ball::after {
+  right: -2px;
+  bottom: 1px;
+  transform: rotate(45deg);
+}
+
+.dashboard-hero__ball--one {
+  top: 18px;
+  right: 18%;
+  animation-delay: -1.2s;
+}
+
+.dashboard-hero__ball--two {
+  right: 7%;
+  bottom: 21px;
+  width: 22px;
+  height: 22px;
+  opacity: 0.78;
+  animation-delay: -3.1s;
+}
+
+.dashboard-hero__ball--three {
+  top: 43%;
+  right: 34%;
+  width: 16px;
+  height: 16px;
+  opacity: 0.52;
+  animation-delay: -2.2s;
+}
+
+.dashboard-hero__ball--two::before,
+.dashboard-hero__ball--two::after,
+.dashboard-hero__ball--three::before,
+.dashboard-hero__ball--three::after {
+  transform: scale(.72) rotate(45deg);
+}
+
+.dashboard-hero .section-heading > p:first-child {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.dashboard-hero .section-heading h2 {
+  color: #fff;
+}
+
+.dashboard-hero .ladder-card {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow:
+    0 12px 30px rgba(4, 59, 24, 0.09);
+}
+
+@keyframes dashboard-ball-bounce {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0)
+      rotate(-8deg);
+  }
+
+  46% {
+    transform: translate3d(-8px, 13px, 0)
+      rotate(9deg);
+  }
+
+  70% {
+    transform: translate3d(3px, 5px, 0)
+      rotate(3deg);
+  }
 }
 
 .section-heading {
@@ -603,6 +768,31 @@ onMounted(async () => {
 }
 
 @media (max-width: 520px) {
+  .dashboard-hero {
+    padding: 20px;
+    border-radius: 15px;
+  }
+
+  .dashboard-hero__court {
+    right: -82px;
+    width: 92%;
+    opacity: 0.72;
+  }
+
+  .dashboard-hero__ball--one {
+    top: 14px;
+    right: 12px;
+  }
+
+  .dashboard-hero__ball--two {
+    right: 18px;
+    bottom: 13px;
+  }
+
+  .dashboard-hero__ball--three {
+    display: none;
+  }
+
   .dashboard-stack {
     gap: 40px;
   }
@@ -625,6 +815,10 @@ onMounted(async () => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .dashboard-hero__ball {
+    animation: none;
+  }
+
   .dashboard-panel,
   .quick-card {
     animation: none;

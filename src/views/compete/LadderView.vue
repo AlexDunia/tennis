@@ -1,10 +1,21 @@
 <script setup>
-import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
+import {
+  computed,
+  inject,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import EmptyState from '../../components/EmptyState.vue'
 import PersonAvatar from '../../components/PersonAvatar.vue'
 import LadderClubRail from '../../components/ladder/LadderClubRail.vue'
 import AdminLadderMatchDrawer from '../../components/ladder/AdminLadderMatchDrawer.vue'
+import LadderPlayerOptions from '../../components/ladder/LadderPlayerOptions.vue'
+import MoveLadderPlayerDialog from '../../components/ladder/MoveLadderPlayerDialog.vue'
+import RecordMissingMatchDialog from '../../components/ladder/RecordMissingMatchDialog.vue'
+import RemoveLadderPlayerDialog from '../../components/ladder/RemoveLadderPlayerDialog.vue'
 import { useAdminStore } from '../../stores/admin'
 import { useChallengeStore } from '../../stores/challenge'
 import { useNotificationStore } from '../../stores/notification'
@@ -16,6 +27,15 @@ import {
 } from '../../config/ladder'
 import { getEligibleLadderOpponents } from '../../services/LadderAccessService'
 import { startOrResumeLadderMatch } from '../../services/LadderLiveMatchService.js'
+import {
+  effectiveLadderRoster,
+  moveLadderPlayer,
+  previewManualLadderMove,
+  previewMissingMatchMovement,
+  recordMissingLadderMatch,
+  removePlayerFromLadder,
+  setLadderChallengePaused,
+} from '../../services/LadderAdminService.js'
 
 const router = useRouter()
 const adminStore = useAdminStore()
@@ -25,146 +45,418 @@ const playerStore = usePlayerStore()
 const shell = inject('gorraShell', null)
 
 const activeLadderId = ref('')
+const managedPlayerId = ref('')
 const selectedPlayerId = ref('')
 const selectedOpponentId = ref('')
 const drawerResult = ref(null)
+const moveDialogOpen = ref(false)
+const missingMatchDialogOpen = ref(false)
+const removeDialogOpen = ref(false)
+const ladderActionBusy = ref(false)
+const ladderRevision = ref(0)
 
 const currentPlayer = computed(() => playerStore.currentPlayer)
 const basePlayers = computed(() => playerStore.sortedLadder)
 const activeClub = computed(() => adminStore.activeClub)
+
 const configuredLadders = computed(() => {
   if (!activeClub.value) return []
-  if (adminStore.activeLadders.length) return adminStore.activeLadders
+
+  if (adminStore.activeLadders.length) {
+    return adminStore.activeLadders
+  }
+
   const config = getActiveLadderConfig()
-  return [{ id: config.id, name: config.name, matchType: 'singles' }]
+
+  return [
+    {
+      id: config.id,
+      name: config.name,
+      matchType: config.matchType || 'singles',
+    },
+  ]
 })
 
 function ladderHasPlayer(ladder, player) {
   const explicitIds = ladder.playerIds || ladder.memberIds
-  if (Array.isArray(explicitIds)) return explicitIds.includes(player?.id)
-  if (Array.isArray(player?.ladderIds)) return player.ladderIds.includes(ladder.id)
-  return ladder.id === (activeClub.value?.setup?.primaryLadderId || configuredLadders.value[0]?.id)
+
+  if (Array.isArray(explicitIds)) {
+    return explicitIds.includes(player?.id)
+  }
+
+  if (Array.isArray(player?.ladderIds)) {
+    return player.ladderIds.includes(ladder.id)
+  }
+
+  return (
+    ladder.id ===
+    (
+      activeClub.value?.setup?.primaryLadderId ||
+      configuredLadders.value[0]?.id
+    )
+  )
 }
 
-function rosterFor(ladder) {
+function rawRosterFor(ladder) {
   const hasExplicitMembership =
     Array.isArray(ladder?.playerIds) ||
     Array.isArray(ladder?.memberIds) ||
-    basePlayers.value.some((player) => Array.isArray(player.ladderIds))
-  if (!hasExplicitMembership) return basePlayers.value
-  return basePlayers.value.filter((player) => ladderHasPlayer(ladder, player))
+    basePlayers.value.some(
+      (player) => Array.isArray(player.ladderIds),
+    )
+
+  if (!hasExplicitMembership) {
+    return basePlayers.value
+  }
+
+  return basePlayers.value.filter(
+    (player) => ladderHasPlayer(ladder, player),
+  )
+}
+
+function scopeFor(ladder) {
+  return {
+    clubId: adminStore.activeClubId || activeClub.value?.id || '',
+    ladderId: ladder?.id || '',
+  }
+}
+
+function effectiveRosterFor(ladder) {
+  // Keeps local ladder administration state reactive without
+  // duplicating the roster in this view.
+  ladderRevision.value
+
+  return effectiveLadderRoster(
+    scopeFor(ladder),
+    rawRosterFor(ladder),
+  )
 }
 
 const ladders = computed(() =>
   configuredLadders.value.map((ladder) => ({
     ...ladder,
-    isMember: ladderHasPlayer(ladder, currentPlayer.value),
-    playerCount: rosterFor(ladder).length,
+    isMember: ladderHasPlayer(
+      ladder,
+      currentPlayer.value,
+    ),
+    playerCount: effectiveRosterFor(ladder).length,
   })),
 )
+
 const activeLadder = computed(
   () =>
-    ladders.value.find((ladder) => ladder.id === activeLadderId.value) || ladders.value[0] || null,
+    ladders.value.find(
+      (ladder) => ladder.id === activeLadderId.value,
+    ) ||
+    ladders.value[0] ||
+    null,
 )
-const players = computed(() => (activeLadder.value ? rosterFor(activeLadder.value) : []))
+
+const rawPlayers = computed(() =>
+  activeLadder.value
+    ? rawRosterFor(activeLadder.value)
+    : [],
+)
+
+const players = computed(() =>
+  activeLadder.value
+    ? effectiveRosterFor(activeLadder.value)
+    : [],
+)
+
+const ladderScope = computed(() =>
+  scopeFor(activeLadder.value),
+)
+
 const activeLadderConfig = computed(() => ({
   ...getActiveLadderConfig(),
-  id: activeLadder.value?.id || getActiveLadderConfig().id,
-  name: activeLadder.value?.name || getActiveLadderConfig().name,
+  id:
+    activeLadder.value?.id ||
+    getActiveLadderConfig().id,
+  name:
+    activeLadder.value?.name ||
+    getActiveLadderConfig().name,
+  matchType:
+    activeLadder.value?.matchType ||
+    getActiveLadderConfig().matchType ||
+    'singles',
 }))
-const defaultMatchRules = computed(() => ladderMatchConfig(activeLadderConfig.value))
-const courts = computed(() => activeClub.value?.setup?.workspace?.courts || [])
+
+const defaultMatchRules = computed(() =>
+  ladderMatchConfig(activeLadderConfig.value),
+)
+
+const courts = computed(
+  () =>
+    activeClub.value?.setup?.workspace?.courts || [],
+)
+
+const canManageLadder = computed(() =>
+  adminStore.hasActiveClubPermission('club.manage'),
+)
+
 const canAdminSetUpMatch = computed(
   () =>
-    adminStore.hasActiveClubPermission('club.manage') &&
-    adminStore.hasActiveClubPermission('challenges.create'),
+    canManageLadder.value &&
+    adminStore.hasActiveClubPermission(
+      'challenges.create',
+    ),
 )
+
+const managedPlayer = computed(
+  () =>
+    players.value.find(
+      (player) => player.id === managedPlayerId.value,
+    ) || null,
+)
+
 const selectedPlayer = computed(
-  () => players.value.find((player) => player.id === selectedPlayerId.value) || null,
+  () =>
+    players.value.find(
+      (player) => player.id === selectedPlayerId.value,
+    ) || null,
 )
+
 const selectedOpponent = computed(
-  () => players.value.find((player) => player.id === selectedOpponentId.value) || null,
+  () =>
+    players.value.find(
+      (player) => player.id === selectedOpponentId.value,
+    ) || null,
 )
-const eligiblePlayers = computed(() =>
-  getEligibleLadderOpponents({
+
+const currentLadderPlayer = computed(
+  () =>
+    players.value.find(
+      (player) =>
+        player.id === playerStore.currentPlayerId,
+    ) || currentPlayer.value,
+)
+
+const eligiblePlayers = computed(() => {
+  if (
+    !selectedPlayer.value ||
+    selectedPlayer.value.challengePaused
+  ) {
+    return []
+  }
+
+  return getEligibleLadderOpponents({
     challenger: selectedPlayer.value,
     players: players.value,
     challenges: challengeStore.challenges,
     config: activeLadderConfig.value,
-  }),
-)
-const eligiblePlayerIds = computed(() => new Set(eligiblePlayers.value.map((player) => player.id)))
-const drawerOpen = computed(() => Boolean(selectedPlayer.value && selectedOpponent.value))
-const guideTitle = computed(() => {
-  if (!selectedPlayer.value) return 'Choose a player'
-  if (selectedOpponent.value)
-    return `${selectedPlayer.value.name} vs ${selectedOpponent.value.name}`
-  return `${selectedPlayer.value.name} selected`
+  }).filter((player) => !player.challengePaused)
 })
+
+const eligiblePlayerIds = computed(
+  () =>
+    new Set(
+      eligiblePlayers.value.map((player) => player.id),
+    ),
+)
+
+const drawerOpen = computed(
+  () =>
+    Boolean(
+      selectedPlayer.value &&
+      selectedOpponent.value,
+    ),
+)
+
+const guideTitle = computed(() => {
+  if (!selectedPlayer.value) return ''
+
+  if (selectedOpponent.value) {
+    return `${selectedPlayer.value.name} vs ${selectedOpponent.value.name}`
+  }
+
+  return `Choose an opponent for ${selectedPlayer.value.name}`
+})
+
 const guideText = computed(() => {
-  if (!selectedPlayer.value) return 'Then choose someone highlighted as eligible.'
-  if (!eligiblePlayers.value.length) return 'No eligible opponents are available right now.'
-  if (!selectedOpponent.value) return 'Choose one highlighted opponent.'
+  if (!selectedPlayer.value) return ''
+
+  if (selectedPlayer.value.challengePaused) {
+    return 'Challenges are paused for this player.'
+  }
+
+  if (!eligiblePlayers.value.length) {
+    return 'No eligible opponents are available right now.'
+  }
+
+  if (!selectedOpponent.value) {
+    return 'Only eligible players are highlighted.'
+  }
+
   return 'Finish setting up the match in the panel.'
 })
 
+const usesPoints = computed(
+  () =>
+    activeLadderConfig.value.movementSystem ===
+    'points',
+)
+
 function pointsFor(player) {
-  return Math.max(0, Number(player?.points ?? player?.ladderPoints ?? 0))
+  return Math.max(
+    0,
+    Number(
+      player?.points ??
+        player?.ladderPoints ??
+        0,
+    ),
+  )
+}
+
+function matchesFor(player) {
+  return Math.max(
+    0,
+    Number(
+      player?.matches ??
+        player?.matchesPlayed ??
+        0,
+    ),
+  )
 }
 
 function isCurrentPlayer(player) {
-  return player?.id === playerStore.currentPlayerId
+  return (
+    player?.id === playerStore.currentPlayerId
+  )
 }
 
 function canMemberChallenge(player) {
   return (
-    !canAdminSetUpMatch.value &&
-    adminStore.hasActiveClubPermission('challenges.create') &&
-    isEligibleLadderOpponent(currentPlayer.value, player, activeLadderConfig.value)
+    !canManageLadder.value &&
+    adminStore.hasActiveClubPermission(
+      'challenges.create',
+    ) &&
+    !currentLadderPlayer.value?.challengePaused &&
+    !player?.challengePaused &&
+    isEligibleLadderOpponent(
+      currentLadderPlayer.value,
+      player,
+      activeLadderConfig.value,
+    )
   )
 }
 
+function adminEligibleOpponentsFor(player) {
+  if (
+    !canAdminSetUpMatch.value ||
+    !player ||
+    player.challengePaused
+  ) {
+    return []
+  }
+
+  return getEligibleLadderOpponents({
+    challenger: player,
+    players: players.value,
+    challenges: challengeStore.challenges,
+    config: activeLadderConfig.value,
+  }).filter(
+    (opponent) => !opponent.challengePaused,
+  )
+}
+
+function canSetUpChallengeFor(player) {
+  return adminEligibleOpponentsFor(player).length > 0
+}
+
 function playerRowState(player) {
-  if (!canAdminSetUpMatch.value || !selectedPlayer.value) return {}
+  if (!canManageLadder.value) return {}
+
+  if (selectedPlayer.value) {
+    return {
+      selected:
+        player.id === selectedPlayer.value.id,
+      eligible:
+        eligiblePlayerIds.value.has(player.id),
+      quiet:
+        player.id !== selectedPlayer.value.id &&
+        !eligiblePlayerIds.value.has(player.id),
+      managed: false,
+    }
+  }
+
   return {
-    selected: player.id === selectedPlayer.value.id,
-    eligible: eligiblePlayerIds.value.has(player.id),
-    quiet: player.id !== selectedPlayer.value.id && !eligiblePlayerIds.value.has(player.id),
+    selected: false,
+    eligible: false,
+    quiet: false,
+    managed:
+      player.id === managedPlayerId.value,
   }
 }
 
 function handlePlayerRow(player) {
-  if (!canAdminSetUpMatch.value) return
-  if (!selectedPlayer.value || player.id === selectedPlayer.value.id) {
-    selectedPlayerId.value = player.id === selectedPlayer.value?.id ? '' : player.id
-    selectedOpponentId.value = ''
+  if (!canManageLadder.value) return
+
+  if (selectedPlayer.value) {
+    if (
+      player.id === selectedPlayer.value.id
+    ) {
+      resetChallengeSelection()
+      return
+    }
+
+    if (
+      !eligiblePlayerIds.value.has(player.id)
+    ) {
+      notificationStore.addToast({
+        title: 'Not available',
+        message:
+          'That player is outside the current challenge window.',
+        type: 'info',
+      })
+      return
+    }
+
+    selectedOpponentId.value = player.id
     drawerResult.value = null
     return
   }
-  if (!eligiblePlayerIds.value.has(player.id)) {
-    notificationStore.addToast({
-      message: 'That player is outside the current challenge window.',
-      type: 'info',
-    })
-    return
-  }
-  selectedOpponentId.value = player.id
-  drawerResult.value = null
+
+  managedPlayerId.value =
+    managedPlayerId.value === player.id
+      ? ''
+      : player.id
 }
 
 function handlePlayerKeydown(player, event) {
-  if (!canAdminSetUpMatch.value || !['Enter', ' '].includes(event.key)) return
+  if (
+    !canManageLadder.value ||
+    !['Enter', ' '].includes(event.key)
+  ) {
+    return
+  }
+
   event.preventDefault()
   handlePlayerRow(player)
 }
 
 function openMemberChallenge(player) {
-  router.push({ name: 'CreateChallenge', query: { opponent: player.id } })
+  if (
+    currentLadderPlayer.value?.challengePaused
+  ) {
+    notificationStore.addToast({
+      title: 'Challenges are paused',
+      message:
+        'Resume challenges before creating a new one.',
+      type: 'info',
+    })
+    return
+  }
+
+  router.push({
+    name: 'CreateChallenge',
+    query: { opponent: player.id },
+  })
 }
 
 function selectLadder(ladderId) {
   activeLadderId.value = ladderId
-  resetSelection()
+  resetAllPlayerActions()
 }
 
 function closeDrawer() {
@@ -172,24 +464,365 @@ function closeDrawer() {
   drawerResult.value = null
 }
 
-function resetSelection() {
+function resetChallengeSelection() {
   selectedPlayerId.value = ''
   selectedOpponentId.value = ''
   drawerResult.value = null
 }
 
-async function createAdminMatch(setup) {
-  const result = await challengeStore.createAdminLadderMatch({
-    ladderId: activeLadder.value.id,
-    challengerPlayerId: selectedPlayer.value.id,
-    opponentPlayerId: selectedOpponent.value.id,
-    actorId: currentPlayer.value?.id || '',
-    ...setup,
+function resetAllPlayerActions() {
+  managedPlayerId.value = ''
+  moveDialogOpen.value = false
+  missingMatchDialogOpen.value = false
+  removeDialogOpen.value = false
+  resetChallengeSelection()
+}
+
+function startAdminChallenge(player) {
+  if (!canAdminSetUpMatch.value) {
+    notificationStore.addToast({
+      title: 'Challenge unavailable',
+      message:
+        'Your club role cannot create ladder challenges.',
+      type: 'warning',
+    })
+    return
+  }
+
+  if (player?.challengePaused) {
+    notificationStore.addToast({
+      title: 'Challenges are paused',
+      message: `Resume challenges for ${player.name} first.`,
+      type: 'info',
+    })
+    return
+  }
+
+  const available =
+    adminEligibleOpponentsFor(player)
+
+  if (!available.length) {
+    notificationStore.addToast({
+      title: 'No opponent available',
+      message:
+        'There is no eligible player in this challenge window right now.',
+      type: 'info',
+    })
+    return
+  }
+
+  managedPlayerId.value = ''
+  selectedPlayerId.value = player.id
+  selectedOpponentId.value = ''
+  drawerResult.value = null
+}
+
+function actorName() {
+  return (
+    currentPlayer.value?.name ||
+    adminStore.activeClubRoleLabel ||
+    'Club admin'
+  )
+}
+
+function refreshLadder() {
+  ladderRevision.value += 1
+}
+
+function manualMove(player, targetRank) {
+  if (
+    !canManageLadder.value ||
+    !player ||
+    ladderActionBusy.value
+  ) {
+    return
+  }
+
+  ladderActionBusy.value = true
+
+  try {
+    const result = moveLadderPlayer({
+      scope: ladderScope.value,
+      roster: rawPlayers.value,
+      playerId: player.id,
+      targetRank,
+      actorName: actorName(),
+    })
+
+    refreshLadder()
+
+    if (!result.changed) {
+      notificationStore.addToast({
+        title: 'No change',
+        message: result.message,
+        type: 'info',
+      })
+      return
+    }
+
+    notificationStore.addToast({
+      title: 'Position updated',
+      message: `${player.name} moved from #${result.fromRank} to #${result.toRank}.`,
+      type: 'success',
+      sound: 'move',
+    })
+  } catch (error) {
+    notificationStore.addToast({
+      title: 'Could not move player',
+      message:
+        error?.message ||
+        'Try that position again.',
+      type: 'warning',
+    })
+  } finally {
+    ladderActionBusy.value = false
+  }
+}
+
+function moveUp(player) {
+  manualMove(
+    player,
+    Math.max(1, Number(player.rank) - 1),
+  )
+}
+
+function moveDown(player) {
+  manualMove(
+    player,
+    Math.min(
+      players.value.length,
+      Number(player.rank) + 1,
+    ),
+  )
+}
+
+function openMoveTo(player) {
+  managedPlayerId.value = player.id
+  moveDialogOpen.value = true
+}
+
+function previewMoveTo(targetRank) {
+  if (!managedPlayer.value) return null
+
+  return previewManualLadderMove({
+    scope: ladderScope.value,
+    roster: rawPlayers.value,
+    playerId: managedPlayer.value.id,
+    targetRank,
   })
+}
+
+function confirmMoveTo(targetRank) {
+  const player = managedPlayer.value
+  if (!player) return
+
+  manualMove(player, targetRank)
+  moveDialogOpen.value = false
+}
+
+function toggleChallenges(player) {
+  if (
+    !canManageLadder.value ||
+    !player ||
+    ladderActionBusy.value
+  ) {
+    return
+  }
+
+  ladderActionBusy.value = true
+
+  try {
+    const paused = !player.challengePaused
+
+    setLadderChallengePaused({
+      scope: ladderScope.value,
+      roster: rawPlayers.value,
+      playerId: player.id,
+      paused,
+      actorName: actorName(),
+    })
+
+    if (
+      paused &&
+      selectedPlayerId.value === player.id
+    ) {
+      resetChallengeSelection()
+    }
+
+    refreshLadder()
+
+    notificationStore.addToast({
+      title: paused
+        ? 'Challenges paused'
+        : 'Challenges resumed',
+      message: paused
+        ? `${player.name} stays on the ladder, but cannot be challenged right now.`
+        : `${player.name} can take part in challenges again.`,
+      type: 'success',
+    })
+  } catch (error) {
+    notificationStore.addToast({
+      title: 'Could not update challenges',
+      message:
+        error?.message ||
+        'Try again.',
+      type: 'warning',
+    })
+  } finally {
+    ladderActionBusy.value = false
+  }
+}
+
+function openMissingMatch(player) {
+  managedPlayerId.value = player.id
+  missingMatchDialogOpen.value = true
+}
+
+function previewMissingMatch(input) {
+  if (!managedPlayer.value) return null
+
+  return previewMissingMatchMovement({
+    scope: ladderScope.value,
+    roster: rawPlayers.value,
+    movementSystem:
+      activeLadderConfig.value.movementSystem,
+    matchType:
+      activeLadder.value?.matchType ||
+      activeLadderConfig.value.matchType ||
+      'singles',
+    ...input,
+  })
+}
+
+function recordMissingMatch(input) {
+  if (
+    !managedPlayer.value ||
+    ladderActionBusy.value
+  ) {
+    return
+  }
+
+  ladderActionBusy.value = true
+
+  try {
+    const result = recordMissingLadderMatch({
+      scope: ladderScope.value,
+      roster: rawPlayers.value,
+      movementSystem:
+        activeLadderConfig.value.movementSystem,
+      matchType:
+        activeLadder.value?.matchType ||
+        activeLadderConfig.value.matchType ||
+        'singles',
+      actorName: actorName(),
+      ...input,
+    })
+
+    refreshLadder()
+    missingMatchDialogOpen.value = false
+
+    notificationStore.addToast({
+      title: 'Match recorded',
+      message: result.movement?.moved
+        ? `${result.match.score} saved. ${result.movement.message}`
+        : `${result.match.score} saved.`,
+      type: 'success',
+      sound:
+        result.movement?.moved
+          ? 'move'
+          : 'toast',
+    })
+  } catch (error) {
+    notificationStore.addToast({
+      title: 'Could not record match',
+      message:
+        error?.message ||
+        'Check the result and try again.',
+      type: 'warning',
+    })
+  } finally {
+    ladderActionBusy.value = false
+  }
+}
+
+function openRemove(player) {
+  managedPlayerId.value = player.id
+  removeDialogOpen.value = true
+}
+
+function confirmRemove() {
+  const player = managedPlayer.value
+
+  if (
+    !player ||
+    ladderActionBusy.value
+  ) {
+    return
+  }
+
+  ladderActionBusy.value = true
+
+  try {
+    removePlayerFromLadder({
+      scope: ladderScope.value,
+      roster: rawPlayers.value,
+      playerId: player.id,
+      actorName: actorName(),
+    })
+
+    if (
+      selectedPlayerId.value === player.id ||
+      selectedOpponentId.value === player.id
+    ) {
+      resetChallengeSelection()
+    }
+
+    removeDialogOpen.value = false
+    managedPlayerId.value = ''
+    refreshLadder()
+
+    notificationStore.addToast({
+      title: 'Removed from ladder',
+      message: `${player.name} is no longer on ${activeLadder.value?.name || 'this ladder'}.`,
+      type: 'success',
+    })
+  } catch (error) {
+    notificationStore.addToast({
+      title: 'Could not remove player',
+      message:
+        error?.message || 'Try again.',
+      type: 'warning',
+    })
+  } finally {
+    ladderActionBusy.value = false
+  }
+}
+
+async function createAdminMatch(setup) {
+  const result =
+    await challengeStore.createAdminLadderMatch({
+      ladderId: activeLadder.value.id,
+      challengerPlayerId:
+        selectedPlayer.value.id,
+      opponentPlayerId:
+        selectedOpponent.value.id,
+      actorId: currentPlayer.value?.id || '',
+      ...setup,
+    })
+
   if (!result) return
-  drawerResult.value = { ...result, timing: setup.timing }
+
+  drawerResult.value = {
+    ...result,
+    timing: setup.timing,
+  }
+
   notificationStore.addToast({
-    message: setup.timing === 'scheduled' ? 'Ladder match scheduled.' : 'Ladder match ready.',
+    title: 'Ladder match',
+    message:
+      setup.timing === 'scheduled'
+        ? 'Ladder match scheduled.'
+        : 'Ladder match ready.',
     type: 'success',
   })
 }
@@ -197,24 +830,40 @@ async function createAdminMatch(setup) {
 async function viewMatch(result) {
   const matchId = result?.match?.id
   if (!matchId) return
+
   if (result.timing !== 'now') {
-    router.push({ name: 'MatchDetails', params: { matchId } })
+    router.push({
+      name: 'MatchDetails',
+      params: { matchId },
+    })
     return
   }
-  const started = await startOrResumeLadderMatch({
-    match: result.match,
-    actorId: currentPlayer.value?.id || '',
-    clubId: adminStore.activeClubId || '',
-    explicitStart: true,
-  })
+
+  const started =
+    await startOrResumeLadderMatch({
+      match: result.match,
+      actorId:
+        currentPlayer.value?.id || '',
+      clubId:
+        adminStore.activeClubId || '',
+      explicitStart: true,
+    })
+
   if (!started.ok) {
     notificationStore.addToast({
-      message: started.message || 'The canonical live Match could not be started.',
+      title: 'Match unavailable',
+      message:
+        started.message ||
+        'The canonical live Match could not be started.',
       type: 'warning',
     })
     return
   }
-  router.push({ name: 'LiveMatch', params: { matchId: started.match.id } })
+
+  router.push({
+    name: 'LiveMatch',
+    params: { matchId: started.match.id },
+  })
 }
 
 watch(
@@ -224,10 +873,18 @@ watch(
       activeLadderId.value = ''
       return
     }
-    if (!items.some((ladder) => ladder.id === activeLadderId.value)) {
+
+    if (
+      !items.some(
+        (ladder) =>
+          ladder.id === activeLadderId.value,
+      )
+    ) {
       activeLadderId.value =
-        items.find((ladder) => ladder.isMember)?.id ||
-        activeClub.value?.setup?.primaryLadderId ||
+        items.find((ladder) => ladder.isMember)
+          ?.id ||
+        activeClub.value?.setup
+          ?.primaryLadderId ||
         items[0].id
     }
   },
@@ -235,33 +892,55 @@ watch(
 )
 
 watch(drawerOpen, (isOpen) => {
-  if (isOpen) shell?.beginAdminMatchDrawer?.()
-  else shell?.endAdminMatchDrawer?.()
+  if (isOpen) {
+    shell?.beginAdminMatchDrawer?.()
+  } else {
+    shell?.endAdminMatchDrawer?.()
+  }
 })
 
 watch(canAdminSetUpMatch, (canSetUp) => {
-  if (canSetUp && !challengeStore.challenges.length && !challengeStore.isLoading) {
+  if (
+    canSetUp &&
+    !challengeStore.challenges.length &&
+    !challengeStore.isLoading
+  ) {
     challengeStore.loadChallenges()
   }
 })
 
 onMounted(async () => {
   const tasks = []
-  if (!playerStore.players.length) tasks.push(playerStore.loadPlayers())
-  if (!adminStore.activeClub) tasks.push(adminStore.loadClubs())
-  if (canAdminSetUpMatch.value && !challengeStore.challenges.length) {
+
+  if (!playerStore.players.length) {
+    tasks.push(playerStore.loadPlayers())
+  }
+
+  if (!adminStore.activeClub) {
+    tasks.push(adminStore.loadClubs())
+  }
+
+  if (
+    canAdminSetUpMatch.value &&
+    !challengeStore.challenges.length
+  ) {
     tasks.push(challengeStore.loadChallenges())
   }
+
   await Promise.allSettled(tasks)
 })
 
-onUnmounted(() => shell?.endAdminMatchDrawer?.())
+onUnmounted(() =>
+  shell?.endAdminMatchDrawer?.(),
+)
 </script>
 
 <template>
   <section
     class="gorra-compete-ref gorra-ladder-ref ladder-view"
-    :class="{ 'ladder-view--drawer': drawerOpen }"
+    :class="{
+      'ladder-view--drawer': drawerOpen,
+    }"
   >
     <LadderClubRail
       :club="activeClub"
@@ -271,27 +950,52 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
     />
 
     <main class="ladder-workspace">
-      <div v-if="playerStore.isLoading" class="ladder-loading" aria-label="Loading ladder">
-        <span v-for="index in 6" :key="index" class="skeleton-card skeleton-line"></span>
+      <div
+        v-if="playerStore.isLoading"
+        class="ladder-loading"
+        aria-label="Loading ladder"
+      >
+        <span
+          v-for="index in 6"
+          :key="index"
+          class="skeleton-card skeleton-line"
+        ></span>
       </div>
 
-      <section v-else-if="playerStore.error" class="ladder-error" role="alert">
+      <section
+        v-else-if="playerStore.error"
+        class="ladder-error"
+        role="alert"
+      >
         <div>
           <h2>We could not load the Ladder</h2>
           <p>{{ playerStore.error }}</p>
         </div>
-        <button class="button-secondary" type="button" @click="playerStore.loadPlayers">
+
+        <button
+          class="button-secondary"
+          type="button"
+          @click="playerStore.loadPlayers"
+        >
           Try again
         </button>
       </section>
 
       <template v-else>
-
         <header class="ladder-heading">
           <div>
-            <h1>{{ activeLadder?.name || 'Ladder' }}</h1>
+            <h1>
+              {{ activeLadder?.name || 'Ladder' }}
+            </h1>
+
             <p>
-              {{ players.length }} {{ players.length === 1 ? 'player' : 'players' }}
+              {{ players.length }}
+              {{
+                players.length === 1
+                  ? 'player'
+                  : 'players'
+              }}
+
               <template v-if="activeClub?.name">
                 · {{ activeClub.name }}
               </template>
@@ -307,7 +1011,7 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
             </RouterLink>
 
             <RouterLink
-              v-if="!canAdminSetUpMatch"
+              v-if="!canManageLadder"
               class="compete-primary"
               :to="{ name: 'CreateChallenge' }"
             >
@@ -316,54 +1020,206 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
           </div>
         </header>
 
-        <section v-if="canAdminSetUpMatch && players.length" class="selection-guide">
+        <section
+          v-if="
+            canAdminSetUpMatch &&
+            selectedPlayer &&
+            players.length
+          "
+          class="selection-guide"
+        >
           <span>
             <strong>{{ guideTitle }}</strong>
             <small>{{ guideText }}</small>
           </span>
-          <button v-if="selectedPlayer" type="button" @click="resetSelection">Clear</button>
+
+          <button
+            type="button"
+            @click="resetChallengeSelection"
+          >
+            Cancel
+          </button>
         </section>
 
-        <section v-if="players.length" class="ladder-list" aria-label="Club Ladder ranking">
-          <div
+        <section
+          v-if="players.length"
+          class="ladder-list"
+          aria-label="Club Ladder ranking"
+        >
+          <article
             v-for="player in players"
             :key="player.id"
-            class="ladder-row"
-            :class="{
-              'ladder-row--you': isCurrentPlayer(player),
-              'ladder-row--selected': playerRowState(player).selected,
-              'ladder-row--eligible': playerRowState(player).eligible,
-              'ladder-row--quiet': playerRowState(player).quiet,
-              'ladder-row--interactive': canAdminSetUpMatch,
-            }"
-            :role="canAdminSetUpMatch ? 'button' : undefined"
-            :tabindex="canAdminSetUpMatch ? 0 : undefined"
-            @click="handlePlayerRow(player)"
-            @keydown="handlePlayerKeydown(player, $event)"
+            class="ladder-player-item"
           >
-            <strong class="ladder-row__rank">#{{ player.rank }}</strong>
-            <PersonAvatar :name="player.name" :image="player.imageUrl" :size="40" />
-            <span class="ladder-row__player">
-              <strong>{{ player.name }}</strong>
-              <small v-if="isCurrentPlayer(player)">You</small>
-            </span>
-            <span class="ladder-row__points">{{ pointsFor(player) }} pts</span>
-            <span v-if="canAdminSetUpMatch" class="ladder-row__status">
-              <small v-if="playerRowState(player).selected">Selected</small>
-              <small v-else-if="playerRowState(player).eligible">Can challenge</small>
-              <small v-else-if="selectedPlayer">Not eligible</small>
-              <small v-else>Select</small>
-            </span>
-            <button
-              v-else-if="canMemberChallenge(player)"
-              class="button-primary ladder-row__action"
-              type="button"
-              :aria-label="`Challenge ${player.name}`"
-              @click.stop="openMemberChallenge(player)"
+            <div
+              class="ladder-row"
+              :class="{
+                'ladder-row--you':
+                  isCurrentPlayer(player),
+                'ladder-row--selected':
+                  playerRowState(player).selected,
+                'ladder-row--managed':
+                  playerRowState(player).managed,
+                'ladder-row--eligible':
+                  playerRowState(player).eligible,
+                'ladder-row--quiet':
+                  playerRowState(player).quiet,
+                'ladder-row--interactive':
+                  canManageLadder,
+              }"
+              :role="
+                canManageLadder
+                  ? 'button'
+                  : undefined
+              "
+              :tabindex="
+                canManageLadder ? 0 : undefined
+              "
+              @click="handlePlayerRow(player)"
+              @keydown="
+                handlePlayerKeydown(
+                  player,
+                  $event,
+                )
+              "
             >
-              Challenge
-            </button>
-          </div>
+              <strong class="ladder-row__rank">
+                #{{ player.rank }}
+              </strong>
+
+              <PersonAvatar
+                :name="player.name"
+                :image="player.imageUrl"
+                :size="40"
+              />
+
+              <span class="ladder-row__player">
+                <strong>{{ player.name }}</strong>
+
+                <small
+                  v-if="isCurrentPlayer(player)"
+                >
+                  You
+                </small>
+
+                <small
+                  v-else-if="player.challengePaused"
+                  class="ladder-row__paused"
+                >
+                  Paused
+                </small>
+              </span>
+
+              <span class="ladder-row__metric">
+                <template v-if="usesPoints">
+                  {{ pointsFor(player) }} pts
+                </template>
+
+                <template v-else>
+                  {{ matchesFor(player) }}
+                  {{
+                    matchesFor(player) === 1
+                      ? 'match'
+                      : 'matches'
+                  }}
+                </template>
+              </span>
+
+              <span
+                v-if="canManageLadder"
+                class="ladder-row__status"
+              >
+                <small
+                  v-if="
+                    playerRowState(player)
+                      .selected
+                  "
+                >
+                  Challenger
+                </small>
+
+                <small
+                  v-else-if="
+                    playerRowState(player)
+                      .eligible
+                  "
+                >
+                  Can challenge
+                </small>
+
+                <small
+                  v-else-if="selectedPlayer"
+                >
+                  Not eligible
+                </small>
+
+                <small
+                  v-else-if="
+                    playerRowState(player)
+                      .managed
+                  "
+                >
+                  Options open
+                </small>
+
+                <small
+                  v-else-if="
+                    player.challengePaused
+                  "
+                >
+                  Paused
+                </small>
+
+                <small v-else>
+                  Manage
+                </small>
+              </span>
+
+              <button
+                v-else-if="
+                  canMemberChallenge(player)
+                "
+                class="button-primary ladder-row__action"
+                type="button"
+                :aria-label="`Challenge ${player.name}`"
+                @click.stop="
+                  openMemberChallenge(player)
+                "
+              >
+                Challenge
+              </button>
+            </div>
+
+            <LadderPlayerOptions
+              v-if="
+                canManageLadder &&
+                managedPlayerId === player.id &&
+                !selectedPlayer
+              "
+              :player="player"
+              :position="Number(player.rank)"
+              :player-count="players.length"
+              :challenge-paused="
+                Boolean(player.challengePaused)
+              "
+              :can-challenge="
+                canSetUpChallengeFor(player)
+              "
+              @move-up="moveUp(player)"
+              @move-down="moveDown(player)"
+              @move-to="openMoveTo(player)"
+              @record-missing-match="
+                openMissingMatch(player)
+              "
+              @toggle-challenges="
+                toggleChallenges(player)
+              "
+              @set-up-challenge="
+                startAdminChallenge(player)
+              "
+              @remove="openRemove(player)"
+            />
+          </article>
         </section>
 
         <EmptyState
@@ -389,7 +1245,43 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
       @close="closeDrawer"
       @submit="createAdminMatch"
       @view="viewMatch"
-      @done="resetSelection"
+      @done="resetChallengeSelection"
+    />
+
+    <MoveLadderPlayerDialog
+      :open="moveDialogOpen"
+      :player="managedPlayer"
+      :roster="players"
+      :preview="previewMoveTo"
+      :busy="ladderActionBusy"
+      @close="moveDialogOpen = false"
+      @confirm="confirmMoveTo"
+    />
+
+    <RecordMissingMatchDialog
+      :open="missingMatchDialogOpen"
+      :anchor-player="managedPlayer"
+      :roster="players"
+      :match-type="
+        activeLadder?.matchType ||
+        activeLadderConfig.matchType ||
+        'singles'
+      "
+      :movement-preview="previewMissingMatch"
+      :busy="ladderActionBusy"
+      @close="missingMatchDialogOpen = false"
+      @record="recordMissingMatch"
+    />
+
+    <RemoveLadderPlayerDialog
+      :open="removeDialogOpen"
+      :player="managedPlayer"
+      :ladder-name="
+        activeLadder?.name || 'this ladder'
+      "
+      :busy="ladderActionBusy"
+      @close="removeDialogOpen = false"
+      @confirm="confirmRemove"
     />
   </section>
 </template>
@@ -398,14 +1290,21 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
 .ladder-view {
   display: grid;
   min-width: 0;
-  min-height: calc(100vh - var(--app-header-height));
-  grid-template-columns: 236px minmax(0, 1fr) 0;
+  min-height: calc(
+    100vh - var(--app-header-height)
+  );
+  grid-template-columns:
+    236px minmax(0, 1fr) 0;
   background: var(--color-bg);
-  transition: grid-template-columns var(--motion-medium) var(--motion-curve);
+  transition:
+    grid-template-columns
+    var(--motion-medium)
+    var(--motion-curve);
 }
 
 .ladder-view--drawer {
-  grid-template-columns: 236px minmax(0, 1fr) 390px;
+  grid-template-columns:
+    236px minmax(0, 1fr) 390px;
 }
 
 .ladder-workspace {
@@ -450,37 +1349,6 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
   font-size: 12px;
 }
 
-.ladder-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-  margin-bottom: 9px;
-  color: color-mix(in srgb, var(--color-muted) 75%, white);
-  font-size: 10px;
-  font-weight: var(--font-weight-regular);
-  line-height: 1.25;
-}
-
-.ladder-breadcrumb a {
-  color: var(--color-muted);
-  text-decoration: none;
-}
-
-.ladder-breadcrumb a:hover {
-  color: var(--color-text-soft);
-}
-
-.ladder-breadcrumb i {
-  color: var(--color-border-strong);
-  font-style: normal;
-}
-
-.ladder-breadcrumb strong {
-  color: var(--color-muted);
-  font-weight: var(--font-weight-medium);
-}
-
 .ladder-heading {
   display: flex;
   align-items: end;
@@ -505,14 +1373,6 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
   margin-top: 4px;
   color: var(--color-muted);
   font-size: 12px;
-}
-
-.ladder-heading > p {
-  max-width: 290px;
-  color: var(--color-muted);
-  font-size: 11px;
-  line-height: 1.45;
-  text-align: right;
 }
 
 .selection-guide {
@@ -557,11 +1417,17 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
   gap: 9px;
 }
 
+.ladder-player-item {
+  min-width: 0;
+}
+
 .ladder-row {
   display: grid;
   min-width: 0;
   min-height: 65px;
-  grid-template-columns: 38px 40px minmax(120px, 1fr) auto auto;
+  grid-template-columns:
+    38px 40px minmax(120px, 1fr)
+    auto auto;
   align-items: center;
   gap: 10px;
   padding: 9px 14px 9px 18px;
@@ -583,22 +1449,63 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
   border-color: var(--color-border-strong);
 }
 
+.ladder-row--managed {
+  border-color:
+    color-mix(
+      in srgb,
+      var(--color-primary) 20%,
+      var(--color-border)
+    );
+  border-radius:
+    var(--app-card-radius)
+    var(--app-card-radius)
+    0 0;
+  background:
+    color-mix(
+      in srgb,
+      var(--color-primary) 2%,
+      white
+    );
+}
+
 .ladder-row--selected {
   border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 6%, white);
+  background:
+    color-mix(
+      in srgb,
+      var(--color-primary) 6%,
+      white
+    );
 }
 
 .ladder-row--eligible {
-  border-color: color-mix(in srgb, var(--color-primary) 25%, var(--color-border));
-  background: color-mix(in srgb, var(--color-primary) 2%, white);
+  border-color:
+    color-mix(
+      in srgb,
+      var(--color-primary) 25%,
+      var(--color-border)
+    );
+  background:
+    color-mix(
+      in srgb,
+      var(--color-primary) 2%,
+      white
+    );
 }
 
 .ladder-row--quiet {
   opacity: 0.42;
 }
 
-.ladder-row--you:not(.ladder-row--selected) {
-  background: color-mix(in srgb, var(--color-primary) 4%, white);
+.ladder-row--you:not(
+  .ladder-row--selected
+) {
+  background:
+    color-mix(
+      in srgb,
+      var(--color-primary) 4%,
+      white
+    );
 }
 
 .ladder-row__rank {
@@ -631,7 +1538,11 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
   text-transform: uppercase;
 }
 
-.ladder-row__points {
+.ladder-row__player .ladder-row__paused {
+  color: #9b6b2c;
+}
+
+.ladder-row__metric {
   color: var(--color-muted);
   font-size: 11px;
   font-weight: var(--font-weight-medium);
@@ -656,9 +1567,18 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
   font-weight: var(--font-weight-semibold);
 }
 
-.ladder-row--selected .ladder-row__status small,
-.ladder-row--eligible .ladder-row__status small {
-  background: color-mix(in srgb, var(--color-primary) 10%, white);
+.ladder-row--selected
+  .ladder-row__status small,
+.ladder-row--eligible
+  .ladder-row__status small,
+.ladder-row--managed
+  .ladder-row__status small {
+  background:
+    color-mix(
+      in srgb,
+      var(--color-primary) 10%,
+      white
+    );
   color: var(--color-primary-strong);
 }
 
@@ -670,7 +1590,8 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
 
 @media (max-width: 1180px) {
   .ladder-view--drawer {
-    grid-template-columns: 214px minmax(0, 1fr) 0;
+    grid-template-columns:
+      214px minmax(0, 1fr) 0;
   }
 
   .ladder-view :deep(.ladder-rail) {
@@ -683,15 +1604,12 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
 }
 
 @media (max-width: 900px) {
-  .ladder-heading > p {
-    display: none;
-  }
-
   .ladder-row {
-    grid-template-columns: 34px 40px minmax(0, 1fr) auto;
+    grid-template-columns:
+      34px 40px minmax(0, 1fr) auto;
   }
 
-  .ladder-row__points {
+  .ladder-row__metric {
     display: none;
   }
 }
@@ -709,13 +1627,18 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
     padding: 17px 0 30px;
   }
 
+  .ladder-heading {
+    align-items: flex-start;
+  }
+
   .ladder-heading h1 {
     font-size: 21px;
   }
 
   .ladder-row {
     min-height: 62px;
-    grid-template-columns: 27px 36px minmax(0, 1fr) auto;
+    grid-template-columns:
+      27px 36px minmax(0, 1fr) auto;
     gap: 8px;
     padding: 9px 10px;
   }
@@ -747,7 +1670,15 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
 
 @media (max-width: 420px) {
   .ladder-workspace {
-    width: calc(100% - 24px);
+    width: 85%;
+  }
+
+  .ladder-heading {
+    display: grid;
+  }
+
+  .ladder-heading__actions {
+    justify-content: flex-start;
   }
 
   .selection-guide {
@@ -766,3 +1697,4 @@ onUnmounted(() => shell?.endAdminMatchDrawer?.())
   }
 }
 </style>
+

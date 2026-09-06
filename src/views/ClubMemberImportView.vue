@@ -71,6 +71,12 @@ const workspace = reactive({
   oneLadderName: '',
 })
 
+const SCENARIO_DETAIL_LEVEL = Object.freeze({
+  'members-only': 0,
+  'one-ladder': 1,
+  'multiple-ladders': 2,
+})
+
 const scenario = computed(() => {
   const value = String(route.query.scenario || '')
   return MEMBER_IMPORT_SCENARIOS[value] ? value : ''
@@ -282,7 +288,10 @@ function back() {
     return
   }
 
-  if (stage.value === 'review' || stage.value === 'mismatch' || stage.value === 'unrecognized') {
+  if (
+    stage.value === 'review' ||
+    stage.value === 'unrecognized'
+  ) {
     changeFile()
     return
   }
@@ -336,30 +345,109 @@ function rowHasRequiredError(rowIndex) {
   return fields.value.some((field) => importCellIssue(workspace, field, rowIndex)?.blocking)
 }
 
-function applyAnalysis(analysis) {
+function scenarioDetailLevel(value) {
+  return SCENARIO_DETAIL_LEVEL[value] ?? 0
+}
+
+function autoPromoteDetectedScenario(analysis) {
+  const current =
+    workspace.scenario ||
+    scenario.value ||
+    'members-only'
+
+  const suggested = analysis?.suggestedScenario
+
+  if (
+    !MEMBER_IMPORT_SCENARIOS[suggested] ||
+    scenarioDetailLevel(suggested) <=
+      scenarioDetailLevel(current)
+  ) {
+    return {
+      analysis,
+      scenario: current,
+      promoted: false,
+    }
+  }
+
+  const promotedAnalysis =
+    analyseMemberImportMatrix(
+      [
+        analysis.headers,
+        ...analysis.rows,
+      ],
+      {
+        scenario: suggested,
+        fileName: analysis.fileName,
+        sheetName: analysis.sheetName,
+        sheetCount: analysis.sheetCount,
+      },
+    )
+
+  if (!promotedAnalysis?.ok) {
+    return {
+      analysis,
+      scenario: current,
+      promoted: false,
+    }
+  }
+
+  return {
+    analysis: promotedAnalysis,
+    scenario: suggested,
+    promoted: true,
+  }
+}
+
+function applyAnalysis(initialAnalysis) {
+  if (!initialAnalysis?.looksLikePeople) {
+    Object.assign(workspace, initialAnalysis)
+    stage.value = 'unrecognized'
+    return
+  }
+
+  const promoted =
+    autoPromoteDetectedScenario(
+      initialAnalysis,
+    )
+
+  const analysis = promoted.analysis
+
   Object.assign(workspace, analysis)
-  workspace.scenario = scenario.value || workspace.scenario || 'members-only'
+
+  workspace.scenario = promoted.scenario
 
   if (
     workspace.scenario === 'one-ladder' &&
     !workspace.oneLadderName &&
     analysis.detectedLadders?.length === 1
   ) {
-    workspace.oneLadderName = analysis.detectedLadders[0]
+    workspace.oneLadderName =
+      analysis.detectedLadders[0]
   }
 
-  if (!analysis.looksLikePeople) {
-    stage.value = 'unrecognized'
-    return
-  }
+  if (promoted.promoted) {
+    manualScenarioOverride.value = true
 
-  if (
-    !manualScenarioOverride.value &&
-    analysis.suggestedScenario &&
-    analysis.suggestedScenario !== workspace.scenario
-  ) {
-    stage.value = 'mismatch'
-    return
+    router.replace({
+      name: 'ClubMemberImport',
+      query: {
+        scenario: promoted.scenario,
+      },
+    })
+
+    const detectedLabel =
+      promoted.scenario ===
+      'multiple-ladders'
+        ? 'Members + multiple ladders'
+        : 'Members + one ladder'
+
+    notificationStore.addToast({
+      title: 'Ladder data found',
+      message:
+        `Gorra found ladder information. ` +
+        `Your list is ready as ${detectedLabel}.`,
+      type: 'info',
+    })
   }
 
   stage.value = 'review'
@@ -474,26 +562,6 @@ function usePastedSpreadsheet() {
 
   pasteDialog.value?.close()
   applyAnalysis(analysis)
-}
-
-function useSuggestedScenario() {
-  const next = workspace.suggestedScenario
-  if (!MEMBER_IMPORT_SCENARIOS[next]) return
-  workspace.scenario = next
-  manualScenarioOverride.value = true
-  if (next === 'one-ladder' && !workspace.oneLadderName && workspace.detectedLadders.length === 1) {
-    workspace.oneLadderName = workspace.detectedLadders[0]
-  }
-  router.replace({
-    name: 'ClubMemberImport',
-    query: { scenario: next },
-  })
-  stage.value = 'review'
-}
-
-function keepChosenScenario() {
-  manualScenarioOverride.value = true
-  stage.value = 'review'
 }
 
 function changeFile() {
@@ -980,47 +1048,6 @@ useShellNestedHeader(() => {
       <div class="ref-form-actions" style="justify-content: flex-start">
         <button class="ref-button" type="button" @click="changeFile">Choose another file</button>
         <button class="ref-button primary" type="button" @click="openPaste">Paste spreadsheet</button>
-      </div>
-    </section>
-
-    <section v-else-if="stage === 'mismatch'" class="ref-page-narrow">
-      <header class="ref-section-heading">
-        <div class="ref-page-head-main">
-          <h2>
-            {{
-              workspace.suggestedScenario === 'multiple-ladders'
-                ? 'Gorra found multiple ladders.'
-                : 'Gorra found ladder positions.'
-            }}
-          </h2>
-          <p>You can use that information now or keep importing members only.</p>
-        </div>
-      </header>
-
-      <div class="ref-choice-stack">
-        <button class="ref-choice-row" type="button" @click="useSuggestedScenario">
-          <span class="ref-feature-icon"><FlowIcon name="ladder" /></span>
-          <span class="ref-choice-row-copy">
-            <strong>
-              {{
-                workspace.suggestedScenario === 'multiple-ladders'
-                  ? 'Use the ladder information'
-                  : 'Import this ladder too'
-              }}
-            </strong>
-            <span>Keep the positions already in your file.</span>
-          </span>
-          <FlowIcon name="arrow-right" />
-        </button>
-
-        <button class="ref-choice-row" type="button" @click="keepChosenScenario">
-          <span class="ref-feature-icon"><FlowIcon name="users" /></span>
-          <span class="ref-choice-row-copy">
-            <strong>Keep {{ schema.title.toLowerCase() }}</strong>
-            <span>Ignore the extra ladder information for this import.</span>
-          </span>
-          <FlowIcon name="arrow-right" />
-        </button>
       </div>
     </section>
 
