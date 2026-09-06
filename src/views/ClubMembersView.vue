@@ -217,10 +217,12 @@ onMounted(async () => {
 })
 useShellNestedHeader(() => ({
   label: 'Back to club',
+  backLabel: 'Back to club',
   back: () => router.push({ name: 'Club' }),
   crumbs: [
-    { label: 'Club', to: { name: 'Club' } },
+    { label: 'Club' },
     { label: 'Members' },
+    { label: club.value?.name || 'Current club' },
   ],
 }))
 </script>

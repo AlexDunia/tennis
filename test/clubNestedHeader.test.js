@@ -3,22 +3,35 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const layout = readFileSync('src/layouts/DefaultLayout.vue', 'utf8')
+const club = readFileSync('src/views/ClubView.vue', 'utf8')
 const members = readFileSync('src/views/ClubMembersView.vue', 'utf8')
 const memberImport = readFileSync('src/views/ClubMemberImportView.vue', 'utf8')
 const memberManual = readFileSync('src/views/ClubMemberManualView.vue', 'utf8')
 const memberDetail = readFileSync('src/views/ClubMemberDetailView.vue', 'utf8')
 
-test('the shell owns nested Club back navigation and breadcrumbs', () => {
-  assert.match(layout, /nestedHeader/)
-  assert.match(layout, /nested-header-back/)
+test('the shell separates the back arrow from nested Club title and breadcrumb copy', () => {
+  assert.match(layout, /class="nested-header-arrow"/)
+  assert.match(layout, /class="nested-header-copy"/)
   assert.match(layout, /nested-header-crumbs/)
-  assert.match(layout, /setNestedHeader/)
-  assert.match(layout, /clearNestedHeader/)
+  assert.match(layout, /nestedHeader\.subtitle/)
+  assert.match(layout, /nestedHeader\.backLabel/)
+
+  assert.doesNotMatch(
+    layout,
+    /class="nested-header-back"/,
+  )
 })
 
-test('Members moves Back to club out of the page body', () => {
+test('Members shows Club, Members and current club identity beneath Back to club', () => {
   assert.match(members, /label: 'Back to club'/)
+  assert.match(members, /\{ label: 'Members' \}/)
+  assert.match(members, /club\.value\?\.name \|\| 'Current club'/)
   assert.doesNotMatch(members, /class="ref-back"/)
+})
+
+test('the active Club surface returns to the club directory from the shell header', () => {
+  assert.match(club, /label: 'Back to clubs'/)
+  assert.match(club, /back: \(\) => router\.push\(\{ name: 'Clubs' \}\)/)
 })
 
 test('member import header follows the current import stage', () => {

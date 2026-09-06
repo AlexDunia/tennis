@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
+const routes = readFileSync('src/router/index.js', 'utf8')
+
 const clubsView = readFileSync(
   'src/views/ClubsView.vue',
   'utf8',
@@ -23,9 +25,9 @@ const clubReferenceCss = readFileSync(
 )
 
 test('Club is one simple directory with one heading and one paragraph', () => {
-  assert.match(clubsView, /\|\| 'Club'/)
+  assert.match(routes, /title: 'Club'/)
   assert.match(
-    clubsView,
+    routes,
     /Join a club, create one, or open one you already belong to\./,
   )
 
@@ -104,10 +106,36 @@ test('the one sidebar Club item opens the directory, not a second hidden Club co
   assert.match(layoutView, />All clubs<\/span>/)
 })
 
-test('Club-family screens own their heading instead of repeating shell captions', () => {
+test('the Club directory uses the normal shell title while nested Club screens own their header', () => {
   assert.match(layoutView, /const clubOwnsPageHeading = computed/)
-  assert.match(layoutView, /name === 'Clubs'/)
+
+  assert.doesNotMatch(
+    layoutView,
+    /name === 'Clubs' \|\|/,
+  )
+
   assert.match(layoutView, /name === 'ClubMembers'/)
   assert.match(layoutView, /name === 'ClubSettingsHub'/)
-  assert.match(layoutView, /v-else-if="showRoutePageContext"/)
+
+  assert.match(
+    clubsView,
+    /ref-choice-stack ref-club-entry-grid/,
+  )
+
+  assert.doesNotMatch(
+    clubsView,
+    /<h1 ref="heading" tabindex="-1">\{\{ directoryHeading \}\}<\/h1>/,
+  )
+})
+
+test('Join and Create share a two-column decision surface before the vertical club list', () => {
+  assert.match(
+    clubsView,
+    /\.ref-club-entry-grid[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
+  )
+
+  assert.match(
+    clubReferenceCss,
+    /\.ref-club-directory[\s\S]*grid-template-columns:\s*1fr/,
+  )
 })

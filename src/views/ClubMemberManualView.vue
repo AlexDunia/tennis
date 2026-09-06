@@ -60,10 +60,12 @@ onMounted(async () => {
 })
 useShellNestedHeader(() => ({
   label: 'Back to members',
+  backLabel: 'Back to members',
   back: () => router.push({ name: 'ClubMembers' }),
   crumbs: [
-    { label: 'Club', to: { name: 'Club' } },
-    { label: 'Members', to: { name: 'ClubMembers' } },
+    { label: 'Club' },
+    { label: 'Members' },
+    { label: club.value?.name || 'Current club' },
     { label: 'Add member' },
   ],
 }))

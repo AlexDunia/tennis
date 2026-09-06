@@ -367,8 +367,8 @@ const routes = [
     name: 'Clubs',
     component: ClubsView,
     meta: {
-      title: 'Clubs',
-      subtitle: 'The clubs you belong to.',
+      title: 'Club',
+      subtitle: 'Join a club, create one, or open one you already belong to.',
       primarySection: 'club',
     },
   },

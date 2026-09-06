@@ -10,6 +10,7 @@ import {
   TIMEZONE_OPTIONS,
   createDefaultClubSetup,
 } from '../config/admin'
+import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
 import AppLogo from '../components/AppLogo.vue'
 import EmptyState from '../components/EmptyState.vue'
@@ -132,22 +133,6 @@ const routeView = computed(() => {
   return ONBOARDING_STEPS.some((item) => item.key === route.query.step) ? 'wizard' : 'start'
 })
 const isDirectoryExperience = computed(() => routeView.value.startsWith('directory'))
-const directoryHeading = computed(
-  () =>
-    ({
-      'directory-create': 'Create a club',
-      'directory-join': 'Join a club',
-    })[routeView.value] || 'Club',
-)
-
-const directoryDescription = computed(
-  () =>
-    ({
-      'directory-create': 'Add the basics. You can set up everything else later.',
-      'directory-join': 'Use the invitation sent by your club.',
-    })[routeView.value] ||
-    'Join a club, create one, or open one you already belong to.',
-)
 const directoryClubs = computed(() => {
   const optionsById = new Map(
     adminStore.clubOptions.map((club) => [club.id, club]),
@@ -364,6 +349,32 @@ function openCreateClubFlow() {
 function openJoinClubFlow() {
   router.push({ name: 'PlayerClubJoin' })
 }
+
+useShellNestedHeader(() => {
+  if (route.name !== 'Clubs') return null
+
+  if (routeView.value === 'directory-create') {
+    return {
+      label: 'Create club',
+      subtitle: 'Add the basics. You can set up everything else later.',
+      backLabel: 'Back to Club',
+      back: showClubDirectory,
+      crumbs: [],
+    }
+  }
+
+  if (routeView.value === 'directory-join') {
+    return {
+      label: 'Join a club',
+      subtitle: 'Use the invitation sent by your club.',
+      backLabel: 'Back to Club',
+      back: showClubDirectory,
+      crumbs: [],
+    }
+  }
+
+  return null
+})
 
 async function createMinimalClub() {
   pageError.value = ''
@@ -750,16 +761,9 @@ onMounted(async () => {
 <template>
   <main
     v-if="isDirectoryExperience"
-    class="gorra-club-ref ref-page ref-page-narrow ref-clubs-directory-page"
+    class="gorra-club-ref ref-page ref-clubs-directory-page"
     :aria-busy="adminStore.isLoading || !directoryLoaded"
   >
-    <header class="ref-page-head">
-      <div class="ref-page-head-main">
-        <h1 ref="heading" tabindex="-1">{{ directoryHeading }}</h1>
-        <p>{{ directoryDescription }}</p>
-      </div>
-    </header>
-
     <p v-if="pageError" class="flow-alert" role="alert">{{ pageError }}</p>
     <section v-if="!directoryLoaded" class="directory-loading" aria-label="Loading clubs">
       <span></span><span></span>
@@ -769,9 +773,6 @@ onMounted(async () => {
       class="relationship-form"
       @submit.prevent="createMinimalClub"
     >
-      <button class="directory-back" type="button" @click="showClubDirectory">
-        <FlowIcon name="arrow-right" /> Back
-      </button>
       <div class="relationship-fields">
         <label class="answer-field">
           <span>Club name</span>
@@ -807,7 +808,7 @@ onMounted(async () => {
         You will manage this club. Ladders, members, courts, and rules can be configured later.
       </p>
       <button
-        class="directory-primary relationship-submit"
+        class="ref-button primary relationship-submit"
         type="submit"
         :disabled="adminStore.isSaving"
       >
@@ -819,9 +820,6 @@ onMounted(async () => {
       class="relationship-form"
       @submit.prevent="submitDirectoryJoin"
     >
-      <button class="directory-back" type="button" @click="showClubDirectory">
-        <FlowIcon name="arrow-right" /> Back
-      </button>
       <label class="answer-field">
         <span>Invitation code or link</span>
         <input
@@ -884,62 +882,60 @@ onMounted(async () => {
         }}
       </p>
       <button
-        class="directory-primary relationship-submit"
+        class="ref-button primary relationship-submit"
         type="submit"
         :disabled="adminStore.isSaving || inviteCode.trim().length < 6"
       >
         {{ directoryJoinSubmitLabel }}
       </button>
     </form>
-    <template v-else>
-      <section class="ref-club-entry-actions" aria-label="Club actions">
-        <div class="ref-choice-stack">
+    <div v-else class="club-directory-hub">
+      <section class="club-directory-section" aria-label="Club actions">
+        <div class="club-entry-options">
           <button
-            class="ref-choice-row"
+            class="club-entry-option"
             type="button"
             @click="openJoinClubFlow"
           >
-            <span class="ref-feature-icon" aria-hidden="true">
+            <span class="club-entry-icon" aria-hidden="true">
               <FlowIcon name="login" />
             </span>
 
-            <span class="ref-choice-row-copy">
+            <span class="club-entry-copy">
               <strong>Join a club</strong>
-              <span>Use an invitation from a club.</span>
+              <small>Use an invitation from a club.</small>
             </span>
 
-            <FlowIcon name="arrow-right" />
           </button>
 
           <button
-            class="ref-choice-row"
+            class="club-entry-option"
             type="button"
             @click="openCreateClubFlow"
           >
-            <span class="ref-feature-icon" aria-hidden="true">
+            <span class="club-entry-icon" aria-hidden="true">
               <FlowIcon name="plus" />
             </span>
 
-            <span class="ref-choice-row-copy">
+            <span class="club-entry-copy">
               <strong>Create a club</strong>
-              <span>Start a new club you manage.</span>
+              <small>Start a new club you manage.</small>
             </span>
 
-            <FlowIcon name="arrow-right" />
           </button>
         </div>
       </section>
 
       <section
-        v-if="directoryClubs.length"
-        class="ref-owned-clubs"
+        class="club-directory-section"
         aria-labelledby="your-clubs-heading"
       >
-        <header class="ref-section-heading">
+        <header class="club-section-heading">
           <h2 id="your-clubs-heading">Your clubs</h2>
+          <p>Open a club you belong to.</p>
         </header>
 
-        <div class="ref-club-directory">
+        <div v-if="directoryClubs.length" class="ref-club-directory">
           <button
             v-for="club in directoryClubs"
             :key="club.id"
@@ -975,8 +971,16 @@ onMounted(async () => {
             <FlowIcon name="arrow-right" aria-hidden="true" />
           </button>
         </div>
+        <EmptyState
+          v-else
+          compact
+          variant="quiet"
+          illustration="home"
+          title="No clubs yet"
+          description="Clubs you join or create will appear here."
+        />
       </section>
-    </template>
+    </div>
   </main>
   <main v-else class="clubs-flow">
     <div class="flow-atmosphere" aria-hidden="true">
@@ -1478,11 +1482,6 @@ onMounted(async () => {
 .add-club-decision {
   display: grid;
 }
-.directory-primary {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: #fff;
-}
 .relationship-form {
   display: grid;
   gap: 18px;
@@ -1655,8 +1654,7 @@ onMounted(async () => {
 
 .directory-choice-card:focus-visible,
 .club-directory-card:focus-visible,
-.add-club-button:focus-visible,
-.directory-back:focus-visible {
+.add-club-button:focus-visible {
   outline: 3px solid rgba(40, 122, 69, 0.14);
   outline-offset: 2px;
 }
@@ -1777,29 +1775,12 @@ onMounted(async () => {
   color: var(--color-primary-strong);
 }
 
-.add-club-button .flow-icon,
-.directory-back .flow-icon {
+.add-club-button .flow-icon {
   width: 17px;
   height: 17px;
 }
 
-.directory-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  margin: 0 0 22px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #526056;
-  font-size: 11.5px;
-  font-weight: var(--font-weight-semibold);
-}
 
-.directory-back .flow-icon {
-  transform: rotate(180deg);
-}
 @keyframes directory-shimmer {
   to {
     background-position: -140% 0;
@@ -2620,6 +2601,166 @@ button:disabled {
   .choices > button {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+.relationship-form {
+  width: min(100%, 760px);
+  padding-top: clamp(20px, 3vw, 28px);
+}
+
+.relationship-submit {
+  --club-control-height: 44px;
+  --club-control-padding: 18px;
+  min-width: 132px;
+  min-height: 44px;
+  padding-inline: 18px;
+  justify-self: start;
+}
+
+
+.club-directory-hub {
+  display: grid;
+  width: 100%;
+  gap: clamp(42px, 5vw, 52px);
+  padding: 0;
+}
+
+.club-directory-section {
+  display: grid;
+  gap: 16px;
+}
+
+.club-section-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.club-section-heading h2,
+.club-section-heading p {
+  margin: 0;
+}
+
+.club-section-heading h2 {
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+}
+
+.club-section-heading p {
+  margin: 0;
+}
+
+.club-entry-options {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.club-entry-option {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 112px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+  white-space: normal;
+}
+
+.club-entry-option:hover {
+  border-color: var(--color-border-strong);
+  transform: translateY(-1px);
+}
+
+.club-entry-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--color-surface-soft);
+  color: var(--color-primary-strong);
+}
+
+.club-entry-icon :deep(svg) {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.club-entry-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.club-entry-copy {
+  gap: 4px;
+}
+
+.club-entry-copy strong {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+}
+
+.club-entry-copy small {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+}
+
+.ref-clubs-directory-page {
+  padding: 4px 0 42px;
+}
+
+@media (max-width: 640px) {
+  .club-directory-hub {
+    gap: 40px;
+  }
+
+  .ref-clubs-directory-page {
+    padding-bottom: 30px;
+  }
+
+  .club-entry-options {
+    grid-template-columns: 1fr;
+  }
+
+  .club-entry-option {
+    min-height: 104px;
+    padding: 18px;
+  }
+}
+
+@media (max-width: 360px) {
+  .club-entry-option {
+    gap: 11px;
+    padding-inline: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .club-entry-option {
+    animation: none;
+    transition: none;
   }
 }
 </style>

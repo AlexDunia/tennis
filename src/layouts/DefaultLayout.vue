@@ -148,43 +148,44 @@
           <div class="header-main" :class="{ 'header-main--nested': nestedHeader }">
             <div v-if="nestedHeader" class="nested-header-context">
               <button
-                class="nested-header-back"
+                class="nested-header-arrow"
                 type="button"
+                :aria-label="nestedHeader.backLabel"
+                :title="nestedHeader.backLabel"
                 @click="handleHeaderBack"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M15 18l-6-6 6-6" />
                 </svg>
-                <span>{{ nestedHeader.label }}</span>
               </button>
 
-              <ol
-                v-if="nestedHeader.crumbs.length"
-                class="nested-header-crumbs"
-                aria-label="Breadcrumb"
-              >
-                <li
-                  v-for="(crumb, index) in nestedHeader.crumbs"
-                  :key="`${crumb.label}-${index}`"
+              <div class="nested-header-copy">
+                <strong>{{ nestedHeader.label }}</strong>
+
+                <p v-if="nestedHeader.subtitle">
+                  {{ nestedHeader.subtitle }}
+                </p>
+
+                <ol
+                  v-else-if="nestedHeader.crumbs.length"
+                  class="nested-header-crumbs"
+                  aria-label="Breadcrumb"
                 >
-                  <a
-                    v-if="crumb.to"
-                    :href="getNavigationHref(crumb.to)"
-                    @click="handleNavigationClick(crumb.to, $event)"
+                  <li
+                    v-for="(crumb, index) in nestedHeader.crumbs"
+                    :key="`${crumb.label}-${index}`"
                   >
-                    {{ crumb.label }}
-                  </a>
+                    <span>{{ crumb.label }}</span>
 
-                  <span v-else>{{ crumb.label }}</span>
-
-                  <i
-                    v-if="index < nestedHeader.crumbs.length - 1"
-                    aria-hidden="true"
-                  >
-                    ›
-                  </i>
-                </li>
-              </ol>
+                    <i
+                      v-if="index < nestedHeader.crumbs.length - 1"
+                      aria-hidden="true"
+                    >
+                      ›
+                    </i>
+                  </li>
+                </ol>
+              </div>
             </div>
 
             <template v-else>
@@ -547,7 +548,6 @@ const clubOwnsPageHeading = computed(() => {
   const name = String(route.name || '')
 
   return (
-    name === 'Clubs' ||
     name === 'Club' ||
     name === 'ClubMembers' ||
     name === 'ClubMemberImport' ||
@@ -845,6 +845,8 @@ function setNestedHeader(owner, config = {}) {
   nestedHeader.value = {
     owner,
     label: String(config.label || ''),
+    subtitle: String(config.subtitle || ''),
+    backLabel: String(config.backLabel || config.label || 'Back'),
     back: typeof config.back === 'function' ? config.back : null,
     crumbs: Array.isArray(config.crumbs) ? config.crumbs : [],
   }
@@ -983,38 +985,73 @@ onUnmounted(() => {
 .nested-header-context {
   display: grid;
   min-width: 0;
-  gap: 2px;
-}
-
-.nested-header-back {
-  width: fit-content;
-  min-height: 28px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-soft);
-  display: inline-flex;
+  grid-template-columns: 34px minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.2;
-  text-align: left;
+  gap: 10px;
 }
 
-.nested-header-back:hover {
+.nested-header-arrow {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: #f1f4f1;
+  color: #647069;
+}
+
+.nested-header-arrow:hover {
+  border-color: #e0e6e1;
+  background: #e9eeea;
   color: var(--color-text);
 }
 
-.nested-header-back svg {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 14px;
+.nested-header-arrow:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.nested-header-arrow svg {
+  display: block;
+  width: 15px;
+  height: 15px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 1.45;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.nested-header-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.nested-header-copy > strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 19px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nested-header-copy > p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nested-header-crumbs {
@@ -1038,21 +1075,15 @@ onUnmounted(() => {
   gap: 4px;
 }
 
-.nested-header-crumbs a,
 .nested-header-crumbs span {
   overflow: hidden;
   color: inherit;
-  text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.nested-header-crumbs a:hover {
-  color: var(--color-text-soft);
-}
-
 .nested-header-crumbs i {
-  color: color-mix(in srgb, var(--color-text) 28%, transparent);
+  color: color-mix(in srgb, var(--color-text) 27%, transparent);
   font-style: normal;
 }
 
@@ -2337,13 +2368,38 @@ onUnmounted(() => {
 }
 
 @media (max-width: 767px) {
+  .nested-header-context {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .nested-header-arrow {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .nested-header-copy > strong {
+    font-size: 17px;
+  }
+
+  .nested-header-copy > p {
+    font-size: 10px;
+  }
+
+  .nested-header-crumbs {
+    font-size: 9px;
+  }
+
   .layout {
     --app-header-height: 82px;
     --app-bottom-nav-height: 64px;
+    --app-shell-content-width: 80%;
   }
 
   .layout--migrated {
-    --app-shell-content-width: calc(100% - 28px);
+    --app-shell-content-width: 80%;
   }
 
   .sidebar {
@@ -2445,6 +2501,16 @@ onUnmounted(() => {
     width: var(--app-shell-content-width);
     margin-inline: auto;
     padding: 18px 0 28px;
+  }
+
+  .content:not(.content--fullscreen):not(.content--public) {
+    width: var(--app-shell-content-width);
+    margin-inline: auto;
+  }
+
+  .content--ladder:not(.content--fullscreen):not(.content--public) {
+    width: var(--app-shell-content-width);
+    margin-inline: auto;
   }
 
   .content--fullscreen,

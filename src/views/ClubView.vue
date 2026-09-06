@@ -1,4 +1,5 @@
 <script setup>
+import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
@@ -148,6 +149,16 @@ onMounted(async () => {
     pageError.value = error?.message || 'We could not open this club.'
   }
 })
+useShellNestedHeader(() => ({
+  label: 'Back to clubs',
+  backLabel: 'Back to clubs',
+  back: () => router.push({ name: 'Clubs' }),
+  crumbs: [
+    { label: 'Club' },
+    { label: club.value?.name || 'Current club' },
+  ],
+}))
+
 </script>
 
 <template>

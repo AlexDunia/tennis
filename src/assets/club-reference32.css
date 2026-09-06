@@ -201,7 +201,7 @@
 
 .ref-choice-stack {
   display: grid;
-  gap: 10px;
+  gap: 16px;
 }
 
 .ref-choice-row {
@@ -418,11 +418,11 @@
 }
 
 .ref-club-manage {
-  margin-top: 32px;
+  margin-top: 42px;
 }
 
 .ref-section-heading {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .ref-section-heading h2 {
@@ -581,6 +581,11 @@
   line-height: 1.25;
   font-weight: 600;
   letter-spacing: -.022em;
+}
+
+.ref-members-head h1 {
+  font-size: 21px;
+  color: #465149;
 }
 
 .ref-members-head p {
@@ -1407,17 +1412,17 @@
 
 .ref-members-empty-copy h2 {
   margin: 0;
-  color: var(--g-ink);
-  font-size: 19px;
+  color: #4e5a52;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.35;
-  letter-spacing: -.015em;
+  letter-spacing: -.01em;
 }
 
 .ref-members-empty-copy p {
   margin: 5px 0 0;
-  color: var(--g-muted);
-  font-size: 13px;
+  color: #89928c;
+  font-size: 11.5px;
   line-height: 1.5;
 }
 
@@ -1875,7 +1880,7 @@
 .layout.layout--club-theme {
   --club-action-size: 11px;
   --club-action-weight: 600;
-  --club-control-height: 36px;
+  --club-control-height: 42px;
   --club-control-radius: 8px;
   --club-control-padding: 12px;
   --club-action-gap: 8px;
@@ -1966,7 +1971,6 @@
 
 .layout.layout--club-theme .content :is(
   .ref-page-head h1,
-  .ref-members-head h1,
   .ref-club-identity-main h1,
   .settings-page__header h1,
   .clubs-directory h1
@@ -2082,8 +2086,12 @@
 }
 
 .layout.layout--club-theme .content :is(button, a):focus-visible {
-  outline: 2px solid var(--tournament-green-dark);
-  outline-offset: 3px;
+  outline: 1px solid color-mix(
+    in srgb,
+    var(--tournament-green-dark) 70%,
+    transparent
+  );
+  outline-offset: 2px;
 }
 
 .layout.layout--club-theme .content :is(
@@ -2143,49 +2151,4 @@
   }
 }
 
-.layout.layout--club-theme .content .ref-page-head h1,
-.layout.layout--club-theme .content .ref-club-identity-main h1{
-  font-size: 25px;
-  font-weight: 600;
-}
 
-.layout.layout--club-theme .content .ref-page-head p,
-.layout.layout--club-theme .content .ref-section-heading p{
-  font-size: 14px;
-}
-
-.layout.layout--club-theme .content .ref-section-heading h2{
-  font-size: 19px;
-  font-weight: 600;
-}
-
-.layout.layout--club-theme .content .ref-choice-row-copy strong,
-.layout.layout--club-theme .content .ref-club-directory-copy strong,
-.layout.layout--club-theme .content .ref-import-type-row strong{
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.layout.layout--club-theme .content .ref-choice-row-copy span,
-.layout.layout--club-theme .content .ref-choice-row-copy small,
-.layout.layout--club-theme .content .ref-club-directory-copy span,
-.layout.layout--club-theme .content .ref-import-type-row small{
-  font-size: 13px;
-}
-
-.layout.layout--club-theme .content .ref-club-directory-copy small{
-  font-size: 11px;
-}
-
-.layout.layout--club-theme .content .ref-club-identity-main p{
-  font-size: 14px;
-}
-
-.layout.layout--club-theme .content .ref-club-identity-main small{
-  font-size: 11px;
-}
-
-.layout.layout--club-theme .content .ref-members-head h1{
-  font-size: 25px;
-  font-weight: 600;
-}

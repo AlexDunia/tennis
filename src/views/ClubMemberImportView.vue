@@ -557,8 +557,9 @@ const importModeCrumb = computed(
 
 useShellNestedHeader(() => {
   const crumbs = [
-    { label: 'Club', to: { name: 'Club' } },
-    { label: 'Members', to: { name: 'ClubMembers' } },
+    { label: 'Club' },
+    { label: 'Members' },
+    { label: club.value?.name || 'Current club' },
     { label: 'Import' },
   ]
 
@@ -572,6 +573,12 @@ useShellNestedHeader(() => {
 
   return {
     label:
+      stage.value === 'scenario'
+        ? 'Back to members'
+        : stage.value === 'prepare'
+          ? 'Back to import types'
+          : 'Back to upload',
+    backLabel:
       stage.value === 'scenario'
         ? 'Back to members'
         : stage.value === 'prepare'
