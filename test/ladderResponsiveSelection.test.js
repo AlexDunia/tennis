@@ -34,8 +34,7 @@ test('mobile Ladder does not shrink inside the already-80-percent shell', () => 
   )
 })
 
-test('admin challenge selection has strong selected, soft eligible, paused and mobile context states', () => {
-  assert.match(ladder, /mobile-selection-context/)
+test('admin challenge selection preserves selected, eligible and paused states', () => {
   assert.match(ladder, /ladder-row--selected/)
   assert.match(ladder, /ladder-row--eligible/)
   assert.match(ladder, /ladder-row--paused/)
@@ -53,15 +52,69 @@ test('the normal dynamic application header is allowed on the Ladder route', () 
 test('challenge focus uses toaster green and click-away backdrop', () => {
   assert.match(ladder, /challengeSelectionActive/)
   assert.match(ladder, /challenge-selection-backdrop/)
-  assert.match(ladder, /@click="resetChallengeSelection"/)
+  assert.match(ladder, /@click="cancelChallengeSelection"/)
   assert.match(ladder, /\.ladder-row--selected[\s\S]*background:\s*#163d2b/)
   assert.match(ladder, /\.ladder-row--eligible[\s\S]*background:\s*#fff/)
   assert.match(ladder, /\.ladder-row--quiet[\s\S]*blur/)
   assert.doesNotMatch(ladder, />\s*Cancel\s*</)
 })
 
-test('desktop player options stay on one row and only wrap responsively', () => {
-  assert.match(playerOptions, /ladder-player-options__row/)
-  assert.match(playerOptions, /\.ladder-player-options__row[\s\S]*display:\s*flex/)
-  assert.match(playerOptions, /@media \(max-width: 767px\)[\s\S]*grid-template-columns/)
-})
+test(
+  'challenge selection is cancelled from the selected card and restores its options',
+  () => {
+    assert.match(
+      ladder,
+      /function cancelChallengeSelection/,
+    )
+
+    assert.match(
+      ladder,
+      /managedPlayerId\.value = playerId/,
+    )
+
+    assert.match(
+      ladder,
+      /ladder-row__cancel-selection/,
+    )
+
+    assert.match(
+      ladder,
+      /@click\.stop="cancelChallengeSelection"/,
+    )
+
+    assert.doesNotMatch(
+      ladder,
+      /class="selection-guide"/,
+    )
+
+    assert.doesNotMatch(
+      ladder,
+      /class="mobile-selection-context"/,
+    )
+  },
+)
+
+test(
+  'player management actions use visible desktop lines and never horizontal scrolling',
+  () => {
+    assert.match(
+      playerOptions,
+      /ladder-player-options__line--primary/,
+    )
+
+    assert.match(
+      playerOptions,
+      /ladder-player-options__line--secondary/,
+    )
+
+    assert.doesNotMatch(
+      playerOptions,
+      /overflow-x:\s*auto/,
+    )
+
+    assert.match(
+      playerOptions,
+      /@media \(max-width: 767px\)[\s\S]*grid-template-columns/,
+    )
+  },
+)

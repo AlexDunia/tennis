@@ -234,16 +234,6 @@ useShellNestedHeader(() => ({
       <div class="ref-members-head-copy">
         <h1>All members of {{ club?.name || 'this club' }}</h1>
       </div>
-
-      <button
-        v-if="canManage"
-        class="ref-button"
-        type="button"
-        @click="scrollToAddPeople"
-      >
-        <FlowIcon name="plus" />
-        Add people
-      </button>
     </header>
 
     <p v-if="pageError" class="ref-inline-alert" role="alert">{{ pageError }}</p>
@@ -352,6 +342,16 @@ useShellNestedHeader(() => ({
         <h2>You currently have no active members</h2>
         <p>People added to this club will appear here.</p>
       </div>
+
+      <button
+        v-if="canManage"
+        class="ref-button primary ref-members-add-button"
+        type="button"
+        @click="scrollToAddPeople"
+      >
+        <FlowIcon name="plus" />
+        Add people
+      </button>
     </section>
 
     <section
@@ -455,3 +455,9 @@ useShellNestedHeader(() => ({
     </dialog>
   </main>
 </template>
+
+<style scoped>
+.ref-members-add-button {
+  margin-top: 16px;
+}
+</style>

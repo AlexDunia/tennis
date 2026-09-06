@@ -280,33 +280,44 @@ const challengeSelectionActive = computed(
     ),
 )
 
-const guideTitle = computed(() => {
-  if (!selectedPlayer.value) return ''
+watch(challengeSelectionActive, (active, _previous, onCleanup) => {
+  if (!active || typeof document === 'undefined') return
 
-  if (selectedOpponent.value) {
-    return `${selectedPlayer.value.name} vs ${selectedOpponent.value.name}`
+  const elements = [document.documentElement, document.body]
+  const previousStyles = elements.map((element) => ({
+    overflow: element.style.getPropertyValue('overflow'),
+    priority: element.style.getPropertyPriority('overflow'),
+  }))
+
+  const preventScroll = (event) => event.preventDefault()
+  const preventScrollKey = (event) => {
+    const scrollKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ']
+    const isControl = event.target instanceof Element &&
+      event.target.closest('button, [role="button"], input, textarea, select, [contenteditable="true"]')
+    if (scrollKeys.includes(event.key) && !(event.key === ' ' && isControl)) {
+      event.preventDefault()
+    }
   }
 
-  return `Choose an opponent for ${selectedPlayer.value.name}`
-})
+  elements.forEach((element) => element.style.setProperty('overflow', 'hidden'))
+  document.addEventListener('wheel', preventScroll, { passive: false, capture: true })
+  document.addEventListener('touchmove', preventScroll, { passive: false, capture: true })
+  document.addEventListener('keydown', preventScrollKey, true)
 
-const guideText = computed(() => {
-  if (!selectedPlayer.value) return ''
-
-  if (selectedPlayer.value.challengePaused) {
-    return 'Challenges are paused for this player.'
-  }
-
-  if (!eligiblePlayers.value.length) {
-    return 'No eligible opponents are available right now.'
-  }
-
-  if (!selectedOpponent.value) {
-    return 'Only eligible players are highlighted.'
-  }
-
-  return 'Finish setting up the match in the panel.'
-})
+  onCleanup(() => {
+    elements.forEach((element, index) => {
+      const previous = previousStyles[index]
+      if (previous.overflow) {
+        element.style.setProperty('overflow', previous.overflow, previous.priority)
+      } else {
+        element.style.removeProperty('overflow')
+      }
+    })
+    document.removeEventListener('wheel', preventScroll, true)
+    document.removeEventListener('touchmove', preventScroll, true)
+    document.removeEventListener('keydown', preventScrollKey, true)
+  })
+}, { flush: 'post' })
 
 const usesPoints = computed(
   () =>
@@ -413,7 +424,7 @@ function handlePlayerRow(player) {
     if (
       player.id === selectedPlayer.value.id
     ) {
-      resetChallengeSelection()
+      cancelChallengeSelection()
       return
     }
 
@@ -485,6 +496,26 @@ function resetChallengeSelection() {
   selectedPlayerId.value = ''
   selectedOpponentId.value = ''
   drawerResult.value = null
+}
+
+function cancelChallengeSelection() {
+  const playerId =
+    selectedPlayerId.value
+
+  selectedPlayerId.value = ''
+  selectedOpponentId.value = ''
+  drawerResult.value = null
+
+  /*
+   * Set up challenge was launched from this member's
+   * already-open management card.
+   *
+   * Cancelling returns to exactly that state instead
+   * of collapsing the member completely.
+   */
+  if (playerId) {
+    managedPlayerId.value = playerId
+  }
 }
 
 function resetAllPlayerActions() {
@@ -957,7 +988,8 @@ onUnmounted(() =>
     class="ladder-view"
     :class="{
       'ladder-view--drawer': drawerOpen,
-      'ladder-view--selection': challengeSelectionActive,
+      'ladder-view--selection':
+        challengeSelectionActive,
     }"
   >
     <button
@@ -966,7 +998,7 @@ onUnmounted(() =>
       type="button"
       tabindex="-1"
       aria-label="Cancel challenge selection"
-      @click="resetChallengeSelection"
+      @click="cancelChallengeSelection"
     ></button>
     <LadderClubRail
       :club="activeClub"
@@ -1060,58 +1092,6 @@ onUnmounted(() =>
         </header>
 
         <section
-          v-if="challengeSelectionActive"
-          class="mobile-selection-context"
-          aria-live="polite"
-        >
-          <PersonAvatar
-            :name="selectedPlayer.name"
-            :image="selectedPlayer.imageUrl"
-            :size="34"
-          />
-
-          <span>
-            <strong>
-              {{ selectedPlayer.name }} selected
-            </strong>
-            <small>Choose one of the available players.</small>
-          </span>
-
-          <button
-            type="button"
-            aria-label="Cancel challenge selection"
-            title="Cancel challenge selection"
-            @click.stop="resetChallengeSelection"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="m6 6 8 8M14 6l-8 8" />
-            </svg>
-          </button>
-        </section>
-
-        <section
-          v-if="challengeSelectionActive && players.length"
-          class="selection-guide"
-          @click.stop
-        >
-          <span>
-            <strong>{{ guideTitle }}</strong>
-            <small>Choose one of the available players.</small>
-          </span>
-
-          <button
-            type="button"
-            aria-label="Cancel challenge selection"
-            title="Cancel challenge selection"
-            @click.stop="resetChallengeSelection"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="m6 6 8 8M14 6l-8 8" />
-            </svg>
-          </button>
-        </section>
-
-        <section
           v-if="players.length"
           class="ladder-list"
           aria-label="Club Ladder ranking"
@@ -1201,14 +1181,31 @@ onUnmounted(() =>
                 v-if="canManageLadder"
                 class="ladder-row__status"
               >
-                <small
-                  v-if="
-                    playerRowState(player).selected
-                  "
-                  class="ladder-row__state ladder-row__state--selected"
+                <span
+                  v-if="playerRowState(player).selected"
+                  class="ladder-row__selected-controls"
                 >
-                  Challenger
-                </small>
+                  <small
+                    class="ladder-row__state ladder-row__state--selected"
+                  >
+                    Challenger
+                  </small>
+
+                  <button
+                    class="ladder-row__cancel-selection"
+                    type="button"
+                    aria-label="Deselect challenger"
+                    title="Deselect challenger"
+                    @click.stop="cancelChallengeSelection"
+                  >
+                    <svg
+                      viewBox="0 0 20 20"
+                      aria-hidden="true"
+                    >
+                      <path d="m6 6 8 8M14 6l-8 8" />
+                    </svg>
+                  </button>
+                </span>
 
                 <small
                   v-else-if="
@@ -1468,78 +1465,8 @@ onUnmounted(() =>
   border: 0;
   background: rgba(8, 13, 10, 0.15);
   backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
   cursor: default;
-}
-
-.selection-guide {
-  position: sticky;
-  z-index: 74;
-  top: calc(var(--app-header-height) + 10px);
-  display: flex;
-  min-height: 58px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 10px 11px 10px 13px;
-  border: 1px solid rgba(22, 61, 43, 0.16);
-  border-radius: var(--app-card-radius);
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 10px 24px rgba(10, 28, 18, 0.08);
-  backdrop-filter: blur(10px);
-}
-
-.selection-guide > span {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.selection-guide strong {
-  overflow: hidden;
-  color: var(--color-text);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.selection-guide small {
-  overflow: hidden;
-  color: var(--color-muted);
-  font-size: 10px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.selection-guide > button {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
-  min-height: 34px;
-  place-items: center;
-  padding: 0;
-  border: 1px solid rgba(22, 61, 43, 0.12);
-  border-radius: 9px;
-  background: #f5f9f6;
-  color: #163d2b;
-}
-
-.selection-guide > button:hover { background: #eef5f0; }
-
-.selection-guide > button:focus-visible {
-  outline: 2px solid rgba(22, 61, 43, 0.2);
-  outline-offset: 2px;
-}
-
-.selection-guide > button svg {
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
 }
 
 .ladder-list {
@@ -1730,8 +1657,50 @@ onUnmounted(() =>
 }
 
 .ladder-row__status {
-  min-width: 92px;
+  min-width: 128px;
   text-align: right;
+}
+
+.ladder-row__selected-controls {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.ladder-row__cancel-selection {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #fff;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-primary-strong);
+}
+
+.ladder-row__cancel-selection:hover {
+  border-color: var(--color-primary);
+  background: #fff;
+}
+
+.ladder-row__cancel-selection:focus-visible {
+  outline: 2px solid
+    rgba(185, 239, 120, 0.34);
+  outline-offset: 2px;
+}
+
+.ladder-row__cancel-selection svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 
 .ladder-row__state {
@@ -1825,10 +1794,6 @@ onUnmounted(() =>
   font-size: 11px;
 }
 
-.mobile-selection-context {
-  display: none;
-}
-
 @media (max-width: 1180px) {
   .ladder-view--drawer {
     grid-template-columns:
@@ -1856,6 +1821,27 @@ onUnmounted(() =>
 }
 
 @media (max-width: 767px) {
+  .ladder-row__status {
+    min-width: 0;
+  }
+
+  .ladder-row__selected-controls {
+    gap: 5px;
+  }
+
+  .ladder-row__state--selected {
+    min-height: 27px;
+    padding-inline: 6px;
+    font-size: 8px;
+  }
+
+  .ladder-row__cancel-selection {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+  }
+
   .ladder-row,
   .ladder-row__player {
     min-width: 0;
@@ -1873,90 +1859,6 @@ onUnmounted(() =>
   .ladder-row__state {
     max-width: 100%;
     white-space: nowrap;
-  }
-
-  .selection-guide {
-    display: none;
-  }
-
-  .mobile-selection-context {
-    position: fixed;
-    z-index: 74;
-    top: var(--app-header-height);
-    left: 50%;
-    display: grid;
-    width: 85vw;
-    min-height: 56px;
-    grid-template-columns:
-      34px minmax(0, 1fr) 30px;
-    align-items: center;
-    gap: 9px;
-    padding: 9px 10px;
-    border: 1px solid
-      color-mix(
-        in srgb,
-        var(--color-primary) 22%,
-        var(--color-border)
-      );
-    border-radius: 0 0 12px 12px;
-    background: rgba(250, 253, 250, 0.98);
-    box-shadow: 0 8px 22px rgba(18, 49, 29, 0.08);
-    transform: translateX(-50%);
-    backdrop-filter: blur(10px);
-  }
-
-  .mobile-selection-context > span {
-    display: grid;
-    min-width: 0;
-    gap: 2px;
-  }
-
-  .mobile-selection-context strong {
-    overflow: hidden;
-    color: var(--color-primary-strong);
-    font-size: 10.5px;
-    font-weight: 650;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mobile-selection-context small {
-    overflow: hidden;
-    color: var(--color-muted);
-    font-size: 8.8px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mobile-selection-context > button {
-    display: grid;
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    min-height: 32px;
-    place-items: center;
-    padding: 0;
-    border: 1px solid rgba(22, 61, 43, 0.12);
-    border-radius: 9px;
-    background: #f5f9f6;
-    color: #163d2b;
-  }
-
-  .mobile-selection-context > button:active {
-    background: var(--color-surface-soft);
-  }
-
-  .mobile-selection-context > button svg {
-    width: 15px;
-    height: 15px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-  }
-
-  .ladder-view--selection .ladder-workspace {
-    padding-top: 83px;
   }
 
   .ladder-view,
@@ -2022,13 +1924,6 @@ onUnmounted(() =>
     justify-content: flex-start;
   }
 
-  .selection-guide {
-    align-items: flex-start;
-  }
-
-  .selection-guide small {
-    line-height: 1.4;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
