@@ -14,6 +14,7 @@ import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
 import AppLogo from '../components/AppLogo.vue'
 import EmptyState from '../components/EmptyState.vue'
+import ClubCreatePanel from '../components/club/ClubCreatePanel.vue'
 import { useAdminStore } from '../stores/admin'
 import { useNotificationStore } from '../stores/notification'
 import {
@@ -52,7 +53,6 @@ const rulesEditing = ref(false)
 const rulesAccepted = ref(true)
 const customLadder = reactive({ name: '', matchType: 'singles' })
 const manualMember = reactive({ name: '', contact: '', role: 'player' })
-const minimalClub = reactive({ name: '', country: '', city: '' })
 const directoryLoaded = ref(false)
 
 const COUNTRY_OPTIONS = Object.freeze([
@@ -375,33 +375,6 @@ useShellNestedHeader(() => {
 
   return null
 })
-
-async function createMinimalClub() {
-  pageError.value = ''
-  if (minimalClub.name.trim().length < 2) {
-    pageError.value = 'Enter the club name.'
-    return
-  }
-  if (minimalClub.country.trim().length < 2) {
-    pageError.value = 'Choose the club country.'
-    return
-  }
-  if (minimalClub.city.trim().length < 2) {
-    pageError.value = 'Enter the club city.'
-    return
-  }
-
-  try {
-    const result = await adminStore.createClub(minimalClub)
-    notificationStore.addToast({
-      message: `${result.club?.name || minimalClub.name} was created.`,
-      type: 'success',
-    })
-    await router.push({ name: 'Club' })
-  } catch (error) {
-    pageError.value = error?.message || 'We could not create this club.'
-  }
-}
 
 function resetDirectoryInvite() {
   pendingInvite.value = null
@@ -768,53 +741,11 @@ onMounted(async () => {
     <section v-if="!directoryLoaded" class="directory-loading" aria-label="Loading clubs">
       <span></span><span></span>
     </section>
-    <form
+    <ClubCreatePanel
       v-else-if="routeView === 'directory-create'"
-      class="relationship-form"
-      @submit.prevent="createMinimalClub"
-    >
-      <div class="relationship-fields">
-        <label class="answer-field">
-          <span>Club name</span>
-          <input
-            v-model="minimalClub.name"
-            maxlength="100"
-            autocomplete="organization"
-            placeholder="For example, Greenview Tennis Club"
-            required
-          />
-        </label>
-        <label class="answer-field">
-          <span>Country</span>
-          <select v-model="minimalClub.country" autocomplete="country-name" required>
-            <option value="" disabled>Choose a country</option>
-            <option v-for="country in COUNTRY_OPTIONS" :key="country" :value="country">
-              {{ country }}
-            </option>
-          </select>
-        </label>
-        <label class="answer-field">
-          <span>City</span>
-          <input
-            v-model="minimalClub.city"
-            maxlength="80"
-            autocomplete="address-level2"
-            placeholder="For example, Lagos"
-            required
-          />
-        </label>
-      </div>
-      <p class="relationship-form__note">
-        You will manage this club. Ladders, members, courts, and rules can be configured later.
-      </p>
-      <button
-        class="ref-button primary relationship-submit"
-        type="submit"
-        :disabled="adminStore.isSaving"
-      >
-        {{ adminStore.isSaving ? 'Creating club…' : 'Create club' }}
-      </button>
-    </form>
+      :countries="COUNTRY_OPTIONS"
+      @cancel="showClubDirectory"
+    />
     <form
       v-else-if="routeView === 'directory-join'"
       class="relationship-form"
@@ -2762,5 +2693,13 @@ button:disabled {
     animation: none;
     transition: none;
   }
+}
+/* Separate each club card with explicit bottom spacing. */
+.club-directory-section .ref-club-directory {
+  row-gap: 0;
+}
+
+.club-directory-section .ref-club-directory-row:not(:last-child) {
+  margin-bottom: 16px;
 }
 </style>

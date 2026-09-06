@@ -226,7 +226,8 @@ export function normalizeClubSetup(input = {}) {
     completedStep: clampInteger(value.completedStep, 0, ADMIN_SETUP_STEPS.length, 0),
     workspace: {
       name: sanitizePlainText(workspace.name, 100),
-      logoUrl: isSafeImageSource(workspace.logoUrl) ? String(workspace.logoUrl).slice(0, 2048) : '',
+      logoUrl: isSafeImageSource(workspace.logoUrl) ? String(workspace.logoUrl) : '',
+      coverUrl: isSafeImageSource(workspace.coverUrl) ? String(workspace.coverUrl) : '',
       ...(isMinimal || workspace.country || workspace.city
         ? {
             country: sanitizePlainText(workspace.country, 80),

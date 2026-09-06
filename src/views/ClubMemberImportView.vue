@@ -1,5 +1,6 @@
 <script setup>
 import MemberListArt from '../components/club/MemberListArt.vue'
+import { memberTemplateMatrix, memberTemplateDelimited, memberTemplateGuide } from '../utils/onboarding/memberImportTemplates.js'
 import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -34,6 +35,8 @@ const fileInput = ref(null)
 const pasteDialog = ref(null)
 const helpDialog = ref(null)
 const templateDialog = ref(null)
+const templateExamples = ref(true)
+const templateBusy = ref(false)
 const error = ref('')
 const busy = ref(false)
 const dragging = ref(false)
@@ -412,14 +415,11 @@ function templateHeaders() {
 }
 
 function templateBaseName() {
-  return `${workspace.scenario}-gorra-template`
+  return `${workspace.scenario}-gorra-${templateExamples.value ? 'example' : 'blank'}-template`
 }
 
 function downloadTemplateCsv() {
-  const headers = templateHeaders()
-  const csv = `${headers
-    .map((header) => `"${String(header).replaceAll('"', '""')}"`)
-    .join(',')}\r\n`
+  const csv = memberTemplateDelimited(workspace.scenario, templateExamples.value)
 
   const blob = new Blob([csv], {
     type: 'text/csv;charset=utf-8',
@@ -440,14 +440,37 @@ function downloadTemplateCsv() {
 }
 
 async function downloadTemplateXlsx() {
-  const XLSX = await import('xlsx')
-  const sheet = XLSX.utils.aoa_to_sheet([templateHeaders()])
-  const workbook = XLSX.utils.book_new()
+  if (templateBusy.value) return
+  templateBusy.value = true
+  error.value = ''
+  try {
+    const XLSX = await import('xlsx')
+    const matrix = memberTemplateMatrix(workspace.scenario, templateExamples.value)
+    const sheet = XLSX.utils.aoa_to_sheet(matrix)
+    sheet['!cols'] = matrix[0].map(header => ({ wch: header === 'Email' ? 32 : Math.max(18, header.length + 3) }))
+    sheet['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: matrix.length - 1, c: matrix[0].length - 1 } }) }
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Gorra import')
+    const guide = XLSX.utils.aoa_to_sheet(memberTemplateGuide(workspace.scenario))
+    guide['!cols'] = [{ wch: 24 }, { wch: 110 }]
+    XLSX.utils.book_append_sheet(workbook, guide, 'Read me')
+    XLSX.writeFile(workbook, `${templateBaseName()}.xlsx`)
+    templateDialog.value?.close()
+  } catch (downloadError) {
+    error.value = downloadError?.message || 'We could not download the template. Try CSV instead.'
+  } finally {
+    templateBusy.value = false
+  }
+}
 
-  XLSX.utils.book_append_sheet(workbook, sheet, 'Gorra import')
-  XLSX.writeFile(workbook, `${templateBaseName()}.xlsx`)
-
-  templateDialog.value?.close()
+async function copyTemplateRows() {
+  try {
+    await navigator.clipboard.writeText(memberTemplateMatrix(workspace.scenario, templateExamples.value).map(row => row.join('\t')).join('\n'))
+    notificationStore.addToast({ message: 'Template copied. Paste it into your spreadsheet.', type: 'success' })
+    templateDialog.value?.close()
+  } catch {
+    error.value = 'Clipboard access was unavailable. Download the CSV or Excel file instead.'
+  }
 }
 
 async function copyTemplateHeadings() {
@@ -990,7 +1013,7 @@ useShellNestedHeader(() => {
         <header class="ref-dialog-head">
           <div>
             <h2>Download template</h2>
-            <p>Use whichever file your club already works with.</p>
+            <p>{{ schema.title }} &middot; exact columns for this import.</p>
           </div>
 
           <button
@@ -1003,10 +1026,20 @@ useShellNestedHeader(() => {
           </button>
         </header>
 
+        <label class="ref-form-field template-content-choice">
+          <span>Template content</span>
+          <select v-model="templateExamples">
+            <option :value="true">Filled example list</option>
+            <option :value="false">Blank template</option>
+          </select>
+        </label>
+        <p v-if="templateExamples" class="ref-inline-note">Fictional example members: replace these rows with your club's real data before importing. {{ workspace.scenario === 'multiple-ladders' ? 'Includes 8 people across 3 ladders, with consistent identities and positions.' : 'Includes 8 members and all supported columns.' }}</p>
+        <p v-if="workspace.scenario === 'one-ladder'" class="ref-inline-note">Enter your ladder name in Gorra before uploading this list.</p>
         <div class="ref-template-download-options">
           <button
             class="ref-template-download-option"
             type="button"
+            :disabled="templateBusy"
             @click="downloadTemplateXlsx"
           >
             <span class="ref-feature-icon">
@@ -1034,6 +1067,11 @@ useShellNestedHeader(() => {
             <FlowIcon name="download" />
           </button>
 
+          <button class="ref-template-download-option" type="button" @click="copyTemplateRows">
+            <span class="ref-feature-icon"><FlowIcon name="copy" /></span>
+            <span><strong>Copy template</strong><small>Paste rows into Excel or Google Sheets</small></span>
+            <FlowIcon name="arrow-right" />
+          </button>
           <button
             class="ref-template-download-option"
             type="button"
@@ -1114,3 +1152,8 @@ useShellNestedHeader(() => {
     </dialog>
   </main>
 </template>
+
+<style scoped>
+.template-content-choice { margin-bottom: 12px; }
+.template-content-choice select { padding-right: 36px; }
+</style>

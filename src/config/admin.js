@@ -200,7 +200,7 @@ export function createDefaultClubSetup() {
   }
 }
 
-export function createMinimalClubSetup({ name = '', country = '', city = '' } = {}) {
+export function createMinimalClubSetup({ name = '', country = '', city = '', logoUrl = '', coverUrl = '' } = {}) {
   const location = [city, country]
     .map((value) => String(value || '').trim())
     .filter(Boolean)
@@ -214,7 +214,8 @@ export function createMinimalClubSetup({ name = '', country = '', city = '' } = 
     completedStep: 0,
     workspace: {
       name,
-      logoUrl: '',
+      logoUrl,
+      coverUrl,
       country,
       city,
       location,

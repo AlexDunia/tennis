@@ -12,7 +12,7 @@ const memberDetail = readFileSync('src/views/ClubMemberDetailView.vue', 'utf8')
 test('the shell separates the back arrow from nested Club title and breadcrumb copy', () => {
   assert.match(layout, /class="nested-header-arrow"/)
   assert.match(layout, /class="nested-header-copy"/)
-  assert.match(layout, /nested-header-crumbs/)
+  assert.match(layout, /<AppBreadcrumbs :items="navigationBreadcrumbs"/)
   assert.match(layout, /nestedHeader\.subtitle/)
   assert.match(layout, /nestedHeader\.backLabel/)
 

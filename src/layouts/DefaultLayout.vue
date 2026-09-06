@@ -145,86 +145,69 @@
             <AppLogo class="global-identity__logo" :on-dark="false" />
           </a>
 
-          <div class="header-main" :class="{ 'header-main--nested': nestedHeader }">
-            <div v-if="nestedHeader" class="nested-header-context">
-              <button
-                class="nested-header-arrow"
-                type="button"
-                :aria-label="nestedHeader.backLabel"
-                :title="nestedHeader.backLabel"
-                @click="handleHeaderBack"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-              </button>
+          <div class="header-context-stack">
+            <AppBreadcrumbs :items="navigationBreadcrumbs" />
+            <div class="header-main" :class="{ 'header-main--nested': nestedHeader }">
+              <div v-if="nestedHeader" class="nested-header-context">
+                <button
+                  class="nested-header-arrow"
+                  type="button"
+                  :aria-label="nestedHeader.backLabel"
+                  :title="nestedHeader.backLabel"
+                  @click="handleHeaderBack"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </button>
 
-              <div class="nested-header-copy">
-                <strong>{{ nestedHeader.label }}</strong>
+                <div class="nested-header-copy">
+                  <strong>{{ nestedHeader.label }}</strong>
 
-                <p v-if="nestedHeader.subtitle">
-                  {{ nestedHeader.subtitle }}
-                </p>
+                  <p v-if="nestedHeader.subtitle">
+                    {{ nestedHeader.subtitle }}
+                  </p>
+                </div>
+              </div>
+
+              <template v-else>
+                <button
+                  v-if="headerBackLabel"
+                  class="header-back"
+                  type="button"
+                  :aria-label="headerBackLabel"
+                  :title="headerBackLabel"
+                  @click="handleHeaderBack"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+                </button>
 
                 <ol
-                  v-else-if="nestedHeader.crumbs.length"
-                  class="nested-header-crumbs"
-                  aria-label="Breadcrumb"
+                  v-if="isTournamentCreate"
+                  class="header-steps"
+                  aria-label="Tournament creation progress"
                 >
                   <li
-                    v-for="(crumb, index) in nestedHeader.crumbs"
-                    :key="`${crumb.label}-${index}`"
+                    v-for="(step, index) in tournamentCreateSteps"
+                    :key="step"
+                    :class="{
+                      'header-step--done': index < tournamentCreateStepIndex,
+                      'header-step--active': index === tournamentCreateStepIndex,
+                    }"
                   >
-                    <span>{{ crumb.label }}</span>
-
-                    <i
-                      v-if="index < nestedHeader.crumbs.length - 1"
-                      aria-hidden="true"
-                    >
-                      ›
-                    </i>
+                    <span>{{ index < tournamentCreateStepIndex ? 'OK' : index + 1 }}</span>
+                    <strong>{{ tournamentCreateTitles[step] }}</strong>
                   </li>
                 </ol>
-              </div>
+
+                <div v-else-if="showRoutePageContext" class="page-context">
+                  <h1>{{ currentTitle }}</h1>
+                  <p>{{ currentSubtitle }}</p>
+                </div>
+              </template>
             </div>
 
-            <template v-else>
-              <button
-                v-if="headerBackLabel"
-                class="header-back"
-                type="button"
-                :aria-label="headerBackLabel"
-                :title="headerBackLabel"
-                @click="handleHeaderBack"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
-              </button>
-
-              <ol
-                v-if="isTournamentCreate"
-                class="header-steps"
-                aria-label="Tournament creation progress"
-              >
-                <li
-                  v-for="(step, index) in tournamentCreateSteps"
-                  :key="step"
-                  :class="{
-                    'header-step--done': index < tournamentCreateStepIndex,
-                    'header-step--active': index === tournamentCreateStepIndex,
-                  }"
-                >
-                  <span>{{ index < tournamentCreateStepIndex ? 'OK' : index + 1 }}</span>
-                  <strong>{{ tournamentCreateTitles[step] }}</strong>
-                </li>
-              </ol>
-
-              <div v-else-if="showRoutePageContext" class="page-context">
-                <h1>{{ currentTitle }}</h1>
-                <p>{{ currentSubtitle }}</p>
-              </div>
-            </template>
           </div>
-
           <div class="header-actions">
             <a
               :href="getNavigationHref({ name: 'Notifications' })"
@@ -349,6 +332,7 @@
             />
           </div>
 
+          <AppBreadcrumbs v-if="isFocusedFlow && !isPublicRoute && !isImmersiveRoute" class="focused-breadcrumbs" :items="navigationBreadcrumbs" />
           <RouterView v-slot="{ Component }">
             <Transition name="page" mode="out-in" appear>
               <component
@@ -410,6 +394,9 @@ import { useAdminStore } from '../stores/admin'
 import ToastShelf from '../components/ToastShelf.vue'
 import RoutePageSkeleton from '../components/RoutePageSkeleton.vue'
 import AppLogo from '../components/AppLogo.vue'
+import AppBreadcrumbs from '../components/AppBreadcrumbs.vue'
+import { buildNavigationBreadcrumbs } from '../utils/navigationBreadcrumbs.js'
+import { exactClubMember } from '../utils/club/memberData.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -747,6 +734,16 @@ const currentTitle = computed(() => {
   }
   return route.meta.headerTitle || route.meta.title || 'GORRA'
 })
+const navigationBreadcrumbs = computed(() => buildNavigationBreadcrumbs({
+  route,
+  club: adminStore.activeClub,
+  member: route.params.memberId ? exactClubMember(adminStore.activeClub?.setup || {}, route.params.memberId).member : null,
+  tournament: activeTournament.value,
+  category: activeCategory.value,
+  title: currentTitle.value,
+  nestedCrumbs: nestedHeader.value?.crumbs || [],
+}))
+
 const currentSubtitle = computed(() => {
   if (isTournamentCreate.value) {
     return tournamentCreateSubtitles[tournamentCreateStep.value]
@@ -2701,4 +2698,16 @@ onUnmounted(() => {
     transition: none;
   }
 }
+.header-context-stack { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.header-context-stack .header-main { min-width: 0; }
+.focused-breadcrumbs { width: 80%; margin: 18px auto 0; }
+@media (max-width: 767px) {
+  .header-context-stack { display: none; }
+  .header-context-stack:has(.app-breadcrumbs),
+  .header-context-stack:has(.header-main--nested),
+  .app-header--section .header-context-stack { display: flex; }
+  .header-content:has(.app-breadcrumbs) .global-identity { display: none; }
+}
+.header-content:has(.app-breadcrumbs) { padding-block: 8px; }
+.header-content:has(.app-breadcrumbs) .page-context p { display: block; white-space: nowrap; }
 </style>

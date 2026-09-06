@@ -166,6 +166,7 @@ useShellNestedHeader(() => ({
     <p v-if="pageError" class="ref-inline-alert" role="alert">{{ pageError }}</p>
 
     <section v-if="club" aria-labelledby="active-club-name">
+      <img v-if="workspace.coverUrl" class="club-cover-photo" :src="workspace.coverUrl" :alt="`${club.name} cover`" />
       <section class="ref-club-identity">
         <div class="ref-club-identity-main">
           <button
@@ -247,3 +248,7 @@ useShellNestedHeader(() => ({
     </section>
   </main>
 </template>
+
+<style scoped>
+.club-cover-photo { display: block; width: 100%; height: clamp(140px, 22vw, 250px); object-fit: cover; border-radius: var(--app-card-radius); margin-bottom: 20px; }
+</style>

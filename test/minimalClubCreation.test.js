@@ -14,6 +14,10 @@ import {
 import { hasClubMembershipPermission } from '../src/utils/auth/accessControl.js'
 
 const clubsViewSource = readFileSync('src/views/ClubsView.vue', 'utf8')
+const clubCreateSource = readFileSync(
+  'src/components/club/ClubCreatePanel.vue',
+  'utf8',
+)
 const clubViewSource = readFileSync('src/views/ClubView.vue', 'utf8')
 const settingsViewSource = readFileSync('src/views/SettingsView.vue', 'utf8')
 
@@ -195,14 +199,75 @@ test('existing stored clubs keep their pre-change setup configuration', async ()
   })
 })
 
-test('Create Club form and first-club handoff use the approved real destinations', () => {
-  assert.match(clubsViewSource, /minimalClub = reactive\(\{ name: '', country: '', city: '' \}\)/)
-  assert.match(clubsViewSource, /<span>Country<\/span>/)
-  assert.match(clubsViewSource, /<span>City<\/span>/)
-  assert.match(clubsViewSource, /await router\.push\(\{ name: 'Club' \}\)/)
-  assert.match(clubViewSource, /title="Your club is ready"/)
-  assert.match(clubViewSource, /primary-action-label="Add members"/)
-  assert.match(clubViewSource, /name: 'Settings', query: \{ section: 'members' \}/)
-  assert.match(settingsViewSource, /route\.query\.section/)
-  assert.match(settingsViewSource, /value\.configurationState !== 'minimal'/)
+test('Create Club uses the prepared minimal ClubCreatePanel and real club handoff', () => {
+  assert.match(
+    clubsViewSource,
+    /import ClubCreatePanel from '\.\.\/components\/club\/ClubCreatePanel\.vue'/,
+  )
+
+  assert.match(
+    clubsViewSource,
+    /<ClubCreatePanel[\s\S]*:countries="COUNTRY_OPTIONS"[\s\S]*@cancel="showClubDirectory"/,
+  )
+
+  assert.doesNotMatch(
+    clubsViewSource,
+    /minimalClub = reactive/,
+  )
+
+  assert.match(clubCreateSource, /v-model="form\.name"/)
+  assert.match(clubCreateSource, /v-model="form\.country"/)
+  assert.match(clubCreateSource, /v-model="form\.city"/)
+
+  assert.match(
+    clubCreateSource,
+    /const input = \{[\s\S]*name: form\.name\.trim\(\),[\s\S]*country: form\.country\.trim\(\),[\s\S]*city: form\.city\.trim\(\)/,
+  )
+
+  assert.match(
+    clubCreateSource,
+    /await adminStore\.createClub\(input\)/,
+  )
+
+  assert.match(
+    clubCreateSource,
+    /await router\.push\(\{ name: 'Club' \}\)/,
+  )
+
+  assert.match(clubCreateSource, />Club basics<\/h2>/)
+  assert.match(clubCreateSource, />Your club<\/h2>/)
+  assert.match(clubCreateSource, />You · Admin<\/small>/)
+  assert.match(clubCreateSource, /<strong>0<\/strong> members/)
+  assert.match(clubCreateSource, /<strong>0<\/strong> ladders/)
+
+  assert.match(clubCreateSource, /type="file"/)
+
+  assert.match(clubCreateSource, /logoUrl: form\.logoUrl/)
+  assert.match(clubCreateSource, /coverUrl: form\.coverUrl/)
+
+  assert.match(clubViewSource, /name: 'ClubMembers'/)
+})
+
+
+test('optional club images survive creation and reload without creating setup data', async () => {
+  await withStorage(async () => {
+    const logoUrl = 'data:image/png;base64,' + 'A'.repeat(4096)
+    const coverUrl = 'data:image/webp;base64,' + 'B'.repeat(8192)
+    const result = await createClub({ name: 'Image Club', country: 'Nigeria', city: 'Lagos', logoUrl, coverUrl }, { userId: 'image-admin' })
+    const stored = (await getClubDirectory({ userId: 'image-admin' })).clubs.find(club => club.id === result.club.id).setup
+    assert.equal(stored.workspace.logoUrl, logoUrl)
+    assert.equal(stored.workspace.coverUrl, coverUrl)
+    assert.deepEqual(stored.ladders, [])
+    assert.deepEqual(stored.membership.roster, [])
+    assert.deepEqual(stored.workspace.courts, [])
+    assert.deepEqual(stored.rules, {})
+  })
+})
+
+test('club creation discards unsafe and oversized image sources', async () => {
+  await withStorage(async () => {
+    const result = await createClub({ name: 'Safe Club', country: 'Nigeria', city: 'Lagos', logoUrl: 'javascript:alert(1)', coverUrl: 'data:image/png;base64,' + 'A'.repeat(2_100_000) }, { userId: 'safe-admin' })
+    assert.equal(result.club.setup.workspace.logoUrl, '')
+    assert.equal(result.club.setup.workspace.coverUrl, '')
+  })
 })

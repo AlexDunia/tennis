@@ -355,7 +355,7 @@ function buildSetupInput(section = activeCategory.value) {
       workspace: {
         ...(base.workspace || {}),
         name: sanitizePlainText(club.name, 100),
-        logoUrl: validLogoUrl.value ? club.logoUrl.trim().slice(0, 2048) : '',
+        logoUrl: validLogoUrl.value ? club.logoUrl.trim() : '',
         location: sanitizePlainText(club.location, 120),
         courts,
         seasonStart: club.seasonStart,
