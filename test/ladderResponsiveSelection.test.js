@@ -12,6 +12,11 @@ const layout = readFileSync(
   'utf8',
 )
 
+const playerOptions = readFileSync(
+  'src/components/ladder/LadderPlayerOptions.vue',
+  'utf8',
+)
+
 test('mobile Ladder does not shrink inside the already-80-percent shell', () => {
   assert.match(
     ladder,
@@ -45,3 +50,18 @@ test('the normal dynamic application header is allowed on the Ladder route', () 
   )
 })
 
+test('challenge focus uses toaster green and click-away backdrop', () => {
+  assert.match(ladder, /challengeSelectionActive/)
+  assert.match(ladder, /challenge-selection-backdrop/)
+  assert.match(ladder, /@click="resetChallengeSelection"/)
+  assert.match(ladder, /\.ladder-row--selected[\s\S]*background:\s*#163d2b/)
+  assert.match(ladder, /\.ladder-row--eligible[\s\S]*background:\s*#fff/)
+  assert.match(ladder, /\.ladder-row--quiet[\s\S]*blur/)
+  assert.doesNotMatch(ladder, />\s*Cancel\s*</)
+})
+
+test('desktop player options stay on one row and only wrap responsively', () => {
+  assert.match(playerOptions, /ladder-player-options__row/)
+  assert.match(playerOptions, /\.ladder-player-options__row[\s\S]*display:\s*flex/)
+  assert.match(playerOptions, /@media \(max-width: 767px\)[\s\S]*grid-template-columns/)
+})

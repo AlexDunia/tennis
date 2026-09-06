@@ -271,6 +271,15 @@ const drawerOpen = computed(
     ),
 )
 
+const challengeSelectionActive = computed(
+  () =>
+    Boolean(
+      canAdminSetUpMatch.value &&
+      selectedPlayer.value &&
+      !selectedOpponent.value,
+    ),
+)
+
 const guideTitle = computed(() => {
   if (!selectedPlayer.value) return ''
 
@@ -945,11 +954,20 @@ onUnmounted(() =>
 
 <template>
   <section
-    class="gorra-compete-ref gorra-ladder-ref ladder-view"
+    class="ladder-view"
     :class="{
       'ladder-view--drawer': drawerOpen,
+      'ladder-view--selection': challengeSelectionActive,
     }"
   >
+    <button
+      v-if="challengeSelectionActive"
+      class="challenge-selection-backdrop"
+      type="button"
+      tabindex="-1"
+      aria-label="Cancel challenge selection"
+      @click="resetChallengeSelection"
+    ></button>
     <LadderClubRail
       :club="activeClub"
       :ladders="ladders"
@@ -1042,11 +1060,7 @@ onUnmounted(() =>
         </header>
 
         <section
-          v-if="
-            canAdminSetUpMatch &&
-            selectedPlayer &&
-            !drawerOpen
-          "
+          v-if="challengeSelectionActive"
           class="mobile-selection-context"
           aria-live="polite"
         >
@@ -1060,44 +1074,40 @@ onUnmounted(() =>
             <strong>
               {{ selectedPlayer.name }} selected
             </strong>
-            <small>
-              Choose someone they can challenge.
-            </small>
+            <small>Choose one of the available players.</small>
           </span>
 
           <button
             type="button"
             aria-label="Cancel challenge selection"
             title="Cancel challenge selection"
-            @click="resetChallengeSelection"
+            @click.stop="resetChallengeSelection"
           >
-            <svg
-              viewBox="0 0 20 20"
-              aria-hidden="true"
-            >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
               <path d="m6 6 8 8M14 6l-8 8" />
             </svg>
           </button>
         </section>
 
         <section
-          v-if="
-            canAdminSetUpMatch &&
-            selectedPlayer &&
-            players.length
-          "
+          v-if="challengeSelectionActive && players.length"
           class="selection-guide"
+          @click.stop
         >
           <span>
             <strong>{{ guideTitle }}</strong>
-            <small>{{ guideText }}</small>
+            <small>Choose one of the available players.</small>
           </span>
 
           <button
             type="button"
-            @click="resetChallengeSelection"
+            aria-label="Cancel challenge selection"
+            title="Cancel challenge selection"
+            @click.stop="resetChallengeSelection"
           >
-            Cancel
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m6 6 8 8M14 6l-8 8" />
+            </svg>
           </button>
         </section>
 
@@ -1447,41 +1457,89 @@ onUnmounted(() =>
   font-size: 12px;
 }
 
+.challenge-selection-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: rgba(8, 13, 10, 0.15);
+  backdrop-filter: blur(1px);
+  cursor: default;
+}
+
 .selection-guide {
+  position: sticky;
+  z-index: 74;
+  top: calc(var(--app-header-height) + 10px);
   display: flex;
+  min-height: 58px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--color-border);
+  padding: 10px 11px 10px 13px;
+  border: 1px solid rgba(22, 61, 43, 0.16);
   border-radius: var(--app-card-radius);
-  background: var(--color-surface);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 10px 24px rgba(10, 28, 18, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .selection-guide > span {
   display: grid;
+  min-width: 0;
   gap: 2px;
 }
 
 .selection-guide strong {
+  overflow: hidden;
+  color: var(--color-text);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .selection-guide small {
+  overflow: hidden;
   color: var(--color-muted);
   font-size: 10px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.selection-guide button {
-  min-height: 32px;
-  padding: 0 9px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--app-inner-radius);
-  background: var(--color-surface);
-  color: var(--color-text-soft);
-  font-size: 10px;
-  font-weight: var(--font-weight-semibold);
+.selection-guide > button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(22, 61, 43, 0.12);
+  border-radius: 9px;
+  background: #f5f9f6;
+  color: #163d2b;
+}
+
+.selection-guide > button:hover { background: #eef5f0; }
+
+.selection-guide > button:focus-visible {
+  outline: 2px solid rgba(22, 61, 43, 0.2);
+  outline-offset: 2px;
+}
+
+.selection-guide > button svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
 }
 
 .ladder-list {
@@ -1541,40 +1599,50 @@ onUnmounted(() =>
 }
 
 .ladder-row--selected {
-  border-color: var(--color-primary);
-  background:
-    color-mix(
-      in srgb,
-      var(--color-primary) 11%,
-      white
-    );
+  position: relative;
+  z-index: 72;
+  border-color: #163d2b;
+  background: #163d2b;
   box-shadow:
-    0 0 0 1px
-    color-mix(
-      in srgb,
-      var(--color-primary) 12%,
-      transparent
-    );
+    0 10px 24px rgba(7, 36, 22, 0.14),
+    0 0 0 1px rgba(22, 61, 43, 0.12);
 }
 
 .ladder-row--selected .ladder-row__rank,
-.ladder-row--selected .ladder-row__player strong {
-  color: var(--color-primary-strong);
+.ladder-row--selected .ladder-row__player strong,
+.ladder-row--selected .ladder-row__metric {
+  color: #f7fbf8;
+}
+
+.ladder-row--selected .ladder-row__player small {
+  color: #b9ef78;
+}
+
+.ladder-row--selected .ladder-row__state--selected {
+  background: rgba(185, 239, 120, 0.14);
+  color: #b9ef78;
+}
+
+.ladder-row--selected .ladder-row__chevron {
+  color: rgba(247, 251, 248, 0.78);
 }
 
 .ladder-row--eligible {
-  border-color:
-    color-mix(
-      in srgb,
-      var(--color-primary) 34%,
-      var(--color-border)
-    );
-  background:
-    color-mix(
-      in srgb,
-      var(--color-primary) 4.5%,
-      white
-    );
+  position: relative;
+  z-index: 72;
+  border-color: rgba(22, 61, 43, 0.28);
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(22, 61, 43, 0.025);
+}
+
+.ladder-row--eligible:hover {
+  border-color: rgba(22, 61, 43, 0.42);
+  background: #fff;
+}
+
+.ladder-row--eligible .ladder-row__state--eligible {
+  background: rgba(185, 239, 120, 0.18);
+  color: #163d2b;
 }
 
 .ladder-row--eligible .ladder-row__rank {
@@ -1587,7 +1655,14 @@ onUnmounted(() =>
 }
 
 .ladder-row--quiet {
-  opacity: 0.4;
+  opacity: 0.1;
+  filter: blur(1.15px) saturate(0.72);
+  transform: scale(0.997);
+  pointer-events: none;
+  transition:
+    opacity 140ms ease,
+    filter 140ms ease,
+    transform 140ms ease;
 }
 
 .ladder-row--paused:not(.ladder-row--selected) {
@@ -1604,7 +1679,7 @@ onUnmounted(() =>
 
 .ladder-row--you:not(
   .ladder-row--selected
-) {
+):not(.ladder-row--eligible) {
   background:
     color-mix(
       in srgb,
@@ -1781,13 +1856,32 @@ onUnmounted(() =>
 }
 
 @media (max-width: 767px) {
+  .ladder-row,
+  .ladder-row__player {
+    min-width: 0;
+  }
+
+  .ladder-row__player strong {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ladder-row__status { min-width: 0; }
+
+  .ladder-row__state {
+    max-width: 100%;
+    white-space: nowrap;
+  }
+
   .selection-guide {
     display: none;
   }
 
   .mobile-selection-context {
     position: fixed;
-    z-index: 36;
+    z-index: 74;
     top: var(--app-header-height);
     left: 50%;
     display: grid;
@@ -1836,14 +1930,16 @@ onUnmounted(() =>
 
   .mobile-selection-context > button {
     display: grid;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
     place-items: center;
     padding: 0;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--color-text-soft);
+    border: 1px solid rgba(22, 61, 43, 0.12);
+    border-radius: 9px;
+    background: #f5f9f6;
+    color: #163d2b;
   }
 
   .mobile-selection-context > button:active {
@@ -1859,8 +1955,7 @@ onUnmounted(() =>
     stroke-linecap: round;
   }
 
-  .ladder-view:has(.mobile-selection-context)
-    .ladder-workspace {
+  .ladder-view--selection .ladder-workspace {
     padding-top: 83px;
   }
 
