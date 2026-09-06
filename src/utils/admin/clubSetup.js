@@ -1,5 +1,6 @@
 import {
   ADMIN_SETUP_STEPS,
+  CLUB_COVER_PRESET_IDS,
   CLUB_MEMBERSHIP_ROLES,
   CLUB_SETUP_SCHEMA_VERSION,
   LADDER_TEMPLATES,
@@ -13,6 +14,12 @@ import { isSafeImageSource, sanitizePlainText } from '../formSafety.js'
 
 const MEMBER_SOURCES = Object.freeze(['invite', 'import', 'manual', 'existing'])
 const MEMBER_STATUSES = Object.freeze(['invited', 'pending', 'active', 'inactive'])
+
+function normalizeCoverPreset(value) {
+  return CLUB_COVER_PRESET_IDS.includes(value)
+    ? value
+    : 'court-green'
+}
 
 function asObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
@@ -228,6 +235,7 @@ export function normalizeClubSetup(input = {}) {
       name: sanitizePlainText(workspace.name, 100),
       logoUrl: isSafeImageSource(workspace.logoUrl) ? String(workspace.logoUrl) : '',
       coverUrl: isSafeImageSource(workspace.coverUrl) ? String(workspace.coverUrl) : '',
+      coverPreset: normalizeCoverPreset(workspace.coverPreset),
       ...(isMinimal || workspace.country || workspace.city
         ? {
             country: sanitizePlainText(workspace.country, 80),

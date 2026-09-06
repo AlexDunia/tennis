@@ -2,8 +2,11 @@
 import { computed, nextTick, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import FlowIcon from '../friendly/FlowIcon.vue'
+import ClubIdentityHero from './ClubIdentityHero.vue'
+import ClubMediaEditor from './ClubMediaEditor.vue'
 import { useAdminStore } from '../../stores/admin'
 import { useNotificationStore } from '../../stores/notification'
+import { DEFAULT_CLUB_COVER_PRESET } from '../../utils/club/clubMedia.js'
 
 const props = defineProps({
   countries: {
@@ -24,6 +27,7 @@ const form = reactive({
   city: '',
   logoUrl: '',
   coverUrl: '',
+  coverPreset: DEFAULT_CLUB_COVER_PRESET,
 })
 
 const touched = reactive({
@@ -34,8 +38,6 @@ const touched = reactive({
 
 const submitted = ref(false)
 const pageError = ref('')
-const imageError = ref('')
-const imageBusy = ref(false)
 
 const nameInput = ref(null)
 const countryInput = ref(null)
@@ -59,21 +61,6 @@ const previewName = computed(() => form.name.trim() || 'Your club')
 const previewLocation = computed(() => {
   const value = [form.city.trim(), form.country.trim()].filter(Boolean).join(', ')
   return value || 'Location will appear here'
-})
-
-const previewInitials = computed(() => {
-  const words = form.name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-
-  if (!words.length) return 'CL'
-
-  return words
-    .map((word) => word[0])
-    .join('')
-    .toUpperCase()
 })
 
 function visibleError(key) {
@@ -106,7 +93,7 @@ async function submit() {
   pageError.value = ''
   submitted.value = true
 
-  if (!formValid.value || adminStore.isSaving || imageBusy.value) {
+  if (!formValid.value || adminStore.isSaving) {
     await focusFirstInvalidField()
     return
   }
@@ -118,6 +105,7 @@ async function submit() {
       city: form.city.trim(),
       logoUrl: form.logoUrl,
       coverUrl: form.coverUrl,
+      coverPreset: form.coverPreset,
     }
 
     const result = await adminStore.createClub(input)
@@ -130,44 +118,6 @@ async function submit() {
     await router.push({ name: 'Club' })
   } catch (error) {
     pageError.value = error?.message || 'We could not create this club.'
-  }
-}
-
-async function uploadImage(event, field) {
-  const file = event.target.files?.[0]
-  event.target.value = ''
-  if (!file || imageBusy.value || adminStore.isSaving) return
-  imageError.value = ''
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-    imageError.value = 'Choose a JPG, PNG or WebP image.'
-    return
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    imageError.value = 'Choose an image smaller than 5 MB.'
-    return
-  }
-  imageBusy.value = true
-  const url = URL.createObjectURL(file)
-  try {
-    const image = new Image()
-    image.src = url
-    await image.decode()
-    const limit = field === 'logoUrl' ? 320 : 1200
-    const scale = Math.min(1, limit / Math.max(image.naturalWidth, image.naturalHeight))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('Image processing is unavailable.')
-    context.drawImage(image, 0, 0, canvas.width, canvas.height)
-    const result = canvas.toDataURL('image/webp', 0.82)
-    if (result.length > 1_000_000) throw new Error('Choose a smaller or simpler image.')
-    form[field] = result
-  } catch (error) {
-    imageError.value = error?.message || 'We could not read that image. Try another file.'
-  } finally {
-    URL.revokeObjectURL(url)
-    imageBusy.value = false
   }
 }
 
@@ -199,24 +149,6 @@ function cancel() {
             {{ pageError }}
           </p>
 
-          <div class="club-create-media">
-            <div class="club-create-logo-upload">
-              <span class="club-create-logo-thumb" aria-hidden="true">
-                <img v-if="form.logoUrl" :src="form.logoUrl" alt="" />
-                <span v-else>{{ previewInitials }}</span>
-              </span>
-              <div>
-                <label class="ref-button club-create-upload">
-                  {{ form.logoUrl ? 'Change logo' : 'Upload logo' }}
-                  <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="imageBusy || adminStore.isSaving" @change="uploadImage($event, 'logoUrl')" />
-                </label>
-                <button v-if="form.logoUrl" class="club-create-remove" type="button" :disabled="imageBusy || adminStore.isSaving" @click="form.logoUrl = ''">Remove</button>
-                <p>Optional &middot; JPG, PNG or WebP &middot; up to 5 MB</p>
-              </div>
-            </div>
-            <p v-if="imageError" class="ref-inline-alert" role="alert">{{ imageError }}</p>
-            <p v-if="imageBusy" role="status">Preparing your image...</p>
-          </div>
           <div class="club-create-fields">
             <label
               class="ref-form-field club-create-field club-create-field--full"
@@ -248,6 +180,7 @@ function cancel() {
               :class="{ 'club-create-field--error': visibleError('country') }"
             >
               <span>Country</span>
+
               <span class="club-create-select">
                 <select
                   ref="countryInput"
@@ -265,8 +198,12 @@ function cancel() {
                     {{ country }}
                   </option>
                 </select>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="m6 8 4 4 4-4" />
+                </svg>
               </span>
+
               <small
                 id="club-create-country-error"
                 class="club-create-error"
@@ -302,6 +239,23 @@ function cancel() {
             </label>
           </div>
 
+          <section class="club-create-appearance">
+            <header>
+              <strong>Appearance</strong>
+              <span>Optional. You can change this later.</span>
+            </header>
+
+            <ClubMediaEditor
+              :logo-url="form.logoUrl"
+              :cover-url="form.coverUrl"
+              :cover-preset="form.coverPreset"
+              :disabled="adminStore.isSaving"
+              @update:logo-url="form.logoUrl = $event"
+              @update:cover-url="form.coverUrl = $event"
+              @update:cover-preset="form.coverPreset = $event"
+            />
+          </section>
+
           <div class="club-create-owner-note">
             <span class="club-create-owner-note__icon" aria-hidden="true">
               <FlowIcon name="check" />
@@ -329,7 +283,7 @@ function cancel() {
           <button
             class="ref-button primary club-create-submit"
             type="submit"
-            :disabled="!formValid || adminStore.isSaving || imageBusy"
+            :disabled="!formValid || adminStore.isSaving"
           >
             <span>{{ adminStore.isSaving ? 'Creating club…' : 'Create club' }}</span>
             <FlowIcon
@@ -343,43 +297,25 @@ function cancel() {
       <aside class="club-create-preview" aria-label="Club preview">
         <header class="club-create-preview__head">
           <h2>Your club</h2>
-          <p>This updates as you type.</p>
+          <p>This is the profile people will recognise.</p>
         </header>
 
-        <div class="club-create-preview__cover" :class="{ 'has-image': form.coverUrl }">
-          <img v-if="form.coverUrl" :src="form.coverUrl" alt="Club cover preview" />
-          <svg v-else class="club-create-court" viewBox="0 0 360 150" fill="none" aria-hidden="true">
-            <rect x="60" y="20" width="240" height="110" rx="2" />
-            <path d="M80 20v110M280 20v110M60 75h240M80 45h200M80 105h200M180 45v60" />
-          </svg>
-          <label class="ref-button club-create-upload club-create-cover-upload">
-            {{ form.coverUrl ? 'Change cover' : 'Add cover photo' }}
-            <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="imageBusy || adminStore.isSaving" @change="uploadImage($event, 'coverUrl')" />
-          </label>
-        </div>
-        <button v-if="form.coverUrl" class="club-create-remove" type="button" :disabled="imageBusy || adminStore.isSaving" @click="form.coverUrl = ''">Remove cover photo</button>
-        <div class="club-create-preview__identity">
-          <span class="club-create-preview__mark" aria-hidden="true">
-            <img v-if="form.logoUrl" :src="form.logoUrl" alt="" />
-            <template v-else>{{ previewInitials }}</template>
-          </span>
+        <ClubIdentityHero
+          compact
+          :name="previewName"
+          :location="previewLocation"
+          role-label="You · Admin"
+          :logo-url="form.logoUrl"
+          :cover-url="form.coverUrl"
+          :cover-preset="form.coverPreset"
+          :member-count="0"
+          :ladder-count="0"
+          :tournament-count="0"
+        />
 
-          <span class="club-create-preview__copy">
-            <strong>{{ previewName }}</strong>
-            <span>{{ previewLocation }}</span>
-            <small>You · Admin</small>
-          </span>
-        </div>
-
-        <div class="club-create-preview__counts" aria-label="New club starts empty">
-          <span><strong>0</strong> members</span>
-          <i aria-hidden="true"></i>
-          <span><strong>0</strong> ladders</span>
-          <i aria-hidden="true"></i>
-          <span><strong>0</strong> tournaments</span>
-        </div>
-
-
+        <p class="club-create-preview__note">
+          Gorra creates only the club. Members, ladders, tournaments, courts and rules stay empty until you add them.
+        </p>
       </aside>
     </div>
   </section>
@@ -393,9 +329,9 @@ function cancel() {
 
 .club-create-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.72fr);
+  grid-template-columns: minmax(0, 1.28fr) minmax(300px, 0.72fr);
   align-items: start;
-  gap: 28px;
+  gap: 30px;
 }
 
 .club-create-form.ref-form-card {
@@ -442,6 +378,31 @@ function cancel() {
   grid-column: 1 / -1;
 }
 
+.club-create-select {
+  position: relative;
+  display: block;
+}
+
+.club-create-select select {
+  width: 100%;
+  appearance: none;
+  padding-right: 42px;
+}
+
+.club-create-select svg {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  width: 16px;
+  transform: translateY(-50%);
+  fill: none;
+  stroke: #7b8680;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .club-create-error {
   min-height: 14px;
   margin: 0;
@@ -455,12 +416,36 @@ function cancel() {
   background: rgba(164, 71, 64, 0.018);
 }
 
+.club-create-appearance {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(44, 58, 48, 0.07);
+}
+
+.club-create-appearance > header {
+  margin-bottom: 2px;
+}
+
+.club-create-appearance > header strong {
+  display: block;
+  color: var(--g-ink, #28332c);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.club-create-appearance > header span {
+  display: block;
+  margin-top: 3px;
+  color: var(--g-muted, #7d8780);
+  font-size: 10.2px;
+}
+
 .club-create-owner-note {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
   align-items: center;
   gap: 11px;
-  margin-top: 20px;
+  margin-top: 22px;
   padding: 13px 14px;
   border-radius: 10px;
   background: var(--g-green-soft-2, #f7fcf8);
@@ -491,7 +476,6 @@ function cancel() {
   color: var(--g-ink, #28332c);
   font-size: 11.5px;
   font-weight: 600;
-  line-height: 1.35;
 }
 
 .club-create-owner-note__copy small {
@@ -526,10 +510,10 @@ function cancel() {
 .club-create-preview {
   position: sticky;
   top: calc(var(--app-header-height, 76px) + 22px);
-  padding: 22px;
-  border: 1px solid var(--g-line, #e4e9e5);
-  border-radius: 12px;
-  background: #fff;
+}
+
+.club-create-preview__head {
+  margin-bottom: 12px;
 }
 
 .club-create-preview__head h2,
@@ -541,105 +525,25 @@ function cancel() {
   color: var(--g-ink, #28332c);
   font-size: 14px;
   font-weight: 600;
-  line-height: 1.35;
 }
 
 .club-create-preview__head p {
   margin-top: 3px;
   color: var(--g-muted-2, #9aa39d);
   font-size: 10px;
-  line-height: 1.4;
-}
-
-.club-create-preview__identity {
-  display: grid;
-  grid-template-columns: 60px minmax(0, 1fr);
-  align-items: center;
-  gap: 14px;
-  margin-top: 20px;
-}
-
-.club-create-preview__mark {
-  display: grid;
-  width: 60px;
-  height: 60px;
-  place-items: center;
-  border-radius: 15px;
-  background: #eef4ef;
-  color: #338047;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.club-create-preview__copy {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.club-create-preview__copy strong {
-  overflow: hidden;
-  color: var(--g-ink, #28332c);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.club-create-preview__copy > span {
-  overflow: hidden;
-  color: var(--g-muted, #7d8780);
-  font-size: 10.8px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.club-create-preview__copy small {
-  color: var(--g-green-strong, #067d20);
-  font-size: 9.8px;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.club-create-preview__counts {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 22px;
-  padding-top: 16px;
-  border-top: 1px solid var(--g-line, #e4e9e5);
-  color: #7a847d;
-  font-size: 9.8px;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-.club-create-preview__counts strong {
-  color: #536058;
-  font-weight: 600;
-}
-
-.club-create-preview__counts i {
-  width: 3px;
-  height: 3px;
-  flex: 0 0 3px;
-  border-radius: 50%;
-  background: #c1c8c3;
 }
 
 .club-create-preview__note {
-  margin: 15px 0 0;
+  margin: 12px 2px 0;
   color: var(--g-muted, #7d8780);
-  font-size: 10.5px;
-  line-height: 1.55;
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 @media (max-width: 980px) {
   .club-create-layout {
     grid-template-columns: 1fr;
-    gap: 22px;
+    gap: 24px;
   }
 
   .club-create-preview {
@@ -672,15 +576,6 @@ function cancel() {
   .club-create-actions {
     padding: 16px 18px;
   }
-
-  .club-create-preview {
-    padding: 18px;
-  }
-
-  .club-create-preview__counts {
-    flex-wrap: wrap;
-    white-space: normal;
-  }
 }
 
 @media (max-width: 420px) {
@@ -694,30 +589,5 @@ function cancel() {
     min-width: 0;
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .club-create-page *,
-  .club-create-page *::before,
-  .club-create-page *::after {
-    scroll-behavior: auto !important;
-  }
-}
-.club-create-media { margin-bottom: 24px; }
-.club-create-logo-upload { display: flex; align-items: center; gap: 14px; }
-.club-create-logo-upload p { margin: 7px 0 0; color: var(--g-muted); font-size: 10px; }
-.club-create-logo-thumb { display: grid; place-items: center; width: 64px; height: 64px; flex: 0 0 64px; border: 1px solid var(--g-line); border-radius: 12px; background: var(--g-green-soft); color: var(--g-green-strong); font-size: 14px; }
-.club-create-logo-thumb img, .club-create-preview__mark img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
-.club-create-upload { position: relative; overflow: hidden; cursor: pointer; }
-.club-create-upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.club-create-upload:focus-within { outline: 2px solid var(--color-primary); outline-offset: 3px; }
-.club-create-upload:has(input:disabled) { opacity: .55; cursor: wait; }
-.club-create-remove { padding: 8px; border: 0; background: transparent; color: var(--g-muted); font: inherit; font-size: 10px; cursor: pointer; }
-.club-create-select { position: relative; display: block; }
-.club-create-select select { width: 100%; padding-right: 38px !important; appearance: none; background-image: none !important; }
-.club-create-select svg { position: absolute; right: 14px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); fill: none; stroke: var(--color-muted); stroke-width: 1.5; pointer-events: none; }
-.club-create-preview__cover { position: relative; height: 160px; margin: 18px -22px 0; background: var(--g-green-soft, #eef9f0); overflow: hidden; }
-.club-create-preview__cover > img { width: 100%; height: 100%; object-fit: cover; }
-.club-create-court { width: 100%; height: 100%; stroke: var(--g-green-strong, #067d20); stroke-width: 1; opacity: .22; }
-.club-create-cover-upload { position: absolute; right: 12px; bottom: 12px; background: var(--color-surface) !important; min-height: 32px; font-size: 10px; box-shadow: var(--flow-shadow-quiet); }
-@media (max-width: 620px) { .club-create-preview__cover { margin-inline: -18px; } }
 </style>
+

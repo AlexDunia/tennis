@@ -1,3 +1,10 @@
+export const CLUB_COVER_PRESET_IDS = Object.freeze([
+  'court-green',
+  'forest',
+  'warm-sand',
+  'charcoal-court',
+])
+
 export const CLUB_SETUP_STORAGE_KEY = 'gorra.admin.clubSetup.v1'
 export const CLUB_DIRECTORY_STORAGE_KEY = 'gorra.admin.clubDirectory.v2'
 export const CLUB_SETUP_SCHEMA_VERSION = 2
@@ -137,6 +144,8 @@ export function createDefaultClubSetup() {
     workspace: {
       name: '',
       logoUrl: '',
+      coverUrl: '',
+      coverPreset: 'court-green',
       location: '',
       timezone: 'Africa/Lagos',
       courts: ['Main Court'],
@@ -200,7 +209,14 @@ export function createDefaultClubSetup() {
   }
 }
 
-export function createMinimalClubSetup({ name = '', country = '', city = '', logoUrl = '', coverUrl = '' } = {}) {
+export function createMinimalClubSetup({
+  name = '',
+  country = '',
+  city = '',
+  logoUrl = '',
+  coverUrl = '',
+  coverPreset = 'court-green',
+} = {}) {
   const location = [city, country]
     .map((value) => String(value || '').trim())
     .filter(Boolean)
@@ -216,6 +232,9 @@ export function createMinimalClubSetup({ name = '', country = '', city = '', log
       name,
       logoUrl,
       coverUrl,
+      coverPreset: CLUB_COVER_PRESET_IDS.includes(coverPreset)
+        ? coverPreset
+        : 'court-green',
       country,
       city,
       location,

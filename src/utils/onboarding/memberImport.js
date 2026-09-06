@@ -936,28 +936,123 @@ function normaliseDob(value) {
   return date.toISOString().slice(0, 10)
 }
 
+const IMPORT_DUPLICATE_FIELDS = Object.freeze([
+  'name',
+  'email',
+  'phone',
+  'gender',
+  'dob',
+  'level',
+  'rating',
+  'memberNumber',
+  'yearOfEntry',
+])
+
+function comparableDraftValue(field, value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (field === 'email' || field === 'memberNumber') return raw.toLowerCase()
+  if (field === 'phone') return raw.replace(/[\s()+-]/g, '')
+  return raw.replace(/\s+/g, ' ').toLowerCase()
+}
+
+function sameDraftValue(field, left, right) {
+  return comparableDraftValue(field, left) === comparableDraftValue(field, right)
+}
+
+function draftConflictId(identity, kind, field, rowIndex) {
+  return `file:${encodeURIComponent(identity)}:${kind}:${encodeURIComponent(field)}:${rowIndex}`
+}
+
 function mergeImportedPeople(existing, incoming) {
-  const next = { ...existing }
-  ;[
-    'name',
-    'email',
-    'phone',
-    'gender',
-    'dob',
-    'level',
-    'rating',
-    'memberNumber',
-    'yearOfEntry',
-  ].forEach((field) => {
-    if (!next[field] && incoming[field]) next[field] = incoming[field]
+  const next = {
+    ...existing,
+    importRows: [
+      ...new Set([
+        ...(Array.isArray(existing.importRows) ? existing.importRows : []),
+        ...(Array.isArray(incoming.importRows) ? incoming.importRows : []),
+      ]),
+    ],
+    importConflicts: [
+      ...(Array.isArray(existing.importConflicts) ? existing.importConflicts : []),
+    ],
+  }
+
+  const identity =
+    next.importIdentity ||
+    incoming.importIdentity ||
+    `row:${existing.importRow ?? 0}`
+
+  IMPORT_DUPLICATE_FIELDS.forEach((field) => {
+    const currentValue = String(next[field] || '').trim()
+    const incomingValue = String(incoming[field] || '').trim()
+
+    if (!currentValue && incomingValue) {
+      next[field] = incoming[field]
+      return
+    }
+
+    if (!currentValue || !incomingValue) return
+    if (sameDraftValue(field, currentValue, incomingValue)) return
+
+    const id = draftConflictId(
+      identity,
+      'field',
+      field,
+      incoming.importRow ?? 0,
+    )
+
+    if (!next.importConflicts.some((conflict) => conflict.id === id)) {
+      next.importConflicts.push({
+        id,
+        kind: 'file-field',
+        field,
+        fieldLabel: importFieldLabel(field),
+        earlierValue: next[field],
+        incomingValue: incoming[field],
+        earlierRow: next.importRows[0] ?? existing.importRow ?? 0,
+        incomingRow: incoming.importRow ?? 0,
+      })
+    }
   })
 
   const memberships = [...(next.ladderMemberships || [])]
+
   ;(incoming.ladderMemberships || []).forEach((membership) => {
     const key = membership.ladderName.toLowerCase()
-    const current = memberships.find((item) => item.ladderName.toLowerCase() === key)
-    if (!current) memberships.push(membership)
+    const current = memberships.find(
+      (item) => item.ladderName.toLowerCase() === key,
+    )
+
+    if (!current) {
+      memberships.push(membership)
+      return
+    }
+
+    if (current.position === membership.position) return
+
+    const id = draftConflictId(
+      identity,
+      'ladder',
+      membership.ladderName,
+      incoming.importRow ?? 0,
+    )
+
+    if (!next.importConflicts.some((conflict) => conflict.id === id)) {
+      next.importConflicts.push({
+        id,
+        kind: 'file-ladder-position',
+        field: 'ladderPosition',
+        fieldLabel: 'Ladder position',
+        ladderName: membership.ladderName,
+        earlierPosition: current.position,
+        incomingPosition: membership.position,
+        earlierRow: next.importRows[0] ?? existing.importRow ?? 0,
+        incomingRow: incoming.importRow ?? 0,
+      })
+    }
   })
+
   next.ladderMemberships = memberships
   return next
 }
@@ -1011,14 +1106,57 @@ export function buildMemberImportDraft(workspace) {
           : [],
     }
 
-    const strongKey = email ? `email:${email}` : memberNumber ? `member:${memberNumber.toLowerCase()}` : ''
-    if (strongKey && byIdentity.has(strongKey)) {
-      const index = byIdentity.get(strongKey)
-      people[index] = mergeImportedPeople(people[index], record)
+    const strongKeys = [
+      email ? `email:${email}` : '',
+      memberNumber
+        ? `member:${memberNumber.toLowerCase()}`
+        : '',
+    ].filter(Boolean)
+
+    const matchedIndices = [
+      ...new Set(
+        strongKeys
+          .map((key) => byIdentity.get(key))
+          .filter((index) => Number.isInteger(index)),
+      ),
+    ]
+
+    record.importIdentity =
+      strongKeys.join('|') || `row:${rowIndex}`
+
+    record.importRows = [rowIndex]
+    record.importConflicts = []
+    record.importIdentityAmbiguous = matchedIndices.length > 1
+
+    if (matchedIndices.length === 1) {
+      const index = matchedIndices[0]
+
+      people[index] = mergeImportedPeople(
+        people[index],
+        record,
+      )
+
+      strongKeys.forEach((key) => {
+        byIdentity.set(key, index)
+      })
+
       return
     }
 
-    if (strongKey) byIdentity.set(strongKey, people.length)
+    if (matchedIndices.length > 1) {
+      // Keep the row visible to the reconciliation layer.
+      // It will block because Email and Member Number connect
+      // previously separate imported identities.
+      people.push(record)
+      return
+    }
+
+    const nextIndex = people.length
+
+    strongKeys.forEach((key) => {
+      byIdentity.set(key, nextIndex)
+    })
+
     people.push(record)
   })
 

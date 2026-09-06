@@ -29,6 +29,7 @@ import {
   addManualMemberPatch,
   memberCollectionsPatch,
   mergeMemberImportIntoSetup,
+  previewMemberImportIntoSetup,
 } from '../utils/club/memberData.js'
 import { isSafeImageSource, sanitizePlainText } from '../utils/formSafety.js'
 
@@ -1470,21 +1471,73 @@ export async function updateClubMemberRecord(memberIdInput, input = {}, actor) {
   }
 }
 
-export async function importClubMemberData(draft, actor) {
+export async function previewClubMemberImport(
+  draft,
+  actor,
+  resolutions = {},
+) {
   const userId = requireUserId(actor)
-  let directory = loadDirectory(actor)
-  const context = activeClubWriteContext(directory, userId, { manager: true })
+  const directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, {
+    manager: true,
+  })
 
   if (!Array.isArray(draft?.people) || !draft.people.length) {
-    throw createServiceError('There are no members to import.', 'EMPTY_IMPORT')
+    throw createServiceError(
+      'There are no members to import.',
+      'EMPTY_IMPORT',
+    )
   }
 
   if (draft.people.length > 5000) {
-    throw createServiceError('Import no more than 5,000 members at a time.', 'IMPORT_TOO_LARGE')
+    throw createServiceError(
+      'Import no more than 5,000 members at a time.',
+      'IMPORT_TOO_LARGE',
+    )
   }
 
-  const merged = mergeMemberImportIntoSetup(context.club.setup, draft)
+  return previewMemberImportIntoSetup(
+    context.club.setup,
+    draft,
+    resolutions,
+  )
+}
+
+export async function importClubMemberData(
+  draft,
+  actor,
+  resolutions = {},
+) {
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, {
+    manager: true,
+  })
+
+  if (!Array.isArray(draft?.people) || !draft.people.length) {
+    throw createServiceError(
+      'There are no members to import.',
+      'EMPTY_IMPORT',
+    )
+  }
+
+  if (draft.people.length > 5000) {
+    throw createServiceError(
+      'Import no more than 5,000 members at a time.',
+      'IMPORT_TOO_LARGE',
+    )
+  }
+
+  // Re-evaluate against the latest club state at apply time.
+  // A future backend must perform this same preview + apply transactionally.
+  const merged = mergeMemberImportIntoSetup(
+    context.club.setup,
+    draft,
+    resolutions,
+  )
+
   const timestamp = nowIso()
+
   const nextSetup = normalizeClubSetup({
     ...context.club.setup,
     membership: merged.membership,
@@ -1508,7 +1561,9 @@ export async function importClubMemberData(draft, actor) {
     ),
     addedCount: merged.addedCount,
     updatedCount: merged.updatedCount,
+    unchangedCount: merged.unchangedCount,
     addedLadderCount: merged.addedLadderCount,
+    reconciliation: merged.reconciliation,
   }
 }
 

@@ -19,6 +19,23 @@ test('normal authenticated mobile content uses the locked 80 percent shell width
   )
 })
 
+test('mobile application header uses a separate restrained 85 percent width', () => {
+  assert.match(
+    layout,
+    /@media \(max-width: 767px\)[\s\S]*--app-header-content-width:\s*85%/,
+  )
+
+  assert.match(
+    layout,
+    /\.header-content[\s\S]*width:\s*var\(--app-header-content-width\)/,
+  )
+
+  assert.doesNotMatch(
+    layout,
+    /@media \(max-width: 767px\)[\s\S]*--app-header-content-width:\s*(?:98|100)%/,
+  )
+})
+
 test('public and immersive content remain full width', () => {
   assert.match(
     layout,

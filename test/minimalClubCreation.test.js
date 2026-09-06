@@ -244,6 +244,9 @@ test('Create Club uses the prepared minimal ClubCreatePanel and real club handof
 
   assert.match(clubCreateSource, /logoUrl: form\.logoUrl/)
   assert.match(clubCreateSource, /coverUrl: form\.coverUrl/)
+  assert.match(clubCreateSource, /coverPreset: form\.coverPreset/)
+  assert.match(clubCreateSource, /ClubMediaEditor/)
+  assert.match(clubCreateSource, /ClubIdentityHero/)
 
   assert.match(clubViewSource, /name: 'ClubMembers'/)
 })
@@ -253,10 +256,11 @@ test('optional club images survive creation and reload without creating setup da
   await withStorage(async () => {
     const logoUrl = 'data:image/png;base64,' + 'A'.repeat(4096)
     const coverUrl = 'data:image/webp;base64,' + 'B'.repeat(8192)
-    const result = await createClub({ name: 'Image Club', country: 'Nigeria', city: 'Lagos', logoUrl, coverUrl }, { userId: 'image-admin' })
+    const result = await createClub({ name: 'Image Club', country: 'Nigeria', city: 'Lagos', logoUrl, coverUrl, coverPreset: 'forest' }, { userId: 'image-admin' })
     const stored = (await getClubDirectory({ userId: 'image-admin' })).clubs.find(club => club.id === result.club.id).setup
     assert.equal(stored.workspace.logoUrl, logoUrl)
     assert.equal(stored.workspace.coverUrl, coverUrl)
+    assert.equal(stored.workspace.coverPreset, 'forest')
     assert.deepEqual(stored.ladders, [])
     assert.deepEqual(stored.membership.roster, [])
     assert.deepEqual(stored.workspace.courts, [])

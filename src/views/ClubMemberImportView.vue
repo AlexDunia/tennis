@@ -1,4 +1,5 @@
 <script setup>
+import MemberImportReconciliation from '../components/club/MemberImportReconciliation.vue'
 import MemberListArt from '../components/club/MemberListArt.vue'
 import { memberTemplateMatrix, memberTemplateDelimited, memberTemplateGuide } from '../utils/onboarding/memberImportTemplates.js'
 import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
@@ -45,6 +46,13 @@ const query = ref('')
 const columnFilter = ref('all')
 const pasteText = ref('')
 const manualScenarioOverride = ref(false)
+
+const reconciliation = ref(null)
+const reconciliationDraft = ref(null)
+const reconciliationBusy = ref(false)
+const mobileColumnKey = ref('')
+
+const resolutions = reactive({})
 
 const workspace = reactive({
   scenario: 'members-only',
@@ -103,6 +111,81 @@ const displayedRows = computed(() => {
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => !needle || row.some((value) => String(value || '').toLowerCase().includes(needle)))
 })
+
+const mobileColumns = computed(() => displayedColumns.value)
+
+const mobileColumn = computed(() => {
+  const current = mobileColumns.value.find(
+    (column) => column.key === mobileColumnKey.value,
+  )
+
+  return current || mobileColumns.value[0] || null
+})
+
+function mobileColumnLabel(column) {
+  if (!column) return ''
+  if (column.type === 'field') return column.field.label
+  return column.extra.header || `Column ${column.extra.index + 1}`
+}
+
+function mobileRowLabel(row, index) {
+  const fullNameIndex = targetSource('fullName')
+  const firstNameIndex = targetSource('firstName')
+  const lastNameIndex = targetSource('lastName')
+  const emailIndex = targetSource('email')
+
+  const fullName =
+    fullNameIndex === null ? '' : String(row?.[fullNameIndex] || '').trim()
+
+  const firstName =
+    firstNameIndex === null ? '' : String(row?.[firstNameIndex] || '').trim()
+
+  const lastName =
+    lastNameIndex === null ? '' : String(row?.[lastNameIndex] || '').trim()
+
+  const email =
+    emailIndex === null ? '' : String(row?.[emailIndex] || '').trim()
+
+  return (
+    fullName ||
+    `${firstName} ${lastName}`.trim() ||
+    email ||
+    `Row ${index + 1}`
+  )
+}
+
+function moveMobileColumn(direction) {
+  if (!mobileColumns.value.length) return
+
+  const currentIndex = Math.max(
+    0,
+    mobileColumns.value.findIndex(
+      (column) => column.key === mobileColumn.value?.key,
+    ),
+  )
+
+  const nextIndex = Math.min(
+    mobileColumns.value.length - 1,
+    Math.max(0, currentIndex + direction),
+  )
+
+  mobileColumnKey.value = mobileColumns.value[nextIndex].key
+}
+
+watch(
+  mobileColumns,
+  (columns) => {
+    if (!columns.length) {
+      mobileColumnKey.value = ''
+      return
+    }
+
+    if (!columns.some((column) => column.key === mobileColumnKey.value)) {
+      mobileColumnKey.value = columns[0].key
+    }
+  },
+  { immediate: true },
+)
 
 const importActionLabel = computed(() => {
   if (busy.value) return 'Adding…'
@@ -170,6 +253,12 @@ function resetWorkspace(nextScenario = scenario.value || 'members-only') {
   query.value = ''
   columnFilter.value = 'all'
   manualScenarioOverride.value = false
+  reconciliation.value = null
+  reconciliationDraft.value = null
+
+  Object.keys(resolutions).forEach((key) => {
+    delete resolutions[key]
+  })
 }
 
 function chooseScenario(value) {
@@ -182,6 +271,12 @@ function chooseScenario(value) {
 }
 
 function back() {
+  if (stage.value === 'reconcile') {
+    stage.value = 'review'
+    reconciliation.value = null
+    return
+  }
+
   if (stage.value === 'scenario') {
     router.push({ name: 'ClubMembers' })
     return
@@ -484,19 +579,43 @@ async function copyTemplateHeadings() {
   templateDialog.value?.close()
 }
 
-async function confirmImport() {
-  if (health.value.blocking || busy.value) return
+async function applyImport(draft, selectedResolutions = {}) {
+  if (busy.value) return
+
   error.value = ''
   busy.value = true
 
   try {
-    const draft = buildMemberImportDraft(workspace)
-    const merged = await adminStore.importMemberData(draft)
+    const merged = await adminStore.importMemberData(
+      draft,
+      selectedResolutions,
+    )
 
     const parts = []
-    if (merged.addedCount) parts.push(`${merged.addedCount} added`)
-    if (merged.updatedCount) parts.push(`${merged.updatedCount} existing record${merged.updatedCount === 1 ? '' : 's'} completed`)
-    if (merged.addedLadderCount) parts.push(`${merged.addedLadderCount} ladder${merged.addedLadderCount === 1 ? '' : 's'} created`)
+
+    if (merged.addedCount) {
+      parts.push(`${merged.addedCount} added`)
+    }
+
+    if (merged.updatedCount) {
+      parts.push(
+        `${merged.updatedCount} existing record${
+          merged.updatedCount === 1 ? '' : 's'
+        } updated`,
+      )
+    }
+
+    if (merged.unchangedCount) {
+      parts.push(`${merged.unchangedCount} already up to date`)
+    }
+
+    if (merged.addedLadderCount) {
+      parts.push(
+        `${merged.addedLadderCount} ladder${
+          merged.addedLadderCount === 1 ? '' : 's'
+        } created`,
+      )
+    }
 
     notificationStore.addToast({
       message: parts.join(' · ') || 'Club data is up to date.',
@@ -505,10 +624,90 @@ async function confirmImport() {
 
     await router.push({ name: 'ClubMembers' })
   } catch (importError) {
-    error.value = importError?.message || 'We could not add this club data.'
+    error.value =
+      importError?.message || 'We could not add this club data.'
   } finally {
     busy.value = false
   }
+}
+
+async function refreshReconciliation() {
+  if (!reconciliationDraft.value || reconciliationBusy.value) return
+
+  reconciliationBusy.value = true
+  error.value = ''
+
+  try {
+    reconciliation.value = await adminStore.previewMemberImport(
+      reconciliationDraft.value,
+      resolutions,
+    )
+  } catch (previewError) {
+    error.value =
+      previewError?.message || 'We could not review these changes.'
+  } finally {
+    reconciliationBusy.value = false
+  }
+}
+
+async function resolveConflict(id, value) {
+  if (!id || !['keep', 'incoming'].includes(value)) return
+
+  resolutions[id] = value
+  await refreshReconciliation()
+}
+
+async function confirmImport() {
+  if (health.value.blocking || busy.value || reconciliationBusy.value) {
+    return
+  }
+
+  error.value = ''
+  reconciliationBusy.value = true
+
+  try {
+    const draft = buildMemberImportDraft(workspace)
+
+    const preview = await adminStore.previewMemberImport(
+      draft,
+      resolutions,
+    )
+
+    const needsReconciliation =
+      preview.summary.existingCount > 0 ||
+      preview.conflicts.length > 0 ||
+      preview.blockingConflicts.length > 0
+
+    if (!needsReconciliation) {
+      reconciliationBusy.value = false
+      await applyImport(draft, {})
+      return
+    }
+
+    reconciliationDraft.value = draft
+    reconciliation.value = preview
+    stage.value = 'reconcile'
+  } catch (previewError) {
+    error.value =
+      previewError?.message || 'We could not review this import.'
+  } finally {
+    reconciliationBusy.value = false
+  }
+}
+
+async function applyReconciledImport() {
+  if (
+    !reconciliationDraft.value ||
+    reconciliation.value?.blockingConflicts?.length ||
+    busy.value
+  ) {
+    return
+  }
+
+  await applyImport(
+    reconciliationDraft.value,
+    { ...resolutions },
+  )
 }
 
 watch(
@@ -590,8 +789,12 @@ useShellNestedHeader(() => {
     crumbs.push({ label: importModeCrumb.value })
   }
 
-  if (stage.value === 'review') {
+  if (stage.value === 'review' || stage.value === 'reconcile') {
     crumbs.push({ label: 'Review' })
+  }
+
+  if (stage.value === 'reconcile') {
+    crumbs.push({ label: 'Changes' })
   }
 
   return {
@@ -600,13 +803,18 @@ useShellNestedHeader(() => {
         ? 'Back to members'
         : stage.value === 'prepare'
           ? 'Back to import types'
-          : 'Back to upload',
+          : stage.value === 'reconcile'
+            ? 'Back to review'
+            : 'Back to upload',
+
     backLabel:
       stage.value === 'scenario'
         ? 'Back to members'
         : stage.value === 'prepare'
           ? 'Back to import types'
-          : 'Back to upload',
+          : stage.value === 'reconcile'
+            ? 'Back to review'
+            : 'Back to upload',
     back,
     crumbs,
   }
@@ -816,6 +1024,20 @@ useShellNestedHeader(() => {
       </div>
     </section>
 
+    <section
+      v-else-if="stage === 'reconcile'"
+      class="ref-import-reconcile"
+    >
+      <MemberImportReconciliation
+        v-if="reconciliation"
+        :preview="reconciliation"
+        :resolutions="resolutions"
+        :busy="busy || reconciliationBusy"
+        @resolve="resolveConflict"
+        @apply="applyReconciledImport"
+      />
+    </section>
+
     <section v-else class="ref-import-review">
       <div class="ref-import-file-meta">
         <span>{{ workspace.fileName }}</span>
@@ -872,7 +1094,7 @@ useShellNestedHeader(() => {
       </div>
 
       <div class="ref-import-grid">
-        <div class="ref-import-scroll">
+        <div class="ref-import-scroll ref-import-desktop-grid">
           <table class="ref-import-table">
             <thead>
               <tr>
@@ -983,6 +1205,185 @@ useShellNestedHeader(() => {
           </table>
         </div>
 
+        <section
+          v-if="mobileColumn"
+          class="ref-import-mobile-editor"
+          aria-label="Mobile import editor"
+        >
+          <header class="ref-import-mobile-field">
+            <label>
+              <span>Field</span>
+
+              <select v-model="mobileColumnKey">
+                <option
+                  v-for="column in mobileColumns"
+                  :key="column.key"
+                  :value="column.key"
+                >
+                  {{
+                    mobileColumnLabel(column)
+                  }}{{
+                    column.type === 'field' && column.field.required
+                      ? ' · Required'
+                      : ''
+                  }}
+                </option>
+              </select>
+            </label>
+
+            <div
+              v-if="mobileColumn.type === 'field'"
+              class="ref-import-mobile-mapping"
+            >
+              <span>
+                {{ mobileColumn.field.required ? 'Required' : 'Optional' }}
+              </span>
+
+              <label>
+                <small>From</small>
+
+                <select
+                  :value="targetSource(mobileColumn.field.key) ?? ''"
+                  @change="
+                    mapTarget(
+                      mobileColumn.field.key,
+                      $event.target.value,
+                    )
+                  "
+                >
+                  <option value="">Choose column</option>
+
+                  <option
+                    v-for="option in sourceOptions(mobileColumn.field.key)"
+                    :key="option.index"
+                    :value="option.index"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+            </div>
+
+            <div
+              v-else
+              class="ref-import-mobile-mapping ref-import-mobile-mapping--extra"
+            >
+              <span>Not importing</span>
+
+              <label>
+                <small>Use as</small>
+
+                <select
+                  :value="extraTargetValue(mobileColumn.extra.index)"
+                  @change="
+                    mapExtra(
+                      mobileColumn.extra.index,
+                      $event.target.value,
+                    )
+                  "
+                >
+                  <option
+                    v-for="[key, label] in MEMBER_IMPORT_FIELD_OPTIONS"
+                    :key="key || 'none'"
+                    :value="key"
+                  >
+                    {{ label }}
+                  </option>
+                </select>
+              </label>
+            </div>
+          </header>
+
+          <div class="ref-import-mobile-rows">
+            <label
+              v-for="{ row, index } in displayedRows"
+              :key="index"
+              class="ref-import-mobile-row"
+              :class="{
+                'required-error':
+                  mobileColumn.type === 'field' &&
+                  cellState(mobileColumn, index)?.blocking,
+                'optional-warning':
+                  mobileColumn.type === 'field' &&
+                  cellState(mobileColumn, index)?.warning,
+                extra: mobileColumn.type === 'extra',
+              }"
+            >
+              <span class="ref-import-mobile-row__context">
+                <strong>
+                  {{ index + 1 }} · {{ mobileRowLabel(row, index) }}
+                </strong>
+
+                <small
+                  v-if="
+                    mobileColumn.type === 'field' &&
+                    cellState(mobileColumn, index)
+                  "
+                >
+                  {{ cellState(mobileColumn, index).message }}
+                </small>
+              </span>
+
+              <input
+                :value="cellValue(mobileColumn, row)"
+                type="text"
+                :readonly="mobileColumn.type === 'extra'"
+                @input="
+                  changeCell(
+                    mobileColumn,
+                    index,
+                    $event.target.value,
+                  )
+                "
+              />
+            </label>
+
+            <p
+              v-if="!displayedRows.length"
+              class="ref-member-empty"
+            >
+              No rows match this search.
+            </p>
+          </div>
+
+          <footer class="ref-import-mobile-switcher">
+            <button
+              class="ref-button small"
+              type="button"
+              :disabled="
+                mobileColumns.findIndex(
+                  (column) => column.key === mobileColumn.key,
+                ) <= 0
+              "
+              @click="moveMobileColumn(-1)"
+            >
+              Previous field
+            </button>
+
+            <span>
+              {{
+                mobileColumns.findIndex(
+                  (column) => column.key === mobileColumn.key,
+                ) + 1
+              }}
+              of {{ mobileColumns.length }}
+            </span>
+
+            <button
+              class="ref-button small"
+              type="button"
+              :disabled="
+                mobileColumns.findIndex(
+                  (column) => column.key === mobileColumn.key,
+                ) >= mobileColumns.length - 1
+              "
+              @click="moveMobileColumn(1)"
+            >
+              Next field
+            </button>
+          </footer>
+        </section>
+
         <footer class="ref-import-footer">
           <div class="ref-import-footer-copy" aria-live="polite">
             <strong>{{ footer.strong }}</strong>
@@ -994,10 +1395,14 @@ useShellNestedHeader(() => {
             <button
               class="ref-button primary"
               type="button"
-              :disabled="health.blocking || busy"
+              :disabled="health.blocking || busy || reconciliationBusy"
               @click="confirmImport"
             >
-              {{ importActionLabel }}
+              {{
+  reconciliationBusy
+    ? 'Checking…'
+    : importActionLabel
+}}
             </button>
           </div>
         </footer>

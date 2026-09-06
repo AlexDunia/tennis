@@ -4,6 +4,7 @@ import { ADMIN_SETUP_STEPS, createDefaultClubSetup } from '../config/admin.js'
 import {
   addClubMemberRecord,
   importClubMemberData,
+  previewClubMemberImport,
   updateClubMemberRecord,
   createClub as createClubRelationship,
   createMemberRecordInvite,
@@ -355,21 +356,48 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-  async function importMemberData(draft) {
+  async function previewMemberImport(draft, resolutions = {}) {
+    error.value = ''
+
+    try {
+      return await previewClubMemberImport(
+        draft,
+        actor(),
+        resolutions,
+      )
+    } catch (previewError) {
+      error.value =
+        previewError?.message || 'Unable to review this import.'
+      throw previewError
+    }
+  }
+
+  async function importMemberData(draft, resolutions = {}) {
     isSaving.value = true
     error.value = ''
 
     try {
       const currentActor = actor()
-      const result = await importClubMemberData(draft, currentActor)
+
+      const result = await importClubMemberData(
+        draft,
+        currentActor,
+        resolutions,
+      )
+
       const directory = await getClubDirectory(currentActor)
+
       applyDirectory(directory)
+
       setup.value =
-        directory.clubs.find((club) => club.id === directory.activeClubId)?.setup ||
-        setup.value
+        directory.clubs.find(
+          (club) => club.id === directory.activeClubId,
+        )?.setup || setup.value
+
       return result
     } catch (importError) {
-      error.value = importError?.message || 'Unable to import this club data.'
+      error.value =
+        importError?.message || 'Unable to import this club data.'
       throw importError
     } finally {
       isSaving.value = false
@@ -432,6 +460,7 @@ export const useAdminStore = defineStore('admin', () => {
     createMemberInvite,
     addMemberRecord,
     saveMemberRecord,
+    previewMemberImport,
     importMemberData,
     discardDraft,
     clearError,

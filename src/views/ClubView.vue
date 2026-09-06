@@ -1,21 +1,30 @@
 <script setup>
-import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
+import ClubIdentityHero from '../components/club/ClubIdentityHero.vue'
+import ClubMediaEditor from '../components/club/ClubMediaEditor.vue'
+import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { useAdminStore } from '../stores/admin'
 import { useNotificationStore } from '../stores/notification'
 import { useTournamentStore } from '../stores/tournament'
 import { collectClubMembers } from '../utils/club/memberData.js'
-import { isSafeImageSource } from '../utils/formSafety.js'
+import { DEFAULT_CLUB_COVER_PRESET } from '../utils/club/clubMedia.js'
 
 const router = useRouter()
 const adminStore = useAdminStore()
 const tournamentStore = useTournamentStore()
 const notificationStore = useNotificationStore()
-const photoInput = ref(null)
+
+const appearanceDialog = ref(null)
 const pageError = ref('')
-const photoBusy = ref(false)
+const appearanceBusy = ref(false)
+
+const appearanceDraft = reactive({
+  logoUrl: '',
+  coverUrl: '',
+  coverPreset: DEFAULT_CLUB_COVER_PRESET,
+})
 
 const club = computed(() => adminStore.activeClub)
 const setup = computed(() => club.value?.setup || null)
@@ -30,17 +39,6 @@ const tournaments = computed(() =>
   ),
 )
 const canManage = computed(() => adminStore.hasActiveClubPermission('club.manage'))
-
-const clubInitials = computed(() =>
-  String(club.value?.name || 'Club')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase(),
-)
-
 
 const manageItems = computed(() => {
   const items = [
@@ -84,57 +82,50 @@ function open(to) {
   router.push(to)
 }
 
-function chooseClubPhoto() {
-  if (canManage.value && !photoBusy.value) photoInput.value?.click()
-}
+function openAppearance() {
+  if (!canManage.value || appearanceBusy.value) return
 
-function readImage(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error('We could not read that image.'))
-    reader.readAsDataURL(file)
+  Object.assign(appearanceDraft, {
+    logoUrl: workspace.value.logoUrl || '',
+    coverUrl: workspace.value.coverUrl || '',
+    coverPreset: workspace.value.coverPreset || DEFAULT_CLUB_COVER_PRESET,
   })
-}
-
-async function updateClubPhoto(event) {
-  const file = event.target.files?.[0]
-  event.target.value = ''
-  if (!file) return
 
   pageError.value = ''
+  appearanceDialog.value?.showModal()
+}
 
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-    pageError.value = 'Choose a JPG, PNG or WebP image.'
-    return
-  }
+function closeAppearance() {
+  if (appearanceBusy.value) return
+  appearanceDialog.value?.close()
+}
 
-  if (file.size > 1_400_000) {
-    pageError.value = 'Choose an image smaller than 1.4 MB.'
-    return
-  }
+async function saveAppearance() {
+  if (!canManage.value || appearanceBusy.value) return
 
-  photoBusy.value = true
+  appearanceBusy.value = true
+  pageError.value = ''
 
   try {
-    const logoUrl = await readImage(file)
-    if (!isSafeImageSource(logoUrl)) throw new Error('That image could not be used safely.')
-
     await adminStore.updateActiveClub({
       workspace: {
         ...workspace.value,
-        logoUrl,
+        logoUrl: appearanceDraft.logoUrl,
+        coverUrl: appearanceDraft.coverUrl,
+        coverPreset: appearanceDraft.coverPreset,
       },
     })
 
     notificationStore.addToast({
-      message: 'Club photo updated.',
+      message: 'Club appearance updated.',
       type: 'success',
     })
+
+    appearanceDialog.value?.close()
   } catch (error) {
-    pageError.value = error?.message || 'We could not update the club photo.'
+    pageError.value = error?.message || 'We could not update the club appearance.'
   } finally {
-    photoBusy.value = false
+    appearanceBusy.value = false
   }
 }
 
@@ -149,6 +140,7 @@ onMounted(async () => {
     pageError.value = error?.message || 'We could not open this club.'
   }
 })
+
 useShellNestedHeader(() => ({
   label: 'Back to clubs',
   backLabel: 'Back to clubs',
@@ -158,54 +150,26 @@ useShellNestedHeader(() => ({
     { label: club.value?.name || 'Current club' },
   ],
 }))
-
 </script>
 
 <template>
   <main class="gorra-club-ref ref-page">
     <p v-if="pageError" class="ref-inline-alert" role="alert">{{ pageError }}</p>
 
-    <section v-if="club" aria-labelledby="active-club-name">
-      <img v-if="workspace.coverUrl" class="club-cover-photo" :src="workspace.coverUrl" :alt="`${club.name} cover`" />
-      <section class="ref-club-identity">
-        <div class="ref-club-identity-main">
-          <button
-            class="ref-club-photo"
-            type="button"
-            :disabled="!canManage || photoBusy"
-            :aria-label="canManage ? 'Change club photo' : undefined"
-            @click="chooseClubPhoto"
-          >
-            <img v-if="workspace.logoUrl" :src="workspace.logoUrl" alt="" />
-            <span v-else>{{ clubInitials }}</span>
-            <span v-if="canManage" class="ref-club-photo-edit" aria-hidden="true">
-              <FlowIcon name="profile" />
-            </span>
-          </button>
-          <input
-            ref="photoInput"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            hidden
-            @change="updateClubPhoto"
-          />
-
-          <div>
-            <h1 id="active-club-name">{{ club.name }}</h1>
-            <p>{{ workspace.location || 'Club location not added yet' }}</p>
-            <small>{{ adminStore.activeClubRoleLabel }} in this club</small>
-          </div>
-        </div>
-
-        <div class="ref-club-stats" aria-label="Club summary">
-          <span><strong>{{ members.length }}</strong> members</span>
-          <i aria-hidden="true"></i>
-          <span><strong>{{ activeLadders.length }}</strong> ladders</span>
-          <i aria-hidden="true"></i>
-          <span><strong>{{ tournaments.length }}</strong> tournaments</span>
-        </div>
-      </section>
-
+    <section v-if="club">
+      <ClubIdentityHero
+        :name="club.name"
+        :location="workspace.location || ''"
+        :role-label="`${adminStore.activeClubRoleLabel} in this club`"
+        :logo-url="workspace.logoUrl || ''"
+        :cover-url="workspace.coverUrl || ''"
+        :cover-preset="workspace.coverPreset || DEFAULT_CLUB_COVER_PRESET"
+        :member-count="members.length"
+        :ladder-count="activeLadders.length"
+        :tournament-count="tournaments.length"
+        :editable="canManage"
+        @edit-appearance="openAppearance"
+      />
 
       <section class="ref-club-manage">
         <header class="ref-section-heading">
@@ -234,6 +198,57 @@ useShellNestedHeader(() => ({
           </button>
         </div>
       </section>
+
+      <dialog ref="appearanceDialog" class="ref-dialog club-appearance-dialog">
+        <div class="ref-dialog-inner">
+          <header class="ref-dialog-head">
+            <div>
+              <h2>Club appearance</h2>
+              <p>Choose how this club appears across Gorra.</p>
+            </div>
+
+            <button
+              class="ref-dialog-close"
+              type="button"
+              aria-label="Close"
+              :disabled="appearanceBusy"
+              @click="closeAppearance"
+            >
+              <FlowIcon name="close" />
+            </button>
+          </header>
+
+          <ClubMediaEditor
+            :logo-url="appearanceDraft.logoUrl"
+            :cover-url="appearanceDraft.coverUrl"
+            :cover-preset="appearanceDraft.coverPreset"
+            :disabled="appearanceBusy"
+            @update:logo-url="appearanceDraft.logoUrl = $event"
+            @update:cover-url="appearanceDraft.coverUrl = $event"
+            @update:cover-preset="appearanceDraft.coverPreset = $event"
+          />
+
+          <footer class="ref-form-actions club-appearance-actions">
+            <button
+              class="ref-button"
+              type="button"
+              :disabled="appearanceBusy"
+              @click="closeAppearance"
+            >
+              Cancel
+            </button>
+
+            <button
+              class="ref-button primary"
+              type="button"
+              :disabled="appearanceBusy"
+              @click="saveAppearance"
+            >
+              {{ appearanceBusy ? 'Saving…' : 'Save appearance' }}
+            </button>
+          </footer>
+        </div>
+      </dialog>
     </section>
 
     <section v-else class="ref-page-narrow">
@@ -242,7 +257,12 @@ useShellNestedHeader(() => ({
         <h1>No active club</h1>
         <p>Choose a club to continue.</p>
       </div>
-      <button class="ref-button primary" type="button" @click="open({ name: 'Clubs' })">
+
+      <button
+        class="ref-button primary"
+        type="button"
+        @click="open({ name: 'Clubs' })"
+      >
         Open your clubs
       </button>
     </section>
@@ -250,5 +270,23 @@ useShellNestedHeader(() => ({
 </template>
 
 <style scoped>
-.club-cover-photo { display: block; width: 100%; height: clamp(140px, 22vw, 250px); object-fit: cover; border-radius: var(--app-card-radius); margin-bottom: 20px; }
+.club-appearance-dialog {
+  width: min(620px, 88vw);
+}
+
+.club-appearance-actions {
+  margin-top: 20px;
+}
+
+@media (max-width: 620px) {
+  .club-appearance-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .club-appearance-actions .ref-button {
+    width: 100%;
+  }
+}
 </style>
+
