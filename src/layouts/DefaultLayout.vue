@@ -557,7 +557,6 @@ const competeOwnsPageHeading = computed(() => {
 
 const showRoutePageContext = computed(
   () =>
-    !isLadderWorkspace.value &&
     !clubOwnsPageHeading.value &&
     !competeOwnsPageHeading.value,
 )

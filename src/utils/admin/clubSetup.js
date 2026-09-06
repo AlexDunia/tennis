@@ -11,6 +11,9 @@ import {
   createDefaultClubSetup,
 } from '../../config/admin.js'
 import { isSafeImageSource, sanitizePlainText } from '../formSafety.js'
+import {
+  validateMatchRulesSnapshot,
+} from '../../domain/matchRules.js'
 
 const MEMBER_SOURCES = Object.freeze(['invite', 'import', 'manual', 'existing'])
 const MEMBER_STATUSES = Object.freeze(['invited', 'pending', 'active', 'inactive'])
@@ -183,7 +186,135 @@ function normalizeMemberList(values, source, maxItems = 500) {
     })
 }
 
-function normalizeLadders(input, defaults) {
+function clonePlain(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+function normalizeLadderRules(
+  input,
+  fallbackInput,
+) {
+  const own = asObject(input)
+  const fallback = asObject(fallbackInput)
+
+  // Every Ladder receives its own copy.
+  // fallback is used to migrate older clubs that stored
+  // all Ladder rules in setup.rules.
+  const source = {
+    ...fallback,
+    ...own,
+  }
+
+  const snapshotCandidate =
+    own.matchRulesSnapshot
+
+  const snapshotValidation =
+    snapshotCandidate &&
+    typeof snapshotCandidate === 'object'
+      ? validateMatchRulesSnapshot(
+          snapshotCandidate,
+        )
+      : { valid: false }
+
+  return {
+    challengeRangeUp: clampInteger(
+      source.challengeRangeUp,
+      1,
+      20,
+      3,
+    ),
+    allowDownwardChallenges: Boolean(
+      source.allowDownwardChallenges,
+    ),
+    maxActiveChallenges: clampInteger(
+      source.maxActiveChallenges,
+      1,
+      5,
+      1,
+    ),
+    responseHours: clampInteger(
+      source.responseHours,
+      1,
+      168,
+      48,
+    ),
+    completionDays: clampInteger(
+      source.completionDays,
+      1,
+      30,
+      7,
+    ),
+    rematchCooldownDays: clampInteger(
+      source.rematchCooldownDays,
+      0,
+      90,
+      7,
+    ),
+    repeatedDeclineLimit: clampInteger(
+      source.repeatedDeclineLimit,
+      1,
+      10,
+      3,
+    ),
+    inactivityDays: clampInteger(
+      source.inactivityDays,
+      7,
+      365,
+      30,
+    ),
+    noShowPolicy: isAllowed(
+      source.noShowPolicy,
+      [
+        'walkover-after-review',
+        'automatic-walkover',
+        'admin-review',
+      ],
+      'walkover-after-review',
+    ),
+    movementSystem: isAllowed(
+      source.movementSystem,
+      MOVEMENT_SYSTEMS
+        .filter((item) => item.available)
+        .map((item) => item.id),
+      'position-swap',
+    ),
+    matchPreset: isAllowed(
+      source.matchPreset,
+      MATCH_FORMAT_PRESETS.map(
+        (item) => item.id,
+      ),
+      'time-smart',
+    ),
+    scoring:
+      source.scoring === 'noad'
+        ? 'noad'
+        : 'ad',
+    resultConfirmation: isAllowed(
+      source.resultConfirmation,
+      [
+        'both-players',
+        'either-player',
+        'admin-only',
+      ],
+      'both-players',
+    ),
+    disputeResolution: 'admin',
+    ...(snapshotValidation.valid
+      ? {
+          matchRulesSnapshot:
+            clonePlain(
+              snapshotCandidate,
+            ),
+        }
+      : {}),
+  }
+}
+
+function normalizeLadders(
+  input,
+  defaults,
+  fallbackRules,
+) {
   const source = Array.isArray(input) ? input : defaults
   const ladderIds = new Set()
   return source
@@ -202,6 +333,10 @@ function normalizeLadders(input, defaults) {
           : template?.matchType || 'singles',
         enabled: ladder.enabled !== false,
         archived: Boolean(ladder.archived),
+        rules: normalizeLadderRules(
+          ladder.rules,
+          fallbackRules,
+        ),
       }
     })
     .filter((ladder) => ladder.id && ladder.name)
@@ -215,8 +350,20 @@ export function normalizeClubSetup(input = {}) {
   const membership = asObject(value.membership)
   const placement = asObject(value.placement)
   const rules = asObject(value.rules)
-  const notificationInput = asObject(workspace.notifications)
-  const ladders = normalizeLadders(value.ladders, isMinimal ? [] : defaults.ladders)
+  const notificationInput = asObject(
+    workspace.notifications,
+  )
+
+  const ladderRuleFallback = {
+    ...defaults.rules,
+    ...rules,
+  }
+
+  const ladders = normalizeLadders(
+    value.ladders,
+    isMinimal ? [] : defaults.ladders,
+    ladderRuleFallback,
+  )
   const activeLadderIds = ladders
     .filter((ladder) => ladder.enabled && !ladder.archived)
     .map((ladder) => ladder.id)

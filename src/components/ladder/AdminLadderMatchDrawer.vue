@@ -246,20 +246,32 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
         <section v-if="timing" class="drawer-section">
           <div class="drawer-section__label">
-            <strong>Match format</strong>
+            <strong>Scoring rules</strong>
             <span>{{
               matchRuleSource === 'admin_override' ? 'Admin override' : 'Ladder default'
             }}</span>
           </div>
-          <div class="rules-card">
-            <span>
+          <div class="rules-card rules-card--tennis">
+            <div class="rules-card__tennis-summary">
               <strong>{{ currentRulesSummary.match }}</strong>
-              <small v-for="line in currentRulesSummary.concise.slice(1, 4)" :key="line">
-                {{ line }}
-              </small>
-            </span>
-            <button type="button" @click="openRulesEditor">
-              {{ rulesEditable ? 'Customize' : 'View details' }}
+
+              <dl>
+                <div
+                  v-for="row in currentRulesSummary.rows"
+                  :key="row.key"
+                >
+                  <dt>{{ row.label }}</dt>
+                  <dd>{{ row.value }}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <button
+              v-if="rulesEditable"
+              type="button"
+              @click="openRulesEditor"
+            >
+              Customize
             </button>
           </div>
           <p v-if="matchRuleSource === 'admin_override'" class="override-note">
@@ -595,6 +607,53 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
   font-weight: var(--font-weight-semibold);
 }
 
+.rules-card--tennis {
+  align-items: flex-start;
+}
+
+.rules-card__tennis-summary {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 8px;
+}
+
+.rules-card__tennis-summary > strong {
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.rules-card__tennis-summary dl {
+  display: grid;
+  margin: 0;
+}
+
+.rules-card__tennis-summary dl > div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
+  padding: 5px 0;
+  border-top: 1px solid
+    color-mix(
+      in srgb,
+      var(--color-border) 70%,
+      transparent
+    );
+}
+
+.rules-card__tennis-summary dt {
+  color: var(--color-muted);
+  font-size: 8.7px;
+}
+
+.rules-card__tennis-summary dd {
+  margin: 0;
+  color: var(--color-text-soft);
+  font-size: 9.4px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .override-note {
   margin: 6px 0 0;
   color: var(--color-muted);
@@ -860,6 +919,14 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 }
 
 @media (max-width: 420px) {
+  .rules-card--tennis {
+    display: grid;
+  }
+
+  .rules-card__tennis-summary dl > div {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+
   .admin-drawer__panel {
     padding-inline: 14px;
     padding-bottom: max(24px, env(safe-area-inset-bottom));

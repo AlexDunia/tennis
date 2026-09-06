@@ -24,6 +24,7 @@ import {
   getActiveLadderConfig,
   isEligibleLadderOpponent,
   ladderMatchConfig,
+  resolveLadderConfigFromSetup,
 } from '../../config/ladder'
 import { getEligibleLadderOpponents } from '../../services/LadderAccessService'
 import { startOrResumeLadderMatch } from '../../services/LadderLiveMatchService.js'
@@ -168,19 +169,26 @@ const ladderScope = computed(() =>
   scopeFor(activeLadder.value),
 )
 
-const activeLadderConfig = computed(() => ({
-  ...getActiveLadderConfig(),
-  id:
-    activeLadder.value?.id ||
-    getActiveLadderConfig().id,
-  name:
-    activeLadder.value?.name ||
-    getActiveLadderConfig().name,
-  matchType:
-    activeLadder.value?.matchType ||
-    getActiveLadderConfig().matchType ||
-    'singles',
-}))
+const activeLadderConfig = computed(() => {
+  const resolved = resolveLadderConfigFromSetup(
+    activeClub.value?.setup || {},
+    activeLadder.value?.id || '',
+  )
+
+  return {
+    ...resolved,
+    id:
+      activeLadder.value?.id ||
+      resolved.id,
+    name:
+      activeLadder.value?.name ||
+      resolved.name,
+    matchType:
+      activeLadder.value?.matchType ||
+      resolved.matchType ||
+      'singles',
+  }
+})
 
 const defaultMatchRules = computed(() =>
   ladderMatchConfig(activeLadderConfig.value),
@@ -1011,6 +1019,19 @@ onUnmounted(() =>
             </RouterLink>
 
             <RouterLink
+              v-if="canManageLadder && activeLadder"
+              class="compete-secondary"
+              :to="{
+                name: 'LadderSettings',
+                params: {
+                  ladderId: activeLadder.id,
+                },
+              }"
+            >
+              Settings
+            </RouterLink>
+
+            <RouterLink
               v-if="!canManageLadder"
               class="compete-primary"
               :to="{ name: 'CreateChallenge' }"
@@ -1019,6 +1040,45 @@ onUnmounted(() =>
             </RouterLink>
           </div>
         </header>
+
+        <section
+          v-if="
+            canAdminSetUpMatch &&
+            selectedPlayer &&
+            !drawerOpen
+          "
+          class="mobile-selection-context"
+          aria-live="polite"
+        >
+          <PersonAvatar
+            :name="selectedPlayer.name"
+            :image="selectedPlayer.imageUrl"
+            :size="34"
+          />
+
+          <span>
+            <strong>
+              {{ selectedPlayer.name }} selected
+            </strong>
+            <small>
+              Choose someone they can challenge.
+            </small>
+          </span>
+
+          <button
+            type="button"
+            aria-label="Cancel challenge selection"
+            title="Cancel challenge selection"
+            @click="resetChallengeSelection"
+          >
+            <svg
+              viewBox="0 0 20 20"
+              aria-hidden="true"
+            >
+              <path d="m6 6 8 8M14 6l-8 8" />
+            </svg>
+          </button>
+        </section>
 
         <section
           v-if="
@@ -1064,6 +1124,8 @@ onUnmounted(() =>
                   playerRowState(player).eligible,
                 'ladder-row--quiet':
                   playerRowState(player).quiet,
+                'ladder-row--paused':
+                  Boolean(player.challengePaused),
                 'ladder-row--interactive':
                   canManageLadder,
               }"
@@ -1131,48 +1193,58 @@ onUnmounted(() =>
               >
                 <small
                   v-if="
-                    playerRowState(player)
-                      .selected
+                    playerRowState(player).selected
                   "
+                  class="ladder-row__state ladder-row__state--selected"
                 >
                   Challenger
                 </small>
 
                 <small
                   v-else-if="
-                    playerRowState(player)
-                      .eligible
+                    playerRowState(player).eligible
                   "
+                  class="ladder-row__state ladder-row__state--eligible"
                 >
                   Can challenge
                 </small>
 
                 <small
                   v-else-if="selectedPlayer"
+                  class="ladder-row__state ladder-row__state--quiet"
                 >
                   Not eligible
                 </small>
 
-                <small
-                  v-else-if="
-                    playerRowState(player)
-                      .managed
-                  "
+                <span
+                  v-else
+                  class="ladder-row__manage-state"
                 >
-                  Options open
-                </small>
+                  <small
+                    v-if="player.challengePaused"
+                    class="ladder-row__paused-state"
+                  >
+                    <svg
+                      viewBox="0 0 20 20"
+                      aria-hidden="true"
+                    >
+                      <path d="M7.5 6.5v7M12.5 6.5v7" />
+                    </svg>
+                    Paused
+                  </small>
 
-                <small
-                  v-else-if="
-                    player.challengePaused
-                  "
-                >
-                  Paused
-                </small>
-
-                <small v-else>
-                  Manage
-                </small>
+                  <svg
+                    class="ladder-row__chevron"
+                    :class="{
+                      'ladder-row__chevron--open':
+                        playerRowState(player).managed,
+                    }"
+                    viewBox="0 0 20 20"
+                    aria-hidden="true"
+                  >
+                    <path d="m6 8 4 4 4-4" />
+                  </svg>
+                </span>
               </span>
 
               <button
@@ -1473,28 +1545,61 @@ onUnmounted(() =>
   background:
     color-mix(
       in srgb,
-      var(--color-primary) 6%,
+      var(--color-primary) 11%,
       white
     );
+  box-shadow:
+    0 0 0 1px
+    color-mix(
+      in srgb,
+      var(--color-primary) 12%,
+      transparent
+    );
+}
+
+.ladder-row--selected .ladder-row__rank,
+.ladder-row--selected .ladder-row__player strong {
+  color: var(--color-primary-strong);
 }
 
 .ladder-row--eligible {
   border-color:
     color-mix(
       in srgb,
-      var(--color-primary) 25%,
+      var(--color-primary) 34%,
       var(--color-border)
     );
   background:
     color-mix(
       in srgb,
-      var(--color-primary) 2%,
+      var(--color-primary) 4.5%,
       white
     );
 }
 
+.ladder-row--eligible .ladder-row__rank {
+  color:
+    color-mix(
+      in srgb,
+      var(--color-primary-strong) 74%,
+      var(--color-text-soft)
+    );
+}
+
 .ladder-row--quiet {
-  opacity: 0.42;
+  opacity: 0.4;
+}
+
+.ladder-row--paused:not(.ladder-row--selected) {
+  border-color: rgba(177, 132, 54, 0.24);
+  background: #fffaf1;
+}
+
+.ladder-row--paused:not(.ladder-row--selected)
+  .ladder-row__player strong,
+.ladder-row--paused:not(.ladder-row--selected)
+  .ladder-row__rank {
+  color: #79663e;
 }
 
 .ladder-row--you:not(
@@ -1554,38 +1659,99 @@ onUnmounted(() =>
   text-align: right;
 }
 
-.ladder-row__status small {
+.ladder-row__state {
   display: inline-flex;
   min-height: 29px;
   align-items: center;
   justify-content: center;
   padding: 0 8px;
   border-radius: var(--app-inner-radius);
-  background: var(--color-surface-soft);
-  color: var(--color-muted);
   font-size: 9px;
   font-weight: var(--font-weight-semibold);
 }
 
-.ladder-row--selected
-  .ladder-row__status small,
-.ladder-row--eligible
-  .ladder-row__status small,
-.ladder-row--managed
-  .ladder-row__status small {
+.ladder-row__state--selected {
   background:
     color-mix(
       in srgb,
-      var(--color-primary) 10%,
+      var(--color-primary) 14%,
       white
     );
   color: var(--color-primary-strong);
+}
+
+.ladder-row__state--eligible {
+  background:
+    color-mix(
+      in srgb,
+      var(--color-primary) 8%,
+      white
+    );
+  color:
+    color-mix(
+      in srgb,
+      var(--color-primary-strong) 78%,
+      var(--color-muted)
+    );
+}
+
+.ladder-row__state--quiet {
+  background: var(--color-surface-soft);
+  color: var(--color-muted);
+}
+
+.ladder-row__manage-state {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.ladder-row__paused-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #8b6b32;
+  font-size: 8.8px;
+  font-weight: 650;
+}
+
+.ladder-row__paused-state svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.ladder-row__chevron {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--color-muted);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition:
+    transform var(--motion-short) var(--motion-curve),
+    color var(--motion-short) ease;
+}
+
+.ladder-row__chevron--open {
+  color: var(--color-primary-strong);
+  transform: rotate(180deg);
 }
 
 .ladder-row__action {
   min-height: 36px;
   padding: 7px 11px;
   font-size: 11px;
+}
+
+.mobile-selection-context {
+  display: none;
 }
 
 @media (max-width: 1180px) {
@@ -1615,6 +1781,89 @@ onUnmounted(() =>
 }
 
 @media (max-width: 767px) {
+  .selection-guide {
+    display: none;
+  }
+
+  .mobile-selection-context {
+    position: fixed;
+    z-index: 36;
+    top: var(--app-header-height);
+    left: 50%;
+    display: grid;
+    width: 85vw;
+    min-height: 56px;
+    grid-template-columns:
+      34px minmax(0, 1fr) 30px;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 10px;
+    border: 1px solid
+      color-mix(
+        in srgb,
+        var(--color-primary) 22%,
+        var(--color-border)
+      );
+    border-radius: 0 0 12px 12px;
+    background: rgba(250, 253, 250, 0.98);
+    box-shadow: 0 8px 22px rgba(18, 49, 29, 0.08);
+    transform: translateX(-50%);
+    backdrop-filter: blur(10px);
+  }
+
+  .mobile-selection-context > span {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .mobile-selection-context strong {
+    overflow: hidden;
+    color: var(--color-primary-strong);
+    font-size: 10.5px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-selection-context small {
+    overflow: hidden;
+    color: var(--color-muted);
+    font-size: 8.8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-selection-context > button {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-soft);
+  }
+
+  .mobile-selection-context > button:active {
+    background: var(--color-surface-soft);
+  }
+
+  .mobile-selection-context > button svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+  }
+
+  .ladder-view:has(.mobile-selection-context)
+    .ladder-workspace {
+    padding-top: 83px;
+  }
+
   .ladder-view,
   .ladder-view--drawer {
     display: block;
@@ -1622,8 +1871,8 @@ onUnmounted(() =>
   }
 
   .ladder-workspace {
-    width: 85%;
-    margin-inline: auto;
+    width: 100%;
+    margin-inline: 0;
     padding: 17px 0 30px;
   }
 
@@ -1669,9 +1918,6 @@ onUnmounted(() =>
 }
 
 @media (max-width: 420px) {
-  .ladder-workspace {
-    width: 85%;
-  }
 
   .ladder-heading {
     display: grid;

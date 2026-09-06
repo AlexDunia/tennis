@@ -2680,7 +2680,10 @@ const mockAdapter = async (config) => {
     */
 
   if (method === 'post' && path === '/admin/ladder-matches') {
-    const ladderConfig = getActiveLadderConfig()
+    const ladderConfig =
+      getActiveLadderConfig(
+        body?.ladderId || '',
+      )
     const challenger = getPlayerById(body.challengerPlayerId)
     const defender = getPlayerById(body.opponentPlayerId)
     const timing = body.timing === 'scheduled' ? 'scheduled' : 'now'
@@ -2815,8 +2818,14 @@ const mockAdapter = async (config) => {
     */
 
   if (method === 'post' && path === '/challenges') {
-    const ladderConfig = getActiveLadderConfig()
-    const ladderId = body.ladderId || ladderConfig.id
+    const ladderConfig =
+      getActiveLadderConfig(
+        body?.ladderId || '',
+      )
+
+    const ladderId =
+      body.ladderId ||
+      ladderConfig.id
 
     const challenger = getPlayerById(body.challengerId)
 

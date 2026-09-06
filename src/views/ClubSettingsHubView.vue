@@ -30,7 +30,7 @@ const items = computed(() => [
   {
     icon: 'sliders',
     title: 'Play',
-    copy: 'Starting match defaults for new ladders and tournaments.',
+    copy: 'Starting defaults for new ladders. Existing ladders keep their own rules.',
     to: { name: 'Settings', query: { section: 'rules' } },
   },
   {

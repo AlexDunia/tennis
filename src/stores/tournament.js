@@ -8,6 +8,7 @@ import { usePlayerStore } from './player'
 import {
   closeRoundRobinRequest,
   createTournamentRequest,
+  updateTournamentRequest,
   generateFixturesRequest,
   getScheduleRequest,
   getTournament,
@@ -163,6 +164,88 @@ export const useTournamentStore = defineStore('tournament', () => {
     return null
   }
 
+  const updateTournament = async (
+    tournamentId,
+    payload,
+  ) => {
+    const adminStore = useAdminStore()
+
+    if (
+      !adminStore.hasActiveClubPermission(
+        'tournaments.manage',
+      )
+    ) {
+      error.value =
+        'You do not have permission to change tournaments for this club.'
+      return null
+    }
+
+    const current =
+      tournaments.value.find(
+        (item) =>
+          item.id === tournamentId,
+      ) ||
+      (activeTournament.value?.id ===
+      tournamentId
+        ? activeTournament.value
+        : null)
+
+    if (
+      current?.clubId &&
+      current.clubId !==
+        adminStore.activeClubId
+    ) {
+      error.value =
+        'This tournament does not belong to the active club.'
+      return null
+    }
+
+    loading.value = true
+    error.value = null
+
+    try {
+      const response =
+        await updateTournamentRequest(
+          tournamentId,
+          payload,
+        )
+
+      if (!response.success) {
+        error.value =
+          response.message ||
+          'Unable to update tournament.'
+        return null
+      }
+
+      const index =
+        tournaments.value.findIndex(
+          (item) =>
+            item.id === tournamentId,
+        )
+
+      if (index === -1) {
+        tournaments.value.push(
+          response.data,
+        )
+      } else {
+        tournaments.value[index] =
+          response.data
+      }
+
+      activeTournament.value =
+        response.data
+
+      return response.data
+    } catch (updateError) {
+      error.value =
+        updateError?.message ||
+        'Unable to update tournament.'
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
   const generateFixtures = async (tournamentId, categoryId) => {
     const response = await generateFixturesRequest(tournamentId, categoryId)
     if (response.success) {
@@ -265,6 +348,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     fetchTournaments,
     fetchTournament,
     createTournament,
+    updateTournament,
     generateFixtures,
     enterMatchResult,
     markWalkover,

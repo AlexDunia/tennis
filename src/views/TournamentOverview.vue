@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useTournamentStore } from '../stores/tournament'
+import { useAdminStore } from '../stores/admin'
 import CategoryCard from '../components/tournament/CategoryCard.vue'
 import CategoryStatusBadge from '../components/tournament/CategoryStatusBadge.vue'
 import TournamentEmptyState from '../components/tournament/TournamentEmptyState.vue'
@@ -15,6 +16,14 @@ const router = useRouter()
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
 const tournamentStore = useTournamentStore()
+const adminStore = useAdminStore()
+
+const canManageTournament = computed(
+  () =>
+    adminStore.hasActiveClubPermission(
+      'tournaments.manage',
+    ),
+)
 const hasLoaded = ref(false)
 
 const tournamentId = computed(() => route.params.tournamentId)
@@ -119,6 +128,21 @@ watch(
             :to="`/tournaments/${tournament.id}/gallery`"
           >
             View Gallery
+          </RouterLink>
+          <RouterLink
+            v-if="
+              tournament &&
+              canManageTournament
+            "
+            class="secondary-button"
+            :to="{
+              name: 'TournamentSettings',
+              params: {
+                tournamentId: tournament.id,
+              },
+            }"
+          >
+            Settings
           </RouterLink>
           <RouterLink
             v-if="!tournament.rules?.registrationStage"

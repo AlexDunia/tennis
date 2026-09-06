@@ -13,7 +13,11 @@ const SETTINGS_CATEGORIES = Object.freeze([
   { id: 'club', label: 'Club', help: 'Name, place, courts, and season' },
   { id: 'members', label: 'Members', help: 'Invite, import, and roles' },
   { id: 'ladders', label: 'Ladders', help: 'Add, edit, or archive' },
-  { id: 'rules', label: 'Rules & format', help: 'How ladder matches work' },
+  {
+    id: 'rules',
+    label: 'Play defaults',
+    help: 'Starting rules for new ladders',
+  },
 ])
 
 const MEMBER_ROLES = Object.freeze([
@@ -289,6 +293,7 @@ function hydrateSetup(value = {}) {
     matchType: ladder.matchType === 'doubles' ? 'doubles' : 'singles',
     enabled: ladder.enabled !== false && !ladder.archived,
     archived: Boolean(ladder.archived),
+    rules: cloneValue(ladder.rules || {}),
   }))
   if (!ladderDrafts.value.length && value.configurationState !== 'minimal') {
     ladderDrafts.value = [
@@ -298,6 +303,7 @@ function hydrateSetup(value = {}) {
         matchType: 'singles',
         enabled: true,
         archived: false,
+        rules: cloneValue(value.rules || DEFAULT_RULES),
       },
     ]
   }
@@ -347,6 +353,9 @@ function buildSetupInput(section = activeCategory.value) {
     matchType: ladder.matchType === 'doubles' ? 'doubles' : 'singles',
     enabled: ladder.enabled !== false && !ladder.archived,
     archived: Boolean(ladder.archived),
+    rules: cloneValue(
+      ladder.rules || DEFAULT_RULES,
+    ),
   }))
   const activeIds = ladders.filter((ladder) => ladder.enabled).map((ladder) => ladder.id)
 
@@ -684,6 +693,7 @@ function addLadder() {
     matchType: 'singles',
     enabled: true,
     archived: false,
+    rules: cloneValue(rules),
   })
 }
 
@@ -695,6 +705,32 @@ function toggleLadder(ladder) {
   }
   ladder.enabled = !isOpen
   ladder.archived = isOpen
+}
+
+function openLadderSettings(ladder) {
+  const persisted =
+    adminStore.activeClub?.setup?.ladders
+      ?.some(
+        (item) =>
+          item.id === ladder.id,
+      )
+
+  if (!persisted) {
+    notificationStore.addToast({
+      title: 'Save this ladder first',
+      message:
+        'Save the new ladder, then open its settings.',
+      type: 'info',
+    })
+    return
+  }
+
+  router.push({
+    name: 'LadderSettings',
+    params: {
+      ladderId: ladder.id,
+    },
+  })
 }
 
 function saveAccount() {
@@ -1220,6 +1256,17 @@ onMounted(async () => {
                 </select>
               </label>
               <button
+                v-if="
+                  ladder.enabled &&
+                  !ladder.archived
+                "
+                class="settings-button settings-button--quiet ladder-row__action"
+                type="button"
+                @click="openLadderSettings(ladder)"
+              >
+                Settings
+              </button>
+              <button
                 class="settings-button settings-button--quiet ladder-row__action"
                 type="button"
                 @click="toggleLadder(ladder)"
@@ -1247,9 +1294,11 @@ onMounted(async () => {
         >
           <header class="settings-section__header">
             <div>
-              <p class="settings-section__eyebrow">Rules & format</p>
-              <h2>How ladder matches work</h2>
-              <p>These rules apply to challenges in this club.</p>
+              <p class="settings-section__eyebrow">Play defaults</p>
+              <h2>Starting rules for new ladders</h2>
+              <p>
+                Existing ladders keep their own settings. Use a ladder’s Settings button to change that ladder.
+              </p>
             </div>
           </header>
 
@@ -1325,8 +1374,10 @@ onMounted(async () => {
           <div class="settings-card">
             <div class="settings-subhead">
               <div>
-                <h3>Match format</h3>
-                <p>Time-Smart is the recommended club format.</p>
+                <h3>Default match format</h3>
+                <p>
+                  Used as the starting point when a new ladder is created.
+                </p>
               </div>
             </div>
             <div class="settings-grid settings-grid--two">

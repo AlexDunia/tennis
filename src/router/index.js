@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import RankingsView from '../views/compete/LadderView.vue'
+import LadderSettingsView from '../views/LadderSettingsView.vue'
+import TournamentSettingsView from '../views/TournamentSettingsView.vue'
 import ChallengesView from '../views/compete/ChallengesQueueView.vue'
 import ChallengeDetailsView from '../views/ChallengeDetailsView.vue'
 import CompeteChallengeCreateView from '../views/compete/CompeteChallengeCreateView.vue'
@@ -101,7 +103,19 @@ const routes = [
     component: RankingsView,
     meta: {
       title: 'Ladder',
-      subtitle: 'Your rank and nearby players.',
+      subtitle: 'Standings, challenges, and ladder activity.',
+      primarySection: 'ladder',
+    },
+  },
+  {
+    path: '/rankings/:ladderId/settings',
+    name: 'LadderSettings',
+    component: LadderSettingsView,
+    meta: {
+      title: 'Ladder settings',
+      subtitle: 'Rules for this ladder only.',
+      permission: 'club.manage',
+      activeClubPermission: true,
       primarySection: 'ladder',
     },
   },
@@ -135,6 +149,18 @@ const routes = [
     meta: {
       title: 'Tournament Overview',
       subtitle: 'See categories, progress, officials, and the match schedule.',
+      primarySection: 'tournament',
+    },
+  },
+  {
+    path: '/tournaments/:tournamentId/settings',
+    name: 'TournamentSettings',
+    component: TournamentSettingsView,
+    meta: {
+      title: 'Tournament settings',
+      subtitle: 'Settings for this tournament only.',
+      permission: 'tournaments.manage',
+      activeClubPermission: true,
       primarySection: 'tournament',
     },
   },
