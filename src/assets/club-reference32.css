@@ -2052,25 +2052,18 @@
 }
 
 
-/* Shared Tournament styling for the complete Club experience. */
+/* Shared Club controls use the application design tokens. */
 .layout.layout--club-theme {
-  --club-action-size: 11px;
+  --club-action-size: 13px;
   --club-action-weight: 600;
-  --club-control-height: 42px;
-  --club-control-radius: 8px;
+  --club-control-height: 44px;
+  --club-control-radius: 9px;
   --club-control-padding: 12px;
   --club-action-gap: 8px;
   --club-card-radius: 12px;
   --club-card-shadow: 0 3px 12px rgba(15, 34, 24, .035);
   --club-card-hover-shadow: 0 5px 16px rgba(15, 34, 24, .05);
-  --color-bg: #fff;
-  --color-text: var(--tournament-ink);
-  --color-muted: var(--tournament-muted);
-  --color-border: var(--tournament-line);
-  --color-primary: var(--tournament-green);
-  --color-primary-strong: var(--tournament-green-dark);
   --color-surface: #fff;
-  --color-surface-soft: var(--tournament-green-soft);
 }
 
 .layout.layout--club-theme .main {

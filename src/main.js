@@ -9,6 +9,7 @@ import './assets/main.css'
 import './assets/club-reference32.css'
 import './assets/compete-reference32.css'
 import './assets/tournament.css'
+import './assets/app-consistency.css'
 
 const app = createApp(App)
 

@@ -1,20 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --tournament-green: #00b51a;
+  --tournament-green: #08ad2b;
   --tournament-green-soft: rgba(0, 181, 26, 0.08);
   --tournament-green-mid: #149a38;
-  --tournament-green-dark: #087524;
+  --tournament-green-dark: #163d2b;
   --tournament-amber: #d97706;
   --tournament-amber-soft: #fef3c7;
   --tournament-blue: #1d6fb5;
   --tournament-blue-soft: #e8f0fb;
   --tournament-red: #c0392b;
   --tournament-red-soft: #fdecea;
-  --tournament-ink: #111827;
-  --tournament-muted: #6b7280;
+  --tournament-ink: var(--color-text);
+  --tournament-muted: var(--color-muted);
   --tournament-faint: #9ca3af;
-  --tournament-line: #e5e7eb;
+  --tournament-line: var(--color-border);
   --tournament-shell: #f5f6f7;
   --tournament-card-shadow: none;
   --tournament-lift-shadow: none;
@@ -30,7 +29,7 @@
   gap: 24px;
   width: 100%;
   color: var(--tournament-ink);
-  font-family: 'DM Sans', 'Poppins', sans-serif;
+  font-family: var(--font-family-app);
 }
 
 .tournament-hub *,
@@ -51,7 +50,7 @@
 .knockout-champion-card *,
 .tournament-empty-state *,
 .tournament-match-modal * {
-  font-family: 'DM Sans', 'Poppins', sans-serif !important;
+  font-family: var(--font-family-app);
 }
 
 .t-shell-card {
@@ -161,11 +160,11 @@
 }
 
 .t-page-title {
-  font-size: 24px;
+  font-size: 18px;
 }
 
 .t-section-title {
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .t-copy,

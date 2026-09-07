@@ -1,0 +1,48 @@
+/* Home/Play typography shared by Club and competition workspaces. */
+.layout--migrated {
+  --type-page-title: 22px;
+  --type-section-title: 18px;
+  --type-card-title: 14px;
+  --type-row-title: 14px;
+  --type-page-description: 13px;
+  --type-meta: 12px;
+}
+
+.layout--migrated :is(.gorra-compete-ref, .gorra-club-ref, .ladder-view,
+.tournament-hub, .tournament-overview, .tournament-create, .tournament-category,
+.tournament-schedule, .tournament-gallery) {
+  font-family: var(--font-family-app);
+}
+
+.layout--migrated :is(.ladder-heading, .compete-page-head, .ref-page-head,
+.ref-members-head, .ref-section-heading) :is(h1, h2),
+.layout--migrated :is(.t-page-title, .t-section-title) {
+  font-size: 18px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+}
+
+.layout--migrated :is(.ladder-heading, .compete-page-head, .ref-page-head,
+.ref-members-head, .ref-section-heading) p {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.layout--migrated :is(.compete-primary, .compete-secondary, .t-button) {
+  min-height: 44px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.layout--migrated :is(.ladder-row__player strong, .ref-member-name) {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+}
+
+.layout--migrated :is(.ladder-row__metric, .ref-member-meta) {
+  font-size: 12px;
+  line-height: 1.5;
+}

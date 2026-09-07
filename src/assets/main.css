@@ -1,4 +1,5 @@
 :root {
+  --font-family-app: Inter, 'Avenir Next', 'Segoe UI', sans-serif;
   color-scheme: light;
   --color-bg: #ffffff;
   --color-bg-muted: #f7f8fa;

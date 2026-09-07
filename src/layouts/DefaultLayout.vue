@@ -532,7 +532,13 @@ const migratedRouteNames = new Set([
   'Settings',
   'AccountSettings',
 ])
-const isMigratedSurface = computed(() => migratedRouteNames.has(String(route.name || '')))
+const isMigratedSurface = computed(() => {
+  const name = String(route.name || '')
+  return migratedRouteNames.has(name)
+    || name.startsWith('Club')
+    || name.startsWith('Tournament')
+    || ['Rankings', 'Challenges', 'CreateChallenge', 'ChallengeDetails'].includes(name)
+})
 const isWideWorkspace = computed(
   () => isTournamentCreate.value || isTournamentViewer.value || isLadderWorkspace.value,
 )
