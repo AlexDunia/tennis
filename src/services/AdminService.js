@@ -504,6 +504,114 @@ function activeClubWriteContext(directory, userId, { manager = false } = {}) {
   }
 }
 
+export function clearClubTestDataSetup(
+  input,
+  timestamp = nowIso(),
+) {
+  const current = normalizeClubSetup(input)
+
+  return normalizeClubSetup({
+    ...current,
+
+    membership: {
+      ...current.membership,
+      source: 'later',
+      selectedPlayerIds: [],
+      inviteEmails: '',
+      invitePhones: '',
+      importedMembers: [],
+      manualMembers: [],
+      roster: [],
+    },
+
+    ladders: [],
+
+    primaryLadderId: '',
+
+    placement: {
+      ...current.placement,
+      rankingOrder: [],
+    },
+
+    updatedAt: timestamp,
+  })
+}
+
+export async function clearActiveClubTestData(
+  actor,
+) {
+  if (!import.meta.env?.DEV) {
+    throw createServiceError(
+      'Test data reset is only available in development.',
+      'DEV_ONLY',
+    )
+  }
+
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+
+  const context = activeClubWriteContext(
+    directory,
+    userId,
+    {
+      manager: true,
+    },
+  )
+
+  const timestamp = nowIso()
+
+  const setup = clearClubTestDataSetup(
+    context.club.setup,
+    timestamp,
+  )
+
+  directory.clubs[context.clubIndex] = {
+    ...context.club,
+    name: setup.workspace.name,
+    setup,
+
+    // Member-record invitations cannot survive
+    // after their target member records are cleared.
+    // Generic club invitations remain intact.
+    invites: context.club.invites.filter(
+      (invite) =>
+        invite.kind !==
+        CLUB_INVITE_KINDS.MEMBER_RECORD,
+    ),
+
+    updatedAt: timestamp,
+  }
+
+  // Preserve manager relationships so ownership/admin
+  // access survives the reset. Remove ordinary player
+  // relationships from this active club because the
+  // corresponding member records are now gone.
+  directory.memberships =
+    directory.memberships.filter(
+      (membership) =>
+        membership.clubId !==
+          context.clubId ||
+        MANAGER_ROLES.has(
+          membership.role,
+        ),
+    )
+
+  directory = writeDirectory(
+    directory,
+    userId,
+  )
+
+  return (
+    publicDirectoryForUser(
+      directory,
+      userId,
+    ).clubs.find(
+      (club) =>
+        club.id === context.clubId,
+    ) || null
+  )
+}
+
 function setupWithCreator(setup, userId) {
   return {
     ...setup,

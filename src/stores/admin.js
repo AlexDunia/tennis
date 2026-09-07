@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { ADMIN_SETUP_STEPS, createDefaultClubSetup } from '../config/admin.js'
 import {
   addClubMemberRecord,
+  clearActiveClubTestData as clearActiveClubTestDataRequest,
   importClubMemberData,
   previewClubMemberImport,
   updateClubMemberRecord,
@@ -455,6 +456,49 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
+  async function clearActiveClubTestData() {
+    if (!import.meta.env?.DEV) {
+      return null
+    }
+
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+
+      const club =
+        await clearActiveClubTestDataRequest(
+          currentActor,
+        )
+
+      const directory =
+        await getClubDirectory(
+          currentActor,
+        )
+
+      applyDirectory(directory)
+
+      setup.value =
+        directory.clubs.find(
+          (item) =>
+            item.id ===
+            directory.activeClubId,
+        )?.setup ||
+        createDefaultClubSetup()
+
+      return club
+    } catch (clearError) {
+      error.value =
+        clearError?.message ||
+        'Unable to clear test data.'
+
+      throw clearError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
   async function discardDraft() {
     isSaving.value = true
     error.value = ''
@@ -514,6 +558,7 @@ export const useAdminStore = defineStore('admin', () => {
     saveMemberRecord,
     previewMemberImport,
     importMemberData,
+    clearActiveClubTestData,
     discardDraft,
     clearError,
   }

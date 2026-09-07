@@ -9,6 +9,10 @@ import {
 import { useAuthStore } from './auth'
 import { getActiveLadderConfig, isEligibleLadderOpponent } from '../config/ladder'
 import { APP_CURRENT_PLAYER } from '../config/currentPlayer'
+import {
+  APP_DATA_MODES,
+  setAppDataMode,
+} from '../dataMode'
 
 const ROLE_STORAGE_KEY = 'tennis.local.playerRoles.v1'
 
@@ -199,6 +203,15 @@ export const usePlayerStore = defineStore('player', () => {
     saveRoleOverrides(roleOverrides.value)
   }
 
+  const clearPlayersForTest = () => {
+    if (!import.meta.env?.DEV) return
+
+    setAppDataMode(APP_DATA_MODES.EMPTY)
+
+    players.value = []
+    error.value = ''
+  }
+
   return {
     players,
     currentPlayerId,
@@ -219,5 +232,6 @@ export const usePlayerStore = defineStore('player', () => {
     relegatePlayer,
     setPlayerRole,
     clearPlayerRole,
+    clearPlayersForTest,
   }
 })

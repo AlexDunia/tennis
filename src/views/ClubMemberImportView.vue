@@ -51,6 +51,10 @@ const reconciliation = ref(null)
 const reconciliationDraft = ref(null)
 const reconciliationBusy = ref(false)
 const mobileColumnKey = ref('')
+const mobileSearchDialog = ref(null)
+const mobileFilterDialog = ref(null)
+const mobileSearchDraft = ref('')
+const mobileFilterDraft = ref('all')
 
 const resolutions = reactive({})
 
@@ -176,6 +180,45 @@ function moveMobileColumn(direction) {
   )
 
   mobileColumnKey.value = mobileColumns.value[nextIndex].key
+}
+
+const mobileColumnIndex = computed(() => {
+  if (!mobileColumn.value) return -1
+
+  return mobileColumns.value.findIndex(
+    (column) =>
+      column.key === mobileColumn.value?.key,
+  )
+})
+
+function clearReviewSearch() {
+  query.value = ''
+  mobileSearchDraft.value = ''
+}
+
+function openMobileSearch() {
+  mobileSearchDraft.value = query.value
+  mobileSearchDialog.value?.showModal()
+}
+
+function applyMobileSearch() {
+  query.value = mobileSearchDraft.value.trim()
+  mobileSearchDialog.value?.close()
+}
+
+function clearMobileSearch() {
+  clearReviewSearch()
+  mobileSearchDialog.value?.close()
+}
+
+function openMobileFilter() {
+  mobileFilterDraft.value = columnFilter.value
+  mobileFilterDialog.value?.showModal()
+}
+
+function applyMobileFilter() {
+  columnFilter.value = mobileFilterDraft.value
+  mobileFilterDialog.value?.close()
 }
 
 watch(
@@ -895,7 +938,7 @@ useShellNestedHeader(() => {
     <p v-if="error" class="ref-inline-alert" role="alert">{{ error }}</p>
 
     <header
-      v-if="stage !== 'scenario'"
+      v-if="stage === 'prepare'"
       class="ref-import-page-head"
     >
       <div class="ref-import-head-copy">
@@ -1065,31 +1108,68 @@ useShellNestedHeader(() => {
       />
     </section>
 
-    <section v-else class="ref-import-review">
-      <div class="ref-import-file-meta">
-        <span>{{ workspace.fileName }}</span>
+    <section
+      v-else
+      class="ref-import-review gorra-data-workspace"
+    >
+      <header
+        class="ref-import-review-filebar gorra-data-filebar"
+        aria-label="Uploaded file"
+      >
+        <span
+          class="ref-import-review-fileicon"
+          aria-hidden="true"
+        >
+          <FlowIcon name="file-spreadsheet" />
+        </span>
+
+        <div class="ref-import-review-filecopy">
+          <strong>
+            {{
+              workspace.fileName ||
+              'Uploaded member list'
+            }}
+          </strong>
+
+          <span>
+            {{ workspace.rows.length }}
+            {{
+              workspace.rows.length === 1
+                ? 'member'
+                : 'members'
+            }}
+            · Review before adding
+          </span>
+        </div>
 
         <button
-          class="ref-text-action"
+          class="ref-import-review-change"
           type="button"
           @click="changeFile"
         >
           Change file
         </button>
-      </div>
+      </header>
 
       <label
         v-if="workspace.scenario === 'one-ladder'"
-        class="ref-form-field"
-        style="max-width: 420px; margin-bottom: 14px"
+        class="ref-form-field ref-import-review-ladder"
       >
         <span>Ladder name</span>
-        <input v-model="workspace.oneLadderName" type="text" maxlength="70" />
+
+        <input
+          v-model="workspace.oneLadderName"
+          type="text"
+          maxlength="70"
+        />
       </label>
 
-      <div class="ref-import-toolbar">
+      <div
+        class="ref-import-toolbar gorra-data-toolbar"
+      >
         <div class="ref-search">
           <FlowIcon name="search" />
+
           <input
             v-model="query"
             type="search"
@@ -1097,35 +1177,67 @@ useShellNestedHeader(() => {
             placeholder="Search this list"
             aria-label="Search imported rows"
           />
+
           <button
             v-if="query"
             class="ref-search-clear"
             type="button"
             aria-label="Clear search"
-            @click="query = ''"
+            @click="clearReviewSearch"
           >
             <FlowIcon name="close" />
           </button>
+
           <span v-else></span>
         </div>
 
         <div class="ref-import-column-filter">
-          <label for="import-column-filter">Columns</label>
-          <select id="import-column-filter" v-model="columnFilter">
-            <option value="all">All columns</option>
-            <option value="required">Required</option>
-            <option value="optional">Optional</option>
-            <option value="extra">Not importing</option>
+          <label for="import-column-filter">
+            Columns
+          </label>
+
+          <select
+            id="import-column-filter"
+            v-model="columnFilter"
+          >
+            <option value="all">
+              All columns
+            </option>
+
+            <option value="required">
+              Required
+            </option>
+
+            <option value="optional">
+              Optional
+            </option>
+
+            <option value="extra">
+              Not importing
+            </option>
           </select>
         </div>
       </div>
 
-      <div class="ref-import-grid">
-        <div class="ref-import-scroll ref-import-desktop-grid">
-          <table class="ref-import-table">
+      <div
+        class="ref-import-grid gorra-data-grid"
+      >
+        <div
+          class="
+            ref-import-scroll
+            ref-import-desktop-grid
+            gorra-data-scroll
+          "
+        >
+          <table
+            class="ref-import-table gorra-data-table"
+          >
             <thead>
               <tr>
-                <th class="ref-import-number-head" aria-label="Row"></th>
+                <th
+                  class="ref-import-number-head"
+                  aria-label="Row"
+                ></th>
 
                 <th
                   v-for="column in displayedColumns"
@@ -1134,25 +1246,58 @@ useShellNestedHeader(() => {
                     'ref-import-head-missing':
                       column.type === 'field' &&
                       column.field.required &&
-                      targetSource(column.field.key) === null,
-                    'ref-import-extra-head': column.type === 'extra',
+                      targetSource(
+                        column.field.key,
+                      ) === null,
+                    'ref-import-extra-head':
+                      column.type === 'extra',
                   }"
                 >
-                  <template v-if="column.type === 'field'">
-                    <div class="ref-import-field-top">
-                      <strong>{{ column.field.label }}</strong>
-                      <span>{{ column.field.required ? 'Required' : 'Optional' }}</span>
+                  <template
+                    v-if="column.type === 'field'"
+                  >
+                    <div
+                      class="ref-import-field-top"
+                    >
+                      <strong>
+                        {{ column.field.label }}
+                      </strong>
+
+                      <span>
+                        {{
+                          column.field.required
+                            ? 'Required'
+                            : 'Optional'
+                        }}
+                      </span>
                     </div>
 
                     <div class="ref-import-source">
                       <label>From</label>
+
                       <select
-                        :value="targetSource(column.field.key) ?? ''"
-                        @change="mapTarget(column.field.key, $event.target.value)"
+                        :value="
+                          targetSource(
+                            column.field.key,
+                          ) ?? ''
+                        "
+                        @change="
+                          mapTarget(
+                            column.field.key,
+                            $event.target.value,
+                          )
+                        "
                       >
-                        <option value="">Choose column</option>
+                        <option value="">
+                          Choose column
+                        </option>
+
                         <option
-                          v-for="option in sourceOptions(column.field.key)"
+                          v-for="
+                            option in sourceOptions(
+                              column.field.key,
+                            )
+                          "
                           :key="option.index"
                           :value="option.index"
                         >
@@ -1163,19 +1308,44 @@ useShellNestedHeader(() => {
                   </template>
 
                   <template v-else>
-                    <div class="ref-import-field-top">
-                      <strong>{{ column.extra.header || `Column ${column.extra.index + 1}` }}</strong>
-                      <span>Not importing</span>
+                    <div
+                      class="ref-import-field-top"
+                    >
+                      <strong>
+                        {{
+                          column.extra.header ||
+                          `Column ${
+                            column.extra.index + 1
+                          }`
+                        }}
+                      </strong>
+
+                      <span>
+                        Not importing
+                      </span>
                     </div>
 
                     <div class="ref-import-source">
                       <label>Use as</label>
+
                       <select
-                        :value="extraTargetValue(column.extra.index)"
-                        @change="mapExtra(column.extra.index, $event.target.value)"
+                        :value="
+                          extraTargetValue(
+                            column.extra.index,
+                          )
+                        "
+                        @change="
+                          mapExtra(
+                            column.extra.index,
+                            $event.target.value,
+                          )
+                        "
                       >
                         <option
-                          v-for="[key, label] in MEMBER_IMPORT_FIELD_OPTIONS"
+                          v-for="
+                            [key, label] in
+                            MEMBER_IMPORT_FIELD_OPTIONS
+                          "
                           :key="key || 'none'"
                           :value="key"
                         >
@@ -1190,41 +1360,97 @@ useShellNestedHeader(() => {
 
             <tbody>
               <tr
-                v-for="{ row, index } in displayedRows"
+                v-for="
+                  { row, index } in
+                  displayedRows
+                "
                 :key="index"
-                :class="{ 'required-error': rowHasRequiredError(index) }"
+                :class="{
+                  'required-error':
+                    rowHasRequiredError(index),
+                }"
               >
-                <td class="ref-import-number">{{ index + 1 }}</td>
+                <td class="ref-import-number">
+                  {{ index + 1 }}
+                </td>
 
                 <td
-                  v-for="column in displayedColumns"
+                  v-for="
+                    column in displayedColumns
+                  "
                   :key="column.key"
                   class="ref-import-cell"
                   :class="{
-                    extra: column.type === 'extra',
-                    'required-error': cellState(column, index)?.blocking,
-                    'optional-warning': cellState(column, index)?.warning,
+                    extra:
+                      column.type === 'extra',
+                    'required-error':
+                      cellState(
+                        column,
+                        index,
+                      )?.blocking,
+                    'optional-warning':
+                      cellState(
+                        column,
+                        index,
+                      )?.warning,
                   }"
-                  :title="cellState(column, index)?.message || ''"
+                  :title="
+                    cellState(
+                      column,
+                      index,
+                    )?.message || ''
+                  "
                 >
                   <input
-                    :value="cellValue(column, row)"
+                    :value="
+                      cellValue(
+                        column,
+                        row,
+                      )
+                    "
                     type="text"
-                    :readonly="column.type === 'extra'"
-                    @input="changeCell(column, index, $event.target.value)"
+                    :readonly="
+                      column.type === 'extra'
+                    "
+                    @input="
+                      changeCell(
+                        column,
+                        index,
+                        $event.target.value,
+                      )
+                    "
                   />
 
                   <span
-                    v-if="cellState(column, index)"
+                    v-if="
+                      cellState(
+                        column,
+                        index,
+                      )
+                    "
                     class="ref-cell-marker"
-                    :class="cellState(column, index).blocking ? 'required' : 'optional'"
+                    :class="
+                      cellState(
+                        column,
+                        index,
+                      ).blocking
+                        ? 'required'
+                        : 'optional'
+                    "
                     aria-hidden="true"
                   ></span>
                 </td>
               </tr>
 
-              <tr v-if="!displayedRows.length">
-                <td :colspan="displayedColumns.length + 1" class="ref-member-empty">
+              <tr
+                v-if="!displayedRows.length"
+              >
+                <td
+                  :colspan="
+                    displayedColumns.length + 1
+                  "
+                  class="ref-member-empty"
+                >
                   No rows match this search.
                 </td>
               </tr>
@@ -1237,40 +1463,122 @@ useShellNestedHeader(() => {
           class="ref-import-mobile-editor"
           aria-label="Mobile import editor"
         >
-          <header class="ref-import-mobile-field">
-            <label>
-              <span>Field</span>
-
-              <select v-model="mobileColumnKey">
-                <option
-                  v-for="column in mobileColumns"
-                  :key="column.key"
-                  :value="column.key"
+          <header
+            class="
+              ref-import-mobile-command
+              gorra-data-toolbar
+            "
+          >
+            <div
+              class="
+                ref-import-mobile-command__field
+              "
+            >
+              <button
+                class="
+                  ref-import-mobile-direction
+                "
+                type="button"
+                :disabled="
+                  mobileColumnIndex <= 0
+                "
+                aria-label="Previous field"
+                @click="moveMobileColumn(-1)"
+              >
+                <svg
+                  viewBox="0 0 20 20"
+                  aria-hidden="true"
                 >
+                  <path d="m12 5-5 5 5 5" />
+                </svg>
+              </button>
+
+              <div
+                class="
+                  ref-import-mobile-command__copy
+                "
+              >
+                <strong>
                   {{
-                    mobileColumnLabel(column)
-                  }}{{
-                    column.type === 'field' && column.field.required
-                      ? ' · Required'
-                      : ''
+                    mobileColumnLabel(
+                      mobileColumn,
+                    )
                   }}
-                </option>
-              </select>
-            </label>
+                </strong>
+
+                <span>
+                  Field
+                  {{ mobileColumnIndex + 1 }}
+                  of {{ mobileColumns.length }}
+
+                  <template
+                    v-if="
+                      mobileColumn.type ===
+                        'field'
+                    "
+                  >
+                    ·
+                    {{
+                      mobileColumn.field.required
+                        ? 'Required'
+                        : 'Optional'
+                    }}
+                  </template>
+
+                  <template v-else>
+                    · Not importing
+                  </template>
+                </span>
+              </div>
+
+              <button
+                class="
+                  ref-import-mobile-direction
+                "
+                type="button"
+                :disabled="
+                  mobileColumnIndex >=
+                  mobileColumns.length - 1
+                "
+                aria-label="Next field"
+                @click="moveMobileColumn(1)"
+              >
+                <svg
+                  viewBox="0 0 20 20"
+                  aria-hidden="true"
+                >
+                  <path d="m8 5 5 5-5 5" />
+                </svg>
+              </button>
+            </div>
 
             <div
-              v-if="mobileColumn.type === 'field'"
-              class="ref-import-mobile-mapping"
+              class="
+                ref-import-mobile-command__tools
+              "
             >
-              <span>
-                {{ mobileColumn.field.required ? 'Required' : 'Optional' }}
-              </span>
-
-              <label>
-                <small>From</small>
+              <label
+                class="ref-import-mobile-map"
+              >
+                <span>
+                  {{
+                    mobileColumn.type ===
+                      'field'
+                      ? 'From your CSV'
+                      : 'Use as'
+                  }}
+                </span>
 
                 <select
-                  :value="targetSource(mobileColumn.field.key) ?? ''"
+                  v-if="
+                    mobileColumn.type ===
+                      'field'
+                  "
+                  :value="
+                    targetSource(
+                      mobileColumn.field.key,
+                    ) ?? ''
+                  "
                   @change="
                     mapTarget(
                       mobileColumn.field.key,
@@ -1278,30 +1586,30 @@ useShellNestedHeader(() => {
                     )
                   "
                 >
-                  <option value="">Choose column</option>
+                  <option value="">
+                    Choose column
+                  </option>
 
                   <option
-                    v-for="option in sourceOptions(mobileColumn.field.key)"
+                    v-for="
+                      option in sourceOptions(
+                        mobileColumn.field.key,
+                      )
+                    "
                     :key="option.index"
                     :value="option.index"
                   >
                     {{ option.label }}
                   </option>
                 </select>
-              </label>
-            </div>
-
-            <div
-              v-else
-              class="ref-import-mobile-mapping ref-import-mobile-mapping--extra"
-            >
-              <span>Not importing</span>
-
-              <label>
-                <small>Use as</small>
 
                 <select
-                  :value="extraTargetValue(mobileColumn.extra.index)"
+                  v-else
+                  :value="
+                    extraTargetValue(
+                      mobileColumn.extra.index,
+                    )
+                  "
                   @change="
                     mapExtra(
                       mobileColumn.extra.index,
@@ -1310,7 +1618,10 @@ useShellNestedHeader(() => {
                   "
                 >
                   <option
-                    v-for="[key, label] in MEMBER_IMPORT_FIELD_OPTIONS"
+                    v-for="
+                      [key, label] in
+                      MEMBER_IMPORT_FIELD_OPTIONS
+                    "
                     :key="key || 'none'"
                     :value="key"
                   >
@@ -1318,43 +1629,133 @@ useShellNestedHeader(() => {
                   </option>
                 </select>
               </label>
+
+              <button
+                class="ref-import-mobile-tool"
+                type="button"
+                aria-label="Search imported rows"
+                title="Search"
+                @click="openMobileSearch"
+              >
+                <FlowIcon name="search" />
+              </button>
+
+              <button
+                class="ref-import-mobile-tool"
+                :class="{
+                  'is-active':
+                    columnFilter !== 'all',
+                }"
+                type="button"
+                aria-label="Filter imported columns"
+                title="Filter columns"
+                @click="openMobileFilter"
+              >
+                <FlowIcon name="sliders" />
+
+                <span
+                  v-if="
+                    columnFilter !== 'all'
+                  "
+                  aria-hidden="true"
+                ></span>
+              </button>
+
+              <div
+                v-if="query"
+                class="ref-import-active-search"
+              >
+                <FlowIcon name="search" />
+
+                <span>
+                  Results for “{{ query }}”
+                </span>
+
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  @click="clearReviewSearch"
+                >
+                  <FlowIcon name="close" />
+                </button>
+              </div>
             </div>
           </header>
 
           <div class="ref-import-mobile-rows">
             <label
-              v-for="{ row, index } in displayedRows"
+              v-for="
+                { row, index } in
+                displayedRows
+              "
               :key="index"
               class="ref-import-mobile-row"
               :class="{
                 'required-error':
-                  mobileColumn.type === 'field' &&
-                  cellState(mobileColumn, index)?.blocking,
+                  mobileColumn.type ===
+                    'field' &&
+                  cellState(
+                    mobileColumn,
+                    index,
+                  )?.blocking,
                 'optional-warning':
-                  mobileColumn.type === 'field' &&
-                  cellState(mobileColumn, index)?.warning,
-                extra: mobileColumn.type === 'extra',
+                  mobileColumn.type ===
+                    'field' &&
+                  cellState(
+                    mobileColumn,
+                    index,
+                  )?.warning,
+                extra:
+                  mobileColumn.type ===
+                  'extra',
               }"
             >
-              <span class="ref-import-mobile-row__context">
+              <span
+                class="
+                  ref-import-mobile-row__context
+                "
+              >
                 <strong>
-                  {{ index + 1 }} · {{ mobileRowLabel(row, index) }}
+                  {{ index + 1 }} ·
+                  {{
+                    mobileRowLabel(
+                      row,
+                      index,
+                    )
+                  }}
                 </strong>
 
                 <small
                   v-if="
-                    mobileColumn.type === 'field' &&
-                    cellState(mobileColumn, index)
+                    mobileColumn.type ===
+                      'field' &&
+                    cellState(
+                      mobileColumn,
+                      index,
+                    )
                   "
                 >
-                  {{ cellState(mobileColumn, index).message }}
+                  {{
+                    cellState(
+                      mobileColumn,
+                      index,
+                    ).message
+                  }}
                 </small>
               </span>
 
               <input
-                :value="cellValue(mobileColumn, row)"
+                :value="
+                  cellValue(
+                    mobileColumn,
+                    row,
+                  )
+                "
                 type="text"
-                :readonly="mobileColumn.type === 'extra'"
+                :readonly="
+                  mobileColumn.type ===
+                  'extra'
+                "
                 @input="
                   changeCell(
                     mobileColumn,
@@ -1372,73 +1773,274 @@ useShellNestedHeader(() => {
               No rows match this search.
             </p>
           </div>
-
-          <footer class="ref-import-mobile-switcher">
-            <button
-              class="ref-button small"
-              type="button"
-              :disabled="
-                mobileColumns.findIndex(
-                  (column) => column.key === mobileColumn.key,
-                ) <= 0
-              "
-              @click="moveMobileColumn(-1)"
-            >
-              Previous field
-            </button>
-
-            <span>
-              {{
-                mobileColumns.findIndex(
-                  (column) => column.key === mobileColumn.key,
-                ) + 1
-              }}
-              of {{ mobileColumns.length }}
-            </span>
-
-            <button
-              class="ref-button small"
-              type="button"
-              :disabled="
-                mobileColumns.findIndex(
-                  (column) => column.key === mobileColumn.key,
-                ) >= mobileColumns.length - 1
-              "
-              @click="moveMobileColumn(1)"
-            >
-              Next field
-            </button>
-          </footer>
         </section>
 
-        <footer class="ref-import-footer">
-          <div class="ref-import-footer-copy" aria-live="polite">
+        <footer
+          class="
+            ref-import-footer
+            gorra-data-footer
+          "
+        >
+          <div
+            class="ref-import-footer-copy"
+            aria-live="polite"
+          >
             <strong>{{ footer.strong }}</strong>
-            <span v-if="footer.detail"> {{ footer.detail }}</span>
+
+            <span v-if="footer.detail">
+              {{ footer.detail }}
+            </span>
           </div>
 
-          <div class="ref-import-footer-actions">
-            <button class="ref-button" type="button" @click="changeFile">Change file</button>
+          <div
+            class="ref-import-footer-actions"
+          >
+            <button
+              class="ref-button"
+              type="button"
+              @click="changeFile"
+            >
+              Change file
+            </button>
+
             <button
               class="ref-button primary"
               type="button"
-              :disabled="health.blocking || busy || reconciliationBusy"
+              :disabled="
+                health.blocking ||
+                busy ||
+                reconciliationBusy
+              "
               @click="confirmImport"
             >
               {{
-  reconciliationBusy
-    ? 'Checking…'
-    : importActionLabel
-}}
+                reconciliationBusy
+                  ? 'Checking…'
+                  : importActionLabel
+              }}
             </button>
           </div>
         </footer>
       </div>
 
-      <p v-if="workspace.fixes.length" class="ref-import-fixes">
+      <p
+        v-if="workspace.fixes.length"
+        class="ref-import-fixes"
+      >
         {{ workspace.fixes.join(' · ') }}
       </p>
     </section>
+
+    <dialog
+      ref="mobileSearchDialog"
+      class="ref-dialog ref-import-mobile-sheet"
+      aria-labelledby="import-mobile-search-title"
+      @close="mobileSearchDraft = query"
+    >
+      <form
+        class="ref-import-mobile-sheet-form"
+        @submit.prevent="applyMobileSearch"
+      >
+        <header
+          class="ref-import-mobile-sheet-head"
+        >
+          <div>
+            <strong
+              id="import-mobile-search-title"
+            >
+              Search this list
+            </strong>
+
+            <span>
+              Find a member or value in the
+              uploaded file.
+            </span>
+          </div>
+
+          <button
+            type="button"
+            aria-label="Close search"
+            @click="
+              mobileSearchDialog?.close()
+            "
+          >
+            <FlowIcon name="close" />
+          </button>
+        </header>
+
+        <div
+          class="ref-import-mobile-sheet-body"
+        >
+          <label for="import-mobile-search">
+            Search imported rows
+          </label>
+
+          <div
+            class="
+              ref-import-mobile-search-input
+            "
+          >
+            <FlowIcon name="search" />
+
+            <input
+              id="import-mobile-search"
+              v-model="mobileSearchDraft"
+              type="search"
+              autocomplete="off"
+              placeholder="Name, email or value"
+            />
+          </div>
+        </div>
+
+        <footer
+          class="
+            ref-import-mobile-sheet-actions
+          "
+        >
+          <button
+            class="ref-button"
+            type="button"
+            @click="clearMobileSearch"
+          >
+            Clear
+          </button>
+
+          <button
+            class="ref-button primary"
+            type="submit"
+          >
+            Search
+          </button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog
+      ref="mobileFilterDialog"
+      class="ref-dialog ref-import-mobile-sheet"
+      aria-labelledby="import-mobile-filter-title"
+      @close="
+        mobileFilterDraft = columnFilter
+      "
+    >
+      <form
+        class="ref-import-mobile-sheet-form"
+        @submit.prevent="applyMobileFilter"
+      >
+        <header
+          class="ref-import-mobile-sheet-head"
+        >
+          <div>
+            <strong
+              id="import-mobile-filter-title"
+            >
+              Show columns
+            </strong>
+
+            <span>
+              Choose which fields you want to
+              review.
+            </span>
+          </div>
+
+          <button
+            type="button"
+            aria-label="Close filter"
+            @click="
+              mobileFilterDialog?.close()
+            "
+          >
+            <FlowIcon name="close" />
+          </button>
+        </header>
+
+        <div
+          class="ref-import-mobile-filter-options"
+        >
+          <label>
+            <input
+              v-model="mobileFilterDraft"
+              type="radio"
+              value="all"
+            />
+
+            <span>
+              <strong>All columns</strong>
+              <small>
+                Required, optional and unused.
+              </small>
+            </span>
+
+            <FlowIcon name="check" />
+          </label>
+
+          <label>
+            <input
+              v-model="mobileFilterDraft"
+              type="radio"
+              value="required"
+            />
+
+            <span>
+              <strong>Required</strong>
+              <small>
+                Fields Gorra needs before import.
+              </small>
+            </span>
+
+            <FlowIcon name="check" />
+          </label>
+
+          <label>
+            <input
+              v-model="mobileFilterDraft"
+              type="radio"
+              value="optional"
+            />
+
+            <span>
+              <strong>Optional</strong>
+              <small>
+                Useful fields that can stay empty.
+              </small>
+            </span>
+
+            <FlowIcon name="check" />
+          </label>
+
+          <label>
+            <input
+              v-model="mobileFilterDraft"
+              type="radio"
+              value="extra"
+            />
+
+            <span>
+              <strong>Not importing</strong>
+              <small>
+                Source columns Gorra is ignoring.
+              </small>
+            </span>
+
+            <FlowIcon name="check" />
+          </label>
+        </div>
+
+        <footer
+          class="
+            ref-import-mobile-sheet-actions
+            single
+          "
+        >
+          <button
+            class="ref-button primary"
+            type="submit"
+          >
+            Apply filter
+          </button>
+        </footer>
+      </form>
+    </dialog>
 
     <dialog ref="templateDialog" class="ref-dialog">
       <div class="ref-dialog-inner">

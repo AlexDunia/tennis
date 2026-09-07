@@ -10,7 +10,6 @@ import { isSafeImageSource, sanitizePlainText, sanitizeSlugList } from '../utils
 import { APP_DATA_MODES, getAppDataMode } from '../dataMode'
 import {
   FRESH_ACCOUNT_LADDER_SCOPE,
-  buildFreshAccountLadderRoster,
 } from '../data/freshAccountLadder'
 import {
   ACTIVE_LADDER_CHALLENGE_STATUSES,
@@ -1688,7 +1687,7 @@ const mockAdapter = async (config) => {
 
   if (isFreshAccount && method === 'get' && path === '/players') {
     return {
-      data: buildResponse(buildFreshAccountLadderRoster(mockDatabase.players)),
+      data: buildResponse([]),
 
       status: 200,
 

@@ -162,6 +162,56 @@ export function getLadderAdminState(scope) {
   return stateFor(scope).ladder
 }
 
+export function clearLadderAdminTestState({
+  clubId = '',
+} = {}) {
+  if (
+    !import.meta.env?.DEV ||
+    !canUseStorage()
+  ) {
+    return 0
+  }
+
+  const normalizedClubId =
+    cleanText(clubId, 80)
+
+  if (!normalizedClubId) {
+    return 0
+  }
+
+  const state = loadState()
+
+  const prefix =
+    `${normalizedClubId}::`
+
+  let cleared = 0
+
+  const ladders =
+    Object.fromEntries(
+      Object.entries(
+        state.ladders,
+      ).filter(([key]) => {
+        const remove =
+          key.startsWith(prefix)
+
+        if (remove) {
+          cleared += 1
+        }
+
+        return !remove
+      }),
+    )
+
+  if (cleared) {
+    saveState({
+      ...state,
+      ladders,
+    })
+  }
+
+  return cleared
+}
+
 export function effectiveLadderRoster(scope, roster = []) {
   const ladderState = getLadderAdminState(scope)
   const paused = new Set(ladderState.pausedPlayerIds)

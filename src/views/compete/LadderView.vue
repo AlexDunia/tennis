@@ -30,6 +30,7 @@ import {
 import { getEligibleLadderOpponents } from '../../services/LadderAccessService'
 import { startOrResumeLadderMatch } from '../../services/LadderLiveMatchService.js'
 import {
+  clearLadderAdminTestState,
   effectiveLadderRoster,
   moveLadderPlayer,
   previewManualLadderMove,
@@ -55,6 +56,9 @@ const moveDialogOpen = ref(false)
 const missingMatchDialogOpen = ref(false)
 const removeDialogOpen = ref(false)
 const ladderActionBusy = ref(false)
+const clearTestBusy = ref(false)
+const showDevTestControls =
+  Boolean(import.meta.env?.DEV)
 const ladderRevision = ref(0)
 
 const ladderListRef = ref(null)
@@ -740,6 +744,53 @@ function resetAllPlayerActions() {
   resetChallengeSelection()
 }
 
+async function clearTestData() {
+  if (
+    !showDevTestControls ||
+    clearTestBusy.value
+  ) {
+    return
+  }
+
+  clearTestBusy.value = true
+
+  try {
+    resetAllPlayerActions()
+
+    clearLadderAdminTestState({
+      clubId:
+        adminStore.activeClubId,
+    })
+
+    await adminStore
+      .clearActiveClubTestData()
+
+    playerStore.clearPlayersForTest()
+
+    activeLadderId.value = ''
+
+    ladderRevision.value += 1
+
+    notificationStore.addToast({
+      title: 'Test data cleared',
+      message:
+        'Members and ladders are back to an empty test state.',
+      type: 'success',
+    })
+  } catch (clearError) {
+    notificationStore.addToast({
+      title:
+        'Could not clear test data',
+      message:
+        clearError?.message ||
+        'Try again.',
+      type: 'warning',
+    })
+  } finally {
+    clearTestBusy.value = false
+  }
+}
+
 function startAdminChallenge(player) {
   if (!canAdminSetUpMatch.value) {
     notificationStore.addToast({
@@ -1297,6 +1348,24 @@ onUnmounted(() => {
           </div>
 
           <div class="ladder-heading__actions">
+            <button
+              v-if="
+                showDevTestControls &&
+                canManageLadder
+              "
+              class="compete-secondary"
+              type="button"
+              data-dev-only="clear-test-data"
+              :disabled="clearTestBusy"
+              title="Development only"
+              @click="clearTestData"
+            >
+              {{
+                clearTestBusy
+                  ? 'Clearing…'
+                  : 'Clear'
+              }}
+            </button>
             <RouterLink
               class="compete-secondary"
               :to="{ name: 'Challenges' }"

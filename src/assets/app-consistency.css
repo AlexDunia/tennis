@@ -46,3 +46,25 @@
   font-size: 12px;
   line-height: 1.5;
 }
+
+/* Shared structure for dense data workspaces.
+   Feature-specific tables still own their domain behavior. */
+.gorra-data-workspace,
+.gorra-data-filebar,
+.gorra-data-toolbar,
+.gorra-data-grid,
+.gorra-data-scroll,
+.gorra-data-footer {
+  width: 100%;
+  min-width: 0;
+}
+
+.gorra-data-scroll {
+  overflow: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gorra-data-table {
+  min-width: 100%;
+}
