@@ -124,10 +124,6 @@ function normalizeClubRecord(input = {}) {
   const setupSource = input.setup || input
   const setup = normalizeClubSetup(setupSource)
   const id = sanitizeDirectoryId(input.id || setup.clubId)
-  const createdByUserId = sanitizeDirectoryId(
-    input.createdByUserId ||
-      input.created_by_user_id,
-  )
   if (!id || !setup.workspace.name) return null
 
   const inviteKeys = new Set()
@@ -145,7 +141,6 @@ function normalizeClubRecord(input = {}) {
   return {
     id,
     name: setup.workspace.name,
-    createdByUserId,
     setup: {
       ...setup,
       clubId: id,
@@ -195,32 +190,6 @@ function normalizeDirectory(input = {}) {
       if (membership.status === 'active') activeMembershipKeys.add(key)
       return true
     })
-
-  directory.clubs = directory.clubs.map(
-    (club) => {
-      if (club.createdByUserId) {
-        return club
-      }
-
-      const activeAdmins =
-        directory.memberships.filter(
-          (membership) =>
-            membership.clubId === club.id &&
-            membership.status === 'active' &&
-            membership.role === 'admin',
-        )
-
-      if (activeAdmins.length !== 1) {
-        return club
-      }
-
-      return {
-        ...club,
-        createdByUserId:
-          activeAdmins[0].userId,
-      }
-    },
-  )
 
   const activeClubByUser = input.activeClubByUser || input.active_club_by_user || {}
   Object.entries(activeClubByUser)
@@ -434,7 +403,6 @@ function migrateLegacyDirectory(userId) {
   directory.clubs.push({
     id: clubId,
     name: migratedSetup.workspace.name,
-    createdByUserId: userId,
     setup: migratedSetup,
     invites: inviteResult.invites,
     createdAt: migratedSetup.createdAt || nowIso(),
@@ -607,8 +575,6 @@ function publicDirectoryForUser(directory, userId) {
       return {
         id: club.id,
         name: club.name,
-        createdByUserId:
-          club.createdByUserId || '',
         setup: canManage ? club.setup : stripPrivateInviteData(club.setup),
         invitations: canManage
           ? club.invites.map((invite) => ({ ...invite, roleLabel: ROLE_LABELS[invite.role] }))
@@ -715,9 +681,6 @@ export async function saveClubSetup(input, actor) {
   const clubRecord = {
     id: clubId,
     name: setup.workspace.name,
-    createdByUserId:
-      existingClub?.createdByUserId ||
-      userId,
     setup,
     invites: inviteResult.invites,
     createdAt: existingClub?.createdAt || timestamp,
@@ -774,7 +737,6 @@ export async function createClub(input, actor) {
   directory.clubs.push({
     id: clubId,
     name: setup.workspace.name,
-    createdByUserId: userId,
     setup,
     invites: [],
     createdAt: timestamp,

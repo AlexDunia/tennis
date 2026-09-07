@@ -92,18 +92,6 @@ export const useAdminStore = defineStore('admin', () => {
 
       if (!membership) return ''
 
-      const club = clubs.value.find(
-        (item) => item.id === clubId,
-      )
-
-      if (
-        club?.createdByUserId &&
-        membership.userId ===
-          club.createdByUserId
-      ) {
-        return 'Owner'
-      }
-
       if (membership.role === 'admin') {
         return 'Admin'
       }
@@ -138,12 +126,6 @@ export const useAdminStore = defineStore('admin', () => {
         roleLabel:
           clubRoleLabel.value(club.id) ||
           'Member',
-        isOwner:
-          Boolean(
-            club.createdByUserId &&
-              membership?.userId ===
-                club.createdByUserId,
-          ),
       }
     })
   })
