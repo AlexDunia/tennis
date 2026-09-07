@@ -316,10 +316,10 @@ onMounted(async () => {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  gap: 18px;
+  gap: 24px;
   padding: 28px;
-  border-radius: 18px;
-  background: #078c2f;
+  border-radius: 12px;
+  background: #163d2b;
 }
 
 .dashboard-hero > :not(.dashboard-hero__decor) {
@@ -355,10 +355,7 @@ onMounted(async () => {
   box-shadow:
     inset -4px -5px 0 rgba(40, 75, 28, 0.09),
     0 8px 20px rgba(5, 68, 27, 0.12);
-  animation:
-    dashboard-ball-bounce 4.8s
-    cubic-bezier(.44, .04, .44, 1)
-    infinite;
+  animation: none;
 }
 
 .dashboard-hero__ball::before,
@@ -417,18 +414,62 @@ onMounted(async () => {
 }
 
 .dashboard-hero .section-heading > p:first-child {
-  color: rgba(255, 255, 255, 0.72);
+  color: #d8ff47;
 }
 
 .dashboard-hero .section-heading h2 {
   color: #fff;
+  font-size: clamp(22px, 3vw, 28px);
+  line-height: 1.25;
 }
 
 .dashboard-hero .ladder-card {
-  border-color: rgba(255, 255, 255, 0.72);
-  background: rgba(255, 255, 255, 0.97);
-  box-shadow:
-    0 12px 30px rgba(4, 59, 24, 0.09);
+  min-height: 112px;
+  padding: 24px 0 0;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dashboard-hero .ladder-card__copy {
+  gap: 8px;
+}
+
+.dashboard-hero .ladder-card__copy span {
+  color: #d8ff47;
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.dashboard-hero .ladder-card__copy h3 {
+  color: #fff;
+  font-size: 18px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.dashboard-hero .ladder-card__copy p {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+}
+
+.dashboard-hero .ladder-card__copy strong {
+  color: #d8ff47;
+}
+
+.dashboard-hero :deep(.base-button--secondary) {
+  border-color: #d8ff47;
+  background: #d8ff47;
+  color: #163d2b;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dashboard-hero :deep(.base-button--secondary:hover:not(:disabled)) {
+    border-color: #e9ff9b;
+    background: #e9ff9b;
+  }
 }
 
 @keyframes dashboard-ball-bounce {
@@ -770,7 +811,7 @@ onMounted(async () => {
 @media (max-width: 520px) {
   .dashboard-hero {
     padding: 20px;
-    border-radius: 15px;
+    border-radius: 12px;
   }
 
   .dashboard-hero__court {

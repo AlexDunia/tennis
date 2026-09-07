@@ -1,4 +1,5 @@
 let audioContext = null
+let lastMoveClickAt = -Infinity
 
 function getAudioContext() {
   if (typeof window === 'undefined') return null
@@ -88,6 +89,10 @@ export async function playToastPop() {
 export async function playLadderMoveClick() {
   const context = await prepareContext()
   if (!context) return
+
+  // Avoid overlapping click sounds from rapid input or the same action's toast.
+  if (context.currentTime - lastMoveClickAt < 0.08) return
+  lastMoveClickAt = context.currentTime
 
   connectTone(context, {
     type: 'triangle',

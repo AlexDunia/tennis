@@ -821,7 +821,7 @@ onMounted(async () => {
       <section class="club-directory-section" aria-label="Club actions">
         <div class="club-entry-options">
           <button
-            class="club-entry-option"
+            class="club-entry-option club-entry-option--join"
             type="button"
             @click="openJoinClubFlow"
           >
@@ -834,10 +834,16 @@ onMounted(async () => {
               <small>Use an invitation from a club.</small>
             </span>
 
+            <span
+              class="club-entry-option__arrow"
+              aria-hidden="true"
+            >
+              <FlowIcon name="arrow-right" />
+            </span>
           </button>
 
           <button
-            class="club-entry-option"
+            class="club-entry-option club-entry-option--create"
             type="button"
             @click="openCreateClubFlow"
           >
@@ -850,6 +856,12 @@ onMounted(async () => {
               <small>Start a new club you manage.</small>
             </span>
 
+            <span
+              class="club-entry-option__arrow"
+              aria-hidden="true"
+            >
+              <FlowIcon name="arrow-right" />
+            </span>
           </button>
         </div>
       </section>
@@ -861,11 +873,6 @@ onMounted(async () => {
         <header class="club-section-heading">
           <div class="club-section-heading__row">
             <h2 id="your-clubs-heading">Your clubs</h2>
-
-            <span
-              class="club-section-heading__rule"
-              aria-hidden="true"
-            ></span>
 
             <span class="club-section-heading__count">
               {{ directoryClubs.length }}
@@ -2571,83 +2578,68 @@ button:disabled {
 }
 
 
+/* ---------------------------------------------------------
+   GORRA CLUB DIRECTORY — LIVING, NOT BOXED
+   --------------------------------------------------------- */
+
 .club-directory-hub {
   display: grid;
   width: 100%;
-  gap: clamp(42px, 5vw, 52px);
-  padding: 0;
+  gap: 30px;
+  padding: 0 0 10px;
 }
 
 .club-directory-section {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
+/* Useful hierarchy comes from typography and spacing, not a line. */
 .club-section-heading {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .club-section-heading__row {
-  display: grid;
-  grid-template-columns: max-content minmax(32px, 1fr) max-content;
-  align-items: center;
-  gap: 12px;
+  display: flex;
   min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .club-section-heading__row h2 {
   margin: 0;
-  color: var(--color-text);
-  font-size: 18px;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.018em;
-  line-height: 1.25;
-}
-
-.club-section-heading__rule {
-  width: 100%;
-  height: 1px;
-  background: rgba(40, 51, 44, 0.075);
-}
-
-.club-section-heading__count {
-  color: var(--color-muted);
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.club-section-heading > p {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.club-section-heading h2,
-.club-section-heading p {
-  margin: 0;
-}
-
-.club-section-heading h2 {
-  color: var(--color-text);
+  color: var(--g-ink, var(--color-text));
   font-size: 18px;
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.015em;
   line-height: 1.35;
 }
 
-.club-section-heading p {
-  margin: 0;
+.club-section-heading__count {
+  flex: 0 0 auto;
+  color: var(--g-muted, var(--color-muted));
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
 }
 
+.club-section-heading > p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--g-muted, var(--color-muted));
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Join/Create stay side by side: primary and secondary are obvious. */
 .club-entry-options {
   display: grid;
   width: 100%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  row-gap: 24px;
 }
 
 .club-entry-option {
@@ -2655,33 +2647,42 @@ button:disabled {
   width: 100%;
   min-width: 0;
   min-height: 112px;
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: 38px minmax(0, 1fr) 30px;
   align-items: center;
-  justify-content: start;
   gap: 14px;
   padding: 22px;
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: var(--color-surface);
-  color: var(--color-text);
   text-align: left;
-  white-space: normal;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-.club-entry-option:hover {
-  border-color: var(--color-border-strong);
-  transform: translateY(-1px);
+.club-entry-option--join {
+  background: #f2f7f3;
+  color: var(--g-ink, #28332c);
+}
+
+.club-entry-option--create {
+  background: #163d2b;
+  color: #fff;
 }
 
 .club-entry-icon {
   display: grid;
   width: 38px;
   height: 38px;
-  flex: 0 0 38px;
   place-items: center;
   border-radius: 10px;
-  background: var(--color-surface-soft);
-  color: var(--color-primary-strong);
+  background: rgba(8, 173, 43, 0.08);
+  color: var(--g-green-strong, #078c2f);
+}
+
+.club-entry-option--create .club-entry-icon {
+  background: rgba(216, 255, 71, 0.12);
+  color: #d8ff47;
 }
 
 .club-entry-icon :deep(svg) {
@@ -2697,140 +2698,57 @@ button:disabled {
 .club-entry-copy {
   display: grid;
   min-width: 0;
-}
-
-.club-entry-copy {
   gap: 4px;
 }
 
 .club-entry-copy strong {
-  color: var(--color-text);
+  color: inherit;
   font-size: 14px;
   font-weight: var(--font-weight-semibold);
+  letter-spacing: normal;
   line-height: 1.35;
 }
 
 .club-entry-copy small {
-  color: var(--color-muted);
+  color: var(--g-muted, #778079);
   font-size: 12px;
   font-weight: var(--font-weight-regular);
   line-height: 1.5;
 }
 
-.ref-clubs-directory-page {
-  padding: 4px 0 42px;
+.club-entry-option--create .club-entry-copy small {
+  color: rgba(255, 255, 255, 0.66);
 }
 
-@media (max-width: 640px) {
-  .club-directory-hub {
-    gap: 40px;
-  }
-
-  .ref-clubs-directory-page {
-    padding-bottom: 30px;
-  }
-
-  .club-entry-options {
-    grid-template-columns: 1fr;
-  }
-
-  .club-entry-option {
-    min-height: 104px;
-    padding: 18px;
-  }
-}
-
-@media (max-width: 360px) {
-  .club-entry-option {
-    gap: 11px;
-    padding-inline: 14px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .club-entry-option {
-    animation: none;
-    transition: none;
-  }
-}
-
-
-.ref-club-directory .ref-club-directory-row {
-  grid-template-columns: 66px minmax(0, 1fr) auto;
-}
-
-.layout.layout--club-theme .content .club-directory-section .ref-club-directory-row.active {
-  border-color: rgba(0, 181, 26, .22);
-  background: color-mix(in srgb, var(--tournament-green) 9%, white);
-  box-shadow: var(--club-card-hover-shadow);
-  transform: none;
-}
-
-.ref-club-directory-copy .club-current-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 7px;
-  color: var(--color-primary-strong);
-  font-weight: 600;
-}
-
-.club-current-badge svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-@media (max-width: 600px) {
-  .ref-club-directory .ref-club-directory-row {
-    grid-template-columns: 48px minmax(0, 1fr) 28px;
-    gap: 12px;
-  }
-
-  .ref-club-directory .ref-club-directory-logo {
-    width: 48px;
-    height: 48px;
-  }
-
-}
-.club-directory-chevron {
+.club-entry-option__arrow {
   display: grid;
   width: 30px;
   height: 30px;
-  flex: 0 0 30px;
   place-items: center;
   justify-self: end;
-  border-radius: 8px;
-  color: #8a958d;
+  border-radius: 10px;
+  color: #708077;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-.club-directory-chevron :deep(svg) {
-  width: 15px;
-  height: 15px;
+.club-entry-option__arrow :deep(svg) {
+  width: 14px;
+  height: 14px;
 }
 
-.ref-club-directory-row:hover
-  .club-directory-chevron {
-  color: var(--color-primary-strong);
+.club-entry-option--create .club-entry-option__arrow {
+  background: rgba(216, 255, 71, 0.1);
+  color: #d8ff47;
 }
 
-@media (max-width: 620px) {
-  .club-directory-chevron {
-    width: 28px;
-    height: 28px;
-    flex-basis: 28px;
-  }
-}
-
-/* Club directory: compact, individual, product-shaped objects. */
+/* The Club list is stacked. Never make this a side-by-side card grid. */
 .club-directory-section .ref-club-directory {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 24px;
   overflow: visible;
   border: 0;
   border-radius: 0;
@@ -2839,74 +2757,118 @@ button:disabled {
 }
 
 .club-directory-section .ref-club-directory-row {
-  position: relative;
-  min-height: 92px;
-  grid-template-columns: 50px minmax(0, 1fr) 32px;
-  gap: 13px;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 112px;
+  grid-template-columns: 52px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 14px;
   margin: 0;
-  padding: 13px 13px 13px 14px;
-  border: 1px solid rgba(40, 51, 44, 0.095);
+  padding: 22px;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: #fff;
+  background: #f7f9f7;
   box-shadow: none;
+  color: var(--g-ink, #28332c);
+  text-align: left;
   transform: translateZ(0);
   transition:
-    border-color 160ms ease,
     background-color 160ms ease,
-    box-shadow 180ms var(--g-ease),
-    transform 140ms var(--g-ease);
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* The old grouped-list separator must not survive. */
-.club-directory-section
-  .ref-club-directory-row
-  + .ref-club-directory-row {
-  border-top-color: rgba(40, 51, 44, 0.095);
+.club-directory-section .ref-club-directory-row.active {
+  border-color: #163d2b;
+  background: #163d2b;
+  color: #fff;
+}
+
+.club-directory-section .ref-club-directory-row.active .ref-club-directory-copy strong,
+.club-directory-section .ref-club-directory-row.active .ref-club-directory-copy > span {
+  color: #fff;
+}
+
+.club-directory-section .ref-club-directory-row.active .club-current-badge {
+  color: #d8ff47;
+}
+
+.club-directory-section .ref-club-directory-row.active .ref-club-directory-logo,
+.club-directory-section .ref-club-directory-row.active .club-directory-chevron {
+  background: rgba(216, 255, 71, 0.12);
+  color: #d8ff47;
 }
 
 .club-directory-section .ref-club-directory-logo {
-  width: 50px;
-  height: 50px;
-  border-radius: 13px;
-  background: #f1f5f2;
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: 14px;
+  background: #e9f0eb;
+  color: #347b49;
+  box-shadow: none;
+}
+
+.club-directory-section .ref-club-directory-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.club-directory-section .ref-club-directory-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
 }
 
 .club-directory-section .ref-club-directory-copy strong {
-  color: var(--g-ink);
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: -0.012em;
-  line-height: 1.3;
-}
-
-.club-directory-section .ref-club-directory-copy span {
-  margin-top: 4px;
-  color: var(--g-muted);
-  font-size: 10.2px;
+  overflow: hidden;
+  color: var(--g-ink, #28332c);
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: normal;
   line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.club-directory-section .ref-club-directory-copy small {
+.club-directory-section .ref-club-directory-copy > span {
+  overflow: hidden;
+  margin: 0;
+  color: var(--g-muted, #778079);
+  font-size: 12px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-regular);
+}
+
+.club-directory-section .club-current-badge {
   display: inline-flex;
   width: max-content;
   align-items: center;
   gap: 5px;
-  margin-top: 7px;
-  color: var(--g-green-strong);
-  font-size: 9.4px;
-  font-weight: 600;
-  line-height: 1;
+  margin-top: 4px;
+  color: #078c2f;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.5;
 }
 
-.club-directory-section
-  .ref-club-directory-copy
-  small
-  :deep(svg) {
+.club-directory-section .club-current-badge svg {
   width: 12px;
   height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.club-directory-section .club-directory-chevron {
+.club-directory-chevron {
   display: grid;
   width: 32px;
   height: 32px;
@@ -2914,89 +2876,99 @@ button:disabled {
   min-height: 32px;
   place-items: center;
   justify-self: end;
-  border-radius: 9px;
-  color: #8d9690;
-  transform: translateX(0);
+  border-radius: 10px;
+  background: rgba(22, 61, 43, 0.045);
+  color: #748078;
   transition:
     color 150ms ease,
     background-color 150ms ease,
-    transform 180ms var(--g-ease);
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-.club-directory-section .club-directory-chevron :deep(svg) {
+.club-directory-chevron :deep(svg) {
   width: 14px;
   height: 14px;
 }
 
-/* Current club: no green slab, no left rail. */
-.layout.layout--club-theme
-  .content
-  .club-directory-section
-  .ref-club-directory-row.active {
-  border-color: rgba(8, 173, 43, 0.26);
-  background: #fcfefc;
-  box-shadow: 0 0 0 1px rgba(8, 173, 43, 0.035);
-  transform: translateZ(0);
-}
-
-/* Hover exists only where hover is real. */
 @media (hover: hover) and (pointer: fine) {
-  .club-directory-section
-    .ref-club-directory-row:hover:not(:disabled) {
-    border-color: rgba(40, 51, 44, 0.17);
-    background: #fdfefd;
-    box-shadow: 0 8px 22px rgba(35, 52, 40, 0.035);
-    transform: translateZ(0);
+  .club-entry-option--join:hover {
+    background: #eaf3ec;
   }
 
-  .layout.layout--club-theme
-    .content
-    .club-directory-section
+  .club-entry-option--create:hover {
+    background: #123724;
+  }
+
+  .club-entry-option:hover .club-entry-option__arrow,
+  .ref-club-directory-row:hover .club-directory-chevron {
+    transform: translateX(2px);
+  }
+
+  .club-directory-section
+    .ref-club-directory-row:hover:not(:disabled) {
+    background: #f1f6f2;
+  }
+
+  .club-directory-section
     .ref-club-directory-row.active:hover:not(:disabled) {
-    border-color: rgba(8, 173, 43, 0.36);
-    background: #fbfefb;
+    background: #e8f5eb;
   }
 
   .club-directory-section
     .ref-club-directory-row:hover
     .club-directory-chevron {
-    background: rgba(40, 51, 44, 0.045);
-    color: var(--g-ink-2);
-    transform: translateX(2px);
+    background: rgba(22, 61, 43, 0.08);
+    color: #163d2b;
   }
 }
 
-/* Press feedback: brief and physical, not animated navigation. */
+.club-entry-option:active:not(:disabled),
 .club-directory-section
   .ref-club-directory-row:active:not(:disabled) {
   transform: scale(0.985) translateZ(0);
 }
 
-@media (max-width: 900px) {
-  .club-directory-section .ref-club-directory {
-    grid-template-columns: 1fr;
-    gap: 10px;
+@media (max-width: 640px) {
+  .club-directory-hub {
+    gap: 26px;
   }
-}
 
-@media (max-width: 600px) {
-  .club-section-heading__row {
+  .club-entry-options {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+      row-gap: 24px;
+  }
+
+  .club-entry-option {
+    min-height: 104px;
+    grid-template-columns: 34px minmax(0, 1fr);
     gap: 9px;
+    padding: 18px;
   }
 
-  .club-section-heading__row h2 {
-    font-size: 16px;
+  .club-entry-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
   }
 
-  .club-section-heading__count {
-    font-size: 9.5px;
+  .club-entry-option__arrow {
+    display: none;
+  }
+
+  .club-entry-copy strong {
+    font-size: 14px;
+  }
+
+  .club-entry-copy small {
+    font-size: 12px;
   }
 
   .club-directory-section .ref-club-directory-row {
-    min-height: 82px;
+    min-height: 104px;
     grid-template-columns: 46px minmax(0, 1fr) 30px;
     gap: 11px;
-    padding: 11px 11px 11px 12px;
+    padding: 18px;
   }
 
   .club-directory-section .ref-club-directory-logo {
@@ -3004,23 +2976,54 @@ button:disabled {
     height: 46px;
     border-radius: 12px;
   }
+}
 
-  .club-directory-section .club-directory-chevron {
-    width: 30px;
-    height: 30px;
-    min-width: 30px;
-    min-height: 30px;
+@media (max-width: 390px) {
+  .club-entry-options {
+    grid-template-columns: 1fr;
+      row-gap: 24px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .club-entry-option,
+  .club-entry-option__arrow,
   .club-directory-section .ref-club-directory-row,
-  .club-directory-section .club-directory-chevron {
+  .club-directory-chevron {
     transition:
-      border-color 120ms ease,
       background-color 120ms ease,
       color 120ms ease;
     transform: none !important;
+  }
+}
+
+/* Gorra card hover colors. */
+@media (hover: hover) and (pointer: fine) {
+  .club-entry-option:hover:not(:disabled),
+  .club-directory-section .ref-club-directory-row:hover:not(:disabled),
+  .club-directory-section .ref-club-directory-row.active:hover:not(:disabled) {
+    border-color: #163d2b;
+    background: #163d2b;
+    color: #fff;
+  }
+
+  .club-entry-option:hover:not(:disabled) .club-entry-copy strong,
+  .club-entry-option:hover:not(:disabled) .club-entry-copy small,
+  .club-directory-section .ref-club-directory-row:hover:not(:disabled) .ref-club-directory-copy strong,
+  .club-directory-section .ref-club-directory-row:hover:not(:disabled) .ref-club-directory-copy > span {
+    color: #fff;
+  }
+
+  .club-entry-option:hover:not(:disabled) .club-entry-icon,
+  .club-entry-option:hover:not(:disabled) .club-entry-option__arrow,
+  .club-directory-section .ref-club-directory-row:hover:not(:disabled) .club-directory-chevron,
+  .club-directory-section .ref-club-directory-row:hover:not(:disabled) .ref-club-directory-logo {
+    background: rgba(216, 255, 71, 0.12);
+    color: #d8ff47;
+  }
+
+  .club-directory-section .ref-club-directory-row:hover:not(:disabled) .club-current-badge {
+    color: #d8ff47;
   }
 }
 </style>

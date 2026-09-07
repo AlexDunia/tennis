@@ -179,9 +179,14 @@ test('the nested page title still lives inside the one global application header
   )
 })
 
-test('club directory and active-club sections have quiet structural hierarchy', () => {
+test('club directory and active-club surfaces use living borderless hierarchy', () => {
   const clubsView = readFileSync(
     'src/views/ClubsView.vue',
+    'utf8',
+  )
+
+  const clubView = readFileSync(
+    'src/views/ClubView.vue',
     'utf8',
   )
 
@@ -192,27 +197,27 @@ test('club directory and active-club sections have quiet structural hierarchy', 
 
   assert.match(
     clubsView,
-    /\.club-directory-section \.ref-club-directory[\s\S]*gap:\s*0[\s\S]*overflow:\s*hidden/,
+    /\.club-directory-section \.ref-club-directory[\s\S]*grid-template-columns:\s*1fr[\s\S]*gap:\s*11px/,
   )
 
   assert.match(
     clubsView,
-    /\.ref-club-directory-row \+ \.ref-club-directory-row[\s\S]*border-top/,
+    /\.ref-club-directory-row[\s\S]*border:\s*0[\s\S]*background:\s*#f7f9f7/,
+  )
+
+  assert.match(
+    clubView,
+    /\.club-profile \.ref-choice-stack[\s\S]*border:\s*0/,
+  )
+
+  assert.match(
+    clubStyles,
+    /GORRA CLUB LIVING SURFACES/,
   )
 
   assert.doesNotMatch(
-    clubsView,
-    /ref-club-directory-row:not\(:last-child\)[\s\S]*margin-bottom:\s*16px/,
-  )
-
-  assert.match(
     clubStyles,
-    /\.ref-section-heading,[\s\S]*\.ref-members-head[\s\S]*border-bottom:\s*1px solid/,
-  )
-
-  assert.match(
-    clubStyles,
-    /\.ref-club-manage \.ref-choice-stack[\s\S]*overflow:\s*hidden/,
+    /GORRA CLUB STRUCTURAL POLISH/,
   )
 })
 

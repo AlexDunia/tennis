@@ -537,3 +537,28 @@ img {
     transition: none;
   }
 }
+
+/* Small interaction movement, independent of each component's transforms. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :where(button, a[href], summary, [role='button'], [role='tab']):not(:disabled):not([aria-disabled='true']):not([tabindex='-1']) {
+    transition-property: transform, translate, scale, background-color, border-color, color, box-shadow;
+    transition-duration: var(--motion-short);
+    transition-timing-function: var(--motion-curve);
+  }
+
+  :where(button, a[href], summary, [role='button'], [role='tab']):not(:disabled):not([aria-disabled='true']):not([tabindex='-1']):hover {
+    translate: 0 -1px;
+  }
+
+  :where(button, a[href], summary, [role='button'], [role='tab']):not(:disabled):not([aria-disabled='true']):not([tabindex='-1']):active {
+    translate: 0 0;
+    scale: 0.99;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(button, a[href], summary, [role='button'], [role='tab']) {
+    translate: none !important;
+    scale: none !important;
+  }
+}
