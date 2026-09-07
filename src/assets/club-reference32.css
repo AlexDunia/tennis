@@ -2424,3 +2424,9 @@
 .layout.layout--club-theme .content .club-directory-section .ref-club-directory-row.active .club-directory-chevron {
   color: #d8ff47;
 }
+
+@media (hover: hover) and (pointer: fine) {
+  .layout.layout--club-theme .content .club-directory-section .ref-club-directory-row.active:hover {
+    background: #1d4432;
+  }
+}

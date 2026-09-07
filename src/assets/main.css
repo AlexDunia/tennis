@@ -562,3 +562,8 @@ img {
     scale: none !important;
   }
 }
+
+/* Keep the application width stable when a compact view removes page overflow. */
+html {
+  scrollbar-gutter: stable;
+}

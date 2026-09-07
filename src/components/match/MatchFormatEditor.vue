@@ -61,6 +61,7 @@ function save() {
 
 <template>
   <form class="match-format-editor" novalidate @submit.prevent="save">
+    <div class="editor-scroll-content">
     <header class="editor-intro">
       <p class="editor-eyebrow">Custom match</p>
       <h2>Set up how this match is won.</h2>
@@ -439,11 +440,13 @@ function save() {
         </li>
       </ul>
     </div>
+    </div>
     <button v-if="editable && showSave" class="editor-save" type="submit">{{ saveLabel }}</button>
   </form>
 </template>
 
 <style scoped>
+.editor-scroll-content { display: contents; }
 .match-format-editor {
   display: grid;
   gap: 14px;

@@ -20,7 +20,11 @@ const loadingTournaments = ref(true)
 const pageError = ref('')
 const tournamentError = ref('')
 const allTournaments = ref([])
-const openSection = ref('members')
+const openSection = computed(() => {
+  const section = String(route.params.section || '')
+  if (['members', 'ladders', 'tournaments'].includes(section)) return section
+  return route.query.collapsed === '1' ? '' : 'members'
+})
 
 const clubId = computed(() => String(route.params.clubId || ''))
 const club = computed(() =>
@@ -59,7 +63,15 @@ const ladderPreview = computed(() => activeLadders.value.slice(0, 5))
 const tournamentPreview = computed(() => tournaments.value.slice(0, 5))
 
 function toggleSection(section) {
-  openSection.value = openSection.value === section ? '' : section
+  const collapsed = openSection.value === section
+  const query = { ...route.query }
+  delete query.collapsed
+  if (collapsed) query.collapsed = '1'
+  router.push({
+    name: 'ClubVisit',
+    params: { clubId: clubId.value, section: collapsed ? undefined : section },
+    query,
+  })
 }
 
 function ladderPlayerCount(ladder) {

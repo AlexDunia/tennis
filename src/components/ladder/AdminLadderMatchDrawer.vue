@@ -21,6 +21,14 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'submit', 'view', 'done'])
 const closeButton = ref(null)
+const revealing = ref(false)
+let revealTimer = null
+
+function stopReveal() {
+  window.clearTimeout(revealTimer)
+  revealTimer = null
+  revealing.value = false
+}
 const timing = ref('')
 const courtId = ref('')
 const scheduleDate = ref('')
@@ -152,10 +160,15 @@ function handleKeydown(event) {
 watch(
   () => props.open,
   async (isOpen) => {
+    stopReveal()
     if (!isOpen) return
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      revealing.value = true
+      revealTimer = window.setTimeout(stopReveal, 110)
+    }
     reset()
     await nextTick()
-    closeButton.value?.focus()
+    if (props.open) closeButton.value?.focus({ preventScroll: true })
   },
 )
 
@@ -170,7 +183,10 @@ watch(
 )
 
 onMounted(() => document.addEventListener('keydown', handleKeydown))
-onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
+onUnmounted(() => {
+  stopReveal()
+  document.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <template>
@@ -182,11 +198,23 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
   >
     <section
       class="admin-drawer__panel"
+      :class="{ 'admin-drawer__panel--revealing': revealing }"
       role="dialog"
       aria-modal="true"
       aria-labelledby="admin-ladder-drawer-title"
     >
-      <template v-if="!result">
+      <div v-if="revealing" class="drawer-reveal-mask" aria-hidden="true">
+        <div v-for="section in 4" :key="section" class="drawer-detail-skeleton__section">
+          <span></span><span></span>
+        </div>
+      </div>
+      <div v-if="open && (!playerA || !playerB)" class="drawer-detail-skeleton" role="status" aria-label="Loading match details" aria-busy="true">
+        <div v-for="section in 4" :key="section" class="drawer-detail-skeleton__section" aria-hidden="true">
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+      <template v-else-if="!result">
         <header class="admin-drawer__header">
           <div>
             <small>Ladder match</small>
@@ -229,8 +257,16 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
               :aria-pressed="timing === 'now'"
               @click="timing = 'now'"
             >
-              <strong>Play now</strong>
-              <span>Start when both players are ready.</span>
+              <span class="timing-choice__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="m9 5 10 7-10 7V5Z" /></svg>
+              </span>
+              <span class="timing-choice__copy">
+                <strong>Play now</strong>
+                <small>Start when both players are ready.</small>
+              </span>
+              <span class="timing-choice__check" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg>
+              </span>
             </button>
             <button
               type="button"
@@ -238,8 +274,16 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
               :aria-pressed="timing === 'scheduled'"
               @click="timing = 'scheduled'"
             >
-              <strong>Schedule</strong>
-              <span>Choose when they will play.</span>
+              <span class="timing-choice__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="3" /><path d="M8 3v4m8-4v4M4 11h16" /></svg>
+              </span>
+              <span class="timing-choice__copy">
+                <strong>Schedule</strong>
+                <small>Choose when they will play.</small>
+              </span>
+              <span class="timing-choice__check" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg>
+              </span>
             </button>
           </div>
         </fieldset>
@@ -500,52 +544,113 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 }
 
 .timing-choice {
+  min-width: 0;
   padding: 0;
-  margin: 17px 0 0;
+  margin: 24px 0 0;
   border: 0;
 }
 
 .timing-choice legend {
-  margin-bottom: 9px;
-  font-size: 12px;
+  margin-bottom: 16px;
+  font-size: 14px;
   font-weight: var(--font-weight-semibold);
 }
 
 .timing-choice > div {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
 }
 
 .timing-choice button {
-  min-height: 82px;
-  padding: 11px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 104px;
+  height: auto;
+  padding: 18px;
   border: 1px solid var(--color-border);
-  border-radius: var(--app-card-radius);
+  border-radius: 12px;
   background: var(--color-surface);
   color: var(--color-text);
   text-align: left;
+  white-space: normal;
+  overflow: visible;
+}
+
+.timing-choice__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--color-surface-soft);
+  color: #163d2b;
+}
+
+.timing-choice svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.timing-choice__copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+
+.timing-choice__copy strong {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+}
+
+.timing-choice__copy small {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+}
+
+.timing-choice__check {
+  display: grid;
+  place-items: center;
+  visibility: hidden;
 }
 
 .timing-choice button.active {
-  border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 6%, white);
+  border-color: #163d2b;
+  background: #163d2b;
+  color: #fff;
 }
 
-.timing-choice strong,
-.timing-choice span {
-  display: block;
+.timing-choice button.active .timing-choice__copy small {
+  color: #fff;
 }
 
-.timing-choice strong {
-  font-size: 12px;
+.timing-choice button.active .timing-choice__icon {
+  background: rgba(216, 255, 71, 0.12);
+  color: #d8ff47;
 }
 
-.timing-choice span {
-  margin-top: 3px;
-  color: var(--color-muted);
-  font-size: 10px;
-  line-height: 1.4;
+.timing-choice button.active .timing-choice__check {
+  visibility: visible;
+  color: #d8ff47;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .timing-choice button:not(.active):hover {
+    background: #f4f8f5;
+  }
 }
 
 .drawer-section {
@@ -1116,4 +1221,327 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
   }
 }
 
+.drawer-detail-skeleton {
+  display: grid;
+  gap: 24px;
+  padding: 20px;
+}
+
+.drawer-detail-skeleton__section {
+  display: grid;
+  gap: 10px;
+  min-height: 76px;
+}
+
+.drawer-detail-skeleton__section span {
+  height: 16px;
+  border-radius: 6px;
+  background: var(--color-surface-soft);
+}
+
+.drawer-detail-skeleton__section span:first-child {
+  width: 55%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .admin-drawer--open .admin-drawer__panel {
+    animation: drawer-detail-reveal 180ms cubic-bezier(.22, 1, .36, 1) both;
+  }
+
+  .drawer-detail-skeleton__section {
+    animation: drawer-detail-pulse 900ms ease-in-out infinite alternate;
+  }
+}
+
+@keyframes drawer-detail-reveal {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes drawer-detail-pulse {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+.drawer-reveal-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  padding: 20px;
+  background: var(--color-surface);
+  pointer-events: none;
+}
+
+.drawer-reveal-mask .drawer-detail-skeleton__section {
+  opacity: 0;
+  animation: drawer-mask-in 50ms ease-out 16ms forwards;
+}
+
+.admin-drawer__panel--revealing > :not(.drawer-reveal-mask) {
+  opacity: 0;
+}
+
+@keyframes drawer-mask-in {
+  to { opacity: 1; }
+}
+/* A mobile sheet uses the available screen and keeps actions comfortably tappable. */
+@media (max-width: 767px) {
+  .admin-drawer {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+
+  .admin-drawer__panel {
+    width: 100%;
+    max-height: calc(100dvh - max(12px, env(safe-area-inset-top)));
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scroll-padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .admin-drawer__header > button {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+
+  .admin-drawer__panel :is(input, select, textarea) {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .admin-drawer__panel button {
+    min-height: 44px;
+  }
+
+  .drawer-reveal-mask {
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+  }
+}
+/* Long names and labels must remain readable at narrow widths. */
+.admin-drawer__header > div,
+.matchup__person {
+  min-width: 0;
+}
+
+.admin-drawer__header h2,
+.matchup__person strong {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+@media (max-width: 390px) {
+  .matchup > div {
+    flex-wrap: wrap;
+  }
+
+  .matchup__person {
+    flex-basis: 100%;
+  }
+
+  .timing-choice button {
+    padding: 16px;
+    gap: 10px;
+  }
+}
+/* Custom-match dialog: one scrolling settings area and an unobscured action. */
+.rules-modal__panel {
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+
+.rules-modal__panel :deep(.match-format-editor) {
+  display: flex;
+  flex-direction: column;
+  height: min(760px, calc(100dvh - 64px));
+  max-height: calc(100dvh - 64px);
+  overflow: hidden;
+  gap: 0;
+  padding: 0;
+}
+
+.rules-modal__panel :deep(.editor-scroll-content) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 24px;
+  gap: 24px;
+}
+
+.rules-modal__panel :deep(.editor-intro) {
+  position: static;
+  margin: 0;
+  padding: 0 44px 20px 0;
+  border-bottom: 1px solid rgba(22, 61, 43, 0.065);
+  box-shadow: none;
+}
+
+.rules-modal__panel :deep(.editor-eyebrow),
+.rules-modal__panel :deep(.summary-left > small) {
+  display: none;
+}
+
+.rules-modal__panel :deep(.editor-fields) {
+  display: grid;
+  min-width: 0;
+  gap: 24px;
+  flex-shrink: 0;
+}
+
+.rules-modal__panel :deep(.rule-card),
+.rules-modal__panel :deep(.rule-card[open]) {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: #f7f9f7;
+  box-shadow: none;
+}
+
+.rules-modal__panel :deep(.rule-card summary) {
+  min-height: 88px;
+  padding: 18px;
+  grid-template-columns: minmax(0, 1fr) auto 36px;
+  gap: 12px;
+}
+
+.rules-modal__panel :deep(.summary-left strong) {
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.rules-modal__panel :deep(.chevron) {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  background: rgba(22, 61, 43, 0.05);
+  border-radius: 10px;
+}
+
+.rules-modal__panel :deep(.rule-body) {
+  padding: 20px 18px;
+  border-top: 1px solid rgba(22, 61, 43, 0.065);
+}
+
+.rules-modal__panel :deep(.options) {
+  gap: 16px;
+}
+
+.rules-modal__panel :deep(.option) {
+  min-width: 0;
+  min-height: 104px;
+  padding: 18px;
+  border-radius: 12px;
+  white-space: normal;
+}
+
+.rules-modal__panel :deep(.option strong),
+.rules-modal__panel :deep(.question) {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.rules-modal__panel :deep(.option small),
+.rules-modal__panel :deep(.help) {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.rules-modal__panel :deep(.editor-fields:not(:disabled) .option.active) {
+  border-color: #163d2b;
+  background: #163d2b;
+  color: #fff;
+}
+
+.rules-modal__panel :deep(.option.active strong),
+.rules-modal__panel :deep(.option.active small) {
+  color: #fff;
+}
+
+.rules-modal__panel :deep(.option.active input) {
+  accent-color: #d8ff47;
+}
+
+.rules-modal__panel :deep(.editor-save) {
+  position: static;
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 48px;
+  margin: 16px 24px 20px;
+  padding: 12px 20px;
+  border: 1px solid #163d2b;
+  border-radius: 12px;
+  background: #163d2b;
+  color: #fff;
+  box-shadow: none;
+  white-space: normal;
+}
+
+.rules-modal__panel :deep(.editor-save:hover) {
+  background: #1d4432;
+}
+
+.rules-modal__close {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+
+@media (max-width: 640px) {
+  .rules-modal__panel {
+    width: 100%;
+    max-height: calc(100dvh - env(safe-area-inset-top));
+  }
+
+  .rules-modal__panel :deep(.match-format-editor) {
+    height: calc(100dvh - max(12px, env(safe-area-inset-top)));
+    max-height: none;
+    padding: 0;
+  }
+
+  .rules-modal__panel :deep(.editor-scroll-content) {
+    padding: 20px 16px;
+  }
+
+  .rules-modal__panel :deep(.rule-card summary) {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+
+  .rules-modal__panel :deep(.rule-result) {
+    grid-column: 1;
+    grid-row: 2;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .rules-modal__panel :deep(.chevron) {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .rules-modal__panel :deep(.options) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rules-modal__panel :deep(.editor-save) {
+    margin: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .rules-modal__panel :deep(input[type='number']) {
+    max-width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
 </style>

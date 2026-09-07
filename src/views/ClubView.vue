@@ -187,13 +187,12 @@ useShellNestedHeader(() => ({
         </header>
 
         <div class="ref-choice-stack">
-          <button
+          <RouterLink
             v-for="item in manageItems"
             :key="item.title"
             class="ref-choice-row"
-            type="button"
+            :to="item.to"
             :aria-label="`${item.action} for ${club.name}`"
-            @click="open(item.to)"
           >
             <span class="ref-feature-icon" aria-hidden="true">
               <FlowIcon :name="item.icon" />
@@ -209,7 +208,7 @@ useShellNestedHeader(() => ({
               name="arrow-right"
               aria-hidden="true"
             />
-          </button>
+          </RouterLink>
         </div>
       </section>
 
@@ -502,5 +501,6 @@ useShellNestedHeader(() => ({
     color: #d8ff47;
   }
 }
+.club-profile .ref-choice-row { text-decoration: none; }
 </style>
 

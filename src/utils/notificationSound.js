@@ -1,5 +1,15 @@
 let audioContext = null
 let lastMoveClickAt = -Infinity
+let idleTimer = null
+let resumePending = null
+
+function suspendWhenIdle(context) {
+  window.clearTimeout(idleTimer)
+  idleTimer = window.setTimeout(() => {
+    idleTimer = null
+    if (context.state === 'running') context.suspend().catch(() => {})
+  }, 1500)
+}
 
 function getAudioContext() {
   if (typeof window === 'undefined') return null
@@ -19,16 +29,20 @@ function getAudioContext() {
 async function prepareContext() {
   const context = getAudioContext()
   if (!context) return null
+  window.clearTimeout(idleTimer)
 
   if (context.state === 'suspended') {
     try {
-      await context.resume()
+      if (!resumePending) {
+        resumePending = context.resume().finally(() => { resumePending = null })
+      }
+      await resumePending
     } catch {
       return null
     }
   }
 
-  return context
+  return context.state === 'running' ? context : null
 }
 
 function connectTone(context, {
@@ -68,8 +82,15 @@ function connectTone(context, {
   filter.connect(gain)
   gain.connect(context.destination)
 
+  oscillator.onended = () => {
+    oscillator.disconnect()
+    filter.disconnect()
+    gain.disconnect()
+    oscillator.onended = null
+  }
   oscillator.start(start)
   oscillator.stop(start + duration + 0.012)
+  suspendWhenIdle(context)
 }
 
 export async function playToastPop() {
@@ -87,12 +108,18 @@ export async function playToastPop() {
 }
 
 export async function playLadderMoveClick() {
+  if (typeof window === 'undefined') return
+  const requestedAt = performance.now()
+  // Throttle before creating or resuming audio, rather than after that work.
+  if (requestedAt - lastMoveClickAt < 100) return
+  lastMoveClickAt = requestedAt
+
   const context = await prepareContext()
   if (!context) return
-
-  // Avoid overlapping click sounds from rapid input or the same action's toast.
-  if (context.currentTime - lastMoveClickAt < 0.08) return
-  lastMoveClickAt = context.currentTime
+  if (performance.now() - requestedAt > 120) {
+    suspendWhenIdle(context)
+    return
+  }
 
   connectTone(context, {
     type: 'triangle',

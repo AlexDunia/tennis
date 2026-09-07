@@ -866,4 +866,10 @@ onMounted(async () => {
     transition: none;
   }
 }
+@media (hover: hover) and (pointer: fine) {
+  .quick-card:hover {
+    background: #f4f8f5;
+    border-color: var(--color-border);
+  }
+}
 </style>

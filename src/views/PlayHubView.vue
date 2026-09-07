@@ -125,7 +125,7 @@ onMounted(async () => {
           </span>
         </button>
 
-        <button type="button" class="play-option" @click="startMatch('ladder')">
+        <button type="button" class="play-option play-option--ladder" @click="startMatch('ladder')">
           <span class="feature-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M5 19v-7M12 19V5M19 19v-10" /></svg>
           </span>
@@ -428,6 +428,32 @@ onMounted(async () => {
   .match-loading__row {
     animation: none;
     transition: none;
+  }
+}
+.play-option--ladder {
+  border-color: #163d2b;
+  background: #163d2b;
+}
+
+.play-option--ladder .play-option__copy strong,
+.play-option--ladder .play-option__copy small {
+  color: #fff;
+}
+
+.play-option--ladder .feature-icon {
+  background: rgba(216, 255, 71, 0.12);
+  color: #d8ff47;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .play-option:not(.play-option--ladder):hover {
+    background: #f4f8f5;
+    border-color: var(--color-border);
+  }
+
+  .play-option--ladder:hover {
+    background: #1d4432;
+    border-color: #163d2b;
   }
 }
 </style>

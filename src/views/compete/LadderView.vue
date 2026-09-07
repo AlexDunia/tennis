@@ -299,13 +299,25 @@ const challengeFocusPlayers = computed(() => {
   )
 })
 
+const challengeFocusActive = computed(() =>
+  challengeSelectionActive.value || drawerOpen.value,
+)
+
 const displayPlayers = computed(() =>
-  challengeSelectionActive.value
+  challengeFocusActive.value
     ? challengeFocusPlayers.value
     : players.value,
 )
 
 let challengeScrollFrame = 0
+
+function pinLeavingPlayer(element) {
+  element.style.top = `${element.offsetTop}px`
+}
+
+function clearLeavingPlayer(element) {
+  element.style.removeProperty('top')
+}
 
 
 
@@ -472,7 +484,7 @@ function animateChallengePageTo(targetY) {
   )
 
   if (prefersReducedMotion()) {
-    window.scrollTo(0, safeTarget)
+    window.scrollTo({ top: safeTarget, left: 0, behavior: 'instant' })
     return
   }
 
@@ -481,7 +493,7 @@ function animateChallengePageTo(targetY) {
 
   if (Math.abs(delta) < 2) return
 
-  const duration = 320
+  const duration = 340
   const started = performance.now()
 
   const step = (now) => {
@@ -493,10 +505,11 @@ function animateChallengePageTo(targetY) {
     const eased =
       1 - Math.pow(1 - progress, 4)
 
-    window.scrollTo(
-      0,
-      startY + delta * eased,
-    )
+    window.scrollTo({
+      top: startY + delta * eased,
+      left: 0,
+      behavior: 'instant',
+    })
 
     if (progress < 1) {
       challengeScrollFrame =
@@ -513,7 +526,7 @@ function animateChallengePageTo(targetY) {
 
 async function focusChallengeViewport() {
   if (
-    !challengeSelectionActive.value ||
+    !challengeFocusActive.value ||
     typeof window === 'undefined'
   ) {
     return
@@ -527,7 +540,7 @@ async function focusChallengeViewport() {
 
   const list = ladderListRef.value
 
-  if (!list) return
+  if (!list || !challengeFocusActive.value) return
 
   const { top, bottom } =
     challengeViewportInsets()
@@ -563,7 +576,7 @@ async function focusChallengeViewport() {
 }
 
 watch(
-  challengeSelectionActive,
+  challengeFocusActive,
   (active) => {
     if (!active) return
 
@@ -1208,7 +1221,7 @@ onUnmounted(() => {
     :class="{
       'ladder-view--drawer': drawerOpen,
       'ladder-view--selection':
-        challengeSelectionActive,
+        challengeFocusActive,
     }"
   >
     <Transition name="challenge-backdrop">
@@ -1336,6 +1349,10 @@ onUnmounted(() => {
         >
           <TransitionGroup
             name="ladder-focus"
+            @before-leave="pinLeavingPlayer"
+            @after-leave="clearLeavingPlayer"
+            @leave-cancelled="clearLeavingPlayer"
+            @before-enter="clearLeavingPlayer"
             tag="div"
             class="ladder-list__rows"
           >
@@ -1358,6 +1375,8 @@ onUnmounted(() => {
                   isCurrentPlayer(player),
                 'ladder-row--selected':
                   playerRowState(player).selected,
+                'ladder-row--opponent':
+                  player.id === selectedOpponentId,
                 'ladder-row--managed':
                   playerRowState(player).managed,
                 'ladder-row--eligible':
@@ -1626,10 +1645,7 @@ onUnmounted(() => {
   grid-template-columns:
     236px minmax(0, 1fr) 0;
   background: var(--color-bg);
-  transition:
-    grid-template-columns
-    var(--motion-medium)
-    var(--motion-curve);
+  /* Avoid animating layout on every frame while the details panel opens. */
 }
 
 .ladder-view--drawer {
@@ -1723,11 +1739,24 @@ onUnmounted(() => {
 .ladder-list {
   position: relative;
   min-width: 0;
+  padding: 2px 4px 5px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  overflow-anchor: none;
+  scroll-behavior: auto;
+}
+
+.ladder-list::-webkit-scrollbar {
+  width: 6px;
 }
 
 .ladder-list__rows {
   position: relative;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
   min-width: 0;
   gap: 9px;
 }
@@ -1797,8 +1826,7 @@ onUnmounted(() => {
 .ladder-focus-enter-active {
   transition:
     transform 340ms cubic-bezier(.22, 1, .36, 1),
-    opacity 180ms ease,
-    filter 180ms ease;
+    opacity 180ms ease;
   will-change: transform, opacity;
 }
 
@@ -1809,24 +1837,24 @@ onUnmounted(() => {
   width: 100%;
   z-index: 0;
   pointer-events: none;
-  transition:
-    opacity 150ms ease,
-    transform 190ms cubic-bezier(.4, 0, .2, 1),
-    filter 170ms ease;
+  transition: opacity 120ms ease-out;
 }
 
-.ladder-focus-enter-from,
+.ladder-focus-enter-from {
+  opacity: 0;
+  transform: translateY(2px);
+}
+
 .ladder-focus-leave-to {
   opacity: 0;
-  filter: blur(2px);
-  transform:
-    translateY(4px)
-    scale(.985);
 }
 
-.challenge-backdrop-enter-active,
+.challenge-backdrop-enter-active {
+  transition: opacity 180ms ease-out;
+}
+
 .challenge-backdrop-leave-active {
-  transition: opacity 180ms ease;
+  transition: opacity 140ms ease-in;
 }
 
 .challenge-backdrop-enter-from,
@@ -1852,9 +1880,10 @@ onUnmounted(() => {
   border-radius: var(--app-card-radius);
   background: var(--color-surface);
   transition:
-    opacity var(--motion-short) ease,
-    border-color var(--motion-short) ease,
-    background var(--motion-short) ease;
+    opacity 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
 }
 
 .ladder-row--interactive {
@@ -2312,6 +2341,80 @@ onUnmounted(() => {
   .challenge-backdrop-enter-active,
   .challenge-backdrop-leave-active {
     transition: none !important;
+  }
+}
+/* Focused players stay still while choosing a challenge opponent. */
+.ladder-view--selection .ladder-row,
+.ladder-view--selection .ladder-row:hover,
+.ladder-view--selection .ladder-row :is(button, a, [role='button']) {
+  transform: none !important;
+  translate: none !important;
+  scale: none !important;
+}
+
+.ladder-view--selection .ladder-row--eligible:hover {
+  background: #fff;
+}
+.ladder-view .ladder-row.ladder-row--opponent,
+.ladder-view .ladder-row.ladder-row--opponent:hover {
+  border-color: #287a4b;
+  background: #287a4b;
+}
+
+.ladder-row--opponent .ladder-row__player strong,
+.ladder-row--opponent .ladder-row__rank,
+.ladder-row--opponent .ladder-row__metric {
+  color: #fff;
+}
+
+.ladder-row--opponent .ladder-row__player small,
+.ladder-row--opponent .ladder-row__state,
+.ladder-row--opponent .ladder-row__chevron {
+  color: #d8ff47;
+}
+/* Keep the complete challenge card, including its controls, inside its track. */
+.ladder-row {
+  grid-template-columns: 38px 40px minmax(0, 1fr) auto auto;
+}
+
+.ladder-row__status {
+  min-width: 0;
+}
+
+.ladder-row--selected .ladder-row__cancel-selection,
+.ladder-row--selected .ladder-row__cancel-selection:hover {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-color: transparent;
+  background: rgba(216, 255, 71, 0.12);
+  color: #d8ff47;
+  flex: 0 0 44px;
+}
+
+@media (max-width: 767px) {
+  .ladder-row {
+    grid-template-columns: 27px 36px minmax(0, 1fr) auto;
+  }
+
+  .ladder-row--selected,
+  .ladder-row--opponent {
+    grid-template-columns: 27px 36px minmax(0, 1fr);
+    padding: 12px;
+    row-gap: 12px;
+  }
+
+  .ladder-row--selected .ladder-row__status,
+  .ladder-row--opponent .ladder-row__status {
+    grid-column: 2 / -1;
+    justify-self: stretch;
+  }
+
+  .ladder-row__selected-controls {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
   }
 }
 </style>

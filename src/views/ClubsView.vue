@@ -884,16 +884,16 @@ onMounted(async () => {
         </header>
 
         <div v-if="directoryClubs.length" class="ref-club-directory">
-          <button
+          <RouterLink
             v-for="club in directoryClubs"
             :key="club.id"
             class="ref-club-directory-row"
             :class="{ active: club.isActive }"
-            type="button"
+            :to="club.isActive
+              ? { name: 'Club', params: { clubId: club.id } }
+              : { name: 'ClubVisit', params: { clubId: club.id } }"
             :aria-current="club.isActive ? 'true' : undefined"
             :aria-label="`Open club: ${club.name}${club.isActive ? ' (current club)' : ''}`"
-            :disabled="adminStore.isLoading"
-            @click="selectClub(club.id)"
           >
             <span class="ref-club-directory-logo" aria-hidden="true">
               <img
@@ -928,7 +928,7 @@ onMounted(async () => {
             >
               <FlowIcon name="arrow-right" />
             </span>
-          </button>
+          </RouterLink>
         </div>
         <EmptyState
           v-else
@@ -2997,33 +2997,24 @@ button:disabled {
   }
 }
 
-/* Gorra card hover colors. */
+/* Pages with a green primary card use a quiet tint for secondary hovers. */
 @media (hover: hover) and (pointer: fine) {
-  .club-entry-option:hover:not(:disabled),
-  .club-directory-section .ref-club-directory-row:hover:not(:disabled),
-  .club-directory-section .ref-club-directory-row.active:hover:not(:disabled) {
-    border-color: #163d2b;
-    background: #163d2b;
-    color: #fff;
+  .club-entry-option--join:hover:not(:disabled),
+  .club-directory-section .ref-club-directory-row:not(.active):hover:not(:disabled) {
+    border-color: var(--color-border);
+    background: #f4f8f5;
+    color: var(--color-text);
   }
 
-  .club-entry-option:hover:not(:disabled) .club-entry-copy strong,
-  .club-entry-option:hover:not(:disabled) .club-entry-copy small,
-  .club-directory-section .ref-club-directory-row:hover:not(:disabled) .ref-club-directory-copy strong,
-  .club-directory-section .ref-club-directory-row:hover:not(:disabled) .ref-club-directory-copy > span {
-    color: #fff;
+  .club-entry-option--create:hover:not(:disabled) {
+    background: #1d4432;
   }
 
-  .club-entry-option:hover:not(:disabled) .club-entry-icon,
-  .club-entry-option:hover:not(:disabled) .club-entry-option__arrow,
-  .club-directory-section .ref-club-directory-row:hover:not(:disabled) .club-directory-chevron,
-  .club-directory-section .ref-club-directory-row:hover:not(:disabled) .ref-club-directory-logo {
-    background: rgba(216, 255, 71, 0.12);
-    color: #d8ff47;
-  }
-
-  .club-directory-section .ref-club-directory-row:hover:not(:disabled) .club-current-badge {
-    color: #d8ff47;
+  .club-entry-option--join:hover .club-entry-option__arrow,
+  .club-directory-section .ref-club-directory-row:not(.active):hover .club-directory-chevron {
+    background: rgba(22, 61, 43, 0.035);
+    color: #163d2b;
   }
 }
+.ref-club-directory-row { text-decoration: none; }
 </style>

@@ -411,7 +411,7 @@ const routes = [
     },
   },
   {
-    path: '/club',
+    path: '/club/:clubId?',
     name: 'Club',
     component: ClubView,
     meta: {
@@ -751,6 +751,18 @@ router.beforeEach(async (to) => {
     return { name: 'SignIn', query: { redirect: to.fullPath } }
   }
 
+  if (to.name === 'Club') {
+    const adminStore = useAdminStore()
+    await adminStore.loadClubs()
+    const clubId = String(to.params.clubId || '')
+    if (!clubId && adminStore.activeClubId) {
+      return { name: 'Club', params: { clubId: adminStore.activeClubId }, replace: true }
+    }
+    if (clubId && clubId !== adminStore.activeClubId) {
+      return { name: 'ClubVisit', params: { clubId }, replace: true }
+    }
+  }
+
   if (to.name === 'ClubVisit') {
     const adminStore =
       useAdminStore()
@@ -803,24 +815,12 @@ router.beforeEach(async (to) => {
     ) {
       return {
         name: 'Club',
+        params: { clubId },
       }
     }
 
-    /*
-     * Old links such as:
-     * /clubs/greenview/members
-     * /clubs/greenview/settings
-     *
-     * canonicalize to the lightweight preview.
-     */
-    if (to.params.section) {
-      return {
-        name: 'ClubVisit',
-        params: {
-          clubId,
-        },
-        replace: true,
-      }
+    if (to.params.section === 'settings') {
+      return { name: 'ClubVisit', params: { clubId }, replace: true }
     }
   }
 
