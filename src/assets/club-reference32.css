@@ -2385,4 +2385,138 @@
   }
 }
 
+/* ---------------------------------------------------------
+   GORRA CLUB STRUCTURAL POLISH
+   Quiet hierarchy. No decorative heading cards.
+---------------------------------------------------------- */
 
+.gorra-club-ref .ref-section-heading,
+.gorra-club-ref .ref-members-head {
+  position: relative;
+  padding-bottom: 11px;
+  border-bottom: 1px solid rgba(40, 51, 44, 0.07);
+}
+
+.gorra-club-ref .ref-section-heading::after,
+.gorra-club-ref .ref-members-head::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 30px;
+  height: 1px;
+  background: rgba(8, 173, 43, 0.42);
+}
+
+/* Active Club: related destinations read as one calm system. */
+.gorra-club-ref .ref-club-manage .ref-choice-stack {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(40, 51, 44, 0.09);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(35, 52, 40, 0.025);
+}
+
+.gorra-club-ref .ref-club-manage .ref-choice-row {
+  min-height: 72px;
+  padding: 13px 15px;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+
+.gorra-club-ref
+  .ref-club-manage
+  .ref-choice-row
+  + .ref-choice-row {
+  border-top: 1px solid rgba(40, 51, 44, 0.07);
+}
+
+.gorra-club-ref
+  .ref-club-manage
+  .ref-choice-row:hover {
+  background: #fbfdfb;
+  box-shadow: none;
+  transform: none;
+}
+
+.gorra-club-ref
+  .ref-club-manage
+  .ref-choice-row > .flow-icon {
+  transition:
+    color 150ms ease,
+    transform 150ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.gorra-club-ref
+  .ref-club-manage
+  .ref-choice-row:hover > .flow-icon {
+  color: var(--g-green-strong);
+  transform: translateX(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gorra-club-ref
+    .ref-club-manage
+    .ref-choice-row > .flow-icon {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------
+   GORRA CLUB SECTION HIERARCHY
+   Quiet structure: title -> hairline, supporting copy below.
+   No kicker, no heading card, no decorative green underline.
+   --------------------------------------------------------- */
+
+.layout.layout--club-theme
+  .content
+  .ref-section-heading {
+  display: grid;
+  grid-template-columns: max-content minmax(32px, 1fr);
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 5px;
+  margin-bottom: 18px;
+}
+
+.layout.layout--club-theme
+  .content
+  .ref-section-heading::after {
+  content: '';
+  width: 100%;
+  height: 1px;
+  background: rgba(40, 51, 44, 0.075);
+}
+
+.layout.layout--club-theme
+  .content
+  .ref-section-heading > h1,
+.layout.layout--club-theme
+  .content
+  .ref-section-heading > h2,
+.layout.layout--club-theme
+  .content
+  .ref-section-heading > h3 {
+  min-width: 0;
+}
+
+.layout.layout--club-theme
+  .content
+  .ref-section-heading > p,
+.layout.layout--club-theme
+  .content
+  .ref-section-heading > span:not(.ref-feature-icon) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 600px) {
+  .layout.layout--club-theme
+    .content
+    .ref-section-heading {
+    column-gap: 9px;
+    margin-bottom: 15px;
+  }
+}

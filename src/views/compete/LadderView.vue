@@ -299,6 +299,14 @@ const challengeFocusPlayers = computed(() => {
   )
 })
 
+const displayPlayers = computed(() =>
+  challengeSelectionActive.value
+    ? challengeFocusPlayers.value
+    : players.value,
+)
+
+let challengeScrollFrame = 0
+
 
 
 const usesPoints = computed(
@@ -410,19 +418,14 @@ function setPlayerRowRef(playerId, element) {
   playerRowRefs.delete(playerId)
 }
 
-function challengeScrollBehavior() {
-  if (
-    typeof window === 'undefined' ||
-    typeof window.matchMedia !== 'function'
-  ) {
-    return 'auto'
-  }
-
-  return window.matchMedia(
-    '(prefers-reduced-motion: reduce)',
-  ).matches
-    ? 'auto'
-    : 'smooth'
+function prefersReducedMotion() {
+  return Boolean(
+    typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      ).matches,
+  )
 }
 
 function challengeViewportInsets() {
@@ -444,7 +447,7 @@ function challengeViewportInsets() {
       Math.ceil(
         header?.getBoundingClientRect()
           ?.height || 76,
-      ) + 12,
+      ) + 10,
     bottom:
       Math.ceil(
         bottomNav?.getBoundingClientRect()
@@ -453,18 +456,59 @@ function challengeViewportInsets() {
   }
 }
 
-function clampScrollTop(
-  value,
-  list,
-  viewportHeight,
-) {
-  return Math.min(
-    Math.max(0, value),
-    Math.max(
-      0,
-      list.scrollHeight - viewportHeight,
-    ),
+function animateChallengePageTo(targetY) {
+  if (typeof window === 'undefined') return
+
+  if (challengeScrollFrame) {
+    window.cancelAnimationFrame(
+      challengeScrollFrame,
+    )
+    challengeScrollFrame = 0
+  }
+
+  const safeTarget = Math.max(
+    0,
+    Number(targetY) || 0,
   )
+
+  if (prefersReducedMotion()) {
+    window.scrollTo(0, safeTarget)
+    return
+  }
+
+  const startY = window.scrollY
+  const delta = safeTarget - startY
+
+  if (Math.abs(delta) < 2) return
+
+  const duration = 320
+  const started = performance.now()
+
+  const step = (now) => {
+    const progress = Math.min(
+      1,
+      (now - started) / duration,
+    )
+
+    const eased =
+      1 - Math.pow(1 - progress, 4)
+
+    window.scrollTo(
+      0,
+      startY + delta * eased,
+    )
+
+    if (progress < 1) {
+      challengeScrollFrame =
+        window.requestAnimationFrame(step)
+      return
+    }
+
+    challengeScrollFrame = 0
+  }
+
+  challengeScrollFrame =
+    window.requestAnimationFrame(step)
 }
 
 async function focusChallengeViewport() {
@@ -475,37 +519,22 @@ async function focusChallengeViewport() {
     return
   }
 
+  /*
+   * Let TransitionGroup first produce the compact relevant
+   * stack. We then move that real stack, not the old full list.
+   */
   await nextTick()
 
   const list = ladderListRef.value
-  const challenger = selectedPlayer.value
 
-  if (!list || !challenger) return
+  if (!list) return
 
-  const relevantElements =
-    challengeFocusPlayers.value
-      .map((player) =>
-        playerRowRefs.get(player.id),
-      )
-      .filter(Boolean)
-
-  const challengerElement =
-    playerRowRefs.get(challenger.id)
-
-  if (
-    !relevantElements.length ||
-    !challengerElement
-  ) {
-    return
-  }
-
-  const insets = challengeViewportInsets()
+  const { top, bottom } =
+    challengeViewportInsets()
 
   const availableHeight = Math.max(
     220,
-    window.innerHeight -
-      insets.top -
-      insets.bottom,
+    window.innerHeight - top - bottom,
   )
 
   list.style.setProperty(
@@ -514,125 +543,20 @@ async function focusChallengeViewport() {
   )
 
   /*
-   * Move the Ladder window itself below the fixed app header.
-   * We do not scroll a player underneath the header.
+   * Start the focused list at its first relevant player.
+   * Larger ranges remain scrollable inside this list.
    */
-  const listRect =
-    list.getBoundingClientRect()
+  list.scrollTop = 0
 
-  const pageDelta =
-    listRect.top - insets.top
+  const targetY = Math.max(
+    0,
+    window.scrollY +
+      list.getBoundingClientRect().top -
+      top,
+  )
 
-  if (Math.abs(pageDelta) > 3) {
-    window.scrollBy({
-      top: pageDelta,
-      behavior: challengeScrollBehavior(),
-    })
-  }
+  animateChallengePageTo(targetY)
 
-  /*
-   * Then position the INTERNAL Ladder viewport.
-   *
-   * If all relevant people fit:
-   * → start at the first eligible person.
-   *
-   * If they do not fit:
-   * → keep the selected challenger visible;
-   * → show the nearest eligible people around them;
-   * → the user can scroll this Ladder window for the rest.
-   */
-  const firstElement =
-    relevantElements[0]
-
-  const lastElement =
-    relevantElements[
-      relevantElements.length - 1
-    ]
-
-  const firstTop =
-    firstElement.offsetTop
-
-  const lastBottom =
-    lastElement.offsetTop +
-    lastElement.offsetHeight
-
-  const groupHeight =
-    lastBottom - firstTop
-
-  const challengerTop =
-    challengerElement.offsetTop
-
-  const challengerBottom =
-    challengerTop +
-    challengerElement.offsetHeight
-
-  const challengerIndex =
-    challengeFocusPlayers.value.findIndex(
-      (player) =>
-        player.id === challenger.id,
-    )
-
-  const hasRelevantAbove =
-    challengerIndex > 0
-
-  const hasRelevantBelow =
-    challengerIndex >= 0 &&
-    challengerIndex <
-      challengeFocusPlayers.value.length -
-        1
-
-  let targetScrollTop = firstTop - 6
-
-  if (groupHeight > availableHeight - 12) {
-    if (
-      hasRelevantAbove &&
-      !hasRelevantBelow
-    ) {
-      /*
-       * Traditional upward challenge:
-       * challenger sits near the bottom so the nearest
-       * eligible opponents are visible immediately.
-       */
-      targetScrollTop =
-        challengerBottom -
-        availableHeight +
-        8
-    } else if (
-      hasRelevantBelow &&
-      !hasRelevantAbove
-    ) {
-      /*
-       * Downward-only range:
-       * challenger begins near the top.
-       */
-      targetScrollTop =
-        challengerTop - 8
-    } else {
-      /*
-       * Mixed up/down range:
-       * keep challenger around the middle.
-       */
-      targetScrollTop =
-        challengerTop -
-        Math.round(
-          availableHeight * 0.45,
-        )
-    }
-  }
-
-  list.scrollTo({
-    top: clampScrollTop(
-      targetScrollTop,
-      list,
-      availableHeight,
-    ),
-    behavior: challengeScrollBehavior(),
-  })
-
-  /*
-   * This makes keyboard/PageUp/PageDown scrolling target
-   * the Ladder window instead of the page.
-   */
   list.focus({
     preventScroll: true,
   })
@@ -789,12 +713,9 @@ async function cancelChallengeSelection() {
   if (
     typeof window !== 'undefined'
   ) {
-    window.scrollTo({
-      top:
-        challengeOriginScrollY.value,
-      behavior:
-        challengeScrollBehavior(),
-    })
+    animateChallengePageTo(
+      challengeOriginScrollY.value,
+    )
   }
 }
 
@@ -1266,9 +1187,19 @@ onMounted(async () => {
   await Promise.allSettled(tasks)
 })
 
-onUnmounted(() =>
-  shell?.endAdminMatchDrawer?.(),
-)
+onUnmounted(() => {
+  if (
+    challengeScrollFrame &&
+    typeof window !== 'undefined'
+  ) {
+    window.cancelAnimationFrame(
+      challengeScrollFrame,
+    )
+  }
+
+  challengeScrollFrame = 0
+  shell?.endAdminMatchDrawer?.()
+})
 </script>
 
 <template>
@@ -1280,16 +1211,18 @@ onUnmounted(() =>
         challengeSelectionActive,
     }"
   >
-    <button
-      v-if="challengeSelectionActive"
-      class="challenge-selection-backdrop"
-      type="button"
-      tabindex="-1"
-      aria-label="Cancel challenge selection"
-      @click="cancelChallengeSelection"
-      @wheel.prevent
-      @touchmove.prevent
-    ></button>
+    <Transition name="challenge-backdrop">
+      <button
+        v-if="challengeSelectionActive"
+        class="challenge-selection-backdrop"
+        type="button"
+        tabindex="-1"
+        aria-label="Cancel challenge selection"
+        @click="cancelChallengeSelection"
+        @wheel.prevent
+        @touchmove.prevent
+      ></button>
+    </Transition>
     <LadderClubRail
       :club="activeClub"
       :ladders="ladders"
@@ -1401,8 +1334,13 @@ onUnmounted(() =>
             cancelChallengeSelection()
           "
         >
+          <TransitionGroup
+            name="ladder-focus"
+            tag="div"
+            class="ladder-list__rows"
+          >
           <article
-            v-for="player in players"
+            v-for="player in displayPlayers"
             :key="player.id"
             :ref="
               (element) =>
@@ -1611,6 +1549,7 @@ onUnmounted(() =>
               @remove="openRemove(player)"
             />
           </article>
+          </TransitionGroup>
         </section>
 
         <EmptyState
@@ -1783,20 +1722,20 @@ onUnmounted(() =>
 
 .ladder-list {
   position: relative;
-  display: grid;
-  gap: 9px;
   min-width: 0;
+}
+
+.ladder-list__rows {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 9px;
 }
 
 .ladder-view--selection
   .ladder-list {
-  position: sticky;
+  position: relative;
   z-index: 72;
-  top:
-    calc(
-      var(--app-header-height) +
-      12px
-    );
   max-height:
     var(
       --challenge-window-max-height,
@@ -1814,16 +1753,13 @@ onUnmounted(() =>
       var(--app-card-radius) +
       2px
     );
-  overscroll-behavior:
-    contain;
-  scroll-padding-block:
-    6px 10px;
+  overscroll-behavior: contain;
+  scroll-padding-block: 6px 10px;
   scrollbar-width: thin;
   scrollbar-color:
     rgba(22, 61, 43, 0.2)
     transparent;
-  -webkit-overflow-scrolling:
-    touch;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ladder-view--selection
@@ -1854,6 +1790,48 @@ onUnmounted(() =>
   border-radius: 999px;
   background:
     rgba(22, 61, 43, 0.18);
+}
+
+/* The same cards physically settle into their focus positions. */
+.ladder-focus-move,
+.ladder-focus-enter-active {
+  transition:
+    transform 340ms cubic-bezier(.22, 1, .36, 1),
+    opacity 180ms ease,
+    filter 180ms ease;
+  will-change: transform, opacity;
+}
+
+.ladder-focus-leave-active {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 0;
+  pointer-events: none;
+  transition:
+    opacity 150ms ease,
+    transform 190ms cubic-bezier(.4, 0, .2, 1),
+    filter 170ms ease;
+}
+
+.ladder-focus-enter-from,
+.ladder-focus-leave-to {
+  opacity: 0;
+  filter: blur(2px);
+  transform:
+    translateY(4px)
+    scale(.985);
+}
+
+.challenge-backdrop-enter-active,
+.challenge-backdrop-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.challenge-backdrop-enter-from,
+.challenge-backdrop-leave-to {
+  opacity: 0;
 }
 
 .ladder-player-item {
@@ -2205,12 +2183,6 @@ onUnmounted(() =>
 @media (max-width: 767px) {
   .ladder-view--selection
     .ladder-list {
-    top:
-      calc(
-        var(--app-header-height) +
-        8px
-      );
-
     max-height:
       var(
         --challenge-window-max-height,
@@ -2331,6 +2303,15 @@ onUnmounted(() =>
   .ladder-view,
   .ladder-row {
     transition: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ladder-focus-move,
+  .ladder-focus-enter-active,
+  .ladder-focus-leave-active,
+  .challenge-backdrop-enter-active,
+  .challenge-backdrop-leave-active {
+    transition: none !important;
   }
 }
 </style>

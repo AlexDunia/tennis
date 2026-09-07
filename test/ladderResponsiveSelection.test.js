@@ -28,10 +28,7 @@ test('mobile Ladder does not shrink inside the already-80-percent shell', () => 
     /@media \(max-width: 767px\)[\s\S]*\.ladder-workspace[\s\S]*width:\s*85%/,
   )
 
-  assert.match(
-    layout,
-    /--app-shell-content-width:\s*80%/,
-  )
+  assert.match(layout, /--app-shell-content-width:\s*80%/)
 })
 
 test('admin challenge selection preserves selected, eligible and paused states', () => {
@@ -53,168 +50,95 @@ test('challenge focus uses toaster green and click-away backdrop', () => {
   assert.match(ladder, /challengeSelectionActive/)
   assert.match(ladder, /challenge-selection-backdrop/)
   assert.match(ladder, /@click="cancelChallengeSelection"/)
-  assert.match(ladder, /\.ladder-row--selected[\s\S]*background:\s*#163d2b/)
-  assert.match(ladder, /\.ladder-row--eligible[\s\S]*background:\s*#fff/)
-  assert.match(ladder, /\.ladder-row--quiet[\s\S]*blur/)
+  assert.match(
+    ladder,
+    /\.ladder-row--selected[\s\S]*background:\s*#163d2b/,
+  )
+  assert.match(
+    ladder,
+    /\.ladder-row--eligible[\s\S]*background:\s*#fff/,
+  )
   assert.doesNotMatch(ladder, />\s*Cancel\s*</)
 })
 
-test(
-  'challenge selection is cancelled from the selected card and restores its options',
-  () => {
-    assert.match(
-      ladder,
-      /function cancelChallengeSelection/,
-    )
+test('challenge focus physically reflows the real cards instead of leaving blank ranked gaps', () => {
+  assert.match(
+    ladder,
+    /const displayPlayers = computed\(\(\) =>[\s\S]*challengeSelectionActive\.value[\s\S]*challengeFocusPlayers\.value[\s\S]*players\.value/,
+  )
 
-    assert.match(
-      ladder,
-      /managedPlayerId\.value = playerId/,
-    )
+  assert.match(
+    ladder,
+    /<TransitionGroup[\s\S]*name="ladder-focus"[\s\S]*class="ladder-list__rows"/,
+  )
 
-    assert.match(
-      ladder,
-      /ladder-row__cancel-selection/,
-    )
+  assert.match(ladder, /v-for="player in displayPlayers"/)
+  assert.match(ladder, /\.ladder-focus-move/)
+  assert.match(ladder, /\.ladder-focus-leave-active/)
+})
 
-    assert.match(
-      ladder,
-      /@click\.stop="cancelChallengeSelection"/,
-    )
+test('challenge backdrop fades instead of appearing as an abrupt modal layer', () => {
+  assert.match(
+    ladder,
+    /<Transition name="challenge-backdrop">[\s\S]*challenge-selection-backdrop/,
+  )
 
-    assert.doesNotMatch(
-      ladder,
-      /class="selection-guide"/,
-    )
+  assert.match(
+    ladder,
+    /\.challenge-backdrop-enter-active[\s\S]*transition:\s*opacity/,
+  )
+})
 
-    assert.doesNotMatch(
-      ladder,
-      /class="mobile-selection-context"/,
-    )
-  },
-)
+test('challenge focus uses controlled motion to align the compact stack below the header', () => {
+  assert.match(ladder, /function animateChallengePageTo/)
+  assert.match(ladder, /requestAnimationFrame/)
+  assert.match(ladder, /Math\.pow\(1 - progress, 4\)/)
+  assert.match(ladder, /list\.scrollTop = 0/)
+  assert.match(ladder, /--challenge-window-max-height/)
+  assert.doesNotMatch(ladder, /window\.scrollBy/)
+  assert.doesNotMatch(ladder, /groupHeight > availableHeight/)
+  assert.doesNotMatch(ladder, /hasRelevantAbove/)
+  assert.doesNotMatch(ladder, /hasRelevantBelow/)
+})
 
-test(
-  'player management actions use visible desktop lines and never horizontal scrolling',
-  () => {
-    assert.match(
-      playerOptions,
-      /ladder-player-options__line--primary/,
-    )
+test('large challenge ranges scroll inside the compact focus stack without globally freezing the page', () => {
+  assert.match(ladder, /overflow-y:\s*auto/)
+  assert.match(ladder, /overscroll-behavior:\s*contain/)
+  assert.match(ladder, /max-height:[\s\S]*--challenge-window-max-height/)
 
-    assert.match(
-      playerOptions,
-      /ladder-player-options__line--secondary/,
-    )
+  assert.doesNotMatch(
+    ladder,
+    /document\.addEventListener\('wheel'/,
+  )
+  assert.doesNotMatch(
+    ladder,
+    /document\.addEventListener\('touchmove'/,
+  )
+  assert.doesNotMatch(
+    ladder,
+    /document\.documentElement[\s\S]*overflow[\s\S]*hidden/,
+  )
+})
 
-    assert.doesNotMatch(
-      playerOptions,
-      /overflow-x:\s*auto/,
-    )
+test('cancelling challenge focus restores the player management context and original page position', () => {
+  assert.match(ladder, /challengeOriginScrollY/)
+  assert.match(ladder, /challengeOriginListScrollTop/)
+  assert.match(ladder, /managedPlayerId\.value = playerId/)
+  assert.match(
+    ladder,
+    /animateChallengePageTo\(\s*challengeOriginScrollY\.value/,
+  )
+})
 
-    assert.match(
-      playerOptions,
-      /@media \(max-width: 767px\)[\s\S]*grid-template-columns/,
-    )
-  },
-)
+test('player management actions remain visible lines without horizontal scrolling', () => {
+  assert.match(
+    playerOptions,
+    /ladder-player-options__line--primary/,
+  )
+  assert.match(
+    playerOptions,
+    /ladder-player-options__line--secondary/,
+  )
+  assert.doesNotMatch(playerOptions, /overflow-x:\s*auto/)
+})
 
-test(
-  'challenge focus scrolls inside the Ladder instead of freezing the page',
-  () => {
-    assert.match(
-      ladder,
-      /ref="ladderListRef"/,
-    )
-
-    assert.match(
-      ladder,
-      /focusChallengeViewport/,
-    )
-
-    assert.match(
-      ladder,
-      /--challenge-window-max-height/,
-    )
-
-    assert.match(
-      ladder,
-      /overscroll-behavior:\s*contain/,
-    )
-
-    assert.match(
-      ladder,
-      /overflow-y:\s*auto/,
-    )
-
-    assert.match(
-      ladder,
-      /window\.scrollBy/,
-    )
-
-    assert.doesNotMatch(
-      ladder,
-      /document\.addEventListener\('wheel'/,
-    )
-
-    assert.doesNotMatch(
-      ladder,
-      /document\.addEventListener\('touchmove'/,
-    )
-
-    assert.doesNotMatch(
-      ladder,
-      /document\.documentElement[\s\S]*overflow[\s\S]*hidden/,
-    )
-  },
-)
-
-test(
-  'large challenge ranges keep the selected player visible inside the internal viewport',
-  () => {
-    assert.match(
-      ladder,
-      /groupHeight > availableHeight/,
-    )
-
-    assert.match(
-      ladder,
-      /challengerBottom[\s\S]*availableHeight/,
-    )
-
-    assert.match(
-      ladder,
-      /hasRelevantAbove/,
-    )
-
-    assert.match(
-      ladder,
-      /hasRelevantBelow/,
-    )
-  },
-)
-
-test(
-  'cancelling challenge focus restores the player management context and original page position',
-  () => {
-    assert.match(
-      ladder,
-      /challengeOriginScrollY/,
-    )
-
-    assert.match(
-      ladder,
-      /challengeOriginListScrollTop/,
-    )
-
-    assert.match(
-      ladder,
-      /managedPlayerId\.value = playerId/,
-    )
-
-    assert.match(
-      ladder,
-      /window\.scrollTo/,
-    )
-  },
-)

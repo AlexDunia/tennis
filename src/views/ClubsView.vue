@@ -859,7 +859,20 @@ onMounted(async () => {
         aria-labelledby="your-clubs-heading"
       >
         <header class="club-section-heading">
-          <h2 id="your-clubs-heading">Your clubs</h2>
+          <div class="club-section-heading__row">
+            <h2 id="your-clubs-heading">Your clubs</h2>
+
+            <span
+              class="club-section-heading__rule"
+              aria-hidden="true"
+            ></span>
+
+            <span class="club-section-heading__count">
+              {{ directoryClubs.length }}
+              {{ directoryClubs.length === 1 ? 'club' : 'clubs' }}
+            </span>
+          </div>
+
           <p>Open a club you belong to.</p>
         </header>
 
@@ -2572,7 +2585,45 @@ button:disabled {
 
 .club-section-heading {
   display: grid;
-  gap: 4px;
+  gap: 6px;
+}
+
+.club-section-heading__row {
+  display: grid;
+  grid-template-columns: max-content minmax(32px, 1fr) max-content;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.club-section-heading__row h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.018em;
+  line-height: 1.25;
+}
+
+.club-section-heading__rule {
+  width: 100%;
+  height: 1px;
+  background: rgba(40, 51, 44, 0.075);
+}
+
+.club-section-heading__count {
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.club-section-heading > p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .club-section-heading h2,
@@ -2702,14 +2753,7 @@ button:disabled {
     transition: none;
   }
 }
-/* Separate each club card with explicit bottom spacing. */
-.club-directory-section .ref-club-directory {
-  row-gap: 0;
-}
 
-.club-directory-section .ref-club-directory-row:not(:last-child) {
-  margin-bottom: 16px;
-}
 
 .ref-club-directory .ref-club-directory-row {
   grid-template-columns: 66px minmax(0, 1fr) auto;
@@ -2782,4 +2826,201 @@ button:disabled {
   }
 }
 
+/* Club directory: compact, individual, product-shaped objects. */
+.club-directory-section .ref-club-directory {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.club-directory-section .ref-club-directory-row {
+  position: relative;
+  min-height: 92px;
+  grid-template-columns: 50px minmax(0, 1fr) 32px;
+  gap: 13px;
+  margin: 0;
+  padding: 13px 13px 13px 14px;
+  border: 1px solid rgba(40, 51, 44, 0.095);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: none;
+  transform: translateZ(0);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 180ms var(--g-ease),
+    transform 140ms var(--g-ease);
+}
+
+/* The old grouped-list separator must not survive. */
+.club-directory-section
+  .ref-club-directory-row
+  + .ref-club-directory-row {
+  border-top-color: rgba(40, 51, 44, 0.095);
+}
+
+.club-directory-section .ref-club-directory-logo {
+  width: 50px;
+  height: 50px;
+  border-radius: 13px;
+  background: #f1f5f2;
+}
+
+.club-directory-section .ref-club-directory-copy strong {
+  color: var(--g-ink);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  line-height: 1.3;
+}
+
+.club-directory-section .ref-club-directory-copy span {
+  margin-top: 4px;
+  color: var(--g-muted);
+  font-size: 10.2px;
+  line-height: 1.35;
+}
+
+.club-directory-section .ref-club-directory-copy small {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  color: var(--g-green-strong);
+  font-size: 9.4px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.club-directory-section
+  .ref-club-directory-copy
+  small
+  :deep(svg) {
+  width: 12px;
+  height: 12px;
+}
+
+.club-directory-section .club-directory-chevron {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  place-items: center;
+  justify-self: end;
+  border-radius: 9px;
+  color: #8d9690;
+  transform: translateX(0);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 180ms var(--g-ease);
+}
+
+.club-directory-section .club-directory-chevron :deep(svg) {
+  width: 14px;
+  height: 14px;
+}
+
+/* Current club: no green slab, no left rail. */
+.layout.layout--club-theme
+  .content
+  .club-directory-section
+  .ref-club-directory-row.active {
+  border-color: rgba(8, 173, 43, 0.26);
+  background: #fcfefc;
+  box-shadow: 0 0 0 1px rgba(8, 173, 43, 0.035);
+  transform: translateZ(0);
+}
+
+/* Hover exists only where hover is real. */
+@media (hover: hover) and (pointer: fine) {
+  .club-directory-section
+    .ref-club-directory-row:hover:not(:disabled) {
+    border-color: rgba(40, 51, 44, 0.17);
+    background: #fdfefd;
+    box-shadow: 0 8px 22px rgba(35, 52, 40, 0.035);
+    transform: translateZ(0);
+  }
+
+  .layout.layout--club-theme
+    .content
+    .club-directory-section
+    .ref-club-directory-row.active:hover:not(:disabled) {
+    border-color: rgba(8, 173, 43, 0.36);
+    background: #fbfefb;
+  }
+
+  .club-directory-section
+    .ref-club-directory-row:hover
+    .club-directory-chevron {
+    background: rgba(40, 51, 44, 0.045);
+    color: var(--g-ink-2);
+    transform: translateX(2px);
+  }
+}
+
+/* Press feedback: brief and physical, not animated navigation. */
+.club-directory-section
+  .ref-club-directory-row:active:not(:disabled) {
+  transform: scale(0.985) translateZ(0);
+}
+
+@media (max-width: 900px) {
+  .club-directory-section .ref-club-directory {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 600px) {
+  .club-section-heading__row {
+    gap: 9px;
+  }
+
+  .club-section-heading__row h2 {
+    font-size: 16px;
+  }
+
+  .club-section-heading__count {
+    font-size: 9.5px;
+  }
+
+  .club-directory-section .ref-club-directory-row {
+    min-height: 82px;
+    grid-template-columns: 46px minmax(0, 1fr) 30px;
+    gap: 11px;
+    padding: 11px 11px 11px 12px;
+  }
+
+  .club-directory-section .ref-club-directory-logo {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+  }
+
+  .club-directory-section .club-directory-chevron {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .club-directory-section .ref-club-directory-row,
+  .club-directory-section .club-directory-chevron {
+    transition:
+      border-color 120ms ease,
+      background-color 120ms ease,
+      color 120ms ease;
+    transform: none !important;
+  }
+}
 </style>

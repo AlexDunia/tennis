@@ -270,6 +270,11 @@
       </header>
 
       <div
+        id="app-context-strip-root"
+        class="app-context-strip-root"
+      ></div>
+
+      <div
         class="content"
         :class="{
           'content--wide': isWideWorkspace,
@@ -1988,6 +1993,21 @@ onUnmounted(() => {
 .menu-leave-to {
   opacity: 0;
   transform: translateY(-5px);
+}
+
+.app-context-strip-root {
+  width: 100%;
+  min-width: 0;
+}
+
+.app-context-strip-root:empty {
+  display: none;
+}
+
+.app-context-strip-root:not(:empty) {
+  position: sticky;
+  top: var(--app-header-height);
+  z-index: 39;
 }
 
 .content {
