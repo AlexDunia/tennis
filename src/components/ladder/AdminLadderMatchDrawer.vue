@@ -21,6 +21,58 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'submit', 'view', 'done'])
 const closeButton = ref(null)
+const drawerPanel = ref(null)
+const compactHeader = ref(false)
+
+function shortPlayerName(name) {
+  return String(name || '').trim().split(/\s+/)[0] || 'Player'
+}
+
+let headerAnimations = []
+let headerMotionVersion = 0
+
+function cancelHeaderMotion() {
+  headerMotionVersion += 1
+  headerAnimations.forEach((animation) => animation.cancel())
+  headerAnimations = []
+}
+
+async function changeHeaderDensity(compact) {
+  if (compactHeader.value === compact) return
+  const header = drawerPanel.value?.querySelector('.admin-drawer__header')
+  cancelHeaderMotion()
+  const version = headerMotionVersion
+  const elements = header ? [...header.querySelectorAll('.drawer-match-title__player, .drawer-match-title__versus')] : []
+  const previous = elements.map((element) => element.getBoundingClientRect())
+  const previousHeight = header?.getBoundingClientRect().height
+  compactHeader.value = compact
+  await nextTick()
+  if (version !== headerMotionVersion || !header?.isConnected || !props.open) return
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !header.animate) return
+
+  const motion = { duration: 240, easing: 'cubic-bezier(.22, 1, .36, 1)' }
+  const nextHeight = header.getBoundingClientRect().height
+  headerAnimations.push(header.animate([
+    { height: `${previousHeight}px` },
+    { height: `${nextHeight}px` },
+  ], motion))
+
+  elements.forEach((element, index) => {
+    const next = element.getBoundingClientRect()
+    const before = previous[index]
+    headerAnimations.push(element.animate([
+      { transform: `translate(${before.left - next.left}px, ${before.top - next.top}px)`, opacity: 0.65 },
+      { transform: 'translate(0, 0)', opacity: 1 },
+    ], motion))
+  })
+}
+
+function updateHeaderDensity(event) {
+  const scrollTop = event.currentTarget.scrollTop
+  if (!compactHeader.value && scrollTop > 64) void changeHeaderDensity(true)
+  else if (compactHeader.value && scrollTop < 8) void changeHeaderDensity(false)
+}
+
 const revealing = ref(false)
 let revealTimer = null
 
@@ -161,14 +213,19 @@ watch(
   () => props.open,
   async (isOpen) => {
     stopReveal()
+    cancelHeaderMotion()
     if (!isOpen) return
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       revealing.value = true
       revealTimer = window.setTimeout(stopReveal, 110)
     }
+    compactHeader.value = false
     reset()
     await nextTick()
-    if (props.open) closeButton.value?.focus({ preventScroll: true })
+    if (props.open) {
+      if (drawerPanel.value) drawerPanel.value.scrollTop = 0
+      closeButton.value?.focus({ preventScroll: true })
+    }
   },
 )
 
@@ -184,6 +241,7 @@ watch(
 
 onMounted(() => document.addEventListener('keydown', handleKeydown))
 onUnmounted(() => {
+  cancelHeaderMotion()
   stopReveal()
   document.removeEventListener('keydown', handleKeydown)
 })
@@ -197,8 +255,10 @@ onUnmounted(() => {
     @click.self="!submitting && emit('close')"
   >
     <section
+      ref="drawerPanel"
       class="admin-drawer__panel"
       :class="{ 'admin-drawer__panel--revealing': revealing }"
+      @scroll.passive="updateHeaderDensity"
       role="dialog"
       aria-modal="true"
       aria-labelledby="admin-ladder-drawer-title"
@@ -215,11 +275,19 @@ onUnmounted(() => {
         </div>
       </div>
       <template v-else-if="!result">
-        <header class="admin-drawer__header">
+        <header class="admin-drawer__header" :class="{ 'admin-drawer__header--compact': compactHeader }">
           <div>
-            <small>Ladder match</small>
-            <h2 id="admin-ladder-drawer-title">
-              {{ playerA?.name }} <span>vs</span> {{ playerB?.name }}
+            <small>{{ ladder?.name || 'Club Ladder' }} ? Ladder match</small>
+            <h2 id="admin-ladder-drawer-title" class="drawer-match-title">
+              <span class="drawer-match-title__player">
+                <PersonAvatar :name="playerA?.name || ''" :image="playerA?.imageUrl || playerA?.photoUrl || ''" :size="32" />
+                <span :title="playerA?.name" :aria-label="playerA?.name">{{ compactHeader ? shortPlayerName(playerA?.name) : playerA?.name }}</span>
+              </span>
+              <span class="drawer-match-title__versus">vs</span>
+              <span class="drawer-match-title__player">
+                <PersonAvatar :name="playerB?.name || ''" :image="playerB?.imageUrl || playerB?.photoUrl || ''" :size="32" />
+                <span :title="playerB?.name" :aria-label="playerB?.name">{{ compactHeader ? shortPlayerName(playerB?.name) : playerB?.name }}</span>
+              </span>
             </h2>
           </div>
           <button
@@ -232,21 +300,6 @@ onUnmounted(() => {
             ×
           </button>
         </header>
-
-        <div class="matchup">
-          <div>
-            <span class="matchup__person">
-              <PersonAvatar :name="playerA?.name || ''" :image="playerA?.imageUrl" :size="34" />
-              <strong>{{ playerA?.name }}</strong>
-            </span>
-            <i>vs</i>
-            <span class="matchup__person">
-              <PersonAvatar :name="playerB?.name || ''" :image="playerB?.imageUrl" :size="34" />
-              <strong>{{ playerB?.name }}</strong>
-            </span>
-          </div>
-          <p>{{ ladder?.name }} · Ladder match</p>
-        </div>
 
         <fieldset class="timing-choice">
           <legend>When are they playing?</legend>
@@ -1542,6 +1595,135 @@ onUnmounted(() => {
     max-width: 100%;
     min-height: 44px;
     font-size: 16px;
+  }
+}
+/* Persistent matchup context while the settings scroll beneath it. */
+.admin-drawer__header {
+  position: sticky;
+  top: -20px;
+  z-index: 4;
+  margin: -20px -18px 24px;
+  padding: 20px 18px 16px;
+  align-items: flex-start;
+  background: #fff;
+  border-bottom: 1px solid rgba(22, 61, 43, 0.065);
+}
+
+.admin-drawer__header > div > small {
+  display: block;
+  margin-bottom: 12px;
+  color: #163d2b;
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.admin-drawer__header .drawer-match-title {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.admin-drawer__header .drawer-match-title__player {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.admin-drawer__header .drawer-match-title__player > span {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.drawer-match-title__player :deep(.person-avatar) {
+  flex: 0 0 32px;
+}
+
+.admin-drawer__header .drawer-match-title__versus {
+  padding-left: 42px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.admin-drawer__header > button {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+}
+
+@media (min-width: 1181px) {
+  .admin-drawer__panel {
+    top: var(--app-header-height);
+  }
+}
+
+@media (max-width: 767px) {
+  .admin-drawer__header {
+    margin-inline: -16px;
+    padding-inline: 16px;
+  }
+}
+/* Scrolling trades the full introduction for compact, persistent context. */
+.admin-drawer__header--compact {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.admin-drawer__header--compact > div {
+  flex: 1;
+}
+
+.admin-drawer__header--compact > div > small {
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.admin-drawer__header--compact .drawer-match-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-drawer__header--compact .drawer-match-title__player {
+  flex: 1 1 0;
+  gap: 6px;
+}
+
+.admin-drawer__header--compact .drawer-match-title__player > span {
+  font-size: 12px;
+}
+
+.admin-drawer__header--compact .drawer-match-title__player :deep(.person-avatar) {
+  width: 26px !important;
+  height: 26px !important;
+  flex-basis: 26px;
+}
+
+.admin-drawer__header--compact .drawer-match-title__versus {
+  flex: 0 0 auto;
+  padding-left: 0;
+  font-size: 10px;
+}
+/* Keep scroll anchoring from fighting the compact-header animation. */
+.admin-drawer__panel {
+  overflow-anchor: none;
+}
+
+.admin-drawer__header {
+  box-sizing: border-box;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .admin-drawer__header .drawer-match-title__player :deep(.person-avatar) {
+    transition: width 240ms cubic-bezier(.22, 1, .36, 1),
+      height 240ms cubic-bezier(.22, 1, .36, 1),
+      flex-basis 240ms cubic-bezier(.22, 1, .36, 1);
   }
 }
 </style>

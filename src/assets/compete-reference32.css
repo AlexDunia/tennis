@@ -818,3 +818,16 @@
     transition-duration: .001ms !important;
   }
 }
+
+/* The Ladder rail begins at the app sidebar; rows fill the remaining workspace. */
+.gorra-compete-ref.gorra-ladder-ref .ladder-workspace {
+  width: 100%;
+  min-width: 0;
+  padding: 24px 20px 40px;
+}
+
+@media (max-width: 767px) {
+  .gorra-compete-ref.gorra-ladder-ref .ladder-workspace {
+    padding: 20px 12px calc(24px + env(safe-area-inset-bottom));
+  }
+}

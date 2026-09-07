@@ -99,8 +99,12 @@ function selectLadder(ladderId) {
 
 .ladder-rail {
   width: 236px;
-  height: 100%;
-  min-height: calc(100vh - var(--app-header-height));
+  position: sticky;
+  top: var(--app-header-height);
+  height: calc(100dvh - var(--app-header-height));
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 22px 14px;
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -227,7 +231,7 @@ function selectLadder(ladderId) {
   .ladder-navigation__mobile {
     display: grid;
     gap: 6px;
-    padding: 14px 7.5vw 0;
+    padding: 16px 12px 0;
   }
 
   .ladder-navigation__mobile span {

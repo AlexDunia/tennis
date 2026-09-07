@@ -2777,4 +2777,11 @@ onUnmounted(() => {
     width: 80%;
   }
 }
+/* Ladder is a workspace, not a centered document page. */
+.layout .main .content.content--ladder:not(.content--fullscreen):not(.content--public) {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  padding: 0;
+}
 </style>
