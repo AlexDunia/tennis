@@ -1,5 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import {
+  computed,
+  onMounted,
+  ref,
+  watch,
+} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ClubIdentityHero from '../components/club/ClubIdentityHero.vue'
 import PersonAvatar from '../components/PersonAvatar.vue'
@@ -20,11 +25,25 @@ const loadingTournaments = ref(true)
 const pageError = ref('')
 const tournamentError = ref('')
 const allTournaments = ref([])
-const openSection = computed(() => {
-  const section = String(route.params.section || '')
-  if (['members', 'ladders', 'tournaments'].includes(section)) return section
-  return route.query.collapsed === '1' ? '' : 'members'
-})
+const previewSections = new Set([
+  'members',
+  'ladders',
+  'tournaments',
+])
+
+function previewSectionFromRoute() {
+  const section = String(
+    route.params.section || '',
+  )
+
+  return previewSections.has(section)
+    ? section
+    : 'members'
+}
+
+const openSection = ref(
+  previewSectionFromRoute(),
+)
 
 const clubId = computed(() => String(route.params.clubId || ''))
 const club = computed(() =>
@@ -38,6 +57,13 @@ const relationshipLabel = computed(
 )
 const activeClubName = computed(
   () => adminStore.activeClub?.name || 'Your current club',
+)
+
+watch(
+  () => route.params.clubId,
+  () => {
+    openSection.value = 'members'
+  },
 )
 
 const location = computed(() => {
@@ -63,15 +89,14 @@ const ladderPreview = computed(() => activeLadders.value.slice(0, 5))
 const tournamentPreview = computed(() => tournaments.value.slice(0, 5))
 
 function toggleSection(section) {
-  const collapsed = openSection.value === section
-  const query = { ...route.query }
-  delete query.collapsed
-  if (collapsed) query.collapsed = '1'
-  router.push({
-    name: 'ClubVisit',
-    params: { clubId: clubId.value, section: collapsed ? undefined : section },
-    query,
-  })
+  if (!previewSections.has(section)) {
+    return
+  }
+
+  openSection.value =
+    openSection.value === section
+      ? ''
+      : section
 }
 
 function ladderPlayerCount(ladder) {
@@ -135,6 +160,31 @@ useShellNestedHeader(() => ({
 }))
 
 onMounted(async () => {
+  const hasLegacyPreviewState =
+    Boolean(route.params.section) ||
+    Object.prototype.hasOwnProperty.call(
+      route.query,
+      'collapsed',
+    )
+
+  if (hasLegacyPreviewState) {
+    const query = {
+      ...route.query,
+    }
+
+    delete query.collapsed
+
+    await router
+      .replace({
+        name: 'ClubVisit',
+        params: {
+          clubId: clubId.value,
+        },
+        query,
+      })
+      .catch(() => {})
+  }
+
   pageError.value = ''
 
   try {

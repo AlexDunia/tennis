@@ -534,10 +534,19 @@ const migratedRouteNames = new Set([
 ])
 const isMigratedSurface = computed(() => {
   const name = String(route.name || '')
-  return migratedRouteNames.has(name)
-    || name.startsWith('Club')
-    || name.startsWith('Tournament')
-    || ['Rankings', 'Challenges', 'CreateChallenge', 'ChallengeDetails'].includes(name)
+
+  return (
+    migratedRouteNames.has(name) ||
+    name.startsWith('Club') ||
+    name.startsWith('Tournament') ||
+    name.startsWith('Ladder') ||
+    [
+      'Rankings',
+      'Challenges',
+      'CreateChallenge',
+      'ChallengeDetails',
+    ].includes(name)
+  )
 })
 const isWideWorkspace = computed(
   () => isTournamentCreate.value || isTournamentViewer.value || isLadderWorkspace.value,
@@ -1106,7 +1115,7 @@ onUnmounted(() => {
   min-height: 100vh;
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: 'Poppins', sans-serif;
+  font-family: var(--font-family-app);
 }
 
 .layout--migrated {
@@ -1132,7 +1141,7 @@ onUnmounted(() => {
   --app-card-radius: 12px;
   --app-inner-radius: 9px;
   --flow-shadow-quiet: 0 8px 24px rgba(40, 51, 44, 0.025);
-  font-family: Inter, 'Avenir Next', 'Segoe UI', sans-serif;
+  font-family: var(--font-family-app);
 }
 
 .layout--migrated .main {
@@ -1429,8 +1438,8 @@ onUnmounted(() => {
 }
 
 .nav-link.active {
-  background: color-mix(in srgb, var(--color-primary) 8%, white);
-  color: var(--color-primary-strong);
+  background: #163d2b;
+  color: var(--color-light);
 }
 
 .nav-submenu {
@@ -1465,8 +1474,8 @@ onUnmounted(() => {
 }
 
 .nav-sub-link.active {
-  background: color-mix(in srgb, var(--color-primary) 8%, white);
-  color: var(--color-primary-strong);
+  background: #163d2b;
+  color: var(--color-light);
 }
 
 @keyframes primaryNavTrack {

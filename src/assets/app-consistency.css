@@ -6,11 +6,26 @@
   --type-row-title: 14px;
   --type-page-description: 13px;
   --type-meta: 12px;
+
+  --app-control-height: 44px;
+  --app-control-radius: 9px;
+  --app-control-font-size: 13px;
+  --app-control-padding-inline: 12px;
+  --app-select-padding-right: 38px;
 }
 
-.layout--migrated :is(.gorra-compete-ref, .gorra-club-ref, .ladder-view,
-.tournament-hub, .tournament-overview, .tournament-create, .tournament-category,
-.tournament-schedule, .tournament-gallery) {
+.layout--migrated :is(
+  .gorra-compete-ref,
+  .gorra-club-ref,
+  .ladder-view,
+  .ladder-settings,
+  .tournament-hub,
+  .tournament-overview,
+  .tournament-create,
+  .tournament-category,
+  .tournament-schedule,
+  .tournament-gallery
+) {
   font-family: var(--font-family-app);
 }
 
