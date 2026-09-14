@@ -4,8 +4,6 @@ const PersonalInformationView = () =>
 const LadderCreateView = () => import('../views/LadderCreateView.vue')
 const LadderSetupView = () => import('../views/LadderSetupView.vue')
 const LadderImportView = () => import('../views/LadderImportView.vue')
-const LadderImportPickerView = () =>
-  import('../views/LadderImportPickerView.vue')
 const LadderInviteView = () => import('../views/LadderInviteView.vue')
 
 import { createRouter, createWebHistory } from 'vue-router'
@@ -133,7 +131,7 @@ const routes = [
   {
     path: '/rankings/import',
     name: 'LadderImportPicker',
-    component: LadderImportPickerView,
+    redirect: { name: 'Rankings' },
     meta: {
       title: 'Import ladder',
       subtitle: '',

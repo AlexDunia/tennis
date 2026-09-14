@@ -40,7 +40,11 @@ function selectLadder(ladderId) {
       <button type="button" @click="emit('create')">
         + Add ladder
       </button>
-      <button type="button" @click="emit('import')">
+      <button
+        v-if="activeLadderId"
+        type="button"
+        @click="emit('import')"
+      >
         Import
       </button>
     </div>
@@ -73,6 +77,7 @@ function selectLadder(ladderId) {
           <span>+ Add ladder</span>
         </button>
         <button
+          v-if="activeLadderId"
           type="button"
           class="ladder-rail__import"
           @click="emit('import')"

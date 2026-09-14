@@ -5,6 +5,11 @@ import * as XLSX from 'xlsx'
 import BaseButton from '../components/BaseButton.vue'
 import { useAdminStore } from '../stores/admin.js'
 import { sanitizePlainText } from '../utils/formSafety.js'
+import {
+  LADDER_IMPORT_ORIGINS,
+  ladderImportBackRoute,
+  normalizeLadderImportOrigin,
+} from '../utils/ladderImportNavigation.js'
 import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import '../assets/ladder-workspace.css'
 
@@ -28,6 +33,16 @@ const ladder = computed(
     adminStore.activeClub?.setup?.ladders?.find(
       (item) => item.id === ladderId.value && !item.archived,
     ) || null,
+)
+
+const importOrigin = computed(() =>
+  normalizeLadderImportOrigin(String(route.query.from || '')),
+)
+
+const backLabel = computed(() =>
+  importOrigin.value === LADDER_IMPORT_ORIGINS.SETUP_MEMBERS
+    ? 'Back to add people'
+    : 'Back to ladder',
 )
 
 function normalizedKey(value) {
@@ -164,6 +179,10 @@ async function applyImport() {
         ladderId: ladderId.value,
         step: 'order',
       },
+      query: {
+        from: 'import',
+        returnTo: importOrigin.value,
+      },
     })
   } catch (importError) {
     error.value = importError?.message || 'Unable to import this ladder.'
@@ -172,20 +191,21 @@ async function applyImport() {
   }
 }
 
-function cancel() {
-  router.push({
-    name: 'LadderSetup',
-    params: {
+function leaveImport() {
+  return router.push(
+    ladderImportBackRoute({
+      origin: importOrigin.value,
       ladderId: ladderId.value,
-      step: 'members',
-    },
-  })
+    }),
+  )
 }
 
 useShellNestedHeader(() => ({
-  label: 'Import ladder',
-  backLabel: 'Back to members',
-  back: cancel,
+  label: ladder.value
+    ? `Import to ${ladder.value.name}`
+    : 'Import ladder',
+  backLabel: backLabel.value,
+  back: leaveImport,
   crumbs: [
     { label: 'Ladder' },
     { label: ladder.value?.name || 'Current ladder' },
@@ -199,6 +219,11 @@ onMounted(async () => {
 
     if (!adminStore.hasActiveClubPermission('club.manage')) {
       await router.replace({ name: 'Rankings' })
+      return
+    }
+
+    if (!ladder.value) {
+      error.value = 'This ladder could not be found.'
     }
   } catch (loadError) {
     error.value = loadError?.message || 'Unable to open ladder import.'
@@ -212,11 +237,9 @@ onMounted(async () => {
   <main v-if="ready && ladder" class="ladder-workspace-page">
     <header class="ladder-workspace-page__header">
       <p class="ladder-workspace-page__eyebrow">{{ ladder.name }}</p>
-      <h1>Import ladder</h1>
+      <h1>Bring your ladder list</h1>
       <p class="ladder-workspace-page__description">
-        Upload your current order. Existing people are reused by strong
-        identifiers; GORRA does not merge people just because their names look
-        similar.
+        Upload the player list and current order you already use.
       </p>
     </header>
 
@@ -243,10 +266,11 @@ onMounted(async () => {
 
     <section v-if="rows.length" class="lw-section">
       <div class="lw-section__heading">
-        <h2>Review</h2>
+        <h2>Check the order</h2>
         <p>
-          Importing adds/reuses people and prepares the starting order. It does
-          not silently remove existing members.
+          Make sure the names and positions look right before importing.
+          Existing club members are reused when GORRA has a strong match;
+          names alone are never merged.
         </p>
       </div>
 
@@ -270,7 +294,11 @@ onMounted(async () => {
     </section>
 
     <footer class="lw-footer">
-      <BaseButton variant="secondary" :disabled="busy" @click="cancel">
+      <BaseButton
+        variant="secondary"
+        :disabled="busy"
+        @click="leaveImport"
+      >
         Cancel
       </BaseButton>
 

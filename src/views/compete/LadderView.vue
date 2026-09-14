@@ -1314,7 +1314,18 @@ function createLadder() {
 }
 
 function importLadder() {
-  router.push({ name: 'LadderImportPicker' })
+  const ladderId = activeLadder.value?.id
+  if (!ladderId) return
+
+  router.push({
+    name: 'LadderImport',
+    params: {
+      ladderId,
+    },
+    query: {
+      from: 'ladder',
+    },
+  })
 }
 
 function continueLadderSetup(ladder = activeLadder.value) {
@@ -1397,13 +1408,11 @@ function continueLadderSetup(ladder = activeLadder.value) {
         title="No ladders yet"
         :description="
           canManageLadder
-            ? 'Create or import your first club ladder.'
+            ? 'Create your first club ladder. You can add or import players in the next step.'
             : 'Your club has not started a ladder yet.'
         "
         :primary-action-label="canManageLadder ? 'Create ladder' : ''"
-        :secondary-action-label="canManageLadder ? 'Import ladder' : ''"
         @primary-action="createLadder"
-        @secondary-action="importLadder"
       />
     </section>
 
