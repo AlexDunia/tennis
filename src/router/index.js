@@ -1,3 +1,13 @@
+const PersonalInformationView = () =>
+  import('../views/PersonalInformationView.vue')
+
+const LadderCreateView = () => import('../views/LadderCreateView.vue')
+const LadderSetupView = () => import('../views/LadderSetupView.vue')
+const LadderImportView = () => import('../views/LadderImportView.vue')
+const LadderImportPickerView = () =>
+  import('../views/LadderImportPickerView.vue')
+const LadderInviteView = () => import('../views/LadderInviteView.vue')
+
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import RankingsView from '../views/compete/LadderView.vue'
@@ -105,6 +115,54 @@ const routes = [
     meta: {
       title: 'Ladder',
       subtitle: 'Standings, challenges, and ladder activity.',
+      primarySection: 'ladder',
+    },
+  },
+  {
+    path: '/rankings/create',
+    name: 'LadderCreate',
+    component: LadderCreateView,
+    meta: {
+      title: 'Create ladder',
+      subtitle: '',
+      permission: 'club.manage',
+      activeClubPermission: true,
+      primarySection: 'ladder',
+    },
+  },
+  {
+    path: '/rankings/import',
+    name: 'LadderImportPicker',
+    component: LadderImportPickerView,
+    meta: {
+      title: 'Import ladder',
+      subtitle: '',
+      permission: 'club.manage',
+      activeClubPermission: true,
+      primarySection: 'ladder',
+    },
+  },
+  {
+    path: '/rankings/:ladderId/import',
+    name: 'LadderImport',
+    component: LadderImportView,
+    meta: {
+      title: 'Import ladder',
+      subtitle: '',
+      permission: 'club.manage',
+      activeClubPermission: true,
+      primarySection: 'ladder',
+    },
+  },
+  {
+    path: '/rankings/:ladderId/setup/:step(members|order|start)',
+    name: 'LadderSetup',
+    component: LadderSetupView,
+    meta: {
+      title: 'Ladder setup',
+      subtitle: '',
+      permission: 'club.manage',
+      activeClubPermission: true,
       primarySection: 'ladder',
     },
   },
@@ -520,10 +578,30 @@ const routes = [
     },
   },
   {
+    path: '/ladder/invite/:token',
+    name: 'LadderInvite',
+    component: LadderInviteView,
+    meta: {
+      title: 'Join ladder',
+      public: true,
+      primarySection: 'ladder',
+    },
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: ProfileView,
     meta: { title: 'Profile', subtitle: 'Your ladder record and stats.' },
+  },
+  {
+    path: '/profile/personal-information',
+    name: 'PersonalInformation',
+    component: PersonalInformationView,
+    meta: {
+      title: 'Personal information',
+      subtitle: '',
+      primarySection: 'settings',
+    },
   },
   {
     path: '/history',

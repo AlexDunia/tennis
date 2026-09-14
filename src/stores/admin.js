@@ -2,6 +2,12 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ADMIN_SETUP_STEPS, createDefaultClubSetup } from '../config/admin.js'
 import {
+  addClubLadderMembers,
+  createClubLadder,
+  createLadderInvite,
+  importLadderRoster,
+  saveClubLadderStartingOrder,
+  startClubLadder,
   addClubMemberRecord,
   clearActiveClubTestData as clearActiveClubTestDataRequest,
   importClubMemberData,
@@ -515,6 +521,127 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
+  async function refreshAfterLadderOperation(currentActor, result) {
+    const directory = await getClubDirectory(currentActor)
+    applyDirectory(directory)
+    setup.value =
+      result?.club?.setup ||
+      directory.clubs.find((club) => club.id === directory.activeClubId)?.setup ||
+      setup.value
+    return result
+  }
+
+  async function createLadder(input) {
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      return await refreshAfterLadderOperation(
+        currentActor,
+        await createClubLadder(input, currentActor),
+      )
+    } catch (ladderError) {
+      error.value = ladderError?.message || 'Unable to create this ladder.'
+      throw ladderError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function addLadderMembers(ladderId, memberIds) {
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      return await refreshAfterLadderOperation(
+        currentActor,
+        await addClubLadderMembers(ladderId, memberIds, currentActor),
+      )
+    } catch (ladderError) {
+      error.value = ladderError?.message || 'Unable to add ladder members.'
+      throw ladderError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function saveLadderOrder(ladderId, memberIds) {
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      return await refreshAfterLadderOperation(
+        currentActor,
+        await saveClubLadderStartingOrder(ladderId, memberIds, currentActor),
+      )
+    } catch (ladderError) {
+      error.value = ladderError?.message || 'Unable to save the starting order.'
+      throw ladderError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function startLadder(ladderId) {
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      return await refreshAfterLadderOperation(
+        currentActor,
+        await startClubLadder(ladderId, currentActor),
+      )
+    } catch (ladderError) {
+      error.value = ladderError?.message || 'Unable to start this ladder.'
+      throw ladderError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function rotateLadderInvite(ladderId) {
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      const invite = await createLadderInvite(ladderId, currentActor)
+      const directory = await getClubDirectory(currentActor)
+      applyDirectory(directory)
+      setup.value =
+        directory.clubs.find((club) => club.id === directory.activeClubId)
+          ?.setup || setup.value
+      return invite
+    } catch (inviteError) {
+      error.value = inviteError?.message || 'Unable to make this ladder invite.'
+      throw inviteError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function importLadder(ladderId, rows) {
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      return await refreshAfterLadderOperation(
+        currentActor,
+        await importLadderRoster(ladderId, rows, currentActor),
+      )
+    } catch (importError) {
+      error.value = importError?.message || 'Unable to import this ladder.'
+      throw importError
+    } finally {
+      isSaving.value = false
+    }
+  }
+
   function clearError() {
     error.value = ''
   }
@@ -560,6 +687,12 @@ export const useAdminStore = defineStore('admin', () => {
     importMemberData,
     clearActiveClubTestData,
     discardDraft,
+    createLadder,
+    addLadderMembers,
+    saveLadderOrder,
+    startLadder,
+    rotateLadderInvite,
+    importLadder,
     clearError,
   }
 })

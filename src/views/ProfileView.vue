@@ -1,4 +1,7 @@
 <script setup>
+import { useRouter } from 'vue-router'
+import BaseButton from '../components/BaseButton.vue'
+
 import { computed, onMounted } from 'vue'
 import { usePlayerStore } from '../stores/player'
 import { useChallengeStore } from '../stores/challenge'
@@ -6,6 +9,8 @@ import EmptyState from '../components/EmptyState.vue'
 
 const playerStore = usePlayerStore()
 const challengeStore = useChallengeStore()
+const router = useRouter()
+
 
 onMounted(async () => {
   await Promise.all([playerStore.loadPlayers(), challengeStore.loadChallenges()])
@@ -44,6 +49,13 @@ const completedChallenges = computed(
       <div class="profile__identity">
         <h1 class="profile__name">{{ player.name }}</h1>
         <span class="profile__rank-pill">Rank #{{ player.rank }}</span>
+        <BaseButton
+          variant="ghost"
+          @click="router.push({ name: 'PersonalInformation' })"
+        >
+          Personal information
+        </BaseButton>
+
       </div>
     </div>
 
@@ -194,10 +206,10 @@ const completedChallenges = computed(
 </template>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
 
 .profile {
-  font-family: 'Poppins', sans-serif;
+  font-family: var(--font-family-app);
   color: #0f1720;
   display: flex;
   flex-direction: column;
@@ -369,7 +381,7 @@ const completedChallenges = computed(
   padding: 3rem;
   color: #7b8794;
   font-size: 13px;
-  font-family: 'Poppins', sans-serif;
+  font-family: var(--font-family-app);
 }
 
 .profile__spinner {

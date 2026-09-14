@@ -27,7 +27,11 @@ import {
   ladderMatchConfig,
   resolveLadderConfigFromSetup,
 } from '../../config/ladder'
-import { getEligibleLadderOpponents } from '../../services/LadderAccessService'
+import {
+  getEligibleLadderOpponents,
+  getLadderPlayerAvailability,
+} from '../../services/LadderAccessService'
+import { collectClubMembers } from '../../utils/club/memberData.js'
 import { startOrResumeLadderMatch } from '../../services/LadderLiveMatchService.js'
 import {
   clearLadderAdminTestState,
@@ -76,20 +80,7 @@ const activeClub = computed(() => adminStore.activeClub)
 
 const configuredLadders = computed(() => {
   if (!activeClub.value) return []
-
-  if (adminStore.activeLadders.length) {
-    return adminStore.activeLadders
-  }
-
-  const config = getActiveLadderConfig()
-
-  return [
-    {
-      id: config.id,
-      name: config.name,
-      matchType: config.matchType || 'singles',
-    },
-  ]
+  return adminStore.activeLadders
 })
 
 function ladderHasPlayer(ladder, player) {
@@ -113,19 +104,50 @@ function ladderHasPlayer(ladder, player) {
 }
 
 function rawRosterFor(ladder) {
+  const entries = Array.isArray(ladder?.entries) ? ladder.entries : []
+
+  if (entries.length) {
+    const membersById = new Map(
+      collectClubMembers(activeClub.value?.setup || {}).map((member) => [
+        member.id,
+        member,
+      ]),
+    )
+
+    return entries
+      .filter(
+        (entry) =>
+          entry.status === 'active' &&
+          Number(entry.position) >= 1,
+      )
+      .map((entry) => {
+        const member = membersById.get(entry.memberId)
+        if (!member) return null
+
+        return {
+          ...member,
+          id: member.id,
+          name: member.name || 'Club member',
+          imageUrl: member.photoUrl || '',
+          rank: Number(entry.position),
+          ladderRank: Number(entry.position),
+          ladderId: ladder.id,
+          ladderEntryStatus: entry.status,
+        }
+      })
+      .filter(Boolean)
+      .sort((left, right) => left.rank - right.rank)
+  }
+
   const hasExplicitMembership =
     Array.isArray(ladder?.playerIds) ||
     Array.isArray(ladder?.memberIds) ||
-    basePlayers.value.some(
-      (player) => Array.isArray(player.ladderIds),
-    )
+    basePlayers.value.some((player) => Array.isArray(player.ladderIds))
 
-  if (!hasExplicitMembership) {
-    return basePlayers.value
-  }
+  if (!hasExplicitMembership) return basePlayers.value
 
-  return basePlayers.value.filter(
-    (player) => ladderHasPlayer(ladder, player),
+  return basePlayers.value.filter((player) =>
+    ladderHasPlayer(ladder, player),
   )
 }
 
@@ -360,14 +382,28 @@ function isCurrentPlayer(player) {
   )
 }
 
+function availabilityFor(player) {
+  return getLadderPlayerAvailability({
+    player,
+    challenges: challengeStore.challenges,
+    config: activeLadderConfig.value,
+  })
+}
+
 function canMemberChallenge(player) {
+  const currentAvailability = getLadderPlayerAvailability({
+    player: currentLadderPlayer.value,
+    challenges: challengeStore.challenges,
+    config: activeLadderConfig.value,
+  })
+
+  const opponentAvailability = availabilityFor(player)
+
   return (
     !canManageLadder.value &&
-    adminStore.hasActiveClubPermission(
-      'challenges.create',
-    ) &&
-    !currentLadderPlayer.value?.challengePaused &&
-    !player?.challengePaused &&
+    adminStore.hasActiveClubPermission('challenges.create') &&
+    currentAvailability.available &&
+    opponentAvailability.available &&
     isEligibleLadderOpponent(
       currentLadderPlayer.value,
       player,
@@ -1273,6 +1309,30 @@ onUnmounted(() => {
   challengeScrollFrame = 0
   shell?.endAdminMatchDrawer?.()
 })
+function createLadder() {
+  router.push({ name: 'LadderCreate' })
+}
+
+function importLadder() {
+  router.push({ name: 'LadderImportPicker' })
+}
+
+function continueLadderSetup(ladder = activeLadder.value) {
+  if (!ladder?.id) return
+
+  const step = ['members', 'order', 'start'].includes(ladder.setupStep)
+    ? ladder.setupStep
+    : 'members'
+
+  router.push({
+    name: 'LadderSetup',
+    params: {
+      ladderId: ladder.id,
+      step,
+    },
+  })
+}
+
 </script>
 
 <template>
@@ -1300,10 +1360,55 @@ onUnmounted(() => {
       :club="activeClub"
       :ladders="ladders"
       :active-ladder-id="activeLadder?.id || ''"
+      :can-manage="canManageLadder"
       @select="selectLadder"
+      @create="createLadder"
+      @import="importLadder"
     />
 
-    <main class="ladder-workspace">
+    <section
+      v-if="activeLadder?.status === 'setup'"
+      class="ladder-setup-gate"
+    >
+      <div>
+        <span>Setup not finished</span>
+        <h2>{{ activeLadder.name }}</h2>
+        <p>
+          Add members, set the starting order, then start the ladder.
+        </p>
+      </div>
+
+      <button
+        v-if="canManageLadder"
+        type="button"
+        class="button-primary"
+        @click="continueLadderSetup(activeLadder)"
+      >
+        Continue setup
+      </button>
+    </section>
+
+    <section
+      v-else-if="!activeLadder"
+      class="ladder-zero"
+    >
+      <EmptyState
+        illustration="ladder"
+        title="No ladders yet"
+        :description="
+          canManageLadder
+            ? 'Create or import your first club ladder.'
+            : 'Your club has not started a ladder yet.'
+        "
+        :primary-action-label="canManageLadder ? 'Create ladder' : ''"
+        :secondary-action-label="canManageLadder ? 'Import ladder' : ''"
+        @primary-action="createLadder"
+        @secondary-action="importLadder"
+      />
+    </section>
+
+
+    <main v-if="activeLadder && activeLadder.status !== 'setup'" class="ladder-workspace">
       <div
         v-if="playerStore.isLoading"
         class="ladder-loading"
@@ -1495,17 +1600,15 @@ onUnmounted(() => {
               <span class="ladder-row__player">
                 <strong>{{ player.name }}</strong>
 
-                <small
-                  v-if="isCurrentPlayer(player)"
-                >
+                <small v-if="isCurrentPlayer(player)">
                   You
                 </small>
 
                 <small
-                  v-else-if="player.challengePaused"
+                  v-if="!availabilityFor(player).available"
                   class="ladder-row__paused"
                 >
-                  Paused
+                  {{ availabilityFor(player).label }}
                 </small>
               </span>
 
@@ -2495,5 +2598,61 @@ onUnmounted(() => {
     width: 100%;
   }
 }
+.ladder-setup-gate,
+.ladder-zero {
+  width: min(100%, 720px);
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+.ladder-setup-gate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.ladder-setup-gate > div {
+  display: grid;
+  gap: 5px;
+}
+
+.ladder-setup-gate span {
+  color: var(--color-primary-strong);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ladder-setup-gate h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-section-title, 18px);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ladder-setup-gate p {
+  margin: 0;
+  max-width: 520px;
+  color: var(--color-muted);
+  font-size: var(--type-page-description, 13px);
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .ladder-setup-gate {
+    align-items: stretch;
+    flex-direction: column;
+    margin-top: 24px;
+    padding: 0 16px;
+  }
+
+  .ladder-zero {
+    margin-top: 24px;
+    padding: 0 16px;
+  }
+}
+
 </style>
 

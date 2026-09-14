@@ -1,4 +1,8 @@
 import {
+  normalizeLadderWorkspaceFields,
+} from '../../domain/ladderWorkspace.js'
+
+import {
   ADMIN_SETUP_STEPS,
   CLUB_COVER_PRESET_IDS,
   CLUB_MEMBERSHIP_ROLES,
@@ -317,14 +321,19 @@ function normalizeLadders(
 ) {
   const source = Array.isArray(input) ? input : defaults
   const ladderIds = new Set()
+
   return source
-    .slice(0, 12)
+    .slice(0, 24)
     .map((rawLadder, index) => {
       const ladder = asObject(rawLadder)
       const template = LADDER_TEMPLATES.find((item) => item.id === ladder.id)
+
       let id = sanitizeDirectoryId(ladder.id, `ladder-${index + 1}`)
       while (ladderIds.has(id)) id = `${id}-${index + 1}`
       ladderIds.add(id)
+
+      const legacyActive = !Object.prototype.hasOwnProperty.call(ladder, 'status')
+
       return {
         id,
         name: sanitizePlainText(ladder.name || template?.name, 70),
@@ -333,10 +342,8 @@ function normalizeLadders(
           : template?.matchType || 'singles',
         enabled: ladder.enabled !== false,
         archived: Boolean(ladder.archived),
-        rules: normalizeLadderRules(
-          ladder.rules,
-          fallbackRules,
-        ),
+        ...normalizeLadderWorkspaceFields(ladder, { legacyActive }),
+        rules: normalizeLadderRules(ladder.rules, fallbackRules),
       }
     })
     .filter((ladder) => ladder.id && ladder.name)

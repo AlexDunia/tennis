@@ -1,0 +1,327 @@
+.ladder-workspace-page {
+  width: min(100%, 780px);
+  margin: 0 auto;
+  padding: 4px 0 48px;
+  color: var(--color-text);
+  font-family: var(--font-family-app);
+}
+
+.ladder-workspace-page__header {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 30px;
+}
+
+.ladder-workspace-page__eyebrow {
+  margin: 0;
+  color: var(--color-primary-strong);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ladder-workspace-page h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(22px, 3vw, 28px);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.ladder-workspace-page__description {
+  margin: 0;
+  max-width: 620px;
+  color: var(--color-muted);
+  font-size: var(--type-page-description, 13px);
+  line-height: 1.55;
+}
+
+.lw-form {
+  display: grid;
+  gap: 34px;
+}
+
+.lw-section {
+  display: grid;
+  gap: 16px;
+}
+
+.lw-section + .lw-section {
+  padding-top: 28px;
+  border-top: 1px solid var(--color-border);
+}
+
+.lw-section__heading {
+  display: grid;
+  gap: 4px;
+}
+
+.lw-section__heading h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-section-title, 18px);
+  font-weight: var(--font-weight-semibold);
+}
+
+.lw-section__heading p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.lw-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.lw-field {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.lw-field--full {
+  grid-column: 1 / -1;
+}
+
+.lw-field > span,
+.lw-label {
+  color: var(--color-text-soft);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.lw-field input,
+.lw-field select {
+  width: 100%;
+  min-height: var(--app-control-height, 44px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-control-radius, 9px);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--app-control-font-size, 13px);
+}
+
+.lw-field input {
+  padding: 0 var(--app-control-padding-inline, 12px);
+}
+
+.lw-field select {
+  padding:
+    0
+    var(--app-select-padding-right, 38px)
+    0
+    var(--app-control-padding-inline, 12px);
+}
+
+.lw-field input:focus,
+.lw-field select:focus {
+  border-color:
+    color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
+  outline: 0;
+  box-shadow:
+    0 0 0 2px
+    color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.lw-field small {
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.lw-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.lw-choice {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-soft);
+  font-size: 13px;
+}
+
+.lw-choice input {
+  accent-color: var(--color-primary);
+}
+
+.lw-rule-row,
+.lw-summary-row {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 0;
+}
+
+.lw-rule-row strong,
+.lw-summary-row strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.lw-rule-row small,
+.lw-summary-row small {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.lw-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lw-text-button {
+  min-height: 38px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary-strong);
+  font: inherit;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.lw-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.lw-alert,
+.lw-success {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: var(--app-control-radius, 9px);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.lw-alert {
+  border: 1px solid rgba(164, 71, 64, 0.14);
+  background: rgba(164, 71, 64, 0.045);
+  color: #92504b;
+}
+
+.lw-success {
+  border: 1px solid rgba(0, 143, 21, 0.14);
+  background: rgba(0, 143, 21, 0.045);
+  color: var(--color-primary-strong);
+}
+
+.lw-list {
+  border-top: 1px solid var(--color-border);
+}
+
+.lw-list-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 62px;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.lw-list-row strong {
+  display: block;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.lw-list-row small {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.lw-order-number {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-surface-soft);
+  color: var(--color-primary-strong);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.lw-order-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.lw-order-actions button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-control-radius, 9px);
+  background: var(--color-surface);
+  color: var(--color-text-soft);
+  font: inherit;
+}
+
+.lw-order-actions button:disabled {
+  opacity: 0.35;
+}
+
+@media (max-width: 640px) {
+  .ladder-workspace-page {
+    width: 100%;
+    padding: 4px 16px 92px;
+  }
+
+  .ladder-workspace-page__header {
+    margin-bottom: 24px;
+  }
+
+  .lw-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lw-field--full {
+    grid-column: auto;
+  }
+
+  .lw-rule-row,
+  .lw-summary-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lw-footer {
+    position: sticky;
+    z-index: 5;
+    bottom: 0;
+    margin: 0 -16px -92px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+    backdrop-filter: blur(10px);
+  }
+
+  .lw-footer > * {
+    flex: 1;
+  }
+}

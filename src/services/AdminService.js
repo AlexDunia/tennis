@@ -1,4 +1,21 @@
 import {
+  digestLadderInviteToken,
+  evaluateLadderEligibility,
+  ladderEligibilityMissingFields,
+  normalizeLadderEntries,
+  sanitizeLadderJoinProfile,
+  validLadderInviteToken,
+} from '../domain/ladderWorkspace.js'
+import {
+  addMembersToLadder,
+  createLadderFromForm,
+  ladderPublicSummary,
+  prepareLadderJoin,
+  saveStartingOrder,
+  startLadder,
+} from './LadderWorkspaceService.js'
+
+import {
   ADMIN_SETUP_STEPS,
   CLUB_DIRECTORY_SCHEMA_VERSION,
   CLUB_DIRECTORY_STORAGE_KEY,
@@ -27,6 +44,7 @@ import {
 } from '../utils/admin/memberRecords.js'
 import {
   addManualMemberPatch,
+  collectClubMembers,
   memberCollectionsPatch,
   mergeMemberImportIntoSetup,
   previewMemberImportIntoSetup,
@@ -1690,3 +1708,703 @@ export const joinClub = joinClubWithInvite
 export const switchClub = switchActiveClub
 export const updateActiveClub = updateActiveClubSetup
 export const discardDraft = discardClubSetupDraft
+
+function ladderRecord(club, ladderIdInput) {
+  const ladderId = sanitizeDirectoryId(ladderIdInput)
+
+  return (
+    (club?.setup?.ladders || []).find(
+      (ladder) => ladder.id === ladderId && !ladder.archived,
+    ) || null
+  )
+}
+
+function replaceClubLadder(club, ladder) {
+  return normalizeClubSetup({
+    ...club.setup,
+    ladders: club.setup.ladders.map((item) =>
+      item.id === ladder.id ? ladder : item,
+    ),
+  })
+}
+
+function publicDirectory() {
+  return readStoredDirectory() || createEmptyDirectory()
+}
+
+function linkedClubMember(club, userIdInput) {
+  const userId = sanitizeDirectoryId(userIdInput)
+  if (!userId) return null
+
+  return (
+    collectClubMembers(club?.setup || {}).find(
+      (member) => sanitizeDirectoryId(member.userId) === userId,
+    ) || null
+  )
+}
+
+function publicProfile(member) {
+  if (!member) return null
+
+  return {
+    memberId: member.id,
+    name: sanitizePlainText(member.name, 100),
+    email: sanitizePlainText(member.email, 254).toLowerCase(),
+    phone: sanitizePlainText(member.phone, 30),
+    gender: sanitizePlainText(member.gender, 30),
+    dob: sanitizePlainText(member.dob, 10),
+    level: sanitizePlainText(member.level, 50),
+  }
+}
+
+function nextPublicMemberId(name, members) {
+  const base = sanitizeDirectoryId(name, 'member')
+  const used = new Set(members.map((member) => member.id))
+
+  if (!used.has(base)) return base
+
+  for (let suffix = 2; suffix <= 9999; suffix += 1) {
+    const candidate = `${base}-${suffix}`.slice(0, 80)
+    if (!used.has(candidate)) return candidate
+  }
+
+  const random =
+    globalThis.crypto?.randomUUID?.() ||
+    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+  return sanitizeDirectoryId(
+    `member-${random}`,
+    `member-${Date.now()}`,
+  )
+}
+
+async function resolveLadderInvite(tokenInput) {
+  const token = sanitizePlainText(tokenInput, 64)
+  if (!validLadderInviteToken(token)) return null
+
+  const digest = await digestLadderInviteToken(token)
+  if (!digest) return null
+
+  const directory = publicDirectory()
+
+  for (const club of directory.clubs) {
+    for (const ladder of club.setup?.ladders || []) {
+      if (
+        ladder.archived ||
+        ladder.invite?.enabled !== true ||
+        !ladder.invite?.tokenDigest
+      ) {
+        continue
+      }
+
+      if (ladder.invite.tokenDigest === digest) {
+        return { directory, club, ladder }
+      }
+    }
+  }
+
+  return null
+}
+
+function persistManagerClub(directory, userId, context, nextSetup) {
+  const timestamp = nowIso()
+
+  const nextClub = {
+    ...context.club,
+    setup: normalizeClubSetup(nextSetup),
+    updatedAt: timestamp,
+  }
+
+  const nextDirectory = {
+    ...directory,
+    clubs: directory.clubs.map((club) =>
+      club.id === nextClub.id ? nextClub : club,
+    ),
+  }
+
+  writeDirectory(nextDirectory, userId)
+
+  return nextClub
+}
+
+export async function createClubLadder(input, actor) {
+  const userId = requireUserId(actor)
+  const directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+
+  const result = createLadderFromForm({
+    setup: context.club.setup,
+    input,
+  })
+
+  const nextClub = persistManagerClub(
+    directory,
+    userId,
+    context,
+    {
+      ...context.club.setup,
+      ladders: result.ladders,
+    },
+  )
+
+  return {
+    club: nextClub,
+    ladder: ladderRecord(nextClub, result.ladder.id),
+  }
+}
+
+export async function addClubLadderMembers(ladderId, memberIds, actor) {
+  const userId = requireUserId(actor)
+  const directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+
+  const result = addMembersToLadder({
+    setup: context.club.setup,
+    ladderId,
+    memberIds,
+    source: 'admin',
+  })
+
+  const nextClub = persistManagerClub(
+    directory,
+    userId,
+    context,
+    {
+      ...context.club.setup,
+      ladders: result.ladders,
+    },
+  )
+
+  return {
+    club: nextClub,
+    ladder: ladderRecord(nextClub, result.ladder.id),
+  }
+}
+
+export async function saveClubLadderStartingOrder(
+  ladderId,
+  memberIds,
+  actor,
+) {
+  const userId = requireUserId(actor)
+  const directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+
+  const result = saveStartingOrder({
+    setup: context.club.setup,
+    ladderId,
+    memberIds,
+  })
+
+  const nextClub = persistManagerClub(
+    directory,
+    userId,
+    context,
+    {
+      ...context.club.setup,
+      ladders: result.ladders,
+    },
+  )
+
+  return {
+    club: nextClub,
+    ladder: ladderRecord(nextClub, result.ladder.id),
+  }
+}
+
+export async function startClubLadder(ladderId, actor) {
+  const userId = requireUserId(actor)
+  const directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+
+  const result = startLadder({
+    setup: context.club.setup,
+    ladderId,
+  })
+
+  const nextClub = persistManagerClub(
+    directory,
+    userId,
+    context,
+    {
+      ...context.club.setup,
+      ladders: result.ladders,
+      primaryLadderId:
+        context.club.setup.primaryLadderId || result.ladder.id,
+    },
+  )
+
+  return {
+    club: nextClub,
+    ladder: ladderRecord(nextClub, result.ladder.id),
+  }
+}
+
+export async function createLadderInvite(ladderId, actor) {
+  const userId = requireUserId(actor)
+  const directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+
+  const ladder = ladderRecord(context.club, ladderId)
+
+  if (!ladder) {
+    throw createServiceError(
+      'This ladder could not be found.',
+      'LADDER_NOT_FOUND',
+    )
+  }
+
+  const token = createPrivateInvitationToken()
+
+  if (!token) {
+    throw createServiceError(
+      'Unable to make a secure invite on this device.',
+      'CRYPTO_UNAVAILABLE',
+    )
+  }
+
+  const tokenDigest = await digestLadderInviteToken(token)
+
+  if (!tokenDigest) {
+    throw createServiceError(
+      'Unable to secure this invite.',
+      'CRYPTO_UNAVAILABLE',
+    )
+  }
+
+  const timestamp = nowIso()
+
+  const nextLadder = {
+    ...ladder,
+    invite: {
+      enabled: true,
+      tokenDigest,
+      createdAt: ladder.invite?.createdAt || timestamp,
+      rotatedAt: timestamp,
+    },
+  }
+
+  const nextClub = persistManagerClub(
+    directory,
+    userId,
+    context,
+    replaceClubLadder(context.club, nextLadder),
+  )
+
+  return {
+    token,
+    clubId: nextClub.id,
+    ladderId: nextLadder.id,
+  }
+}
+
+export async function previewLadderInvite(token, actor = {}) {
+  const resolved = await resolveLadderInvite(token)
+
+  if (!resolved) {
+    throw createServiceError(
+      'This ladder invite is not available.',
+      'INVALID_LADDER_INVITE',
+    )
+  }
+
+  const userId = actorUserId(actor)
+  const member = userId
+    ? linkedClubMember(resolved.club, userId)
+    : null
+
+  const summary = ladderPublicSummary({
+    club: resolved.club,
+    ladder: resolved.ladder,
+  })
+
+  const profile = publicProfile(member)
+
+  const missingFields = profile
+    ? ladderEligibilityMissingFields(
+        resolved.ladder.eligibility,
+        profile,
+      )
+    : []
+
+  const eligibilityResult = profile
+    ? evaluateLadderEligibility({
+        eligibility: resolved.ladder.eligibility,
+        profile,
+      })
+    : null
+
+  return {
+    ...summary,
+    eligibilityRules: summary.eligibility,
+    knownProfile: profile,
+    missingFields,
+    eligibilityResult,
+    alreadyJoined: Boolean(
+      member &&
+        normalizeLadderEntries(resolved.ladder.entries).some(
+          (entry) => entry.memberId === member.id,
+        ),
+    ),
+  }
+}
+
+export async function joinLadderWithInvite(
+  token,
+  input = {},
+  actor = {},
+) {
+  const resolved = await resolveLadderInvite(token)
+
+  if (!resolved) {
+    throw createServiceError(
+      'This ladder invite is not available.',
+      'INVALID_LADDER_INVITE',
+    )
+  }
+
+  let { directory, club, ladder } = resolved
+  const userId = actorUserId(actor)
+  const existingLinked = userId ? linkedClubMember(club, userId) : null
+
+  const prepared = prepareLadderJoin({
+    ladder,
+    existingProfile: publicProfile(existingLinked),
+    input,
+  })
+
+  if (!prepared.ok) {
+    throw createServiceError(
+      prepared.message ||
+        'You cannot join this ladder with the information provided.',
+      prepared.eligibility?.complete
+        ? 'NOT_ELIGIBLE'
+        : 'PROFILE_INCOMPLETE',
+      { missing: prepared.eligibility?.missing || [] },
+    )
+  }
+
+  const profile = sanitizeLadderJoinProfile(prepared.profile)
+  const members = collectClubMembers(club.setup)
+  let member = existingLinked
+
+  if (!member) {
+    const emailMatch = profile.email
+      ? members.find(
+          (item) =>
+            sanitizePlainText(item.email, 254).toLowerCase() === profile.email,
+        )
+      : null
+
+    /*
+     * Anonymous/public input may not claim an existing person by knowing
+     * their email. Production may link only after verified authentication.
+     */
+    if (emailMatch) {
+      throw createServiceError(
+        'This email already belongs to a club member. Sign in with that account or ask the club administrator for help.',
+        'IDENTITY_VERIFICATION_REQUIRED',
+      )
+    }
+
+    member = {
+      id: nextPublicMemberId(profile.name, members),
+      userId: userId || '',
+      ...profile,
+      role: 'player',
+      source: 'invite',
+      status: 'active',
+      photoUrl: '',
+      memberNumber: '',
+      yearOfEntry: '',
+      rating: '',
+      ladderMemberships: [],
+    }
+
+    club = {
+      ...club,
+      setup: normalizeClubSetup({
+        ...club.setup,
+        membership: {
+          ...club.setup.membership,
+          manualMembers: [
+            ...(club.setup.membership?.manualMembers || []),
+            member,
+          ],
+        },
+      }),
+    }
+  } else {
+    const membership = memberCollectionsPatch(
+      club.setup,
+      member.id,
+      (current) => ({
+        ...current,
+        /*
+         * Invite may fill missing reusable profile facts only.
+         * It cannot mutate Ladder position/rules/status authority.
+         */
+        name: current.name || profile.name,
+        email: current.email || profile.email,
+        phone: current.phone || profile.phone,
+        gender: current.gender || profile.gender,
+        dob: current.dob || profile.dob,
+        level: current.level || profile.level,
+      }),
+    )
+
+    club = {
+      ...club,
+      setup: normalizeClubSetup({
+        ...club.setup,
+        membership,
+      }),
+    }
+
+    member = collectClubMembers(club.setup).find(
+      (item) => item.id === member.id,
+    )
+  }
+
+  ladder = ladderRecord(club, ladder.id)
+
+  const entries = normalizeLadderEntries(ladder.entries)
+  const existingEntry = entries.find(
+    (entry) => entry.memberId === member.id,
+  )
+
+  if (!existingEntry) {
+    entries.push({
+      memberId: member.id,
+      status: 'pending_placement',
+      position: null,
+      setupOrder: entries.length + 1,
+      joinedAt: nowIso(),
+      source: 'invite',
+    })
+  }
+
+  const nextLadder = { ...ladder, entries }
+  const nextSetup = replaceClubLadder(club, nextLadder)
+  const timestamp = nowIso()
+
+  const nextClub = {
+    ...club,
+    setup: nextSetup,
+    updatedAt: timestamp,
+  }
+
+  directory = {
+    ...directory,
+    clubs: directory.clubs.map((item) =>
+      item.id === nextClub.id ? nextClub : item,
+    ),
+  }
+
+  /*
+   * Anonymous invite acceptance creates/links the ClubMember and LadderEntry.
+   * It does not fabricate an authenticated Club relationship.
+   */
+  writeDirectory(directory, userId || '')
+
+  return {
+    clubId: nextClub.id,
+    ladderId: nextLadder.id,
+    memberId: member.id,
+    status: existingEntry?.status || 'pending_placement',
+  }
+}
+
+function normalizeImportRow(input, index) {
+  const name = sanitizePlainText(
+    input?.name || input?.player || input?.fullName,
+    100,
+  )
+  const email = sanitizePlainText(input?.email, 254).toLowerCase()
+  const position = Number.parseInt(
+    input?.position ?? input?.rank ?? index + 1,
+    10,
+  )
+
+  if (
+    name.length < 2 ||
+    !Number.isInteger(position) ||
+    position < 1 ||
+    position > 10000
+  ) {
+    return null
+  }
+
+  if (
+    email &&
+    !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/i.test(email)
+  ) {
+    return null
+  }
+
+  return {
+    name,
+    email,
+    phone: sanitizePlainText(input?.phone, 30),
+    gender: sanitizePlainText(input?.gender, 30),
+    dob: sanitizePlainText(input?.dob || input?.dateOfBirth, 10),
+    level: sanitizePlainText(input?.level || input?.skill, 50),
+    position,
+  }
+}
+
+export async function importLadderRoster(ladderId, rows, actor) {
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+
+  const ladder = ladderRecord(context.club, ladderId)
+
+  if (!ladder) {
+    throw createServiceError(
+      'This ladder could not be found.',
+      'LADDER_NOT_FOUND',
+    )
+  }
+
+  const source = (Array.isArray(rows) ? rows : [])
+    .slice(0, 500)
+    .map(normalizeImportRow)
+    .filter(Boolean)
+
+  if (!source.length) {
+    throw createServiceError('No usable ladder rows were found.', 'EMPTY_IMPORT')
+  }
+
+  const positions = new Set()
+  const emails = new Set()
+
+  for (const row of source) {
+    if (positions.has(row.position)) {
+      throw createServiceError(
+        `Position #${row.position} appears more than once.`,
+        'DUPLICATE_POSITION',
+      )
+    }
+
+    positions.add(row.position)
+
+    if (row.email) {
+      if (emails.has(row.email)) {
+        throw createServiceError(
+          `The email ${row.email} appears more than once.`,
+          'DUPLICATE_IDENTITY',
+        )
+      }
+      emails.add(row.email)
+    }
+  }
+
+  let workingSetup = context.club.setup
+  const imported = []
+  let createdMembers = 0
+  let reusedMembers = 0
+
+  for (const row of [...source].sort((a, b) => a.position - b.position)) {
+    const members = collectClubMembers(workingSetup)
+
+    const existing = row.email
+      ? members.find(
+          (member) =>
+            sanitizePlainText(member.email, 254).toLowerCase() === row.email,
+        )
+      : null
+
+    let memberId = existing?.id || ''
+
+    if (existing) {
+      reusedMembers += 1
+    } else {
+      /*
+       * Deliberately no name-only auto merge.
+       * Temporary duplicate > merging two different humans.
+       */
+      const patch = addManualMemberPatch(workingSetup, {
+        ...row,
+        role: 'player',
+      })
+
+      workingSetup = normalizeClubSetup({
+        ...workingSetup,
+        membership: patch.membership,
+      })
+
+      memberId = patch.record.id
+      createdMembers += 1
+    }
+
+    imported.push({
+      memberId,
+      position: row.position,
+    })
+  }
+
+  const latestLadder = ladderRecord(
+    { ...context.club, setup: workingSetup },
+    ladder.id,
+  )
+
+  const entryMap = new Map(
+    normalizeLadderEntries(latestLadder.entries).map((entry) => [
+      entry.memberId,
+      entry,
+    ]),
+  )
+
+  imported.forEach(({ memberId, position }) => {
+    const current = entryMap.get(memberId)
+
+    entryMap.set(memberId, {
+      memberId,
+      status: 'pending_placement',
+      position: null,
+      setupOrder: position,
+      joinedAt: current?.joinedAt || nowIso(),
+      source: current?.source || 'import',
+    })
+  })
+
+  const nextLadder = {
+    ...latestLadder,
+    entries: [...entryMap.values()],
+    setupStep: 'order',
+  }
+
+  const nextSetup = normalizeClubSetup({
+    ...workingSetup,
+    ladders: workingSetup.ladders.map((item) =>
+      item.id === nextLadder.id ? nextLadder : item,
+    ),
+  })
+
+  const timestamp = nowIso()
+  const nextClub = {
+    ...context.club,
+    setup: nextSetup,
+    updatedAt: timestamp,
+  }
+
+  directory = {
+    ...directory,
+    clubs: directory.clubs.map((club) =>
+      club.id === nextClub.id ? nextClub : club,
+    ),
+  }
+
+  writeDirectory(directory, userId)
+
+  return {
+    club: nextClub,
+    ladder: ladderRecord(nextClub, nextLadder.id),
+    summary: {
+      rows: source.length,
+      createdMembers,
+      reusedMembers,
+    },
+  }
+}

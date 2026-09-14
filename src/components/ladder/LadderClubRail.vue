@@ -5,9 +5,10 @@ const props = defineProps({
   club: { type: Object, default: null },
   ladders: { type: Array, default: () => [] },
   activeLadderId: { type: String, default: '' },
+  canManage: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['select'])
+const emit = defineEmits(['select', 'create', 'import'])
 
 const clubName = computed(() => props.club?.name || 'Your tennis club')
 const clubLogo = computed(
@@ -32,6 +33,18 @@ function selectLadder(ladderId) {
 
 <template>
   <div class="ladder-navigation">
+    <div
+      v-if="canManage"
+      class="ladder-navigation__mobile-actions"
+    >
+      <button type="button" @click="emit('create')">
+        + Add ladder
+      </button>
+      <button type="button" @click="emit('import')">
+        Import
+      </button>
+    </div>
+
     <label class="ladder-navigation__mobile">
       <span>Ladder</span>
       <select
@@ -55,6 +68,19 @@ function selectLadder(ladderId) {
         </span>
       </div>
 
+      <div v-if="canManage" class="ladder-rail__actions">
+        <button type="button" @click="emit('create')">
+          <span>+ Add ladder</span>
+        </button>
+        <button
+          type="button"
+          class="ladder-rail__import"
+          @click="emit('import')"
+        >
+          <span>Import ladder</span>
+        </button>
+      </div>
+
       <section v-if="yourLadders.length" class="ladder-rail__group">
         <h2>Your ladders</h2>
         <button
@@ -66,7 +92,9 @@ function selectLadder(ladderId) {
           @click="selectLadder(ladder.id)"
         >
           <span><i aria-hidden="true"></i>{{ ladder.name }}</span>
-          <small>{{ ladder.playerCount }}</small>
+          <small>
+  {{ ladder.status === 'setup' ? 'Setup' : ladder.playerCount }}
+</small>
         </button>
       </section>
 
@@ -81,7 +109,9 @@ function selectLadder(ladderId) {
           @click="selectLadder(ladder.id)"
         >
           <span><i aria-hidden="true"></i>{{ ladder.name }}</span>
-          <small>{{ ladder.playerCount }}</small>
+          <small>
+  {{ ladder.status === 'setup' ? 'Setup' : ladder.playerCount }}
+</small>
         </button>
       </section>
     </aside>
@@ -227,7 +257,67 @@ function selectLadder(ladderId) {
   font-size: 10px;
 }
 
+.ladder-rail__actions {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 0 1px 5px;
+}
+
+.ladder-rail__actions button {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-control-radius, 9px);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+}
+
+.ladder-rail__actions button:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-soft);
+}
+
+.ladder-rail__actions .ladder-rail__import {
+  border-color: transparent;
+  color: var(--color-primary-strong);
+}
+
+.ladder-navigation__mobile-actions {
+  display: none;
+}
+
 @media (max-width: 767px) {
+  .ladder-navigation__mobile-actions {
+    display: flex;
+    gap: 8px;
+    padding: 14px 12px 0;
+  }
+
+  .ladder-navigation__mobile-actions button {
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--app-control-radius, 9px);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .ladder-navigation__mobile select {
+    padding:
+      0
+      var(--app-select-padding-right, 38px)
+      0
+      var(--app-control-padding-inline, 12px);
+  }
+
   .ladder-navigation__mobile {
     display: grid;
     gap: 6px;
