@@ -1,14 +1,7 @@
-import { challengeViewState, isChallengeParticipant } from '../challenge/challengeLifecycle'
+import { belongsToHomeClub } from './homeChallengeContext.js'
+import { challengeViewState, isChallengeParticipant } from '../challenge/challengeLifecycle.js'
 
-/*
- * A pending result is promoted while it still feels like
- * continuation of the match the user was just involved in.
- *
- * After this window the review remains required, but it
- * should no longer permanently dominate Home.
- */
-const RESULT_REVIEW_PRIORITY_WINDOW_MS = 4 * 60 * 60 * 1000
-
+// Pending review remains actionable until the lifecycle resolves it.
 function normalizeId(value) {
   return String(value || '')
     .trim()
@@ -29,28 +22,6 @@ function relatedMatch(matches, challengeId) {
   return matches.find((match) => normalizeId(match?.challengeId) === challengeId) || null
 }
 
-function belongsToActiveClub({ challenge, match, clubId }) {
-  const activeClubId = normalizeId(clubId)
-
-  if (!activeClubId) {
-    return false
-  }
-
-  const recordClubId = normalizeId(challenge?.clubId || match?.clubId)
-
-  /*
-   * Compatibility with the current ladder mock:
-   * older records may not yet carry clubId.
-   *
-   * Once Laravel owns this state, club ownership must
-   * be mandatory and server-authorized.
-   */
-  if (recordClubId && recordClubId !== activeClubId) {
-    return false
-  }
-
-  return true
-}
 
 function playerNames(challenge, match) {
   return {
@@ -138,7 +109,7 @@ export function resolveResultReviewPriority({
       }
 
       if (
-        !belongsToActiveClub({
+        !belongsToHomeClub({
           challenge,
           match,
           clubId: activeClubId,
@@ -165,29 +136,14 @@ export function resolveResultReviewPriority({
        * They do NOT have a review action, so Home must
        * not advertise one to them.
        */
-      if (!submittedBy || submittedBy === actor) {
+      if (!submittedBy || submittedBy === actor || !isChallengeParticipant(challenge, submittedBy)) {
         return null
       }
 
       const submittedAt = validTimestamp(match.resultSubmittedAt || challenge.resultSubmittedAt)
 
-      /*
-       * Without a trustworthy submission time we cannot
-       * claim this is an immediate continuation.
-       */
-      if (!submittedAt) {
-        return null
-      }
-
-      const age = currentTime - submittedAt
-
-      /*
-       * Reject clearly invalid future timestamps and
-       * stale review items from the Priority Slot.
-       */
-      if (age < -5 * 60 * 1000 || age > RESULT_REVIEW_PRIORITY_WINDOW_MS) {
-        return null
-      }
+      // Missing/old timestamps do not remove an outstanding review action.
+      if (submittedAt > currentTime + 5 * 60 * 1000) return null
 
       return {
         challenge,

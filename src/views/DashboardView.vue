@@ -21,6 +21,9 @@ import HomePrioritySlot from '../components/dashboard/HomePrioritySlot.vue'
 import RoutePageSkeleton from '../components/RoutePageSkeleton.vue'
 import { resolveChallengeActionPriority } from '../utils/homePriority/challengeActionPriority'
 import { resolveHomeFallbackPriority } from '../utils/homePriority/homeFallbackPriority'
+import { getActiveLadderConfig } from '../config/ladder.js'
+import { CLUB_DIRECTORY_STORAGE_KEY } from '../config/admin.js'
+import { getLadderAdminState } from '../services/LadderAdminService.js'
 import { subscribeToCompetitionChanges } from '../services/ApiService.js'
 import { homeLiveMatchRoute } from '../utils/homePriority/homeLiveMatchRoute.js'
 import { resolveLiveMatchPriority } from '../utils/homePriority/liveMatchPriority'
@@ -40,6 +43,7 @@ const staticNotice = ref('')
 const clubReady = ref(false)
 const livePriorityMatches = ref([])
 const priorityNow = ref(Date.now())
+const clubContextRevision = ref(0)
 
 const dashboard = dashboardFixture
 const actionIconNames = Object.freeze([
@@ -72,7 +76,6 @@ const currentPlayerFirstName = computed(
 const currentActorId = computed(() =>
   String(
     authStore.user?.playerId ||
-      playerStore.currentPlayer?.id ||
       authStore.user?.id ||
       '',
   ).trim(),
@@ -123,12 +126,20 @@ const resultReviewPriority = computed(() =>
 const fallbackPriority = computed(() =>
   resolveHomeFallbackPriority({
     club: activeClub.value,
-    activeLadders: adminStore.activeLadders,
-    currentPlayer: playerStore.currentPlayer,
+    activeLadders: activeClub.value?.setup?.ladders || [],
+    players: playerStore.players,
+    actorId: currentActorId.value,
+    userId: authStore.user?.id || '',
     currentPlayerName: currentPlayerName.value,
-    availableOpponents: playerStore.availableOpponents,
-    playerCount: playerStore.players.length,
-    isAdmin: adminStore.isActiveClubAdmin,
+    challenges: challengeStore.challenges,
+    isAdmin: adminStore.hasActiveClubPermission('club.manage'),
+    challengeConfig: getActiveLadderConfig(),
+    canCreateChallenge: !challengeStore.error && adminStore.hasActiveClubPermission('challenges.create'),
+    dataReady: clubReady.value && !adminStore.error && !playerStore.error,
+    ladderStateFor: (scope) => {
+      clubContextRevision.value
+      return getLadderAdminState(scope)
+    },
   }),
 )
 
@@ -225,7 +236,7 @@ function handleHomeHeroOpen(priority) {
   }
 
   if (priority.action === 'open_ladder') {
-    router.push({ name: 'Rankings' })
+    router.push({ name: 'Rankings', query: priority.ladderId ? { ladder: priority.ladderId } : {} })
     return
   }
 
@@ -261,7 +272,19 @@ function handlePriorityVisibilityChange() {
   if (document.visibilityState === 'visible') {
     refreshPriorityClock()
     refreshHomeLiveMatches()
+    refreshHomeClub()
     refreshHomeCompetition()
+  }
+}
+
+function refreshHomeClub() {
+  clubContextRevision.value += 1
+  return adminStore.loadClubs().catch(() => {})
+}
+
+function handleHomeClubStorage(event) {
+  if (event.key === null || event.key === CLUB_DIRECTORY_STORAGE_KEY || event.key === 'gorra.ladder.adminState.v1') {
+    refreshHomeClub()
   }
 }
 
@@ -340,6 +363,7 @@ onMounted(async () => {
       1_000,
     )
 
+    window.addEventListener('storage', handleHomeClubStorage)
     window.addEventListener('focus', handlePriorityVisibilityChange)
     document.addEventListener(
       'visibilitychange',
@@ -365,6 +389,7 @@ onUnmounted(() => {
 
   priorityClockTimer = null
 
+  window.removeEventListener('storage', handleHomeClubStorage)
   window.removeEventListener('focus', handlePriorityVisibilityChange)
   document.removeEventListener(
     'visibilitychange',

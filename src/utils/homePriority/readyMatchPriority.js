@@ -1,10 +1,11 @@
+import { belongsToHomeClub } from './homeChallengeContext.js'
 import {
   canStartChallenge,
   challengeViewState,
   isChallengeParticipant,
-} from '../challenge/challengeLifecycle'
+} from '../challenge/challengeLifecycle.js'
 
-import { formatAppDateTime } from '../dateFormat'
+import { formatAppDateTime } from '../dateFormat.js'
 
 function normalizeId(value) {
   return String(value || '')
@@ -26,36 +27,6 @@ function relatedMatch(matches, challengeId) {
   return matches.find((match) => normalizeId(match?.challengeId) === challengeId) || null
 }
 
-function recordBelongsToClub({ challenge, match, clubId }) {
-  const activeClubId = normalizeId(clubId)
-
-  /*
-   * Home Priority is club-contextual.
-   * Without an active club there is no safe club
-   * projection to make.
-   */
-  if (!activeClubId) {
-    return false
-  }
-
-  /*
-   * The older ladder mock records pre-date proper
-   * clubId ownership.
-   *
-   * If the record DOES expose clubId, enforce it.
-   *
-   * Missing clubId remains temporarily compatible
-   * with the legacy single-club mock. Laravel will
-   * make club ownership mandatory server-side.
-   */
-  const recordClubId = normalizeId(challenge?.clubId || match?.clubId)
-
-  if (recordClubId && recordClubId !== activeClubId) {
-    return false
-  }
-
-  return true
-}
 
 function opponentNameFor(challenge, match, actorId) {
   const actor = normalizeId(actorId)
@@ -156,7 +127,7 @@ export function resolveReadyMatchPriority({
       const match = relatedMatch(matches, challengeId)
 
       if (
-        !recordBelongsToClub({
+        !belongsToHomeClub({
           challenge,
           match,
           clubId: activeClubId,

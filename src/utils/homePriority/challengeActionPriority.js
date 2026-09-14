@@ -1,3 +1,4 @@
+import { belongsToHomeClub } from './homeChallengeContext.js'
 import {
   challengeViewState,
   isChallengeParticipant,
@@ -40,19 +41,6 @@ function relatedMatch(matches, challengeId) {
   )
 }
 
-function belongsToActiveClub({ challenge, match, clubId }) {
-  const activeClubId = normalizeId(clubId)
-
-  if (!activeClubId) {
-    return false
-  }
-
-  const recordClubId = normalizeId(
-    challenge?.clubId || match?.clubId,
-  )
-
-  return !recordClubId || recordClubId === activeClubId
-}
 
 function opponentFor(challenge, match, actorId) {
   const actor = normalizeId(actorId)
@@ -192,7 +180,7 @@ function candidateFor({
         challenge?.resultSubmittedBy,
     )
 
-    if (submittedBy && submittedBy === normalizeId(actorId)) {
+    if (submittedBy && submittedBy === normalizeId(actorId) && isChallengeParticipant(challenge, submittedBy)) {
       return {
         id: `challenge-waiting-review-${challengeId}`,
         family: 'challenge',
@@ -288,7 +276,7 @@ export function resolveChallengeActionPriority({
       const match = relatedMatch(matches, challengeId)
 
       if (
-        !belongsToActiveClub({
+        !belongsToHomeClub({
           challenge,
           match,
           clubId: activeClubId,

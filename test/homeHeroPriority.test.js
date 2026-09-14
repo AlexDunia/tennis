@@ -1,3 +1,4 @@
+import { resolveLadderConfigFromSetup } from '../src/config/ladder.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
@@ -140,17 +141,15 @@ test('ranked calm state uses real rank and never invents movement history', () =
         name: "Men's Singles",
       },
     ],
-    currentPlayer: {
-      id: 'alex',
-      name: 'Alex Dunia',
-      rank: 3,
-    },
+    actorId: 'alex',
     currentPlayerName: 'Alex Dunia',
-    availableOpponents: [
-      { id: 'lucky' },
-      { id: 'mike' },
+    canCreateChallenge: true,
+    challengeConfig: { ...resolveLadderConfigFromSetup({}), id: 'mens' },
+    players: [
+      { id: 'alex', name: 'Alex Dunia', rank: 3, clubId: 'club-1', ladderIds: ['mens'] },
+      { id: 'lucky', rank: 1, clubId: 'club-1', ladderIds: ['mens'] },
+      { id: 'mike', rank: 2, clubId: 'club-1', ladderIds: ['mens'] },
     ],
-    playerCount: 12,
     isAdmin: false,
   })
 

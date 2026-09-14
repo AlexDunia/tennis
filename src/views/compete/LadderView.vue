@@ -8,7 +8,7 @@ import {
   ref,
   watch,
 } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import EmptyState from '../../components/EmptyState.vue'
 import PersonAvatar from '../../components/PersonAvatar.vue'
 import LadderClubRail from '../../components/ladder/LadderClubRail.vue'
@@ -41,6 +41,7 @@ import {
 } from '../../services/LadderAdminService.js'
 
 const router = useRouter()
+const route = useRoute()
 const adminStore = useAdminStore()
 const challengeStore = useChallengeStore()
 const notificationStore = useNotificationStore()
@@ -688,6 +689,9 @@ function openMemberChallenge(player) {
 
 function selectLadder(ladderId) {
   activeLadderId.value = ladderId
+  if (route.query.ladder && route.query.ladder !== ladderId) {
+    router.replace({ query: { ...route.query, ladder: ladderId } })
+  }
   resetAllPlayerActions()
 }
 
@@ -1188,10 +1192,15 @@ async function viewMatch(result) {
 }
 
 watch(
-  ladders,
-  (items) => {
+  [ladders, () => route.query.ladder],
+  ([items, requestedLadderId]) => {
     if (!items.length) {
       activeLadderId.value = ''
+      return
+    }
+
+    if (items.some((ladder) => ladder.id === requestedLadderId)) {
+      activeLadderId.value = requestedLadderId
       return
     }
 
