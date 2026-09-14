@@ -64,6 +64,43 @@ function livePlayerNames(match) {
   }
 }
 
+function liveOpponent(match, actorId) {
+  const actor = normalizeId(actorId)
+  const names = livePlayerNames(match)
+
+  const participantAId = normalizeId(
+    match?.participantAId || match?.ownerId,
+  )
+  const participantBId = normalizeId(
+    match?.participantBId || match?.opponent?.id,
+  )
+
+  if (actor && actor === participantAId) {
+    return {
+      name: names.playerB,
+      image: String(
+        match?.opponent?.imageUrl ||
+          match?.opponent?.image ||
+          match?.playerBImage ||
+          '',
+      ).trim(),
+    }
+  }
+
+  if (actor && actor === participantBId) {
+    return {
+      name: names.playerA,
+      image: String(
+        match?.ownerImage ||
+          match?.playerAImage ||
+          '',
+      ).trim(),
+    }
+  }
+
+  return null
+}
+
 function liveMatchSummary(match) {
   const liveState = match?.liveState
 
@@ -148,7 +185,13 @@ export function resolveLiveMatchPriority({ matches = [], actorId = '' } = {}) {
 
   const names = livePlayerNames(winner.match)
 
-  const isCurrentScorer = winner.relationship === 'scorer'
+  const isCurrentScorer =
+    winner.relationship === 'scorer'
+
+  const opponent = liveOpponent(
+    winner.match,
+    actor,
+  )
 
   return {
     id: `live-${winner.matchId}`,
@@ -157,12 +200,6 @@ export function resolveLiveMatchPriority({ matches = [], actorId = '' } = {}) {
 
     kind: 'live_match',
 
-    /*
-     * Other Priority families will eventually compete
-     * against this score.
-     *
-     * A live personal match sits at the top.
-     */
     priority: 100,
 
     matchId: winner.matchId,
@@ -171,14 +208,26 @@ export function resolveLiveMatchPriority({ matches = [], actorId = '' } = {}) {
 
     relationship: winner.relationship,
 
-    eyebrow: isCurrentScorer ? 'RETURN TO YOUR MATCH' : 'MATCH IN PROGRESS',
+    eyebrow: isCurrentScorer
+      ? 'RETURN TO YOUR MATCH'
+      : 'MATCH IN PROGRESS',
 
-    title: `${names.playerA} vs ${names.playerB}`,
+    title: opponent
+      ? `Your match with ${opponent.name} is live`
+      : `${names.playerA} vs ${names.playerB}`,
 
     supportingText: liveMatchSummary(winner.match),
 
-    ctaLabel: isCurrentScorer ? 'Return to match' : 'Open match',
+    ctaLabel: isCurrentScorer
+      ? 'Return to match'
+      : 'Open match',
 
     action: 'open_live_match',
+
+    personName: opponent?.name || '',
+
+    personImage: opponent?.image || '',
+
+    attention: true,
   }
 }

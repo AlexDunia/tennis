@@ -210,7 +210,47 @@ export function resolveResultReviewPriority({
     return null
   }
 
-  const names = playerNames(winner.challenge, winner.match)
+  const names = playerNames(
+    winner.challenge,
+    winner.match,
+  )
+
+  const submittedBy = normalizeId(
+    winner.match.resultSubmittedBy ||
+      winner.challenge.resultSubmittedBy,
+  )
+
+  const challengerId = normalizeId(
+    winner.challenge.challengerId,
+  )
+
+  const defenderId = normalizeId(
+    winner.challenge.defenderId,
+  )
+
+  const submitterName =
+    submittedBy === challengerId
+      ? names.challenger
+      : submittedBy === defenderId
+        ? names.defender
+        : 'Your opponent'
+
+  const submitterImage =
+    submittedBy === challengerId
+      ? String(
+          winner.challenge.challengerImage ||
+            winner.challenge.challengerImageUrl ||
+            winner.match.challengerImage ||
+            '',
+        ).trim()
+      : submittedBy === defenderId
+        ? String(
+            winner.challenge.defenderImage ||
+              winner.challenge.defenderImageUrl ||
+              winner.match.defenderImage ||
+              '',
+          ).trim()
+        : ''
 
   return {
     id: `result-review-${winner.challengeId}`,
@@ -227,12 +267,18 @@ export function resolveResultReviewPriority({
 
     eyebrow: 'RESULT TO REVIEW',
 
-    title: `${names.challenger} vs ${names.defender}`,
+    title: `${submitterName} submitted the result`,
 
     supportingText: resultSummary(winner.match),
 
     ctaLabel: 'Review result',
 
     action: 'open_result_review',
+
+    personName: submitterName,
+
+    personImage: submitterImage,
+
+    attention: true,
   }
 }

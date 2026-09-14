@@ -1,40 +1,140 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue'
 import { useRouter } from 'vue-router'
 import { APP_CURRENT_PLAYER } from '../config/currentPlayer'
 import { dashboardFixture } from '../data/dashboard'
 import { useAdminStore } from '../stores/admin'
+import { useAuthStore } from '../stores/auth'
+import { useChallengeStore } from '../stores/challenge'
+import { useFriendlyMatchStore } from '../stores/friendlyMatch'
+import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import BaseButton from '../components/BaseButton.vue'
 import EmptyState from '../components/EmptyState.vue'
+import HomePrioritySlot from '../components/dashboard/HomePrioritySlot.vue'
 import RoutePageSkeleton from '../components/RoutePageSkeleton.vue'
+import { resolveChallengeActionPriority } from '../utils/homePriority/challengeActionPriority'
+import { resolveHomeFallbackPriority } from '../utils/homePriority/homeFallbackPriority'
+import { resolveLiveMatchPriority } from '../utils/homePriority/liveMatchPriority'
+import { resolveReadyMatchPriority } from '../utils/homePriority/readyMatchPriority'
+import { resolveHomePriority } from '../utils/homePriority/resolveHomePriority'
+import { resolveResultReviewPriority } from '../utils/homePriority/resultReviewPriority'
 
 const router = useRouter()
 const adminStore = useAdminStore()
+const authStore = useAuthStore()
+const challengeStore = useChallengeStore()
+const friendlyMatchStore = useFriendlyMatchStore()
+const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
+
 const staticNotice = ref('')
 const clubReady = ref(false)
+const livePriorityMatches = ref([])
+const priorityNow = ref(Date.now())
+
 const dashboard = dashboardFixture
-const ladderRoute = Object.freeze({ name: 'Rankings' })
-const actionIconNames = Object.freeze(['play', 'challenge', 'tournament'])
+const actionIconNames = Object.freeze([
+  'play',
+  'challenge',
+  'tournament',
+])
 
-const currentPlayerName = computed(() => playerStore.currentPlayer?.name || APP_CURRENT_PLAYER.name)
-const currentPlayerFirstName = computed(
-  () => currentPlayerName.value.trim().split(/\s+/)[0] || APP_CURRENT_PLAYER.firstName,
+let stopLiveMatchSubscription = null
+let priorityClockTimer = null
+
+const currentPlayerName = computed(() =>
+  String(
+    authStore.user?.name ||
+      playerStore.currentPlayer?.name ||
+      APP_CURRENT_PLAYER.name,
+  ).trim(),
 )
-const activeClub = computed(() => adminStore.activeClub)
-const activeClubName = computed(() => activeClub.value?.name || '')
-const currentLadder = computed(() => {
-  if (!activeClub.value) return null
-  const ladder = adminStore.activeLadders[0] || dashboard.ladders[0]
-  if (!ladder) return null
 
-  return {
-    ...ladder,
-    position: playerStore.currentPlayer?.rank ?? ladder.position,
-    playerCount: playerStore.players.length || ladder.playerCount,
-  }
-})
+const currentPlayerFirstName = computed(
+  () =>
+    currentPlayerName.value.split(/\s+/)[0] ||
+    APP_CURRENT_PLAYER.firstName,
+)
+
+const currentActorId = computed(() =>
+  String(
+    playerStore.currentPlayer?.id ||
+      authStore.user?.playerId ||
+      authStore.user?.id ||
+      '',
+  ).trim(),
+)
+
+const activeClub = computed(() => adminStore.activeClub)
+const activeClubName = computed(
+  () => activeClub.value?.name || '',
+)
+
+const liveMatchPriority = computed(() =>
+  resolveLiveMatchPriority({
+    matches: livePriorityMatches.value,
+    actorId: currentActorId.value,
+  }),
+)
+
+const readyMatchPriority = computed(() =>
+  resolveReadyMatchPriority({
+    challenges: challengeStore.challenges,
+    matches: matchStore.matches,
+    actorId: currentActorId.value,
+    clubId: adminStore.activeClubId || '',
+    now: priorityNow.value,
+  }),
+)
+
+const challengeActionPriority = computed(() =>
+  resolveChallengeActionPriority({
+    challenges: challengeStore.challenges,
+    matches: matchStore.matches,
+    actorId: currentActorId.value,
+    clubId: adminStore.activeClubId || '',
+    now: priorityNow.value,
+  }),
+)
+
+const resultReviewPriority = computed(() =>
+  resolveResultReviewPriority({
+    challenges: challengeStore.challenges,
+    matches: matchStore.matches,
+    actorId: currentActorId.value,
+    clubId: adminStore.activeClubId || '',
+    now: priorityNow.value,
+  }),
+)
+
+const fallbackPriority = computed(() =>
+  resolveHomeFallbackPriority({
+    club: activeClub.value,
+    activeLadders: adminStore.activeLadders,
+    currentPlayer: playerStore.currentPlayer,
+    currentPlayerName: currentPlayerName.value,
+    availableOpponents: playerStore.availableOpponents,
+    playerCount: playerStore.players.length,
+    isAdmin: adminStore.isActiveClubAdmin,
+  }),
+)
+
+const homeHero = computed(() =>
+  resolveHomePriority([
+    liveMatchPriority.value,
+    readyMatchPriority.value,
+    challengeActionPriority.value,
+    resultReviewPriority.value,
+    fallbackPriority.value,
+  ]),
+)
 
 function isActionIcon(action, index) {
   return action.icon === actionIconNames[index]
@@ -57,32 +157,187 @@ function handleAction(action) {
     openRoute(action.to)
     return
   }
-  staticNotice.value = action?.unavailableMessage || 'This action is not connected yet.'
+
+  staticNotice.value =
+    action?.unavailableMessage ||
+    'This action is not connected yet.'
 }
 
 function openCalendar() {
-  staticNotice.value = 'The club calendar is not connected yet.'
+  staticNotice.value =
+    'The club calendar is not connected yet.'
 }
 
 function joinClub() {
-  router.push({ name: 'Clubs', query: { view: 'join' } })
+  router.push({
+    name: 'Clubs',
+    query: { view: 'join' },
+  })
 }
 
 function createClub() {
-  router.push({ name: 'Clubs', query: { view: 'create' } })
+  router.push({
+    name: 'Clubs',
+    query: { view: 'create' },
+  })
 }
+
+function handleHomeHeroOpen(priority) {
+  if (!priority) return
+
+  if (
+    priority.action === 'open_live_match' &&
+    priority.matchId
+  ) {
+    router.push({
+      name: 'FriendlyMatchLive',
+      params: {
+        matchId: priority.matchId,
+      },
+    })
+    return
+  }
+
+  if (
+    [
+      'open_ready_match',
+      'open_result_review',
+      'open_challenge',
+    ].includes(priority.action) &&
+    priority.challengeId
+  ) {
+    router.push({
+      name: 'ChallengeDetails',
+      params: {
+        challengeId: priority.challengeId,
+      },
+    })
+    return
+  }
+
+  if (priority.action === 'create_challenge') {
+    router.push({ name: 'CreateChallenge' })
+    return
+  }
+
+  if (priority.action === 'open_ladder') {
+    router.push({ name: 'Rankings' })
+    return
+  }
+
+  if (priority.action === 'add_members') {
+    router.push({ name: 'ClubMembers' })
+    return
+  }
+
+  if (priority.action === 'open_club') {
+    router.push({
+      name: 'Club',
+      params: activeClub.value?.id
+        ? { clubId: activeClub.value.id }
+        : {},
+    })
+    return
+  }
+
+  if (priority.action === 'open_play') {
+    router.push({ name: 'Play' })
+    return
+  }
+
+  staticNotice.value =
+    'This Home action is not connected yet.'
+}
+
+function refreshPriorityClock() {
+  priorityNow.value = Date.now()
+}
+
+function handlePriorityVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    refreshPriorityClock()
+    refreshHomeLiveMatches()
+  }
+}
+
+function refreshHomeLiveMatches() {
+  const clubId =
+    adminStore.activeClubId ||
+    activeClub.value?.id ||
+    ''
+  const actorId = currentActorId.value
+
+  if (!clubId || !actorId) {
+    livePriorityMatches.value = []
+    return
+  }
+
+  livePriorityMatches.value =
+    friendlyMatchStore.listLiveMatchesForUser({
+      clubId,
+      actorId,
+    })
+}
+
+watch(
+  [
+    () => adminStore.activeClubId,
+    currentActorId,
+  ],
+  () => {
+    refreshHomeLiveMatches()
+  },
+)
 
 onMounted(async () => {
   try {
-    await Promise.all([
+    await Promise.allSettled([
       adminStore.loadClubs(),
-      playerStore.players.length ? Promise.resolve() : playerStore.loadPlayers(),
+      playerStore.players.length
+        ? Promise.resolve()
+        : playerStore.loadPlayers(),
+      challengeStore.loadChallenges(),
+      matchStore.loadMatches(),
     ])
-  } catch {
-    // The no-club state remains useful when local club data is unavailable.
+
+    refreshHomeLiveMatches()
+
+    stopLiveMatchSubscription =
+      friendlyMatchStore.subscribeToLiveMatchChanges(
+        refreshHomeLiveMatches,
+      )
+
+    priorityClockTimer = window.setInterval(
+      refreshPriorityClock,
+      60_000,
+    )
+
+    document.addEventListener(
+      'visibilitychange',
+      handlePriorityVisibilityChange,
+    )
   } finally {
     clubReady.value = true
   }
+})
+
+onUnmounted(() => {
+  if (typeof stopLiveMatchSubscription === 'function') {
+    stopLiveMatchSubscription()
+  }
+
+  stopLiveMatchSubscription = null
+
+  if (priorityClockTimer) {
+    window.clearInterval(priorityClockTimer)
+  }
+
+  priorityClockTimer = null
+
+  document.removeEventListener(
+    'visibilitychange',
+    handlePriorityVisibilityChange,
+  )
 })
 </script>
 
@@ -115,61 +370,13 @@ onMounted(async () => {
     </template>
 
     <div v-else class="dashboard-stack">
-      <section
-        class="dashboard-panel dashboard-section dashboard-hero"
-        aria-labelledby="club-context-title"
-      >
-        <div
-          class="dashboard-hero__decor"
-          aria-hidden="true"
-        >
-          <svg
-            class="dashboard-hero__court"
-            viewBox="0 0 520 210"
-            fill="none"
-          >
-            <rect
-              x="38"
-              y="24"
-              width="444"
-              height="162"
-              rx="2"
-            />
-            <path
-              d="M82 24v162M438 24v162M38 105h444M82 66h356M82 144h356M260 66v78"
-            />
-          </svg>
-
-          <span class="dashboard-hero__ball dashboard-hero__ball--one"></span>
-          <span class="dashboard-hero__ball dashboard-hero__ball--two"></span>
-          <span class="dashboard-hero__ball dashboard-hero__ball--three"></span>
-        </div>
-        <header class="section-heading">
-          <p>{{ activeClubName }}</p>
-          <h2 id="club-context-title">Welcome back, {{ currentPlayerFirstName }}.</h2>
-        </header>
-
-        <article v-if="currentLadder" class="ladder-card">
-          <div class="ladder-card__copy">
-            <span>Your ladder</span>
-            <h3>{{ currentLadder.name }}</h3>
-            <p>
-              <strong>#{{ currentLadder.position }}</strong>
-              of {{ currentLadder.playerCount }} players
-            </p>
-          </div>
-          <BaseButton variant="secondary" @click="openRoute(ladderRoute)">Open ladder</BaseButton>
-        </article>
-
-        <EmptyState
-          v-else
-          compact
-          variant="data-dependent"
-          illustration="ladder"
-          title="No active ladder"
-          description="An active club ladder will appear here."
-        />
-      </section>
+      <HomePrioritySlot
+        v-if="homeHero"
+        class="dashboard-panel"
+        :priority="homeHero"
+        :club-name="activeClubName"
+        @open="handleHomeHeroOpen"
+      />
 
       <section class="dashboard-panel dashboard-section" aria-labelledby="quick-title">
         <header class="section-heading">
@@ -312,183 +519,6 @@ onMounted(async () => {
   gap: 16px;
 }
 
-.dashboard-hero {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  gap: 24px;
-  padding: 28px;
-  border-radius: 12px;
-  background: #163d2b;
-}
-
-.dashboard-hero > :not(.dashboard-hero__decor) {
-  position: relative;
-  z-index: 2;
-}
-
-.dashboard-hero__decor {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.dashboard-hero__court {
-  position: absolute;
-  top: 50%;
-  right: -34px;
-  width: min(54%, 520px);
-  transform: translateY(-50%);
-  stroke: rgba(255, 255, 255, 0.16);
-  stroke-width: 1.3;
-}
-
-.dashboard-hero__ball {
-  position: absolute;
-  display: block;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: #d8ff47;
-  box-shadow:
-    inset -4px -5px 0 rgba(40, 75, 28, 0.09),
-    0 8px 20px rgba(5, 68, 27, 0.12);
-  animation: none;
-}
-
-.dashboard-hero__ball::before,
-.dashboard-hero__ball::after {
-  content: '';
-  position: absolute;
-  width: 18px;
-  height: 12px;
-  border: 1.25px solid rgba(31, 81, 32, 0.38);
-  border-top-color: transparent;
-  border-bottom-color: transparent;
-  border-radius: 50%;
-}
-
-.dashboard-hero__ball::before {
-  top: 1px;
-  left: -2px;
-  transform: rotate(45deg);
-}
-
-.dashboard-hero__ball::after {
-  right: -2px;
-  bottom: 1px;
-  transform: rotate(45deg);
-}
-
-.dashboard-hero__ball--one {
-  top: 18px;
-  right: 18%;
-  animation-delay: -1.2s;
-}
-
-.dashboard-hero__ball--two {
-  right: 7%;
-  bottom: 21px;
-  width: 22px;
-  height: 22px;
-  opacity: 0.78;
-  animation-delay: -3.1s;
-}
-
-.dashboard-hero__ball--three {
-  top: 43%;
-  right: 34%;
-  width: 16px;
-  height: 16px;
-  opacity: 0.52;
-  animation-delay: -2.2s;
-}
-
-.dashboard-hero__ball--two::before,
-.dashboard-hero__ball--two::after,
-.dashboard-hero__ball--three::before,
-.dashboard-hero__ball--three::after {
-  transform: scale(.72) rotate(45deg);
-}
-
-.dashboard-hero .section-heading > p:first-child {
-  color: #d8ff47;
-}
-
-.dashboard-hero .section-heading h2 {
-  color: #fff;
-  font-size: clamp(22px, 3vw, 28px);
-  line-height: 1.25;
-}
-
-.dashboard-hero .ladder-card {
-  min-height: 112px;
-  padding: 24px 0 0;
-  border: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.dashboard-hero .ladder-card__copy {
-  gap: 8px;
-}
-
-.dashboard-hero .ladder-card__copy span {
-  color: #d8ff47;
-  font-size: 12px;
-  letter-spacing: normal;
-  text-transform: none;
-}
-
-.dashboard-hero .ladder-card__copy h3 {
-  color: #fff;
-  font-size: 18px;
-  font-weight: var(--font-weight-semibold);
-}
-
-.dashboard-hero .ladder-card__copy p {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 13px;
-}
-
-.dashboard-hero .ladder-card__copy strong {
-  color: #d8ff47;
-}
-
-.dashboard-hero :deep(.base-button--secondary) {
-  border-color: #d8ff47;
-  background: #d8ff47;
-  color: #163d2b;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .dashboard-hero :deep(.base-button--secondary:hover:not(:disabled)) {
-    border-color: #e9ff9b;
-    background: #e9ff9b;
-  }
-}
-
-@keyframes dashboard-ball-bounce {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0)
-      rotate(-8deg);
-  }
-
-  46% {
-    transform: translate3d(-8px, 13px, 0)
-      rotate(9deg);
-  }
-
-  70% {
-    transform: translate3d(3px, 5px, 0)
-      rotate(3deg);
-  }
-}
 
 .section-heading {
   display: grid;
@@ -809,31 +839,6 @@ onMounted(async () => {
 }
 
 @media (max-width: 520px) {
-  .dashboard-hero {
-    padding: 20px;
-    border-radius: 12px;
-  }
-
-  .dashboard-hero__court {
-    right: -82px;
-    width: 92%;
-    opacity: 0.72;
-  }
-
-  .dashboard-hero__ball--one {
-    top: 14px;
-    right: 12px;
-  }
-
-  .dashboard-hero__ball--two {
-    right: 18px;
-    bottom: 13px;
-  }
-
-  .dashboard-hero__ball--three {
-    display: none;
-  }
-
   .dashboard-stack {
     gap: 40px;
   }
@@ -856,10 +861,6 @@ onMounted(async () => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dashboard-hero__ball {
-    animation: none;
-  }
-
   .dashboard-panel,
   .quick-card {
     animation: none;

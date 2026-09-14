@@ -1,471 +1,356 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed } from 'vue'
+import PersonAvatar from '../PersonAvatar.vue'
+import { isSafeImageSource } from '../../utils/formSafety'
 
 const props = defineProps({
-  priorities: {
-    type: Array,
-    default: () => [],
+  priority: {
+    type: Object,
+    default: null,
+  },
+  clubName: {
+    type: String,
+    default: '',
   },
 })
 
 const emit = defineEmits(['open'])
-const rotationDuration = 7000
-const activeIndex = ref(0)
-const isPaused = ref(false)
-const reducedMotion = ref(false)
-const progressKey = ref(0)
-const activePriority = computed(() => props.priorities[activeIndex.value] || null)
-const shouldRotate = computed(() => props.priorities.length > 1 && !reducedMotion.value)
 
-let rotationTimer = null
-let motionQuery = null
-let cycleStartedAt = 0
-let remainingDuration = rotationDuration
-
-function matchupLabel(priority) {
-  return (priority.players || []).map((player) => player.name).join(' versus ')
-}
-
-function clearRotationTimer() {
-  if (!rotationTimer) return
-  window.clearTimeout(rotationTimer)
-  rotationTimer = null
-}
-
-function scheduleRotation() {
-  clearRotationTimer()
-  if (!shouldRotate.value || isPaused.value) return
-
-  cycleStartedAt = Date.now()
-  rotationTimer = window.setTimeout(showNextPriority, remainingDuration)
-}
-
-function showNextPriority() {
-  clearRotationTimer()
-  if (!props.priorities.length) return
-
-  activeIndex.value = (activeIndex.value + 1) % props.priorities.length
-  remainingDuration = rotationDuration
-  progressKey.value += 1
-  scheduleRotation()
-}
-
-function pauseRotation() {
-  if (!shouldRotate.value || isPaused.value) return
-  isPaused.value = true
-  remainingDuration = Math.max(160, remainingDuration - (Date.now() - cycleStartedAt))
-  clearRotationTimer()
-}
-
-function resumeRotation() {
-  if (!shouldRotate.value || !isPaused.value) return
-  isPaused.value = false
-  scheduleRotation()
-}
-
-function handleFocusOut(event) {
-  if (event.currentTarget.contains(event.relatedTarget)) return
-  resumeRotation()
-}
-
-function handleMotionChange(event) {
-  reducedMotion.value = event.matches
-  remainingDuration = rotationDuration
-  progressKey.value += 1
-  scheduleRotation()
-}
-
-function openPriority(priority) {
-  emit('open', priority)
-}
-
-watch(
-  () => props.priorities.map((priority) => priority.id).join('|'),
-  () => {
-    activeIndex.value = 0
-    remainingDuration = rotationDuration
-    progressKey.value += 1
-    scheduleRotation()
-  },
+const personName = computed(() =>
+  String(props.priority?.personName || '').trim(),
 )
 
-onMounted(() => {
-  motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-  reducedMotion.value = motionQuery.matches
-  motionQuery.addEventListener?.('change', handleMotionChange)
-  scheduleRotation()
+const personImage = computed(() => {
+  const image = String(props.priority?.personImage || '').trim()
+  return image && isSafeImageSource(image) ? image : ''
 })
 
-onUnmounted(() => {
-  clearRotationTimer()
-  motionQuery?.removeEventListener?.('change', handleMotionChange)
+const contextLabel = computed(() => {
+  const parts = [
+    String(props.clubName || '').trim(),
+    String(props.priority?.eyebrow || '').trim(),
+  ].filter(Boolean)
+
+  return parts.join(' · ')
 })
+
+function openPriority() {
+  if (!props.priority) return
+  emit('open', props.priority)
+}
 </script>
 
 <template>
-  <div
-    class="home-priority-viewport"
-    :class="{ isPaused }"
-    @mouseenter="pauseRotation"
-    @mouseleave="resumeRotation"
-    @focusin="pauseRotation"
-    @focusout="handleFocusOut"
-  >
-    <Transition name="priority-slide" mode="out-in">
-      <article
-        v-if="activePriority"
-        :key="activePriority.id"
-        class="home-priority"
-        :aria-label="activePriority.title"
-      >
-        <span class="home-priority__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <path d="m13 2-7 11h6l-1 9 7-12h-6Z" />
+  <Transition name="home-hero-state" mode="out-in">
+    <section
+      v-if="priority"
+      :key="priority.id || priority.kind || priority.title"
+      class="home-priority"
+      :class="{ 'home-priority--attention': priority.attention }"
+      aria-live="polite"
+      aria-labelledby="home-priority-title"
+    >
+      <div class="home-priority__court" aria-hidden="true">
+        <svg viewBox="0 0 520 210" fill="none">
+          <rect x="38" y="24" width="444" height="162" rx="2" />
+          <path d="M82 24v162M438 24v162M38 105h444M82 66h356M82 144h356M260 66v78" />
+        </svg>
+      </div>
+
+      <div class="home-priority__visual" aria-hidden="true">
+        <span
+          v-if="priority.attention"
+          class="home-priority__signal"
+        ></span>
+
+        <PersonAvatar
+          v-if="personName"
+          :name="personName"
+          :image="personImage"
+          :size="64"
+        />
+
+        <span v-else class="home-priority__ball-mark">
+          <svg viewBox="0 0 44 44" fill="none">
+            <circle cx="22" cy="22" r="17" />
+            <path d="M7.8 13.4c6.3 3.1 8.5 9.2 8.5 8.6s-2.2 5.5-8.5 8.6" />
+            <path d="M36.2 13.4c-6.3 3.1-8.5 9.2-8.5 8.6s2.2 5.5 8.5 8.6" />
           </svg>
         </span>
+      </div>
 
-        <div class="home-priority__copy">
-          <h3>{{ activePriority.title }}</h3>
-          <p v-if="activePriority.supportingText" class="home-priority__supporting">
-            {{ activePriority.supportingText }}
-          </p>
+      <div class="home-priority__copy">
+        <p v-if="contextLabel" class="home-priority__context">
+          {{ contextLabel }}
+        </p>
 
-          <div class="home-priority__meta">
-            <span v-if="activePriority.category">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="8" r="3" />
-                <path d="M6 20a6 6 0 0 1 12 0" />
-              </svg>
-              {{ activePriority.category }}
-            </span>
-            <span v-if="activePriority.court">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="5" width="18" height="14" rx="1" />
-                <path d="M12 5v14M3 12h18M7 5v14M17 5v14" />
-              </svg>
-              {{ activePriority.court }}
-            </span>
-            <span v-if="activePriority.time">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 7v5l3 2" />
-              </svg>
-              {{ activePriority.time }}
-            </span>
-          </div>
-        </div>
+        <h2 id="home-priority-title">
+          {{ priority.title }}
+        </h2>
 
-        <div
-          v-if="activePriority.players?.length"
-          class="home-priority__players"
-          :aria-label="matchupLabel(activePriority)"
-        >
-          <template v-for="(player, index) in activePriority.players" :key="player.id">
-            <span v-if="index" class="home-priority__versus" aria-hidden="true">vs</span>
-            <img :src="player.image" :alt="player.name" />
-          </template>
-        </div>
+        <p v-if="priority.supportingText" class="home-priority__supporting">
+          {{ priority.supportingText }}
+        </p>
+      </div>
 
-        <div class="home-priority__action-wrap">
-          <button type="button" @click="openPriority(activePriority)">
-            {{ activePriority.ctaLabel }}
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6" /></svg>
-          </button>
-          <p v-if="activePriority.dateLabel">{{ activePriority.dateLabel }}</p>
-        </div>
-      </article>
-    </Transition>
-
-    <span
-      v-if="shouldRotate"
-      :key="progressKey"
-      class="home-priority__progress"
-      :class="{ isPaused }"
-      aria-hidden="true"
-    />
-  </div>
+      <button
+        v-if="priority.ctaLabel"
+        class="home-priority__cta"
+        type="button"
+        @click="openPriority"
+      >
+        <span>{{ priority.ctaLabel }}</span>
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M4 10h11M11 6l4 4-4 4" />
+        </svg>
+      </button>
+    </section>
+  </Transition>
 </template>
 
 <style scoped>
-.home-priority-viewport {
-  position: relative;
-  min-height: 152px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--color-primary) 3%, var(--color-surface));
-  box-shadow: var(--flow-shadow-quiet);
-  transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease;
-}
-
-.home-priority-viewport:hover,
-.home-priority-viewport:focus-within {
-  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-border));
-  box-shadow: var(--flow-shadow-hover);
-  transform: translateY(-1px);
-}
-
 .home-priority {
+  position: relative;
+  isolation: isolate;
   display: grid;
-  min-height: 150px;
-  grid-template-columns: 48px minmax(0, 1fr) auto minmax(148px, auto);
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  min-height: 188px;
   align-items: center;
-  gap: 20px;
-  padding: 22px 24px 24px;
+  gap: 22px;
+  overflow: hidden;
+  padding: 28px;
+  border-radius: 12px;
+  background: #163d2b;
+  color: #fff;
 }
 
-.home-priority__icon {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  border-radius: 14px;
-  background: var(--color-surface);
-  box-shadow: 0 7px 18px rgba(15, 34, 24, 0.04);
-  color: var(--color-primary-strong);
-}
-
-.home-priority__icon svg {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.75;
-}
-
-.home-priority h3,
-.home-priority__supporting {
-  margin: 0;
-}
-
-.home-priority h3 {
-  color: var(--color-text-soft);
-  font-size: 20px;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.018em;
-  line-height: 1.25;
-}
-
-.home-priority__supporting {
-  margin-top: 5px;
-  color: var(--color-muted);
-  font-size: 13px;
-  font-weight: var(--font-weight-regular);
-  line-height: 1.55;
-}
-
-.home-priority__meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  margin-top: 11px;
-  color: var(--color-muted);
-  font-size: 11px;
-}
-
-.home-priority__meta span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.home-priority__meta svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.6;
-}
-
-.home-priority__players {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  border-left: 1px solid var(--color-border);
-  padding-left: 20px;
-}
-
-.home-priority__players img {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  border: 3px solid var(--color-surface);
-  border-radius: 50%;
-  background: var(--color-surface-soft);
-  box-shadow: 0 0 0 1px var(--color-border-strong);
-  object-fit: cover;
-}
-
-.home-priority__versus {
-  color: var(--color-muted);
-  font-size: 9px;
-  font-weight: var(--font-weight-semibold);
-}
-
-.home-priority__action-wrap {
-  display: grid;
-  gap: 6px;
-}
-
-.home-priority__action-wrap button {
-  display: inline-flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1px solid var(--color-primary-strong);
-  border-radius: var(--app-inner-radius);
-  padding: 0 15px;
-  background: var(--color-primary-strong);
-  color: var(--color-light);
-  font-size: 12px;
-  font-weight: var(--font-weight-semibold);
-  transition:
-    box-shadow 160ms ease,
-    transform 160ms ease;
-}
-
-.home-priority__action-wrap button svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-}
-
-.home-priority__action-wrap button:hover {
-  box-shadow: 0 9px 22px rgba(0, 143, 21, 0.12);
-  transform: translateY(-1px);
-}
-
-.home-priority__action-wrap button:focus-visible {
-  outline: 3px solid rgba(0, 181, 26, 0.14);
-  outline-offset: 3px;
-}
-
-.home-priority__action-wrap p {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 10px;
-  text-align: center;
-}
-
-.home-priority__progress {
+.home-priority__court {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 2px;
-  background: var(--color-primary-strong);
-  transform: scaleX(0);
-  transform-origin: left center;
-  animation: priority-progress 7000ms linear forwards;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
   pointer-events: none;
 }
 
-.home-priority__progress.isPaused {
-  animation-play-state: paused;
+.home-priority__court svg {
+  position: absolute;
+  top: 50%;
+  right: -62px;
+  width: min(52%, 520px);
+  transform: translateY(-50%);
+  stroke: rgba(255, 255, 255, 0.11);
+  stroke-width: 1.25;
 }
 
-.priority-slide-enter-active,
-.priority-slide-leave-active {
+.home-priority__visual {
+  position: relative;
+  display: grid;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+}
+
+.home-priority__visual :deep(.person-avatar) {
+  position: relative;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: #fff;
+  color: #163d2b;
+  font-size: 19px;
+  box-shadow: 0 12px 30px rgba(5, 35, 22, 0.16);
+}
+
+.home-priority__signal {
+  position: absolute;
+  z-index: 1;
+  inset: 2px;
+  border: 1px solid rgba(216, 255, 71, 0.72);
+  border-radius: 999px;
+  animation: home-priority-signal 900ms ease-out 2;
+}
+
+.home-priority__ball-mark {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border: 1px solid rgba(216, 255, 71, 0.2);
+  border-radius: 999px;
+  background: rgba(216, 255, 71, 0.08);
+  color: #d8ff47;
+}
+
+.home-priority__ball-mark svg {
+  width: 38px;
+  height: 38px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.home-priority__copy {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+}
+
+.home-priority__context {
+  margin: 0 0 7px;
+  color: #d8ff47;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+  letter-spacing: 0.025em;
+}
+
+.home-priority h2 {
+  max-width: 720px;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(23px, 3vw, 30px);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+}
+
+.home-priority__supporting {
+  max-width: 670px;
+  margin: 9px 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.home-priority__cta {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 16px;
+  border: 1px solid #d8ff47;
+  border-radius: 9px;
+  background: #d8ff47;
+  color: #163d2b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
   transition:
-    opacity 220ms ease,
-    transform 220ms ease;
+    transform 140ms var(--motion-curve),
+    background-color 140ms var(--motion-curve),
+    border-color 140ms var(--motion-curve);
 }
 
-.priority-slide-enter-from {
+.home-priority__cta svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.home-priority__cta:active {
+  transform: translateY(1px);
+}
+
+.home-priority__cta:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.home-hero-state-enter-active,
+.home-hero-state-leave-active {
+  transition:
+    opacity 180ms var(--motion-curve),
+    transform 180ms var(--motion-curve);
+}
+
+.home-hero-state-enter-from,
+.home-hero-state-leave-to {
   opacity: 0;
-  transform: translateX(12px);
+  transform: translateY(6px);
 }
 
-.priority-slide-leave-to {
-  opacity: 0;
-  transform: translateX(-12px);
-}
+@keyframes home-priority-signal {
+  from {
+    opacity: 0.65;
+    transform: scale(0.86);
+  }
 
-@keyframes priority-progress {
   to {
-    transform: scaleX(1);
+    opacity: 0;
+    transform: scale(1.28);
   }
 }
 
-@media (max-width: 860px) {
-  .home-priority {
-    grid-template-columns: 48px minmax(0, 1fr) auto;
-  }
-
-  .home-priority__icon {
-    grid-row: 1 / span 2;
-  }
-
-  .home-priority__players {
-    grid-column: 2;
-    border-left: 0;
-    padding-left: 0;
-  }
-
-  .home-priority__action-wrap {
-    grid-row: 1 / span 2;
-    grid-column: 3;
+@media (hover: hover) and (pointer: fine) {
+  .home-priority__cta:hover {
+    border-color: #e9ff9b;
+    background: #e9ff9b;
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 720px) {
   .home-priority {
-    grid-template-columns: 42px minmax(0, 1fr);
-    gap: 14px;
-    padding: 19px 18px 21px;
+    grid-template-columns: 58px minmax(0, 1fr);
+    min-height: 0;
+    gap: 16px;
+    padding: 22px;
   }
 
-  .home-priority__icon {
-    width: 42px;
-    height: 42px;
-    grid-row: auto;
-    border-radius: 12px;
+  .home-priority__visual {
+    width: 58px;
+    height: 58px;
   }
 
-  .home-priority__players {
-    grid-column: 2;
+  .home-priority__visual :deep(.person-avatar),
+  .home-priority__ball-mark {
+    width: 54px !important;
+    height: 54px !important;
   }
 
-  .home-priority__action-wrap {
-    grid-row: auto;
+  .home-priority__ball-mark svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .home-priority__signal {
+    inset: 2px;
+  }
+
+  .home-priority h2 {
+    font-size: clamp(21px, 6vw, 26px);
+  }
+
+  .home-priority__cta {
     grid-column: 1 / -1;
+    width: 100%;
+    margin-top: 2px;
   }
 
-  .home-priority__action-wrap button {
-    width: 100%;
+  .home-priority__court svg {
+    right: -110px;
+    width: 98%;
+    opacity: 0.72;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-priority-viewport,
-  .home-priority__action-wrap button,
-  .priority-slide-enter-active,
-  .priority-slide-leave-active {
+  .home-priority__signal {
     animation: none;
+  }
+
+  .home-priority__cta,
+  .home-hero-state-enter-active,
+  .home-hero-state-leave-active {
     transition: none;
-  }
-
-  .home-priority-viewport:hover,
-  .home-priority-viewport:focus-within,
-  .home-priority__action-wrap button:hover {
-    transform: none;
-  }
-
-  .home-priority__progress {
-    display: none;
   }
 }
 </style>

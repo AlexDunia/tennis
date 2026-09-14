@@ -1,11 +1,5 @@
 <script setup>
-import {
-  computed,
-  onMounted,
-  reactive,
-  ref,
-  watch,
-} from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { sanitizePlainText } from '../utils/formSafety.js'
@@ -31,86 +25,47 @@ const form = reactive({
   signupClose: '',
 })
 
-const tournamentId = computed(
-  () => String(route.params.tournamentId || ''),
-)
+const tournamentId = computed(() => String(route.params.tournamentId || ''))
 
 const tournament = computed(() =>
-  tournamentStore.activeTournament?.id ===
-  tournamentId.value
+  tournamentStore.activeTournament?.id === tournamentId.value
     ? tournamentStore.activeTournament
-    : tournamentStore.tournaments.find(
-        (item) =>
-          item.id === tournamentId.value,
-      ) || null,
+    : tournamentStore.tournaments.find((item) => item.id === tournamentId.value) || null,
 )
 
-const registrationEditable = computed(
-  () =>
-    Boolean(
-      tournament.value?.rules
-        ?.registrationStage,
-    ),
-)
+const registrationEditable = computed(() => Boolean(tournament.value?.rules?.registrationStage))
 
-const hasStartedCompetition = computed(
-  () =>
-    !tournament.value?.rules
-      ?.registrationStage,
-)
+const hasStartedCompetition = computed(() => !tournament.value?.rules?.registrationStage)
 
 const eventCount = computed(
-  () =>
-    (
-      tournament.value?.categories ||
-      tournament.value?.events ||
-      []
-    ).length,
+  () => (tournament.value?.categories || tournament.value?.events || []).length,
 )
 
 const dateLabel = computed(() =>
   tournament.value
-    ? formatAppDateRange(
-        tournament.value.startDate,
-        tournament.value.endDate,
-        {
-          fallback:
-            'Dates are not set',
-        },
-      )
+    ? formatAppDateRange(tournament.value.startDate, tournament.value.endDate, {
+        fallback: 'Dates are not set',
+      })
     : '',
 )
 
 const venueLabel = computed(
-  () =>
-    tournament.value?.venue?.name ||
-    tournament.value?.location ||
-    'Venue not set',
+  () => tournament.value?.venue?.name || tournament.value?.location || 'Venue not set',
 )
 
 function hydrate() {
   if (!tournament.value) return
 
   Object.assign(form, {
-    name:
-      tournament.value.name || '',
-    description:
-      tournament.value.description ||
-      '',
-    signupOpen:
-      tournament.value.signupOpen ||
-      '',
-    signupClose:
-      tournament.value.signupClose ||
-      '',
+    name: tournament.value.name || '',
+    description: tournament.value.description || '',
+    signupOpen: tournament.value.signupOpen || '',
+    signupClose: tournament.value.signupClose || '',
   })
 }
 
 function validate() {
-  const name = sanitizePlainText(
-    form.name,
-    100,
-  )
+  const name = sanitizePlainText(form.name, 100)
 
   if (name.length < 2) {
     return 'Enter a tournament name.'
@@ -129,8 +84,7 @@ function validate() {
     registrationEditable.value &&
     tournament.value?.startDate &&
     form.signupClose &&
-    form.signupClose >
-      tournament.value.startDate
+    form.signupClose > tournament.value.startDate
   ) {
     return 'Registration must close before the tournament starts.'
   }
@@ -139,10 +93,7 @@ function validate() {
 }
 
 async function save() {
-  if (
-    saving.value ||
-    !tournament.value
-  ) {
+  if (saving.value || !tournament.value) {
     return
   }
 
@@ -161,34 +112,19 @@ async function save() {
 
   try {
     const payload = {
-      name: sanitizePlainText(
-        form.name,
-        100,
-      ),
-      description: sanitizePlainText(
-        form.description,
-        800,
-      ),
+      name: sanitizePlainText(form.name, 100),
+      description: sanitizePlainText(form.description, 800),
     }
 
     if (registrationEditable.value) {
-      payload.signupOpen =
-        form.signupOpen || null
-      payload.signupClose =
-        form.signupClose || null
+      payload.signupOpen = form.signupOpen || null
+      payload.signupClose = form.signupClose || null
     }
 
-    const saved =
-      await tournamentStore.updateTournament(
-        tournament.value.id,
-        payload,
-      )
+    const saved = await tournamentStore.updateTournament(tournament.value.id, payload)
 
     if (!saved) {
-      throw new Error(
-        tournamentStore.error ||
-          'Unable to save tournament settings.',
-      )
+      throw new Error(tournamentStore.error || 'Unable to save tournament settings.')
     }
 
     hydrate()
@@ -199,9 +135,7 @@ async function save() {
       type: 'success',
     })
   } catch (error) {
-    pageError.value =
-      error?.message ||
-      'We could not save this tournament.'
+    pageError.value = error?.message || 'We could not save this tournament.'
 
     notificationStore.addToast({
       title: 'Could not save tournament',
@@ -220,16 +154,13 @@ useShellNestedHeader(() => ({
     router.push({
       name: 'TournamentOverview',
       params: {
-        tournamentId:
-          tournamentId.value,
+        tournamentId: tournamentId.value,
       },
     }),
   crumbs: [
     { label: 'Tournaments' },
     {
-      label:
-        tournament.value?.name ||
-        'Tournament',
+      label: tournament.value?.name || 'Tournament',
     },
     { label: 'Settings' },
   ],
@@ -245,21 +176,16 @@ onMounted(async () => {
       await adminStore.loadClubs()
     }
 
-    await tournamentStore.fetchTournament(
-      tournamentId.value,
-    )
+    await tournamentStore.fetchTournament(tournamentId.value)
 
     if (!tournament.value) {
-      pageError.value =
-        'This tournament could not be found.'
+      pageError.value = 'This tournament could not be found.'
       return
     }
 
     hydrate()
   } catch (error) {
-    pageError.value =
-      error?.message ||
-      'We could not open these tournament settings.'
+    pageError.value = error?.message || 'We could not open these tournament settings.'
   } finally {
     ready.value = true
   }
@@ -268,20 +194,13 @@ onMounted(async () => {
 
 <template>
   <main class="tournament-settings">
-    <section
-      v-if="!ready"
-      class="ts-loading"
-      aria-label="Loading tournament settings"
-    >
+    <section v-if="!ready" class="ts-loading" aria-label="Loading tournament settings">
       <span></span>
       <span></span>
       <span></span>
     </section>
 
-    <section
-      v-else-if="!tournament"
-      class="ts-empty"
-    >
+    <section v-else-if="!tournament" class="ts-empty">
       <h1>Tournament not found</h1>
       <p>{{ pageError }}</p>
       <button
@@ -297,24 +216,14 @@ onMounted(async () => {
       </button>
     </section>
 
-    <form
-      v-else
-      class="ts-form"
-      @submit.prevent="save"
-    >
+    <form v-else class="ts-form" @submit.prevent="save">
       <header class="ts-intro">
         <p>THIS TOURNAMENT ONLY</p>
         <h1>{{ tournament.name }}</h1>
-        <span>
-          Change the tournament itself without changing your other events.
-        </span>
+        <span> Change the tournament itself without changing your other events. </span>
       </header>
 
-      <p
-        v-if="pageError"
-        class="ts-alert"
-        role="alert"
-      >
+      <p v-if="pageError" class="ts-alert" role="alert">
         {{ pageError }}
       </p>
 
@@ -323,21 +232,14 @@ onMounted(async () => {
           <span class="ts-section__number">1</span>
           <div>
             <h2>Tournament details</h2>
-            <p>
-              The name and description members see.
-            </p>
+            <p>The name and description members see.</p>
           </div>
         </header>
 
         <div class="ts-card ts-grid">
           <label class="ts-field">
             <span>Name</span>
-            <input
-              v-model="form.name"
-              type="text"
-              maxlength="100"
-              autocomplete="off"
-            />
+            <input v-model="form.name" type="text" maxlength="100" autocomplete="off" />
           </label>
 
           <label class="ts-field">
@@ -358,7 +260,8 @@ onMounted(async () => {
           <div>
             <h2>Dates and registration</h2>
             <p>
-              Gorra keeps competition dates visible while protecting an event that has already started.
+              Gorra keeps competition dates visible while protecting an event that has already
+              started.
             </p>
           </div>
         </header>
@@ -379,56 +282,34 @@ onMounted(async () => {
               <dt>Events</dt>
               <dd>
                 {{ eventCount }}
-                {{
-                  eventCount === 1
-                    ? 'event'
-                    : 'events'
-                }}
+                {{ eventCount === 1 ? 'event' : 'events' }}
               </dd>
             </div>
           </dl>
 
-          <template
-            v-if="registrationEditable"
-          >
+          <template v-if="registrationEditable">
             <div class="ts-divider"></div>
 
-            <div
-              class="ts-grid ts-grid--two"
-            >
+            <div class="ts-grid ts-grid--two">
               <label class="ts-field">
-                <span>
-                  Registration opens
-                </span>
-                <input
-                  v-model="form.signupOpen"
-                  type="date"
-                />
+                <span> Registration opens </span>
+                <input v-model="form.signupOpen" type="date" />
               </label>
 
               <label class="ts-field">
-                <span>
-                  Registration closes
-                </span>
+                <span> Registration closes </span>
                 <input
-                  v-model="
-                    form.signupClose
-                  "
+                  v-model="form.signupClose"
                   type="date"
-                  :max="
-                    tournament.startDate ||
-                    undefined
-                  "
+                  :max="tournament.startDate || undefined"
                 />
               </label>
             </div>
           </template>
 
-          <p
-            v-else
-            class="ts-lock-note"
-          >
-            Registration and competition dates stay locked here after the draw has started, so existing fixtures are not silently moved.
+          <p v-else class="ts-lock-note">
+            Registration and competition dates stay locked here after the draw has started, so
+            existing fixtures are not silently moved.
           </p>
         </div>
       </section>
@@ -445,12 +326,7 @@ onMounted(async () => {
         </header>
 
         <div class="ts-card ts-structure">
-          <span
-            class="ts-structure__icon"
-            aria-hidden="true"
-          >
-            ✓
-          </span>
+          <span class="ts-structure__icon" aria-hidden="true"> ✓ </span>
 
           <div>
             <strong>
@@ -461,7 +337,8 @@ onMounted(async () => {
               }}
             </strong>
             <p>
-              Gorra will not change divisions, generated fixtures or match scoring from this general settings page.
+              Gorra will not change divisions, generated fixtures or match scoring from this general
+              settings page.
             </p>
           </div>
         </div>
@@ -474,11 +351,9 @@ onMounted(async () => {
           :disabled="saving"
           @click="
             router.push({
-              name:
-                'TournamentOverview',
+              name: 'TournamentOverview',
               params: {
-                tournamentId:
-                  tournament.id,
+                tournamentId: tournament.id,
               },
             })
           "
@@ -486,16 +361,8 @@ onMounted(async () => {
           Cancel
         </button>
 
-        <button
-          class="ts-button ts-button--primary"
-          type="submit"
-          :disabled="saving"
-        >
-          {{
-            saving
-              ? 'Saving…'
-              : 'Save tournament settings'
-          }}
+        <button class="ts-button ts-button--primary" type="submit" :disabled="saving">
+          {{ saving ? 'Saving…' : 'Save tournament settings' }}
         </button>
       </footer>
     </form>
@@ -821,4 +688,3 @@ onMounted(async () => {
   }
 }
 </style>
-

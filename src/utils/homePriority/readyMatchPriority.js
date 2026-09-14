@@ -77,6 +77,32 @@ function opponentNameFor(challenge, match, actorId) {
   return 'Opponent'
 }
 
+function opponentImageFor(challenge, match, actorId) {
+  const actor = normalizeId(actorId)
+  const challengerId = normalizeId(challenge?.challengerId)
+  const defenderId = normalizeId(challenge?.defenderId)
+
+  if (actor === challengerId) {
+    return String(
+      challenge?.defenderImage ||
+        challenge?.defenderImageUrl ||
+        match?.defenderImage ||
+        '',
+    ).trim()
+  }
+
+  if (actor === defenderId) {
+    return String(
+      challenge?.challengerImage ||
+        challenge?.challengerImageUrl ||
+        match?.challengerImage ||
+        '',
+    ).trim()
+  }
+
+  return ''
+}
+
 function scheduleSummary(challenge, match) {
   const scheduledAt = challenge?.scheduledAt || match?.scheduledAt || ''
 
@@ -185,7 +211,17 @@ export function resolveReadyMatchPriority({
     return null
   }
 
-  const opponentName = opponentNameFor(winner.challenge, winner.match, actor)
+  const opponentName = opponentNameFor(
+    winner.challenge,
+    winner.match,
+    actor,
+  )
+
+  const opponentImage = opponentImageFor(
+    winner.challenge,
+    winner.match,
+    actor,
+  )
 
   return {
     id: `ready-${winner.challengeId}`,
@@ -194,9 +230,6 @@ export function resolveReadyMatchPriority({
 
     kind: 'ready_match',
 
-    /*
-     * Live/current match remains above this.
-     */
     priority: 90,
 
     sortAt: winner.sortAt,
@@ -207,12 +240,21 @@ export function resolveReadyMatchPriority({
 
     eyebrow: 'YOUR MATCH IS READY',
 
-    title: `You vs ${opponentName}`,
+    title: `Your match with ${opponentName} is ready`,
 
-    supportingText: scheduleSummary(winner.challenge, winner.match),
+    supportingText: scheduleSummary(
+      winner.challenge,
+      winner.match,
+    ),
 
     ctaLabel: 'Open match',
 
     action: 'open_ready_match',
+
+    personName: opponentName,
+
+    personImage: opponentImage,
+
+    attention: true,
   }
 }
