@@ -26,7 +26,6 @@ const form = reactive({
   phone: '',
   gender: '',
   dob: '',
-  level: '',
 })
 
 const actorId = computed(() =>
@@ -53,7 +52,6 @@ function fill() {
   form.phone = value.phone || ''
   form.gender = value.gender || ''
   form.dob = value.dob || ''
-  form.level = value.level || ''
 }
 
 async function save() {
@@ -65,7 +63,8 @@ async function save() {
   try {
     /*
      * Explicit personal-field allowlist.
-     * No role, rank, LadderEntry, Ladder rules or position can be submitted.
+     * No club level, rating, role, rank, LadderEntry, Ladder rules or
+     * position can be submitted from this self-service profile form.
      */
     await adminStore.saveMemberRecord(member.value.id, {
       name: form.name,
@@ -73,7 +72,6 @@ async function save() {
       phone: form.phone,
       gender: form.gender,
       dob: form.dob,
-      level: form.level,
     })
 
     notificationStore.addToast({
@@ -180,15 +178,6 @@ onMounted(async () => {
             <input v-model="form.dob" type="date" autocomplete="bday" />
           </label>
 
-          <label class="lw-field lw-field--full">
-            <span>Skill level</span>
-            <input
-              v-model="form.level"
-              maxlength="50"
-              autocomplete="off"
-              placeholder="Your club’s level label"
-            />
-          </label>
         </div>
       </section>
 

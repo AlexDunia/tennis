@@ -1299,7 +1299,14 @@ export async function switchActiveClub(clubIdInput, actor) {
 
 function mergeSetup(current, input) {
   const rawInput = input?.setup || input || {}
-  const hasSetupSections = ['workspace', 'membership', 'ladders', 'placement', 'rules'].some(
+  const hasSetupSections = [
+    'workspace',
+    'membership',
+    'playerLevels',
+    'ladders',
+    'placement',
+    'rules',
+  ].some(
     (key) => Object.prototype.hasOwnProperty.call(rawInput, key),
   )
   const patch = hasSetupSections ? rawInput : { workspace: rawInput }
@@ -1316,6 +1323,10 @@ function mergeSetup(current, input) {
       },
     },
     membership: { ...current.membership, ...(patch.membership || {}) },
+    playerLevels: {
+      ...current.playerLevels,
+      ...(patch.playerLevels || {}),
+    },
     ladders: Array.isArray(patch.ladders) ? patch.ladders : current.ladders,
     placement: { ...current.placement, ...(patch.placement || {}) },
     rules: { ...current.rules, ...(patch.rules || {}) },
@@ -1549,14 +1560,25 @@ export async function updateClubMemberRecord(memberIdInput, input = {}, actor) {
         input.dob === undefined ? current.dob : input.dob,
         10,
       ),
-      level: sanitizePlainText(
-        input.level === undefined ? current.level : input.level,
-        50,
-      ),
-      rating: sanitizePlainText(
-        input.rating === undefined ? current.rating : input.rating,
-        40,
-      ),
+      level: canManage
+        ? sanitizePlainText(
+            input.level === undefined ? current.level : input.level,
+            50,
+          )
+        : sanitizePlainText(current.level, 50),
+      clubLevelId: canManage
+        ? sanitizeDirectoryId(
+            input.clubLevelId === undefined
+              ? current.clubLevelId || current.level
+              : input.clubLevelId,
+          )
+        : sanitizeDirectoryId(current.clubLevelId || current.level),
+      rating: canManage
+        ? sanitizePlainText(
+            input.rating === undefined ? current.rating : input.rating,
+            40,
+          )
+        : sanitizePlainText(current.rating, 40),
       memberNumber: sanitizePlainText(
         input.memberNumber === undefined ? current.memberNumber : input.memberNumber,
         80,
@@ -1753,7 +1775,7 @@ function publicProfile(member) {
     phone: sanitizePlainText(member.phone, 30),
     gender: sanitizePlainText(member.gender, 30),
     dob: sanitizePlainText(member.dob, 10),
-    level: sanitizePlainText(member.level, 50),
+    clubLevelId: sanitizeDirectoryId(member.clubLevelId || member.level),
   }
 }
 
@@ -2117,6 +2139,8 @@ export async function joinLadderWithInvite(
       photoUrl: '',
       memberNumber: '',
       yearOfEntry: '',
+      level: '',
+      clubLevelId: '',
       rating: '',
       ladderMemberships: [],
     }
@@ -2149,7 +2173,6 @@ export async function joinLadderWithInvite(
         phone: current.phone || profile.phone,
         gender: current.gender || profile.gender,
         dob: current.dob || profile.dob,
-        level: current.level || profile.level,
       }),
     )
 

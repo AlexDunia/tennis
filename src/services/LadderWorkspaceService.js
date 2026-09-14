@@ -5,6 +5,7 @@ import {
   createLadderWorkspaceDraft,
   evaluateLadderEligibility,
   ladderRequirementsLabel,
+  normalizeLadderEligibility,
   normalizeLadderEntries,
   sanitizeLadderJoinProfile,
   validateLadderJoinProfile,
@@ -49,12 +50,42 @@ function nextLadderId(name, setup) {
   throw new Error('Use a different ladder name.')
 }
 
+function configuredClubLevelIds(setup) {
+  return new Set(
+    (Array.isArray(setup?.playerLevels?.levels)
+      ? setup.playerLevels.levels
+      : []
+    )
+      .filter((level) => level?.active !== false)
+      .map((level) => sanitizeDirectoryId(level?.id))
+      .filter(Boolean),
+  )
+}
+
 export function createLadderFromForm({ setup, input } = {}) {
   const current = clone(setup)
   const value = asObject(input)
   const name = sanitizePlainText(value.name, 70)
 
   if (name.length < 2) throw new Error('Enter a ladder name.')
+
+  const eligibility = normalizeLadderEligibility(value.eligibility)
+
+  if (eligibility.skill.mode === 'club_level') {
+    const allowed = configuredClubLevelIds(current)
+
+    if (!allowed.size) {
+      throw new Error('Add club player levels before limiting this ladder by level.')
+    }
+
+    const hasUnknownLevel = eligibility.skill.levelIds.some(
+      (levelId) => !allowed.has(levelId),
+    )
+
+    if (hasUnknownLevel) {
+      throw new Error('Choose player levels already used by this club.')
+    }
+  }
 
   const hasClubDefaults = Boolean(
     current.rules && Object.keys(current.rules).length,
@@ -64,7 +95,7 @@ export function createLadderFromForm({ setup, input } = {}) {
     id: nextLadderId(name, current),
     name,
     matchType: value.matchType === 'doubles' ? 'doubles' : 'singles',
-    eligibility: value.eligibility,
+    eligibility,
     rulesSource: hasClubDefaults ? 'club' : 'gorra',
     rules: hasClubDefaults ? current.rules : {},
   })
@@ -239,6 +270,10 @@ export function startLadder({ setup, ladderId } = {}) {
 export function ladderPublicSummary({ club, ladder } = {}) {
   if (!club || !ladder) return null
 
+  const clubLevels = Array.isArray(club.setup?.playerLevels?.levels)
+    ? club.setup.playerLevels.levels
+    : []
+
   return {
     clubId: sanitizeDirectoryId(club.id),
     clubName: sanitizePlainText(
@@ -249,7 +284,10 @@ export function ladderPublicSummary({ club, ladder } = {}) {
     ladderName: sanitizePlainText(ladder.name, 70),
     matchType: ladder.matchType === 'doubles' ? 'doubles' : 'singles',
     eligibility: clone(ladder.eligibility || {}),
-    requirementsLabel: ladderRequirementsLabel(ladder.eligibility),
+    requirementsLabel: ladderRequirementsLabel(
+      ladder.eligibility,
+      clubLevels,
+    ),
   }
 }
 
@@ -260,6 +298,13 @@ export function prepareLadderJoin({
   now = new Date(),
 } = {}) {
   const baseProfile = sanitizeLadderJoinProfile(existingProfile || {})
+  const trustedClubLevelId = sanitizeDirectoryId(
+    existingProfile?.clubLevelId ||
+      existingProfile?.club_level_id ||
+      existingProfile?.levelId ||
+      existingProfile?.level ||
+      '',
+  )
   const incoming = sanitizeLadderJoinProfile(input)
 
   const merged = {
@@ -268,7 +313,6 @@ export function prepareLadderJoin({
     phone: incoming.phone || baseProfile.phone,
     gender: incoming.gender || baseProfile.gender,
     dob: incoming.dob || baseProfile.dob,
-    level: incoming.level || baseProfile.level,
   }
 
   const validation = validateLadderJoinProfile(merged)
@@ -282,20 +326,31 @@ export function prepareLadderJoin({
     }
   }
 
+  const checkedProfile = {
+    ...validation.profile,
+    clubLevelId: trustedClubLevelId,
+  }
+
   const eligibility = evaluateLadderEligibility({
     eligibility: ladder?.eligibility,
-    profile: validation.profile,
+    profile: checkedProfile,
     now,
   })
 
+  const needsClubLevel =
+    !eligibility.complete &&
+    eligibility.missing.includes('clubLevel')
+
   return {
     ok: eligibility.complete && eligibility.eligible,
-    message: !eligibility.complete
-      ? 'We need one more detail before we can check eligibility.'
-      : !eligibility.eligible
-        ? 'You do not meet this ladder’s current requirements.'
-        : '',
-    profile: validation.profile,
+    message: needsClubLevel
+      ? 'Your club needs to set your playing level before you can join this ladder.'
+      : !eligibility.complete
+        ? 'We need one more detail before we can check eligibility.'
+        : !eligibility.eligible
+          ? 'You do not meet this ladder’s current requirements.'
+          : '',
+    profile: checkedProfile,
     eligibility,
   }
 }

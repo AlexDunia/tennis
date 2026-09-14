@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import BaseButton from '../components/BaseButton.vue'
 import { useAdminStore } from '../stores/admin.js'
 import { useNotificationStore } from '../stores/notification.js'
+import { sanitizeDirectoryId } from '../utils/admin/clubSetup.js'
 import { sanitizePlainText } from '../utils/formSafety.js'
 import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import '../assets/ladder-workspace.css'
@@ -24,11 +25,32 @@ const form = reactive({
   minimumAge: 18,
   maximumAge: 100,
   skillMode: 'any',
-  skillLevels: '',
+  skillLevelIds: [],
 })
 
 const activeClub = computed(() => adminStore.activeClub)
 const clubName = computed(() => activeClub.value?.name || 'Your club')
+const clubLogo = computed(
+  () => activeClub.value?.setup?.workspace?.logoUrl || '',
+)
+
+const clubInitials = computed(() =>
+  clubName.value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase(),
+)
+
+const clubLevels = computed(() =>
+  (Array.isArray(activeClub.value?.setup?.playerLevels?.levels)
+    ? activeClub.value.setup.playerLevels.levels
+    : []
+  ).filter((level) => level?.active !== false),
+)
 
 const hasClubRules = computed(() =>
   Boolean(
@@ -51,7 +73,7 @@ function viewRules() {
   notificationStore.addToast({
     title: hasClubRules.value ? `${clubName.value} rules` : 'GORRA defaults',
     message:
-      'Challenge and match rules can be reviewed or customized after the ladder is created. Creation stays focused on who may participate.',
+      'Challenge and match rules can be reviewed or customized after the ladder is created.',
     type: 'info',
   })
 }
@@ -83,16 +105,25 @@ async function create() {
     }
   }
 
-  const levels =
-    form.skillMode === 'set'
-      ? form.skillLevels
-          .split(',')
-          .map((value) => sanitizePlainText(value, 50))
-          .filter(Boolean)
+  const availableLevelIds = new Set(
+    clubLevels.value
+      .map((level) => sanitizeDirectoryId(level.id))
+      .filter(Boolean),
+  )
+
+  const selectedLevelIds =
+    form.skillMode === 'club_level'
+      ? [
+          ...new Set(
+            form.skillLevelIds
+              .map((levelId) => sanitizeDirectoryId(levelId))
+              .filter((levelId) => availableLevelIds.has(levelId)),
+          ),
+        ]
       : []
 
-  if (form.skillMode === 'set' && !levels.length) {
-    error.value = 'Add at least one skill level.'
+  if (form.skillMode === 'club_level' && !selectedLevelIds.length) {
+    error.value = 'Choose at least one player level.'
     return
   }
 
@@ -111,7 +142,7 @@ async function create() {
         },
         skill: {
           mode: form.skillMode,
-          levels,
+          levelIds: selectedLevelIds,
         },
       },
     })
@@ -161,20 +192,24 @@ onMounted(async () => {
 
 <template>
   <main v-if="ready" class="ladder-workspace-page">
-    <header class="ladder-workspace-page__header">
-      <p class="ladder-workspace-page__eyebrow">{{ clubName }}</p>
-      <h1>Create ladder</h1>
-      <p class="ladder-workspace-page__description">
-        Decide who this ladder is for. Members and starting positions come next.
-      </p>
+    <header class="lw-club-context">
+      <div class="lw-club-context__mark" aria-hidden="true">
+        <img v-if="clubLogo" :src="clubLogo" alt="" />
+        <span v-else>{{ clubInitials }}</span>
+      </div>
+
+      <div class="lw-club-context__copy">
+        <strong>{{ clubName }}</strong>
+        <p>Choose who can play. Members and starting positions come next.</p>
+      </div>
     </header>
 
     <form class="lw-form" @submit.prevent="create">
       <p v-if="error" class="lw-alert" role="alert">{{ error }}</p>
 
       <section class="lw-section">
-        <div class="lw-grid">
-          <label class="lw-field lw-field--full">
+        <div class="lw-grid lw-grid--single">
+          <label class="lw-field">
             <span>Ladder name</span>
             <input
               v-model="form.name"
@@ -185,7 +220,7 @@ onMounted(async () => {
             />
           </label>
 
-          <div class="lw-field lw-field--full">
+          <div class="lw-field">
             <span>Format</span>
             <div class="lw-choice-row">
               <label class="lw-choice">
@@ -204,10 +239,10 @@ onMounted(async () => {
       <section class="lw-section">
         <div class="lw-section__heading">
           <h2>Who can participate?</h2>
-          <p>The invite link will use these requirements automatically.</p>
+          <p>These requirements are also used on the ladder invite link.</p>
         </div>
 
-        <div class="lw-grid">
+        <div class="lw-grid lw-grid--single">
           <label class="lw-field">
             <span>Gender</span>
             <select v-model="form.gender">
@@ -229,61 +264,78 @@ onMounted(async () => {
                 Set age range
               </label>
             </div>
+
+            <div v-if="form.ageMode === 'range'" class="lw-range-grid">
+              <label class="lw-field">
+                <span>Minimum age</span>
+                <input
+                  v-model.number="form.minimumAge"
+                  type="number"
+                  min="5"
+                  max="100"
+                  inputmode="numeric"
+                />
+              </label>
+
+              <label class="lw-field">
+                <span>Maximum age</span>
+                <input
+                  v-model.number="form.maximumAge"
+                  type="number"
+                  min="5"
+                  max="100"
+                  inputmode="numeric"
+                />
+              </label>
+            </div>
           </div>
 
-          <template v-if="form.ageMode === 'range'">
-            <label class="lw-field">
-              <span>Minimum age</span>
-              <input
-                v-model.number="form.minimumAge"
-                type="number"
-                min="5"
-                max="100"
-                inputmode="numeric"
-              />
-            </label>
-            <label class="lw-field">
-              <span>Maximum age</span>
-              <input
-                v-model.number="form.maximumAge"
-                type="number"
-                min="5"
-                max="100"
-                inputmode="numeric"
-              />
-            </label>
-          </template>
-
-          <div class="lw-field lw-field--full">
+          <div class="lw-field">
             <span>Skill level</span>
+
             <div class="lw-choice-row">
               <label class="lw-choice">
                 <input v-model="form.skillMode" type="radio" value="any" />
                 Any level
               </label>
+
               <label class="lw-choice">
-                <input v-model="form.skillMode" type="radio" value="set" />
+                <input
+                  v-model="form.skillMode"
+                  type="radio"
+                  value="club_level"
+                />
                 Set level
               </label>
             </div>
-          </div>
 
-          <label
-            v-if="form.skillMode === 'set'"
-            class="lw-field lw-field--full"
-          >
-            <span>Allowed levels</span>
-            <input
-              v-model="form.skillLevels"
-              maxlength="300"
-              autocomplete="off"
-              placeholder="Intermediate, Advanced"
-            />
-            <small>
-              Use the same level names your club already uses. Separate multiple
-              levels with commas.
-            </small>
-          </label>
+            <div
+              v-if="form.skillMode === 'club_level'"
+              class="lw-level-block"
+            >
+              <span class="lw-label">Allowed levels</span>
+
+              <div class="lw-level-options">
+                <label
+                  v-for="level in clubLevels"
+                  :key="level.id"
+                  class="lw-level-chip"
+                >
+                  <input
+                    v-model="form.skillLevelIds"
+                    type="checkbox"
+                    :value="level.id"
+                  />
+                  <span>{{ level.label }}</span>
+                </label>
+              </div>
+
+              <small>
+                Levels are set by {{ clubName }}. Members cannot change their own
+                club level from a ladder invite.
+              </small>
+            </div>
+          </div>
         </div>
       </section>
 

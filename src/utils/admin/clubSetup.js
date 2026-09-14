@@ -7,6 +7,7 @@ import {
   CLUB_COVER_PRESET_IDS,
   CLUB_MEMBERSHIP_ROLES,
   CLUB_SETUP_SCHEMA_VERSION,
+  DEFAULT_CLUB_PLAYER_LEVELS,
   LADDER_TEMPLATES,
   MATCH_FORMAT_PRESETS,
   MOVEMENT_SYSTEMS,
@@ -35,6 +36,44 @@ function asObject(value) {
 function clampInteger(value, minimum, maximum, fallback) {
   const parsed = Number.parseInt(value, 10)
   return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, parsed)) : fallback
+}
+
+export function normalizeClubPlayerLevels(input = {}) {
+  const value = asObject(input)
+  const source =
+    Array.isArray(value.levels) && value.levels.length
+      ? value.levels
+      : DEFAULT_CLUB_PLAYER_LEVELS
+
+  const seen = new Set()
+
+  const levels = source
+    .slice(0, 20)
+    .map((item, index) => {
+      const raw = asObject(item)
+      const label = sanitizePlainText(raw.label || raw.name, 50)
+      const id = sanitizeDirectoryId(raw.id || raw.key || label)
+
+      if (!id || !label || seen.has(id)) return null
+      seen.add(id)
+
+      return {
+        id,
+        label,
+        active: raw.active !== false,
+        order: index + 1,
+      }
+    })
+    .filter(Boolean)
+
+  if (levels.length) return { levels }
+
+  return {
+    levels: DEFAULT_CLUB_PLAYER_LEVELS.map((level, index) => ({
+      ...level,
+      order: index + 1,
+    })),
+  }
 }
 
 export function sanitizeDirectoryId(value, fallback = '') {
@@ -157,6 +196,13 @@ function normalizeMemberRecord(input, index, sourceFallback) {
     gender: sanitizePlainText(value.gender, 30),
     dob: sanitizeDate(value.dob),
     level: sanitizePlainText(value.level || value.playingLevel, 50),
+    clubLevelId: sanitizeDirectoryId(
+      value.clubLevelId ||
+        value.club_level_id ||
+        value.levelId ||
+        value.level ||
+        value.playingLevel,
+    ),
     rating: sanitizePlainText(value.rating, 40),
     memberNumber: sanitizePlainText(
       value.memberNumber || value.referenceNumber || value.member_number,
@@ -426,6 +472,7 @@ export function normalizeClubSetup(input = {}) {
               challengeReminders: notificationInput.challengeReminders !== false,
             },
     },
+    playerLevels: normalizeClubPlayerLevels(value.playerLevels || value.player_levels),
     membership: {
       source: isAllowed(
         membership.source,

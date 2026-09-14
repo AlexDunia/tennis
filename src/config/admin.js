@@ -10,6 +10,13 @@ export const CLUB_DIRECTORY_STORAGE_KEY = 'gorra.admin.clubDirectory.v2'
 export const CLUB_SETUP_SCHEMA_VERSION = 2
 export const CLUB_DIRECTORY_SCHEMA_VERSION = 2
 
+export const DEFAULT_CLUB_PLAYER_LEVELS = Object.freeze([
+  { id: 'beginner', label: 'Beginner', active: true },
+  { id: 'intermediate', label: 'Intermediate', active: true },
+  { id: 'advanced', label: 'Advanced', active: true },
+  { id: 'competition', label: 'Competition', active: true },
+])
+
 export const CLUB_INVITE_KINDS = Object.freeze({
   GENERIC: 'generic-club',
   MEMBER_RECORD: 'member-record',
@@ -172,6 +179,9 @@ export function createDefaultClubSetup() {
       roster: [],
       allowManualEntry: true,
     },
+    playerLevels: {
+      levels: DEFAULT_CLUB_PLAYER_LEVELS.map((level) => ({ ...level })),
+    },
     ladders: [
       {
         id: 'open-singles',
@@ -258,6 +268,9 @@ export function createMinimalClubSetup({
       manualMembers: [],
       roster: [],
       allowManualEntry: true,
+    },
+    playerLevels: {
+      levels: DEFAULT_CLUB_PLAYER_LEVELS.map((level) => ({ ...level })),
     },
     ladders: [],
     primaryLadderId: '',

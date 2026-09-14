@@ -42,16 +42,36 @@ function normalizeGender(value) {
   return ''
 }
 
-function normalizeLevel(value) {
-  return sanitizePlainText(value, 50).toLowerCase().replace(/\s+/g, ' ')
+function normalizeLevelId(value) {
+  return sanitizeDirectoryId(value)
 }
 
-function uniqueLevels(values = []) {
+function uniqueLevelIds(values = []) {
   const source = Array.isArray(values)
     ? values
-    : String(values || '').split(',').map((value) => value.trim())
+    : String(values || '')
+        .split(',')
+        .map((value) => value.trim())
 
-  return [...new Set(source.map(normalizeLevel).filter(Boolean))].slice(0, 20)
+  return [
+    ...new Set(
+      source
+        .map(normalizeLevelId)
+        .filter(Boolean),
+    ),
+  ].slice(0, 20)
+}
+
+function profileClubLevelId(profileInput = {}) {
+  const profile = asObject(profileInput)
+
+  return normalizeLevelId(
+    profile.clubLevelId ||
+      profile.club_level_id ||
+      profile.levelId ||
+      profile.level ||
+      profile.skillLevel,
+  )
 }
 
 function safeIso(value) {
@@ -86,7 +106,18 @@ export function normalizeLadderEligibility(input = {}) {
   }
 
   const skill = asObject(value.skill)
-  const levels = uniqueLevels(skill.levels || skill.allowedLevels)
+  const requestedClubLevelMode = ['club_level', 'set'].includes(skill.mode)
+  const levelIds = uniqueLevelIds(
+    skill.levelIds ||
+      skill.allowedLevelIds ||
+      skill.levels ||
+      skill.allowedLevels,
+  )
+
+  const skillMode =
+    requestedClubLevelMode && levelIds.length
+      ? 'club_level'
+      : 'any'
 
   return {
     gender,
@@ -96,8 +127,11 @@ export function normalizeLadderEligibility(input = {}) {
       maximum: ageMode === 'range' ? maximumAge : null,
     },
     skill: {
-      mode: skill.mode === 'set' && levels.length ? 'set' : 'any',
-      levels: skill.mode === 'set' ? levels : [],
+      mode: skillMode,
+      levelIds: skillMode === 'club_level' ? levelIds : [],
+      // Compatibility alias for any older UI that still reads skill.levels.
+      // Values are stable IDs, not free-typed display labels.
+      levels: skillMode === 'club_level' ? levelIds : [],
     },
   }
 }
@@ -260,10 +294,12 @@ export function ladderEligibilityMissingFields(eligibilityInput, profileInput) {
   }
 
   if (
-    eligibility.skill.mode === 'set' &&
-    !normalizeLevel(profile.level || profile.skillLevel)
+    eligibility.skill.mode === 'club_level' &&
+    !profileClubLevelId(profile)
   ) {
-    missing.push('level')
+    // Club level is deliberately not a public/member-editable join field.
+    // A club admin owns this value.
+    missing.push('clubLevel')
   }
 
   return missing
@@ -321,9 +357,10 @@ export function evaluateLadderEligibility({
     }
   }
 
-  if (eligibility.skill.mode === 'set') {
-    const level = normalizeLevel(profile.level || profile.skillLevel)
-    if (!eligibility.skill.levels.includes(level)) {
+  if (eligibility.skill.mode === 'club_level') {
+    const levelId = profileClubLevelId(profile)
+
+    if (!eligibility.skill.levelIds.includes(levelId)) {
       return {
         eligible: false,
         complete: true,
@@ -341,7 +378,10 @@ export function evaluateLadderEligibility({
   }
 }
 
-export function ladderRequirementsLabel(eligibilityInput) {
+export function ladderRequirementsLabel(
+  eligibilityInput,
+  clubLevelOptions = [],
+) {
   const eligibility = normalizeLadderEligibility(eligibilityInput)
   const parts = []
 
@@ -357,12 +397,23 @@ export function ladderRequirementsLabel(eligibilityInput) {
     parts.push('Any age')
   }
 
-  if (eligibility.skill.mode === 'set') {
-    parts.push(
-      eligibility.skill.levels
-        .map((level) => level.replace(/\b\w/g, (letter) => letter.toUpperCase()))
-        .join(', '),
+  if (eligibility.skill.mode === 'club_level') {
+    const labelsById = new Map(
+      (Array.isArray(clubLevelOptions) ? clubLevelOptions : [])
+        .map((level) => [
+          normalizeLevelId(level?.id),
+          sanitizePlainText(level?.label || level?.name, 50),
+        ])
+        .filter(([id, label]) => id && label),
     )
+
+    const labels = eligibility.skill.levelIds.map(
+      (levelId) =>
+        labelsById.get(levelId) ||
+        levelId.replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()),
+    )
+
+    parts.push(labels.join(', '))
   } else {
     parts.push('All skill levels')
   }
@@ -370,6 +421,10 @@ export function ladderRequirementsLabel(eligibilityInput) {
   return parts.join(' · ')
 }
 
+/*
+ * Public ladder-join input is intentionally limited to reusable personal facts.
+ * Club level, rating, rank, role and Ladder authority are NOT accepted here.
+ */
 export function sanitizeLadderJoinProfile(input = {}) {
   return {
     name: sanitizePlainText(input.name || input.fullName, 100),
@@ -377,7 +432,6 @@ export function sanitizeLadderJoinProfile(input = {}) {
     phone: sanitizePlainText(input.phone, 30),
     gender: sanitizePlainText(input.gender, 30),
     dob: validDateOnly(input.dob),
-    level: sanitizePlainText(input.level || input.skillLevel, 50),
   }
 }
 

@@ -31,8 +31,7 @@ const form = reactive({
   phone: '',
   gender: '',
   dob: '',
-  level: '',
-  rating: '',
+  clubLevelId: '',
   memberNumber: '',
   yearOfEntry: '',
   role: 'player',
@@ -45,6 +44,13 @@ const memberResult = computed(() =>
 )
 const member = computed(() => memberResult.value.member)
 const canManage = computed(() => adminStore.hasActiveClubPermission('club.manage'))
+
+const clubLevelOptions = computed(() =>
+  (Array.isArray(club.value?.setup?.playerLevels?.levels)
+    ? club.value.setup.playerLevels.levels
+    : []
+  ).filter((level) => level?.active !== false),
+)
 const currentUserId = computed(() =>
   sanitizeDirectoryId(authStore.user?.id || authStore.user?.playerId || authStore.user?.email),
 )
@@ -105,8 +111,7 @@ function fillForm() {
     phone: value.phone || '',
     gender: value.gender || '',
     dob: value.dob || '',
-    level: value.level || '',
-    rating: value.rating || '',
+    clubLevelId: sanitizeDirectoryId(value.clubLevelId || value.level),
     memberNumber: value.memberNumber || '',
     yearOfEntry: value.yearOfEntry || '',
     role: value.role || 'player',
@@ -126,14 +131,22 @@ async function saveMember() {
       throw new Error('Enter a working email address.')
     }
 
+    const selectedClubLevel = clubLevelOptions.value.find(
+      (level) => level.id === form.clubLevelId,
+    )
+
     await adminStore.saveMemberRecord(member.value.id, {
       name: form.name.trim(),
       email,
       phone: form.phone.trim(),
       gender: form.gender,
       dob: form.dob,
-      level: form.level.trim(),
-      rating: form.rating.trim(),
+      ...(canManage.value
+        ? {
+            clubLevelId: form.clubLevelId,
+            level: selectedClubLevel?.label || '',
+          }
+        : {}),
       memberNumber: form.memberNumber.trim(),
       yearOfEntry: String(form.yearOfEntry || '').trim(),
       photoUrl: form.photoUrl,
@@ -353,24 +366,25 @@ useShellNestedHeader(() => ({
           </header>
 
           <div class="ref-form-grid">
-            <label class="ref-form-field">
-              <span>Playing Level</span>
-              <input
-                v-model="form.level"
-                type="text"
-                maxlength="50"
-                :disabled="!canEditPersonal"
-              />
-            </label>
-
-            <label class="ref-form-field">
-              <span>Rating</span>
-              <input
-                v-model="form.rating"
-                type="text"
-                maxlength="40"
-                :disabled="!canEditPersonal"
-              />
+            <label class="ref-form-field full">
+              <span>Playing level</span>
+              <select v-model="form.clubLevelId" :disabled="!canManage">
+                <option value="">Not set</option>
+                <option
+                  v-for="level in clubLevelOptions"
+                  :key="level.id"
+                  :value="level.id"
+                >
+                  {{ level.label }}
+                </option>
+              </select>
+              <small>
+                {{
+                  canManage
+                    ? 'This club level is used for competition eligibility.'
+                    : 'Playing level is set by a club admin.'
+                }}
+              </small>
             </label>
 
             <div class="ref-form-field full">

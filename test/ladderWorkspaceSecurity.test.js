@@ -5,6 +5,7 @@ import {
   digestLadderInviteToken,
   evaluateLadderEligibility,
   ladderEligibilityMissingFields,
+  normalizeLadderEligibility,
   normalizeLadderEntries,
   sanitizeLadderJoinProfile,
 } from '../src/domain/ladderWorkspace.js'
@@ -27,7 +28,7 @@ test('age is derived from DOB', () => {
   )
 })
 
-test('eligibility asks only for required facts', () => {
+test('eligibility asks only for required personal facts', () => {
   assert.deepEqual(
     ladderEligibilityMissingFields(
       {
@@ -41,7 +42,22 @@ test('eligibility asks only for required facts', () => {
   )
 })
 
-test('age and skill are enforced', () => {
+test('legacy text levels normalize to stable club level IDs', () => {
+  const eligibility = normalizeLadderEligibility({
+    skill: {
+      mode: 'set',
+      levels: ['Intermediate', 'Advanced'],
+    },
+  })
+
+  assert.equal(eligibility.skill.mode, 'club_level')
+  assert.deepEqual(
+    eligibility.skill.levelIds,
+    ['intermediate', 'advanced'],
+  )
+})
+
+test('age and admin-owned club level are enforced', () => {
   const result = evaluateLadderEligibility({
     eligibility: {
       gender: 'men',
@@ -51,14 +67,14 @@ test('age and skill are enforced', () => {
         maximum: 35,
       },
       skill: {
-        mode: 'set',
-        levels: ['intermediate', 'advanced'],
+        mode: 'club_level',
+        levelIds: ['intermediate', 'advanced'],
       },
     },
     profile: {
       gender: 'male',
       dob: '2000-01-01',
-      level: 'Advanced',
+      clubLevelId: 'advanced',
     },
     now: new Date('2026-09-14T12:00:00Z'),
   })
@@ -67,10 +83,33 @@ test('age and skill are enforced', () => {
   assert.equal(result.complete, true)
 })
 
-test('public join sanitizer cannot carry rank authority', () => {
+test('missing club level is an admin-owned missing fact', () => {
+  const result = evaluateLadderEligibility({
+    eligibility: {
+      gender: 'any',
+      age: { mode: 'any' },
+      skill: {
+        mode: 'club_level',
+        levelIds: ['intermediate'],
+      },
+    },
+    profile: {
+      name: 'Alex Dunia',
+    },
+  })
+
+  assert.equal(result.eligible, false)
+  assert.equal(result.complete, false)
+  assert.deepEqual(result.missing, ['clubLevel'])
+})
+
+test('public join sanitizer cannot carry club level, rating or rank authority', () => {
   const profile = sanitizeLadderJoinProfile({
     name: 'Alex Dunia',
     email: ' ALEX@EXAMPLE.COM ',
+    level: 'advanced',
+    clubLevelId: 'competition',
+    rating: '9999',
     position: 1,
     rank: 1,
     role: 'admin',
@@ -79,10 +118,13 @@ test('public join sanitizer cannot carry rank authority', () => {
 
   assert.deepEqual(
     Object.keys(profile).sort(),
-    ['dob', 'email', 'gender', 'level', 'name', 'phone'],
+    ['dob', 'email', 'gender', 'name', 'phone'],
   )
 
   assert.equal(profile.email, 'alex@example.com')
+  assert.equal(Object.hasOwn(profile, 'clubLevelId'), false)
+  assert.equal(Object.hasOwn(profile, 'level'), false)
+  assert.equal(Object.hasOwn(profile, 'rating'), false)
   assert.equal(Object.hasOwn(profile, 'position'), false)
 })
 

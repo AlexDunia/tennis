@@ -26,7 +26,6 @@ const form = reactive({
   phone: '',
   gender: '',
   dob: '',
-  level: '',
 })
 
 const token = computed(() => String(route.params.token || ''))
@@ -62,10 +61,18 @@ const needsDob = computed(
     (!knownProfile.value?.dob || missing.value.includes('dob')),
 )
 
-const needsLevel = computed(
+const needsClubLevel = computed(() =>
+  missing.value.includes('clubLevel'),
+)
+
+const knownIneligible = computed(
   () =>
-    preview.value?.eligibility?.skill?.mode === 'set' &&
-    (!knownProfile.value?.level || missing.value.includes('level')),
+    preview.value?.eligibilityResult?.complete === true &&
+    preview.value?.eligibilityResult?.eligible === false,
+)
+
+const canSubmit = computed(
+  () => !busy.value && !needsClubLevel.value && !knownIneligible.value,
 )
 
 function actor() {
@@ -88,7 +95,6 @@ function applyKnownProfile() {
   form.phone = profile.phone || ''
   form.gender = profile.gender || ''
   form.dob = profile.dob || ''
-  form.level = profile.level || ''
 }
 
 async function load() {
@@ -113,7 +119,7 @@ async function load() {
 }
 
 async function join() {
-  if (busy.value) return
+  if (!canSubmit.value) return
 
   busy.value = true
   error.value = ''
@@ -169,10 +175,21 @@ onMounted(load)
               }}
             </h2>
             <p v-if="knownProfile">
-              GORRA already knows your profile. We only ask for a detail if this
-              ladder needs it and it is missing.
+              GORRA already knows your profile. We only ask for a personal
+              detail when this ladder actually needs it.
             </p>
           </div>
+
+          <p v-if="needsClubLevel" class="lw-note">
+            This ladder uses a club-set playing level. A {{ preview.clubName }}
+            admin needs to set your level before GORRA can confirm that you can
+            join.
+          </p>
+
+          <p v-else-if="knownIneligible" class="lw-note">
+            Your current club information does not match this ladder’s
+            requirements. Ask a club admin if your playing level needs review.
+          </p>
 
           <div class="lw-grid">
             <label
@@ -226,30 +243,11 @@ onMounted(load)
                 required
               />
             </label>
-
-            <label v-if="needsLevel" class="lw-field lw-field--full">
-              <span>Skill level</span>
-              <select v-model="form.level" required>
-                <option value="">Choose</option>
-                <option
-                  v-for="level in preview.eligibility?.skill?.levels || []"
-                  :key="level"
-                  :value="level"
-                >
-                  {{
-                    level.replace(
-                      /\b\w/g,
-                      (letter) => letter.toUpperCase(),
-                    )
-                  }}
-                </option>
-              </select>
-            </label>
           </div>
         </section>
 
         <footer class="lw-footer">
-          <BaseButton type="submit" :disabled="busy">
+          <BaseButton type="submit" :disabled="!canSubmit">
             {{
               busy
                 ? 'Joining…'
