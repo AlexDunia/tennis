@@ -21,6 +21,8 @@ import HomePrioritySlot from '../components/dashboard/HomePrioritySlot.vue'
 import RoutePageSkeleton from '../components/RoutePageSkeleton.vue'
 import { resolveChallengeActionPriority } from '../utils/homePriority/challengeActionPriority'
 import { resolveHomeFallbackPriority } from '../utils/homePriority/homeFallbackPriority'
+import { subscribeToCompetitionChanges } from '../services/ApiService.js'
+import { homeLiveMatchRoute } from '../utils/homePriority/homeLiveMatchRoute.js'
 import { resolveLiveMatchPriority } from '../utils/homePriority/liveMatchPriority'
 import { resolveReadyMatchPriority } from '../utils/homePriority/readyMatchPriority'
 import { resolveHomePriority } from '../utils/homePriority/resolveHomePriority'
@@ -48,6 +50,10 @@ const actionIconNames = Object.freeze([
 
 let stopLiveMatchSubscription = null
 let priorityClockTimer = null
+let stopCompetitionSubscription = null
+let homeDisposed = false
+let competitionRefresh = null
+let competitionRefreshPending = false
 
 const currentPlayerName = computed(() =>
   String(
@@ -65,8 +71,8 @@ const currentPlayerFirstName = computed(
 
 const currentActorId = computed(() =>
   String(
-    playerStore.currentPlayer?.id ||
-      authStore.user?.playerId ||
+    authStore.user?.playerId ||
+      playerStore.currentPlayer?.id ||
       authStore.user?.id ||
       '',
   ).trim(),
@@ -189,12 +195,10 @@ function handleHomeHeroOpen(priority) {
     priority.action === 'open_live_match' &&
     priority.matchId
   ) {
-    router.push({
-      name: 'FriendlyMatchLive',
-      params: {
-        matchId: priority.matchId,
-      },
-    })
+    refreshHomeLiveMatches()
+    const current = liveMatchPriority.value
+    if (!current || current.matchId !== priority.matchId) return
+    router.push(homeLiveMatchRoute(current))
     return
   }
 
@@ -257,7 +261,29 @@ function handlePriorityVisibilityChange() {
   if (document.visibilityState === 'visible') {
     refreshPriorityClock()
     refreshHomeLiveMatches()
+    refreshHomeCompetition()
   }
+}
+
+function refreshHomeCompetition() {
+  if (homeDisposed) return
+  if (competitionRefresh) {
+    competitionRefreshPending = true
+    return competitionRefresh
+  }
+  competitionRefresh = Promise.allSettled([
+    challengeStore.loadChallenges(),
+    matchStore.loadMatches(),
+    playerStore.loadPlayers(),
+  ]).finally(() => {
+    competitionRefresh = null
+    if (!homeDisposed) refreshHomeLiveMatches()
+    if (competitionRefreshPending && !homeDisposed) {
+      competitionRefreshPending = false
+      refreshHomeCompetition()
+    }
+  })
+  return competitionRefresh
 }
 
 function refreshHomeLiveMatches() {
@@ -300,7 +326,9 @@ onMounted(async () => {
       matchStore.loadMatches(),
     ])
 
+    if (homeDisposed) return
     refreshHomeLiveMatches()
+    stopCompetitionSubscription = subscribeToCompetitionChanges(refreshHomeCompetition)
 
     stopLiveMatchSubscription =
       friendlyMatchStore.subscribeToLiveMatchChanges(
@@ -309,9 +337,10 @@ onMounted(async () => {
 
     priorityClockTimer = window.setInterval(
       refreshPriorityClock,
-      60_000,
+      1_000,
     )
 
+    window.addEventListener('focus', handlePriorityVisibilityChange)
     document.addEventListener(
       'visibilitychange',
       handlePriorityVisibilityChange,
@@ -322,6 +351,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  homeDisposed = true
+  stopCompetitionSubscription?.()
   if (typeof stopLiveMatchSubscription === 'function') {
     stopLiveMatchSubscription()
   }
@@ -334,6 +365,7 @@ onUnmounted(() => {
 
   priorityClockTimer = null
 
+  window.removeEventListener('focus', handlePriorityVisibilityChange)
   document.removeEventListener(
     'visibilitychange',
     handlePriorityVisibilityChange,

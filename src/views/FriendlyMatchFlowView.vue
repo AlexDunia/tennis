@@ -30,6 +30,7 @@ import {
   ladderMovementFor,
   ladderWindowFor,
 } from '../config/ladder'
+import EmptyState from '../components/EmptyState.vue'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
 import LiveMatchControl from '../components/match/LiveMatchControl.vue'
 import {
@@ -75,6 +76,7 @@ const matchStore = useMatchStore()
 const notificationStore = useNotificationStore()
 const tournamentStore = useTournamentStore()
 const inlineNote = ref('')
+const liveEntryError = ref('')
 const searchQuery = ref('')
 const qrDataUrl = ref('')
 const copyStatus = ref('')
@@ -266,10 +268,13 @@ const liveSessionView = computed(() => liveSessionApi.view.value)
 function canonicalMatchForCurrentLiveDraft() {
   const draft = friendlyMatchStore.draft
   const matchId = currentLiveMatchId.value
+  const rulesSnapshot = draft.rulesSnapshot || (draft.matchType === 'friendly'
+    ? friendlyRulesToMatchRulesSnapshot(draft).snapshot
+    : null)
 
   if (
     !matchId ||
-    !draft.rulesSnapshot ||
+    !rulesSnapshot ||
     !['friendly', 'ladder', 'tournament'].includes(draft.matchType)
   ) {
     return null
@@ -282,7 +287,7 @@ function canonicalMatchForCurrentLiveDraft() {
       source: draft.matchType,
       challengeId: draft.challengeId,
       court: draft.schedule?.court || '',
-      rulesSnapshot: draft.rulesSnapshot,
+      rulesSnapshot,
       lifecycleStatus: 'live',
       liveSessionId: draft.liveSessionId || '',
       sides: [
@@ -321,7 +326,7 @@ function initializeCanonicalLiveSession({ allowCreate = false } = {}) {
   const draft = friendlyMatchStore.draft
   const result = liveSessionApi.initialize(match, {
     allowCreate,
-    legacyLiveRecord: draft.liveSessionId ? null : draft,
+    legacyLiveRecord: draft,
     scorerId: draft.scorerId || draft.ownerId,
     assignedBy: draft.scorerChangedBy || draft.ownerId,
     authorityRevision: draft.scorerRevision,
@@ -1075,6 +1080,7 @@ const backRoute = computed(() => {
 })
 
 function guardStep() {
+  if (step.value === 'live' && liveEntryError.value) return
   /*
    * CHAIR UMPIRE MATCH CONTROL
    *
@@ -3709,6 +3715,7 @@ function handleWindowFocus() {
 }
 
 function configureStep() {
+  liveEntryError.value = ''
   inlineNote.value = ''
   searchQuery.value = ''
   copyStatus.value = ''
@@ -3725,8 +3732,15 @@ function configureStep() {
    */
   recoverCurrentMatchState()
 
-  if (step.value === 'live') {
-    initializeCanonicalLiveSession({ allowCreate: false })
+  if (step.value === 'live' &&
+      (!requestedLiveMatchId.value || friendlyMatchStore.liveMatchId !== requestedLiveMatchId.value)) {
+    liveEntryError.value = 'This saved match is no longer available.'
+    return
+  }
+
+  if (step.value === 'live' && !initializeCanonicalLiveSession({ allowCreate: false })) {
+    liveEntryError.value = inlineNote.value || 'This match could not be resumed.'
+    return
   }
 
   syncInvitationPolling()
@@ -3809,13 +3823,23 @@ onUnmounted(() => {
   cancelTennisAnnouncements()
 })
 
-watch(step, configureStep)
+watch([step, requestedLiveMatchId], configureStep)
 </script>
 
 <template>
   <div class="friendly-flow-route">
+    <EmptyState
+      v-if="liveEntryError"
+      illustration="scoreboard"
+      title="Match could not be resumed"
+      :description="liveEntryError"
+      primary-action-label="Try again"
+      secondary-action-label="Back to Home"
+      @primary-action="configureStep"
+      @secondary-action="router.push({ name: 'Dashboard' })"
+    />
     <main
-      v-if="canRenderCurrentRoute"
+      v-else-if="canRenderCurrentRoute"
       class="friendly-flow"
       :class="{
         'friendly-flow--picker': step === 'clubOpponent',

@@ -2444,7 +2444,16 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
           continue
         }
 
-        const match = readLiveDraft(matchId)
+        const stored = readLiveDraft(matchId)
+        const session = liveMatchSessionRepository.get(matchId)
+        const match = stored && session
+          ? {
+              ...stored,
+              liveState: session.engineState,
+              scorerId: session.scorerAuthority?.scorerId || '',
+              status: session.status === 'live' ? stored.status : session.status,
+            }
+          : stored
 
         if (
           !match ||
@@ -2505,32 +2514,45 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
   }
 
   /*
-   * Cross-tab live-match changes.
-   *
-   * No polling:
-   * remain idle when nothing changes and react only when
-   * another browser tab actually changes live-match state.
+   * Observe local draft writes, canonical session updates, and other tabs.
+   * Home stays read-only and releases every listener on unmount.
    */
   function subscribeToLiveMatchChanges(callback) {
     if (typeof callback !== 'function' || typeof window === 'undefined') {
       return () => {}
     }
 
-    const handleStorage = (event) => {
-      /*
-       * key === null means localStorage was cleared.
-       */
-      if (event.key !== null && !event.key.startsWith(LIVE_MATCH_STORAGE_PREFIX)) {
-        return
+    const sessionSubscriptions = new Map()
+    function refresh() {
+      try {
+        const storage = window.localStorage
+        for (let index = 0; index < storage.length; index += 1) {
+          const key = storage.key(index) || ''
+          if (!key.startsWith(LIVE_MATCH_STORAGE_PREFIX)) continue
+          const id = decodeURIComponent(key.slice(LIVE_MATCH_STORAGE_PREFIX.length))
+          if (!sessionSubscriptions.has(id)) {
+            sessionSubscriptions.set(id, liveMatchSessionRepository.subscribe(id, callback))
+          }
+        }
+      } catch {
+        // Restricted storage must not interrupt the Home projection.
       }
-
       callback()
     }
-
+    const handleStorage = (event) => {
+      if (event.key !== null &&
+          !event.key.startsWith(LIVE_MATCH_STORAGE_PREFIX) &&
+          !event.key.startsWith('gorra.liveMatchSession.v1.')) return
+      refresh()
+    }
+    const stopDraftWatch = watch(draft, refresh, { deep: true, flush: 'post' })
     window.addEventListener('storage', handleStorage)
-
+    refresh()
     return () => {
+      stopDraftWatch()
       window.removeEventListener('storage', handleStorage)
+      sessionSubscriptions.forEach((unsubscribe) => unsubscribe())
+      sessionSubscriptions.clear()
     }
   }
 
@@ -2563,6 +2585,10 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
 
     draftDetached.value = false
 
+    if (!stored.rulesSnapshot && stored.matchType === 'friendly') {
+      const resolved = engineConfigForDraft(stored)
+      if (resolved.ok) stored.rulesSnapshot = resolved.snapshot
+    }
     draft.value = stored
 
     syncLegacyScoreFields()

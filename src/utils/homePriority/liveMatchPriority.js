@@ -33,7 +33,7 @@ function actorRelationship(match, actorId) {
     return 'owner'
   }
 
-  if (normalizeId(match?.opponent?.id) === actor) {
+  if ([match?.participantAId, match?.participantBId, match?.opponent?.id].some((id) => normalizeId(id) === actor)) {
     return 'participant'
   }
 
@@ -51,7 +51,7 @@ function relationshipWeight(relationship) {
 }
 
 function liveMatchId(match) {
-  return normalizeId(match?.matchId || match?.ladderMatchId)
+  return normalizeId(match?.matchId || match?.ladderMatchId || match?.id)
 }
 
 function livePlayerNames(match) {

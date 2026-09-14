@@ -281,19 +281,60 @@ function loadLadderState() {
   }
 }
 
+const COMPETITION_CHANGE_EVENT = 'gorra:competition-change'
+
+function persistCompetitionState(key, state) {
+  const encoded = JSON.stringify(state)
+  if (window.localStorage.getItem(key) === encoded) return
+  window.localStorage.setItem(key, encoded)
+  window.dispatchEvent?.(new Event(COMPETITION_CHANGE_EVENT))
+}
+
+export function subscribeToCompetitionChanges(callback) {
+  if (typeof window === 'undefined' || typeof callback !== 'function') return () => {}
+  let active = true
+  let queued = false
+  function notify() {
+    if (queued) return
+    queued = true
+    queueMicrotask(() => {
+      queued = false
+      if (active) callback()
+    })
+  }
+  function handleStorage(event) {
+    if (![LADDER_STORAGE_KEY, TOURNAMENT_STORAGE_KEY, null].includes(event.key)) return
+    if (event.key === LADDER_STORAGE_KEY || event.key === null) {
+      const saved = loadLadderState()
+      if (saved && Array.isArray(saved.players) && Array.isArray(saved.challenges) && Array.isArray(saved.matches)) {
+        mockDatabase.players = saved.players
+        mockDatabase.challenges = saved.challenges
+        mockDatabase.matches = [
+          ...mockDatabase.matches.filter((match) => match.type === 'tournament'),
+          ...saved.matches.map(ensureMatchDefaults),
+        ]
+      }
+    }
+    notify()
+  }
+  window.addEventListener(COMPETITION_CHANGE_EVENT, notify)
+  window.addEventListener('storage', handleStorage)
+  handleStorage({ key: LADDER_STORAGE_KEY })
+  return () => {
+    active = false
+    window.removeEventListener(COMPETITION_CHANGE_EVENT, notify)
+    window.removeEventListener('storage', handleStorage)
+  }
+}
+
 function saveLadderState() {
   if (!canUseStorage()) return
 
-  window.localStorage.setItem(
-    LADDER_STORAGE_KEY,
-    JSON.stringify({
-      players: mockDatabase.players,
-
-      challenges: mockDatabase.challenges,
-
-      matches: mockDatabase.matches.filter((match) => match.type !== 'tournament'),
-    }),
-  )
+  persistCompetitionState(LADDER_STORAGE_KEY, {
+    players: mockDatabase.players,
+    challenges: mockDatabase.challenges,
+    matches: mockDatabase.matches.filter((match) => match.type !== 'tournament'),
+  })
 }
 
 function loadTournamentState() {
@@ -321,13 +362,10 @@ function saveTournamentState() {
     tournamentIds.has(match.tournamentId),
   )
 
-  window.localStorage.setItem(
-    TOURNAMENT_STORAGE_KEY,
-    JSON.stringify({
-      tournaments: mockDatabase.tournaments,
-      matches: tournamentMatches,
-    }),
-  )
+  persistCompetitionState(TOURNAMENT_STORAGE_KEY, {
+    tournaments: mockDatabase.tournaments,
+    matches: tournamentMatches,
+  })
 }
 
 function hasScenarioFlag(storageKey) {
