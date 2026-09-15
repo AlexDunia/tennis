@@ -65,6 +65,10 @@ const needsClubLevel = computed(() =>
   missing.value.includes('clubLevel'),
 )
 
+const needsRating = computed(() =>
+  missing.value.includes('rating'),
+)
+
 const knownIneligible = computed(
   () =>
     preview.value?.eligibilityResult?.complete === true &&
@@ -72,7 +76,11 @@ const knownIneligible = computed(
 )
 
 const canSubmit = computed(
-  () => !busy.value && !needsClubLevel.value && !knownIneligible.value,
+  () =>
+    !busy.value &&
+    !needsClubLevel.value &&
+    !needsRating.value &&
+    !knownIneligible.value,
 )
 
 function actor() {

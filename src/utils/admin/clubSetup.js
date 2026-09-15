@@ -1,6 +1,9 @@
 import {
   normalizeLadderWorkspaceFields,
 } from '../../domain/ladderWorkspace.js'
+import {
+  normalizeMemberRatings,
+} from '../../domain/playerRatings.js'
 
 import {
   ADMIN_SETUP_STEPS,
@@ -204,6 +207,13 @@ function normalizeMemberRecord(input, index, sourceFallback) {
         value.playingLevel,
     ),
     rating: sanitizePlainText(value.rating, 40),
+    ratings: normalizeMemberRatings(
+      value.ratings || {
+        ntrp: value.ntrp,
+        utr: value.utr,
+        wtn: value.wtn,
+      },
+    ),
     memberNumber: sanitizePlainText(
       value.memberNumber || value.referenceNumber || value.member_number,
       80,

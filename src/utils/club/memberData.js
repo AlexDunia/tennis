@@ -1,5 +1,8 @@
 import { normalizeClubRole, sanitizeDirectoryId } from '../admin/clubSetup.js'
 import { sanitizePlainText } from '../formSafety.js'
+import {
+  normalizeMemberRatings,
+} from '../../domain/playerRatings.js'
 
 export const CLUB_MEMBER_COLLECTIONS = Object.freeze([
   'roster',
@@ -192,7 +195,19 @@ export function makeManualMemberRecord(input = {}, setup = {}) {
     gender: sanitizePlainText(input.gender, 30),
     dob: sanitizePlainText(input.dob, 10),
     level: sanitizePlainText(input.level, 50),
+    clubLevelId: sanitizeDirectoryId(
+      input.clubLevelId ||
+        input.levelId ||
+        input.level,
+    ),
     rating: sanitizePlainText(input.rating, 40),
+    ratings: normalizeMemberRatings(
+      input.ratings || {
+        ntrp: input.ntrp,
+        utr: input.utr,
+        wtn: input.wtn,
+      },
+    ),
     memberNumber,
     yearOfEntry: sanitizePlainText(input.yearOfEntry, 4),
     role: normalizeClubRole(input.role),

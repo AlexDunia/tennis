@@ -1,5 +1,11 @@
 import { sanitizeDirectoryId } from '../utils/admin/clubSetup.js'
 import { sanitizePlainText } from '../utils/formSafety.js'
+import {
+  memberRatingValue,
+  normalizePlayerRatingValue,
+  playerRatingSystem,
+  playerRatingValueLabel,
+} from './playerRatings.js'
 
 export const LADDER_SETUP_STATUSES = Object.freeze({
   SETUP: 'setup',
@@ -20,25 +26,40 @@ export const LADDER_ENTRY_STATUSES = Object.freeze({
   INACTIVE: 'inactive',
 })
 
-export const LADDER_GENDER_REQUIREMENTS = Object.freeze(['any', 'men', 'women'])
-export const LADDER_RULE_SOURCES = Object.freeze(['gorra', 'club', 'ladder'])
+export const LADDER_GENDER_REQUIREMENTS = Object.freeze([
+  'any',
+  'men',
+  'women',
+])
+
+export const LADDER_RULE_SOURCES = Object.freeze([
+  'gorra',
+  'club',
+  'ladder',
+])
 
 const INVITE_TOKEN_PATTERN = /^[a-f0-9]{48}$/i
 
 function asObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value
+    : {}
 }
 
 function clampInteger(value, minimum, maximum, fallback = null) {
   const parsed = Number.parseInt(value, 10)
+
   if (!Number.isInteger(parsed)) return fallback
+
   return Math.min(maximum, Math.max(minimum, parsed))
 }
 
 function normalizeGender(value) {
   const normalized = sanitizePlainText(value, 30).toLowerCase()
+
   if (['male', 'man', 'men', 'm'].includes(normalized)) return 'men'
   if (['female', 'woman', 'women', 'f'].includes(normalized)) return 'women'
+
   return ''
 }
 
@@ -76,19 +97,57 @@ function profileClubLevelId(profileInput = {}) {
 
 function safeIso(value) {
   if (typeof value !== 'string' || value.length > 40) return ''
+
   const parsed = Date.parse(value)
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : ''
+
+  return Number.isFinite(parsed)
+    ? new Date(parsed).toISOString()
+    : ''
 }
 
 function validDateOnly(value) {
   const text = sanitizePlainText(value, 10)
+
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return ''
+
   const parsed = new Date(`${text}T12:00:00Z`)
+
   return Number.isNaN(parsed.getTime()) ? '' : text
+}
+
+function normalizedRatingRestriction(skillInput = {}) {
+  const skill = asObject(skillInput)
+
+  const ratingSystem = playerRatingSystem(
+    skill.ratingSystem ||
+      skill.system ||
+      skill.rating_system,
+  )
+
+  if (!ratingSystem) return null
+
+  const minimum = normalizePlayerRatingValue(
+    ratingSystem.id,
+    skill.minimum ?? skill.min ?? ratingSystem.minimum,
+  )
+
+  const maximum = normalizePlayerRatingValue(
+    ratingSystem.id,
+    skill.maximum ?? skill.max ?? ratingSystem.maximum,
+  )
+
+  if (minimum === null || maximum === null) return null
+
+  return {
+    ratingSystem: ratingSystem.id,
+    minimum: Math.min(minimum, maximum),
+    maximum: Math.max(minimum, maximum),
+  }
 }
 
 export function normalizeLadderEligibility(input = {}) {
   const value = asObject(input)
+
   const gender = LADDER_GENDER_REQUIREMENTS.includes(value.gender)
     ? value.gender
     : 'any'
@@ -97,16 +156,25 @@ export function normalizeLadderEligibility(input = {}) {
   const ageMode = age.mode === 'range' ? 'range' : 'any'
 
   let minimumAge =
-    ageMode === 'range' ? clampInteger(age.minimum, 5, 100, 18) : null
-  let maximumAge =
-    ageMode === 'range' ? clampInteger(age.maximum, 5, 100, 100) : null
+    ageMode === 'range'
+      ? clampInteger(age.minimum, 5, 100, 18)
+      : null
 
-  if (minimumAge !== null && maximumAge !== null && maximumAge < minimumAge) {
+  let maximumAge =
+    ageMode === 'range'
+      ? clampInteger(age.maximum, 5, 100, 100)
+      : null
+
+  if (
+    minimumAge !== null &&
+    maximumAge !== null &&
+    maximumAge < minimumAge
+  ) {
     ;[minimumAge, maximumAge] = [maximumAge, minimumAge]
   }
 
   const skill = asObject(value.skill)
-  const requestedClubLevelMode = ['club_level', 'set'].includes(skill.mode)
+
   const levelIds = uniqueLevelIds(
     skill.levelIds ||
       skill.allowedLevelIds ||
@@ -114,10 +182,30 @@ export function normalizeLadderEligibility(input = {}) {
       skill.allowedLevels,
   )
 
-  const skillMode =
-    requestedClubLevelMode && levelIds.length
-      ? 'club_level'
-      : 'any'
+  const requestedClubLevelMode = ['club_level', 'set'].includes(
+    skill.mode,
+  )
+
+  const ratingRestriction =
+    ['rating', 'ntrp', 'utr', 'wtn'].includes(skill.mode) ||
+    skill.ratingSystem ||
+    skill.system
+      ? normalizedRatingRestriction({
+          ...skill,
+          ratingSystem:
+            skill.ratingSystem ||
+            skill.system ||
+            skill.mode,
+        })
+      : null
+
+  let skillMode = 'any'
+
+  if (requestedClubLevelMode && levelIds.length) {
+    skillMode = 'club_level'
+  } else if (ratingRestriction) {
+    skillMode = 'rating'
+  }
 
   return {
     gender,
@@ -129,9 +217,19 @@ export function normalizeLadderEligibility(input = {}) {
     skill: {
       mode: skillMode,
       levelIds: skillMode === 'club_level' ? levelIds : [],
-      // Compatibility alias for any older UI that still reads skill.levels.
-      // Values are stable IDs, not free-typed display labels.
       levels: skillMode === 'club_level' ? levelIds : [],
+      ratingSystem:
+        skillMode === 'rating'
+          ? ratingRestriction.ratingSystem
+          : '',
+      minimum:
+        skillMode === 'rating'
+          ? ratingRestriction.minimum
+          : null,
+      maximum:
+        skillMode === 'rating'
+          ? ratingRestriction.maximum
+          : null,
     },
   }
 }
@@ -139,11 +237,18 @@ export function normalizeLadderEligibility(input = {}) {
 export function normalizeLadderEntry(input = {}) {
   const value = asObject(input)
   const memberId = sanitizeDirectoryId(value.memberId)
+
   if (!memberId) return null
 
   const position = Number.parseInt(value.position, 10)
-  const setupOrder = Number.parseInt(value.setupOrder ?? value.importPosition, 10)
-  const status = Object.values(LADDER_ENTRY_STATUSES).includes(value.status)
+  const setupOrder = Number.parseInt(
+    value.setupOrder ?? value.importPosition,
+    10,
+  )
+
+  const status = Object.values(LADDER_ENTRY_STATUSES).includes(
+    value.status,
+  )
     ? value.status
     : LADDER_ENTRY_STATUSES.PENDING_PLACEMENT
 
@@ -158,11 +263,15 @@ export function normalizeLadderEntry(input = {}) {
         ? position
         : null,
     setupOrder:
-      Number.isInteger(setupOrder) && setupOrder >= 1 && setupOrder <= 10000
+      Number.isInteger(setupOrder) &&
+      setupOrder >= 1 &&
+      setupOrder <= 10000
         ? setupOrder
         : null,
     joinedAt: safeIso(value.joinedAt),
-    source: ['admin', 'invite', 'import', 'existing'].includes(value.source)
+    source: ['admin', 'invite', 'import', 'existing'].includes(
+      value.source,
+    )
       ? value.source
       : 'admin',
   }
@@ -177,6 +286,7 @@ export function normalizeLadderEntries(values = []) {
     .map(normalizeLadderEntry)
     .filter((entry) => {
       if (!entry || seen.has(entry.memberId)) return false
+
       seen.add(entry.memberId)
       return true
     })
@@ -184,9 +294,12 @@ export function normalizeLadderEntries(values = []) {
 
 export function normalizeLadderInvite(input = {}) {
   const value = asObject(input)
+
   return {
     enabled: value.enabled === true,
-    tokenDigest: /^[a-f0-9]{64}$/i.test(String(value.tokenDigest || ''))
+    tokenDigest: /^[a-f0-9]{64}$/i.test(
+      String(value.tokenDigest || ''),
+    )
       ? String(value.tokenDigest).toLowerCase()
       : '',
     createdAt: safeIso(value.createdAt),
@@ -199,13 +312,18 @@ export function normalizeLadderWorkspaceFields(
   { legacyActive = false } = {},
 ) {
   const value = asObject(input)
-  const status = Object.values(LADDER_SETUP_STATUSES).includes(value.status)
+
+  const status = Object.values(LADDER_SETUP_STATUSES).includes(
+    value.status,
+  )
     ? value.status
     : legacyActive
       ? LADDER_SETUP_STATUSES.ACTIVE
       : LADDER_SETUP_STATUSES.SETUP
 
-  const setupStep = Object.values(LADDER_SETUP_STEPS).includes(value.setupStep)
+  const setupStep = Object.values(LADDER_SETUP_STEPS).includes(
+    value.setupStep,
+  )
     ? value.setupStep
     : status === LADDER_SETUP_STATUSES.ACTIVE
       ? LADDER_SETUP_STEPS.COMPLETE
@@ -236,7 +354,10 @@ export function createLadderWorkspaceDraft({
   const safeName = sanitizePlainText(name, 70)
 
   return {
-    id: sanitizeDirectoryId(id || safeName, `ladder-${Date.now()}`),
+    id: sanitizeDirectoryId(
+      id || safeName,
+      `ladder-${Date.now()}`,
+    ),
     name: safeName,
     matchType: matchType === 'doubles' ? 'doubles' : 'singles',
     enabled: true,
@@ -244,7 +365,9 @@ export function createLadderWorkspaceDraft({
     status: LADDER_SETUP_STATUSES.SETUP,
     setupStep: LADDER_SETUP_STEPS.MEMBERS,
     eligibility: normalizeLadderEligibility(eligibility),
-    rulesSource: LADDER_RULE_SOURCES.includes(rulesSource) ? rulesSource : 'club',
+    rulesSource: LADDER_RULE_SOURCES.includes(rulesSource)
+      ? rulesSource
+      : 'club',
     rules:
       rules && typeof rules === 'object' && !Array.isArray(rules)
         ? JSON.parse(JSON.stringify(rules))
@@ -261,10 +384,15 @@ export function createLadderWorkspaceDraft({
 
 export function ageOnDate(dobInput, nowInput = new Date()) {
   const dob = validDateOnly(dobInput)
+
   if (!dob) return null
 
   const [year, month, day] = dob.split('-').map(Number)
-  const now = nowInput instanceof Date ? nowInput : new Date(nowInput)
+  const now =
+    nowInput instanceof Date
+      ? nowInput
+      : new Date(nowInput)
+
   if (Number.isNaN(now.getTime())) return null
 
   let age = now.getUTCFullYear() - year
@@ -280,16 +408,25 @@ export function ageOnDate(dobInput, nowInput = new Date()) {
   return age >= 0 && age <= 130 ? age : null
 }
 
-export function ladderEligibilityMissingFields(eligibilityInput, profileInput) {
+export function ladderEligibilityMissingFields(
+  eligibilityInput,
+  profileInput,
+) {
   const eligibility = normalizeLadderEligibility(eligibilityInput)
   const profile = asObject(profileInput)
   const missing = []
 
-  if (eligibility.gender !== 'any' && !normalizeGender(profile.gender)) {
+  if (
+    eligibility.gender !== 'any' &&
+    !normalizeGender(profile.gender)
+  ) {
     missing.push('gender')
   }
 
-  if (eligibility.age.mode === 'range' && !validDateOnly(profile.dob)) {
+  if (
+    eligibility.age.mode === 'range' &&
+    !validDateOnly(profile.dob)
+  ) {
     missing.push('dob')
   }
 
@@ -297,9 +434,17 @@ export function ladderEligibilityMissingFields(eligibilityInput, profileInput) {
     eligibility.skill.mode === 'club_level' &&
     !profileClubLevelId(profile)
   ) {
-    // Club level is deliberately not a public/member-editable join field.
-    // A club admin owns this value.
     missing.push('clubLevel')
+  }
+
+  if (
+    eligibility.skill.mode === 'rating' &&
+    memberRatingValue(
+      profile,
+      eligibility.skill.ratingSystem,
+    ) === null
+  ) {
+    missing.push('rating')
   }
 
   return missing
@@ -312,7 +457,11 @@ export function evaluateLadderEligibility({
 } = {}) {
   const eligibility = normalizeLadderEligibility(eligibilityInput)
   const profile = asObject(profileInput)
-  const missing = ladderEligibilityMissingFields(eligibility, profile)
+
+  const missing = ladderEligibilityMissingFields(
+    eligibility,
+    profile,
+  )
 
   if (missing.length) {
     return {
@@ -347,12 +496,16 @@ export function evaluateLadderEligibility({
       }
     }
 
-    if (age < eligibility.age.minimum || age > eligibility.age.maximum) {
+    if (
+      age < eligibility.age.minimum ||
+      age > eligibility.age.maximum
+    ) {
       return {
         eligible: false,
         complete: true,
         reason: 'age',
         missing: [],
+        age,
       }
     }
   }
@@ -366,6 +519,27 @@ export function evaluateLadderEligibility({
         complete: true,
         reason: 'skill',
         missing: [],
+      }
+    }
+  }
+
+  if (eligibility.skill.mode === 'rating') {
+    const value = memberRatingValue(
+      profile,
+      eligibility.skill.ratingSystem,
+    )
+
+    if (
+      value < eligibility.skill.minimum ||
+      value > eligibility.skill.maximum
+    ) {
+      return {
+        eligible: false,
+        complete: true,
+        reason: 'rating',
+        missing: [],
+        ratingSystem: eligibility.skill.ratingSystem,
+        ratingValue: value,
       }
     }
   }
@@ -392,7 +566,8 @@ export function ladderRequirementsLabel(
   if (eligibility.age.mode === 'range') {
     const min = eligibility.age.minimum
     const max = eligibility.age.maximum
-    parts.push(max >= 100 ? `Age ${min}+` : `Age ${min}–${max}`)
+
+    parts.push(max >= 100 ? `Age ${min}+` : `Age ${min}â€“${max}`)
   } else {
     parts.push('Any age')
   }
@@ -410,24 +585,52 @@ export function ladderRequirementsLabel(
     const labels = eligibility.skill.levelIds.map(
       (levelId) =>
         labelsById.get(levelId) ||
-        levelId.replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        levelId
+          .replace(/-/g, ' ')
+          .replace(/\b\w/g, (letter) => letter.toUpperCase()),
     )
 
     parts.push(labels.join(', '))
+  } else if (eligibility.skill.mode === 'rating') {
+    const system = playerRatingSystem(
+      eligibility.skill.ratingSystem,
+    )
+
+    const minimum = playerRatingValueLabel(
+      system?.id,
+      eligibility.skill.minimum,
+    )
+
+    const maximum = playerRatingValueLabel(
+      system?.id,
+      eligibility.skill.maximum,
+    )
+
+    parts.push(
+      system
+        ? `${system.acronym} ${minimum}â€“${maximum}`
+        : 'Rating restricted',
+    )
   } else {
     parts.push('All skill levels')
   }
 
-  return parts.join(' · ')
+  return parts.join(' Â· ')
 }
 
 /*
- * Public ladder-join input is intentionally limited to reusable personal facts.
- * Club level, rating, rank, role and Ladder authority are NOT accepted here.
+ * Public Ladder-join input is intentionally limited
+ * to reusable personal facts.
+ *
+ * Club level, competition ratings, rank, role and
+ * Ladder authority are NOT accepted here.
  */
 export function sanitizeLadderJoinProfile(input = {}) {
   return {
-    name: sanitizePlainText(input.name || input.fullName, 100),
+    name: sanitizePlainText(
+      input.name || input.fullName,
+      100,
+    ),
     email: sanitizePlainText(input.email, 254).toLowerCase(),
     phone: sanitizePlainText(input.phone, 30),
     gender: sanitizePlainText(input.gender, 30),
@@ -439,18 +642,33 @@ export function validateLadderJoinProfile(profileInput) {
   const profile = sanitizeLadderJoinProfile(profileInput)
 
   if (profile.name.length < 2) {
-    return { valid: false, message: 'Enter your full name.', profile }
+    return {
+      valid: false,
+      message: 'Enter your full name.',
+      profile,
+    }
   }
 
   if (
     profile.email &&
     !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(profile.email)
   ) {
-    return { valid: false, message: 'Enter a working email address.', profile }
+    return {
+      valid: false,
+      message: 'Enter a working email address.',
+      profile,
+    }
   }
 
-  if (profile.phone && !/^\+?[0-9()\-\s]{7,30}$/.test(profile.phone)) {
-    return { valid: false, message: 'Check the phone number.', profile }
+  if (
+    profile.phone &&
+    !/^\+?[0-9()\-\s]{7,30}$/.test(profile.phone)
+  ) {
+    return {
+      valid: false,
+      message: 'Check the phone number.',
+      profile,
+    }
   }
 
   if (!profile.email && !profile.phone) {
@@ -461,19 +679,29 @@ export function validateLadderJoinProfile(profileInput) {
     }
   }
 
-  return { valid: true, message: '', profile }
+  return {
+    valid: true,
+    message: '',
+    profile,
+  }
 }
 
 export function validLadderInviteToken(value) {
-  return INVITE_TOKEN_PATTERN.test(sanitizePlainText(value, 64))
+  return INVITE_TOKEN_PATTERN.test(
+    sanitizePlainText(value, 64),
+  )
 }
 
 export async function digestLadderInviteToken(tokenInput) {
   const token = sanitizePlainText(tokenInput, 64)
+
   if (!validLadderInviteToken(token)) return ''
 
   const cryptoApi = globalThis.crypto
-  if (!cryptoApi?.subtle || typeof TextEncoder === 'undefined') return ''
+
+  if (!cryptoApi?.subtle || typeof TextEncoder === 'undefined') {
+    return ''
+  }
 
   const digest = await cryptoApi.subtle.digest(
     'SHA-256',
