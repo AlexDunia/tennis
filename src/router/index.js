@@ -3,6 +3,10 @@ const PersonalInformationView = () =>
 
 const LadderCreateView = () => import('../views/LadderCreateView.vue')
 const LadderSetupView = () => import('../views/LadderSetupView.vue')
+const LadderAddClubMembersView = () =>
+  import('../views/LadderAddClubMembersView.vue')
+const LadderShareInviteView = () =>
+  import('../views/LadderShareInviteView.vue')
 const LadderImportView = () => import('../views/LadderImportView.vue')
 const LadderInviteView = () => import('../views/LadderInviteView.vue')
 
@@ -158,6 +162,30 @@ const routes = [
     component: LadderSetupView,
     meta: {
       title: 'Ladder setup',
+      subtitle: '',
+      permission: 'club.manage',
+      activeClubPermission: true,
+      primarySection: 'ladder',
+    },
+  },
+  {
+    path: '/rankings/:ladderId/setup/members/club-members',
+    name: 'LadderAddClubMembers',
+    component: LadderAddClubMembersView,
+    meta: {
+      title: 'Choose club members',
+      subtitle: '',
+      permission: 'club.manage',
+      activeClubPermission: true,
+      primarySection: 'ladder',
+    },
+  },
+  {
+    path: '/rankings/:ladderId/setup/members/invite',
+    name: 'LadderShareInvite',
+    component: LadderShareInviteView,
+    meta: {
+      title: 'Share ladder invite',
       subtitle: '',
       permission: 'club.manage',
       activeClubPermission: true,

@@ -2,11 +2,10 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BaseButton from '../components/BaseButton.vue'
-import PersonAvatar from '../components/PersonAvatar.vue'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
+import MemberListArt from '../components/club/MemberListArt.vue'
 import { useAdminStore } from '../stores/admin.js'
 import { useNotificationStore } from '../stores/notification.js'
-import { collectClubMembers } from '../utils/club/memberData.js'
 import { orderedLadderEntries } from '../services/LadderWorkspaceService.js'
 import { ladderRequirementsLabel } from '../domain/ladderWorkspace.js'
 import {
@@ -25,11 +24,8 @@ const notificationStore = useNotificationStore()
 const ready = ref(false)
 const busy = ref(false)
 const error = ref('')
-const inviteUrl = ref('')
-const selected = ref(new Set())
 const order = ref([])
-const memberPickerOpen = ref(false)
-const invitePanelOpen = ref(false)
+const addPeopleOptions = ref(null)
 
 const activeClub = computed(() => adminStore.activeClub)
 const clubName = computed(() => activeClub.value?.name || 'this club')
@@ -37,7 +33,9 @@ const ladderId = computed(() => String(route.params.ladderId || ''))
 
 const step = computed(() => {
   const value = String(route.params.step || '')
-  return ['members', 'order', 'start'].includes(value) ? value : 'members'
+  return ['members', 'order', 'start'].includes(value)
+    ? value
+    : 'members'
 })
 
 const ladder = computed(
@@ -47,22 +45,11 @@ const ladder = computed(
     ) || null,
 )
 
-const clubMembers = computed(() =>
-  collectClubMembers(activeClub.value?.setup || {}),
-)
-
-const existingEntryIds = computed(
-  () => new Set((ladder.value?.entries || []).map((entry) => entry.memberId)),
-)
-
-const availableMembers = computed(() =>
-  clubMembers.value.filter(
-    (member) => !existingEntryIds.value.has(member.id),
-  ),
-)
-
 const ladderMembers = computed(() =>
-  orderedLadderEntries(activeClub.value?.setup || {}, ladderId.value),
+  orderedLadderEntries(
+    activeClub.value?.setup || {},
+    ladderId.value,
+  ),
 )
 
 const requirements = computed(() =>
@@ -91,36 +78,14 @@ const activeImportReview = computed(
     ladder.value?.status === 'active',
 )
 
-function memberMeta(member) {
-  return member.email || member.phone || 'Club member'
-}
-
-function toggle(memberId) {
-  const next = new Set(selected.value)
-  if (next.has(memberId)) next.delete(memberId)
-  else next.add(memberId)
-  selected.value = next
-}
-
-function toggleMemberPicker() {
-  memberPickerOpen.value = !memberPickerOpen.value
-
-  if (memberPickerOpen.value) {
-    invitePanelOpen.value = false
-  }
-}
-
-async function openInvitePanel() {
-  memberPickerOpen.value = false
-  invitePanelOpen.value = true
-
-  if (!inviteUrl.value) {
-    await makeInvite()
-  }
+function syncOrder() {
+  order.value =
+    ladderMembers.value.map((entry) => entry.memberId)
 }
 
 function move(index, offset) {
   const target = index + offset
+
   if (target < 0 || target >= order.value.length) return
 
   const next = [...order.value]
@@ -128,175 +93,35 @@ function move(index, offset) {
   order.value = next
 }
 
-function syncOrder() {
-  order.value = ladderMembers.value.map((entry) => entry.memberId)
+function scrollToAddPeopleOptions() {
+  addPeopleOptions.value?.scrollIntoView({
+    behavior:
+      typeof window !== 'undefined' &&
+      window.matchMedia?.(
+        '(prefers-reduced-motion: reduce)',
+      )?.matches
+        ? 'auto'
+        : 'smooth',
+    block: 'start',
+  })
 }
 
-async function addMembers() {
-  if (busy.value) return
-
-  if (!selected.value.size) {
-    await goToOrder()
-    return
-  }
-
-  busy.value = true
-  error.value = ''
-
-  try {
-    await adminStore.addLadderMembers(
-      ladderId.value,
-      [...selected.value],
-    )
-
-    selected.value = new Set()
-    await adminStore.loadClubs()
-    syncOrder()
-
-    await router.push({
-      name: 'LadderSetup',
-      params: {
-        ladderId: ladderId.value,
-        step: 'order',
-      },
-    })
-  } catch (saveError) {
-    error.value = saveError?.message || 'Unable to add these members.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function goToOrder() {
-  syncOrder()
-
-  await router.push({
-    name: 'LadderSetup',
+function openClubMembers() {
+  router.push({
+    name: 'LadderAddClubMembers',
     params: {
       ladderId: ladderId.value,
-      step: 'order',
     },
   })
 }
 
-async function saveOrder() {
-  if (busy.value) return
-
-  if (!order.value.length) {
-    error.value = 'Add at least one ladder member first.'
-    return
-  }
-
-  busy.value = true
-  error.value = ''
-
-  try {
-    await adminStore.saveLadderOrder(ladderId.value, order.value)
-    await adminStore.loadClubs()
-
-    /*
-     * Importing into an already-active ladder should not make the admin
-     * "start" the ladder again as a separate screen. Saving the reviewed
-     * order finalizes the imported order and returns to the same Ladder.
-     */
-    if (activeImportReview.value) {
-      const result = await adminStore.startLadder(ladderId.value)
-
-      notificationStore.addToast({
-        title: 'Ladder order updated',
-        message: `${result.ladder.name} now uses the reviewed order.`,
-        type: 'success',
-      })
-
-      await router.push({
-        name: 'Rankings',
-        query: {
-          ladder: result.ladder.id,
-        },
-      })
-      return
-    }
-
-    await router.push({
-      name: 'LadderSetup',
-      params: {
-        ladderId: ladderId.value,
-        step: 'start',
-      },
-    })
-  } catch (saveError) {
-    error.value = saveError?.message || 'Unable to save this order.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function start() {
-  if (busy.value) return
-
-  busy.value = true
-  error.value = ''
-
-  try {
-    const result = await adminStore.startLadder(ladderId.value)
-
-    notificationStore.addToast({
-      title: 'Ladder started',
-      message: `${result.ladder.name} is live.`,
-      type: 'success',
-    })
-
-    await router.push({
-      name: 'Rankings',
-      query: { ladder: result.ladder.id },
-    })
-  } catch (startError) {
-    error.value = startError?.message || 'Unable to start this ladder.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function makeInvite() {
-  if (busy.value) return
-
-  busy.value = true
-  error.value = ''
-
-  try {
-    const invite = await adminStore.rotateLadderInvite(ladderId.value)
-
-    const href = router.resolve({
-      name: 'LadderInvite',
-      params: { token: invite.token },
-    }).href
-
-    inviteUrl.value = new URL(href, window.location.origin).toString()
-  } catch (inviteError) {
-    error.value = inviteError?.message || 'Unable to make this invite.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function copyInvite() {
-  if (!inviteUrl.value) return
-
-  try {
-    await navigator.clipboard.writeText(inviteUrl.value)
-
-    notificationStore.addToast({
-      title: 'Invite copied',
-      message: 'Anyone with this link can request to join this ladder.',
-      type: 'success',
-    })
-  } catch {
-    notificationStore.addToast({
-      title: 'Copy the link',
-      message: inviteUrl.value,
-      type: 'info',
-    })
-  }
+function openInvite() {
+  router.push({
+    name: 'LadderShareInvite',
+    params: {
+      ladderId: ladderId.value,
+    },
+  })
 }
 
 function openImport() {
@@ -316,6 +141,20 @@ function backToLadder() {
     name: 'Rankings',
     query: {
       ladder: ladderId.value,
+    },
+  })
+}
+
+async function goToOrder() {
+  if (!ladderMembers.value.length) return
+
+  syncOrder()
+
+  await router.push({
+    name: 'LadderSetup',
+    params: {
+      ladderId: ladderId.value,
+      step: 'order',
     },
   })
 }
@@ -340,10 +179,117 @@ function backFromOrder() {
   })
 }
 
+async function saveOrder() {
+  if (busy.value) return
+
+  if (!order.value.length) {
+    error.value = 'Add at least one Ladder player first.'
+    return
+  }
+
+  busy.value = true
+  error.value = ''
+
+  try {
+    await adminStore.saveLadderOrder(
+      ladderId.value,
+      order.value,
+    )
+
+    await adminStore.loadClubs()
+
+    if (activeImportReview.value) {
+      const result =
+        await adminStore.startLadder(
+          ladderId.value,
+        )
+
+      notificationStore.addToast({
+        title: 'Ladder order updated',
+        message: `${result.ladder.name} now uses the reviewed order.`,
+        type: 'success',
+      })
+
+      await router.push({
+        name: 'Rankings',
+        query: {
+          ladder: result.ladder.id,
+        },
+      })
+
+      return
+    }
+
+    await router.push({
+      name: 'LadderSetup',
+      params: {
+        ladderId: ladderId.value,
+        step: 'start',
+      },
+    })
+  } catch (saveError) {
+    error.value =
+      saveError?.message ||
+      'Unable to save this order.'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function start() {
+  if (busy.value) return
+
+  busy.value = true
+  error.value = ''
+
+  try {
+    const result =
+      await adminStore.startLadder(
+        ladderId.value,
+      )
+
+    notificationStore.addToast({
+      title: 'Ladder started',
+      message: `${result.ladder.name} is live.`,
+      type: 'success',
+    })
+
+    await router.push({
+      name: 'Rankings',
+      query: {
+        ladder: result.ladder.id,
+      },
+    })
+  } catch (startError) {
+    error.value =
+      startError?.message ||
+      'Unable to start this Ladder.'
+  } finally {
+    busy.value = false
+  }
+}
+
 useShellNestedHeader(() => ({
   label: ladder.value?.name || 'Ladder setup',
-  backLabel: 'Back to ladder',
-  back: backToLadder,
+  backLabel:
+    step.value === 'members'
+      ? 'Back to ladder'
+      : step.value === 'order'
+        ? 'Back'
+        : 'Back',
+  back:
+    step.value === 'members'
+      ? backToLadder
+      : step.value === 'order'
+        ? backFromOrder
+        : () =>
+            router.push({
+              name: 'LadderSetup',
+              params: {
+                ladderId: ladderId.value,
+                step: 'order',
+              },
+            }),
   crumbs: [
     { label: 'Ladder' },
     { label: ladder.value?.name || 'Setup' },
@@ -361,14 +307,18 @@ useShellNestedHeader(() => ({
 watch(
   ladderMembers,
   () => {
-    if (step.value === 'order') syncOrder()
+    if (step.value === 'order') {
+      syncOrder()
+    }
   },
   { deep: true },
 )
 
 onMounted(async () => {
   try {
-    if (!adminStore.activeClub) await adminStore.loadClubs()
+    if (!adminStore.activeClub) {
+      await adminStore.loadClubs()
+    }
 
     if (!adminStore.hasActiveClubPermission('club.manage')) {
       await router.replace({ name: 'Rankings' })
@@ -376,13 +326,15 @@ onMounted(async () => {
     }
 
     if (!ladder.value) {
-      error.value = 'This ladder could not be found.'
+      error.value = 'This Ladder could not be found.'
       return
     }
 
     syncOrder()
   } catch (loadError) {
-    error.value = loadError?.message || 'Unable to open this ladder setup.'
+    error.value =
+      loadError?.message ||
+      'Unable to open this Ladder setup.'
   } finally {
     ready.value = true
   }
@@ -398,10 +350,10 @@ onMounted(async () => {
       <p class="ladder-workspace-page__eyebrow">
         {{
           step === 'members'
-            ? '1 of 3 · Add people'
+            ? '1 of 3 / Add people'
             : step === 'order'
-              ? '2 of 3 · Starting order'
-              : '3 of 3 · Start ladder'
+              ? '2 of 3 / Starting order'
+              : '3 of 3 / Start Ladder'
         }}
       </p>
 
@@ -423,28 +375,65 @@ onMounted(async () => {
             ? requirements
             : step === 'order'
               ? importedReview
-                ? 'Make sure everyone is in the right order before you apply the import.'
-                : 'Put everyone in the right starting order before continuing.'
-              : 'Review the ladder once more. Starting it makes these positions official.'
+                ? 'Check the order before you continue.'
+                : 'Put everyone in the right starting order.'
+              : 'Review the starting order, then make the Ladder live.'
         }}
       </p>
     </header>
 
-    <p v-if="error" class="lw-alert" role="alert">{{ error }}</p>
+    <p v-if="error" class="lw-alert" role="alert">
+      {{ error }}
+    </p>
 
     <template v-if="step === 'members'">
-      <section class="lw-section">
+      <section
+        v-if="!ladderMembers.length"
+        class="lw-ladder-people-zero"
+        aria-label="No players on this Ladder"
+      >
+        <MemberListArt variant="members" />
+
+        <div class="lw-ladder-people-zero__copy">
+          <h2>No players on {{ ladder.name }} yet</h2>
+          <p>
+            Add the first players when you are ready.
+          </p>
+        </div>
+
+        <button
+          class="ref-button primary"
+          type="button"
+          @click="scrollToAddPeopleOptions"
+        >
+          <FlowIcon name="plus" />
+          Add people
+        </button>
+      </section>
+
+      <section
+        ref="addPeopleOptions"
+        class="lw-section lw-add-people-options"
+      >
         <div class="ref-section-heading">
-          <h2>Add people</h2>
-          <p>Choose the quickest way to add players to this ladder.</p>
+          <h2>
+            {{
+              ladderMembers.length
+                ? 'Add more people'
+                : 'Add people'
+            }}
+          </h2>
+
+          <p>
+            Choose the quickest way to bring players into this Ladder.
+          </p>
         </div>
 
         <div class="ref-choice-stack">
           <button
             class="ref-choice-row"
             type="button"
-            :aria-expanded="memberPickerOpen"
-            @click="toggleMemberPicker"
+            @click="openClubMembers"
           >
             <span class="ref-feature-icon" aria-hidden="true">
               <FlowIcon name="users" />
@@ -452,7 +441,9 @@ onMounted(async () => {
 
             <span class="ref-choice-row-copy">
               <strong>Choose club members</strong>
-              <span>Pick people already in {{ clubName }}.</span>
+              <span>
+                Pick people already in {{ clubName }}.
+              </span>
             </span>
 
             <FlowIcon name="arrow-right" />
@@ -461,9 +452,7 @@ onMounted(async () => {
           <button
             class="ref-choice-row"
             type="button"
-            :aria-expanded="invitePanelOpen"
-            :disabled="busy"
-            @click="openInvitePanel"
+            @click="openInvite"
           >
             <span class="ref-feature-icon" aria-hidden="true">
               <FlowIcon name="send" />
@@ -471,7 +460,9 @@ onMounted(async () => {
 
             <span class="ref-choice-row-copy">
               <strong>Share ladder invite</strong>
-              <span>Copy one link for players to request to join {{ ladder.name }}.</span>
+              <span>
+                Copy one link for players to request to join.
+              </span>
             </span>
 
             <FlowIcon name="arrow-right" />
@@ -488,7 +479,9 @@ onMounted(async () => {
 
             <span class="ref-choice-row-copy">
               <strong>Bring your ladder list</strong>
-              <span>Upload the player list and current order from CSV or Excel.</span>
+              <span>
+                Upload the player list and current order your club already uses.
+              </span>
             </span>
 
             <FlowIcon name="arrow-right" />
@@ -496,100 +489,12 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section v-if="memberPickerOpen" class="lw-section">
-        <div class="lw-section__heading">
-          <h2>Club members</h2>
-          <p>
-            Select the people you want on {{ ladder.name }}. Their existing
-            club profiles are reused.
-          </p>
-        </div>
-
-        <div v-if="availableMembers.length" class="lw-list">
-          <label
-            v-for="member in availableMembers"
-            :key="member.id"
-            class="lw-list-row"
-          >
-            <input
-              type="checkbox"
-              :checked="selected.has(member.id)"
-              @change="toggle(member.id)"
-            />
-
-            <span>
-              <strong>{{ member.name }}</strong>
-              <small>{{ memberMeta(member) }}</small>
-            </span>
-
-            <PersonAvatar
-              :name="member.name || 'Member'"
-              :image="member.photoUrl || ''"
-              :size="36"
-            />
-          </label>
-        </div>
-
-        <p v-else class="lw-success">
-          There are no other club members to add right now. You can share the
-          ladder invite or bring your ladder list instead.
-        </p>
-      </section>
-
-      <section v-if="invitePanelOpen" class="lw-section">
-        <div class="lw-section__heading">
-          <h2>Share ladder invite</h2>
-          <p>
-            Players who use this link join this ladder. GORRA applies the
-            ladder requirements automatically.
-          </p>
-        </div>
-
-        <div v-if="inviteUrl" class="lw-field">
-          <span>Invite link</span>
-          <input
-            :value="inviteUrl"
-            readonly
-            @focus="$event.target.select()"
-          />
-
-          <div class="lw-inline-actions">
-            <BaseButton variant="secondary" @click="copyInvite">
-              Copy link
-            </BaseButton>
-
-            <BaseButton
-              variant="secondary"
-              :disabled="busy"
-              @click="makeInvite"
-            >
-              Make new link
-            </BaseButton>
-          </div>
-        </div>
-
-        <p v-else-if="busy" class="ladder-workspace-page__description">
-          Making the invite…
-        </p>
-      </section>
-
-      <footer class="lw-footer">
-        <BaseButton variant="secondary" @click="backToLadder">
-          Back
-        </BaseButton>
-
-        <BaseButton
-          :disabled="
-            busy ||
-            (!selected.size && !ladderMembers.length)
-          "
-          @click="addMembers"
-        >
-          {{
-            selected.size
-              ? `Add ${selected.size} & continue`
-              : 'Continue'
-          }}
+      <footer
+        v-if="ladderMembers.length"
+        class="lw-footer"
+      >
+        <BaseButton @click="goToOrder">
+          Continue to starting order
         </BaseButton>
       </footer>
     </template>
@@ -597,13 +502,16 @@ onMounted(async () => {
     <template v-else-if="step === 'order'">
       <section class="lw-section">
         <div class="lw-section__heading">
-          <h2>{{ importedReview ? 'Player order' : 'Starting order' }}</h2>
-          <p>
+          <h2>
             {{
               importedReview
-                ? 'Use the arrows only if something needs correcting.'
-                : 'Use the arrows to put each player in the right starting position.'
+                ? 'Player order'
+                : 'Starting order'
             }}
+          </h2>
+
+          <p>
+            Use the arrows only where the order needs changing.
           </p>
         </div>
 
@@ -613,14 +521,18 @@ onMounted(async () => {
             :key="memberId"
             class="lw-list-row"
           >
-            <span class="lw-order-number">{{ index + 1 }}</span>
+            <span class="lw-order-number">
+              {{ index + 1 }}
+            </span>
 
             <span>
               <strong>
                 {{
                   ladderMembers.find(
-                    (entry) => entry.memberId === memberId,
-                  )?.member?.name || 'Club member'
+                    (entry) =>
+                      entry.memberId === memberId,
+                  )?.member?.name ||
+                  'Club member'
                 }}
               </strong>
             </span>
@@ -632,15 +544,16 @@ onMounted(async () => {
                 aria-label="Move up"
                 @click="move(index, -1)"
               >
-                ↑
+                â†‘
               </button>
+
               <button
                 type="button"
                 :disabled="index === order.length - 1"
                 aria-label="Move down"
                 @click="move(index, 1)"
               >
-                ↓
+                â†“
               </button>
             </span>
           </article>
@@ -649,19 +562,15 @@ onMounted(async () => {
 
       <footer class="lw-footer">
         <BaseButton
-          variant="secondary"
-          @click="backFromOrder"
+          :disabled="busy"
+          @click="saveOrder"
         >
-          Back
-        </BaseButton>
-
-        <BaseButton :disabled="busy" @click="saveOrder">
           {{
             busy
-              ? 'Saving…'
+              ? 'Saving...'
               : activeImportReview
                 ? 'Apply order'
-                : 'Save & continue'
+                : 'Save and continue'
           }}
         </BaseButton>
       </footer>
@@ -677,7 +586,11 @@ onMounted(async () => {
 
           <span>
             {{ ladderMembers.length }}
-            {{ ladderMembers.length === 1 ? 'player' : 'players' }}
+            {{
+              ladderMembers.length === 1
+                ? 'player'
+                : 'players'
+            }}
           </span>
         </div>
 
@@ -687,10 +600,17 @@ onMounted(async () => {
             :key="entry.memberId"
             class="lw-list-row"
           >
-            <span class="lw-order-number">{{ index + 1 }}</span>
+            <span class="lw-order-number">
+              {{ index + 1 }}
+            </span>
+
             <span>
-              <strong>{{ entry.member.name }}</strong>
-              <small>Starting at #{{ index + 1 }}</small>
+              <strong>
+                {{ entry.member.name }}
+              </strong>
+              <small>
+                Starting at #{{ index + 1 }}
+              </small>
             </span>
           </article>
         </div>
@@ -698,19 +618,14 @@ onMounted(async () => {
 
       <footer class="lw-footer">
         <BaseButton
-          variant="secondary"
-          @click="
-            router.push({
-              name: 'LadderSetup',
-              params: { ladderId, step: 'order' },
-            })
-          "
+          :disabled="busy"
+          @click="start"
         >
-          Back
-        </BaseButton>
-
-        <BaseButton :disabled="busy" @click="start">
-          {{ busy ? 'Starting…' : 'Start ladder' }}
+          {{
+            busy
+              ? 'Starting...'
+              : 'Start Ladder'
+          }}
         </BaseButton>
       </footer>
     </template>
