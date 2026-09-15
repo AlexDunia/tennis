@@ -472,7 +472,7 @@ onMounted(async () => {
               v-model="form.name"
               maxlength="70"
               autocomplete="off"
-              placeholder="Menâ€™s Singles"
+              placeholder="MenÃ¢â‚¬â„¢s Singles"
               required
             />
           </label>
@@ -660,273 +660,272 @@ onMounted(async () => {
               </label>
             </div>
 
-            <div
-              v-if="
-                form.skillGate ===
-                'limited'
+<div
+  v-if="
+    form.skillGate ===
+    'limited'
+  "
+  class="lw-rating-system-block"
+>
+  <span class="lw-label">
+    How does this Ladder measure player level?
+  </span>
+
+  <div class="lw-rating-system-list">
+    <div
+      class="lw-rating-system-item"
+      :class="{
+        'is-selected':
+          form.levelSystem ===
+          'club_level',
+        'is-dimmed':
+          form.levelSystem &&
+          form.levelSystem !==
+            'club_level',
+      }"
+    >
+      <label class="lw-rating-system-option">
+        <input
+          v-model="form.levelSystem"
+          type="radio"
+          value="club_level"
+        />
+
+        <span class="lw-rating-system-copy">
+          <strong>
+            Club levels
+          </strong>
+
+          <small>
+            {{ clubName }}'s own levels, such as Beginner, Intermediate and Advanced.
+          </small>
+        </span>
+      </label>
+
+      <div
+        v-if="
+          form.levelSystem ===
+          'club_level'
+        "
+        class="lw-rating-inline-config"
+      >
+        <div class="lw-rating-inline-config__heading">
+          <strong>
+            Allowed club levels
+          </strong>
+
+          <small>
+            Choose one or more levels for this Ladder.
+          </small>
+        </div>
+
+        <div class="lw-level-options">
+          <label
+            v-for="
+              level in
+              clubLevels
+            "
+            :key="level.id"
+            class="lw-level-chip"
+          >
+            <input
+              v-model="form.skillLevelIds"
+              type="checkbox"
+              :value="level.id"
+            />
+
+            <span>
+              {{ level.label }}
+            </span>
+          </label>
+        </div>
+
+        <small class="lw-rating-inline-config__note">
+          Players cannot change their club level from a Ladder invite.
+        </small>
+      </div>
+    </div>
+
+    <div
+      v-for="
+        system in
+        ratingSystems
+      "
+      :key="system.id"
+      class="lw-rating-system-item"
+      :class="{
+        'is-selected':
+          form.levelSystem ===
+          system.id,
+        'is-dimmed':
+          form.levelSystem &&
+          form.levelSystem !==
+            system.id,
+      }"
+    >
+      <label class="lw-rating-system-option">
+        <input
+          v-model="form.levelSystem"
+          type="radio"
+          :value="system.id"
+        />
+
+        <span class="lw-rating-system-copy">
+          <strong>
+            {{ system.acronym }}
+
+            <span class="lw-rating-system-name">
+              ({{ system.name }})
+            </span>
+          </strong>
+
+          <small>
+            {{ system.description }}
+          </small>
+        </span>
+      </label>
+
+      <div
+        v-if="
+          form.levelSystem ===
+          system.id
+        "
+        class="lw-rating-inline-config"
+      >
+        <div class="lw-rating-inline-config__heading">
+          <strong>
+            Accepted range
+          </strong>
+
+          <small>
+            Choose the {{ system.acronym }} range allowed on this Ladder.
+          </small>
+        </div>
+
+        <div
+          v-if="
+            system.id ===
+            'ntrp'
+          "
+          class="lw-range-grid"
+        >
+          <label class="lw-field">
+            <span>From</span>
+
+            <select
+              v-model.number="
+                form.ratingMinimum
               "
-              class="lw-rating-system-block"
             >
-              <span class="lw-label">
-                How does this Ladder measure player level?
-              </span>
-
-              <div
-                class="lw-rating-system-list"
-              >
-                <label
-                  class="lw-rating-system-option"
-                >
-                  <input
-                    v-model="
-                      form.levelSystem
-                    "
-                    type="radio"
-                    value="club_level"
-                  />
-
-                  <span
-                    class="lw-rating-system-copy"
-                  >
-                    <strong>
-                      Club levels
-                    </strong>
-
-                    <small>
-                      {{ clubName }}â€™s own labels, such as Beginner, Intermediate and Advanced.
-                    </small>
-                  </span>
-                </label>
-
-                <label
-                  v-for="
-                    system in
-                    ratingSystems
-                  "
-                  :key="system.id"
-                  class="lw-rating-system-option"
-                >
-                  <input
-                    v-model="
-                      form.levelSystem
-                    "
-                    type="radio"
-                    :value="system.id"
-                  />
-
-                  <span
-                    class="lw-rating-system-copy"
-                  >
-                    <strong>
-                      {{ system.acronym }}
-                      <span
-                        class="lw-rating-system-name"
-                      >
-                        ({{ system.name }})
-                      </span>
-                    </strong>
-
-                    <small>
-                      {{ system.description }}
-                    </small>
-                  </span>
-                </label>
-              </div>
-
-              <div
-                v-if="
-                  form.levelSystem ===
-                  'club_level'
+              <option
+                v-for="
+                  value in
+                  ntrpOptions
                 "
-                class="lw-level-block"
-              >
-                <span class="lw-label">
-                  Allowed levels
-                </span>
-
-                <div
-                  class="lw-level-options"
-                >
-                  <label
-                    v-for="
-                      level in
-                      clubLevels
-                    "
-                    :key="level.id"
-                    class="lw-level-chip"
-                  >
-                    <input
-                      v-model="
-                        form.skillLevelIds
-                      "
-                      type="checkbox"
-                      :value="level.id"
-                    />
-
-                    <span>
-                      {{ level.label }}
-                    </span>
-                  </label>
-                </div>
-
-                <small>
-                  These levels belong to {{ clubName }}. Players cannot promote themselves from a Ladder invite.
-                </small>
-              </div>
-
-              <div
-                v-else-if="
-                  selectedRatingSystem
+                :key="
+                  `ntrp-min-${value}`
                 "
-                class="lw-rating-config"
+                :value="value"
               >
-                <div>
-                  <strong>
-                    Who can join?
-                  </strong>
+                {{
+                  playerRatingValueLabel(
+                    'ntrp',
+                    value,
+                  )
+                }}
+              </option>
+            </select>
+          </label>
 
-                  <small>
-                    Choose the accepted {{ selectedRatingSystem.acronym }} range.
-                  </small>
-                </div>
+          <label class="lw-field">
+            <span>To</span>
 
-                <div
-                  v-if="
-                    selectedRatingSystem.id ===
-                    'ntrp'
-                  "
-                  class="lw-range-grid"
-                >
-                  <label
-                    class="lw-field"
-                  >
-                    <span>From</span>
+            <select
+              v-model.number="
+                form.ratingMaximum
+              "
+            >
+              <option
+                v-for="
+                  value in
+                  ntrpOptions
+                "
+                :key="
+                  `ntrp-max-${value}`
+                "
+                :value="value"
+              >
+                {{
+                  playerRatingValueLabel(
+                    'ntrp',
+                    value,
+                  )
+                }}
+              </option>
+            </select>
+          </label>
+        </div>
 
-                    <select
-                      v-model.number="
-                        form.ratingMinimum
-                      "
-                    >
-                      <option
-                        v-for="
-                          value in
-                          ntrpOptions
-                        "
-                        :key="`ntrp-min-${value}`"
-                        :value="value"
-                      >
-                        {{
-                          playerRatingValueLabel(
-                            'ntrp',
-                            value,
-                          )
-                        }}
-                      </option>
-                    </select>
-                  </label>
+        <div
+          v-else
+          class="lw-range-grid"
+        >
+          <label class="lw-field">
+            <span>
+              {{
+                system.id ===
+                'wtn'
+                  ? 'Lowest number'
+                  : 'From'
+              }}
+            </span>
 
-                  <label
-                    class="lw-field"
-                  >
-                    <span>To</span>
+            <input
+              v-model.number="
+                form.ratingMinimum
+              "
+              type="number"
+              :min="system.minimum"
+              :max="system.maximum"
+              :step="system.step"
+            />
+          </label>
 
-                    <select
-                      v-model.number="
-                        form.ratingMaximum
-                      "
-                    >
-                      <option
-                        v-for="
-                          value in
-                          ntrpOptions
-                        "
-                        :key="`ntrp-max-${value}`"
-                        :value="value"
-                      >
-                        {{
-                          playerRatingValueLabel(
-                            'ntrp',
-                            value,
-                          )
-                        }}
-                      </option>
-                    </select>
-                  </label>
-                </div>
+          <label class="lw-field">
+            <span>
+              {{
+                system.id ===
+                'wtn'
+                  ? 'Highest number'
+                  : 'To'
+              }}
+            </span>
 
-                <div
-                  v-else
-                  class="lw-range-grid"
-                >
-                  <label
-                    class="lw-field"
-                  >
-                    <span>
-                      {{
-                        selectedRatingSystem.id ===
-                        'wtn'
-                          ? 'Lowest number'
-                          : 'From'
-                      }}
-                    </span>
+            <input
+              v-model.number="
+                form.ratingMaximum
+              "
+              type="number"
+              :min="system.minimum"
+              :max="system.maximum"
+              :step="system.step"
+            />
+          </label>
+        </div>
 
-                    <input
-                      v-model.number="
-                        form.ratingMinimum
-                      "
-                      type="number"
-                      :min="
-                        selectedRatingSystem.minimum
-                      "
-                      :max="
-                        selectedRatingSystem.maximum
-                      "
-                      :step="
-                        selectedRatingSystem.step
-                      "
-                    />
-                  </label>
-
-                  <label
-                    class="lw-field"
-                  >
-                    <span>
-                      {{
-                        selectedRatingSystem.id ===
-                        'wtn'
-                          ? 'Highest number'
-                          : 'To'
-                      }}
-                    </span>
-
-                    <input
-                      v-model.number="
-                        form.ratingMaximum
-                      "
-                      type="number"
-                      :min="
-                        selectedRatingSystem.minimum
-                      "
-                      :max="
-                        selectedRatingSystem.maximum
-                      "
-                      :step="
-                        selectedRatingSystem.step
-                      "
-                    />
-                  </label>
-                </div>
-
-                <small
-                  v-if="
-                    selectedRatingSystem.id ===
-                    'wtn'
-                  "
-                >
-                  Lower WTN numbers represent stronger players. GORRA handles that meaning automatically.
-                </small>
-              </div>
-            </div>
+        <small
+          v-if="
+            system.id ===
+            'wtn'
+          "
+          class="lw-rating-inline-config__note"
+        >
+          Lower WTN numbers represent stronger players.
+        </small>
+      </div>
+    </div>
+  </div>
+</div>
           </div>
         </div>
       </section>
@@ -975,7 +974,7 @@ onMounted(async () => {
         >
           {{
             saving
-              ? 'Creatingâ€¦'
+              ? 'CreatingÃ¢â‚¬Â¦'
               : 'Create ladder'
           }}
         </BaseButton>
