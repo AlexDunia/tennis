@@ -60,6 +60,12 @@ const drawerResult = ref(null)
 const moveDialogOpen = ref(false)
 const missingMatchDialogOpen = ref(false)
 const removeDialogOpen = ref(false)
+const dragChallengePlayerId = ref('')
+const draggingChallengePlayerId = ref('')
+const dragGhost = ref(null)
+const dragDropTargetId = ref('')
+const dragActionOpen = ref(false)
+let pendingDrag = null
 const ladderActionBusy = ref(false)
 const clearTestBusy = ref(false)
 const showDevTestControls =
@@ -658,6 +664,74 @@ function handleChallengeListClick(event) {
   void cancelChallengeSelection()
 }
 
+function startDragChallenge(player) {
+  startAdminChallenge(player)
+  dragChallengePlayerId.value =
+    selectedPlayerId.value === player?.id
+      ? player.id
+      : ''
+  draggingChallengePlayerId.value = dragChallengePlayerId.value
+}
+
+function startHandDrag(player, event) {
+  if (event.button !== 0) return
+  pendingDrag = { player, originX: event.clientX, originY: event.clientY, active: false }
+  window.addEventListener('pointermove', moveHandDrag)
+  window.addEventListener('pointerup', endHandDrag, { once: true })
+}
+function moveHandDrag(event) {
+  if (!pendingDrag) return
+  if (!pendingDrag.active) {
+    if (Math.hypot(event.clientX - pendingDrag.originX, event.clientY - pendingDrag.originY) < 7) return
+    startDragChallenge(pendingDrag.player)
+    if (selectedPlayerId.value !== pendingDrag.player.id) { clearHandDrag(); return }
+    pendingDrag.active = true
+    draggingChallengePlayerId.value = pendingDrag.player.id
+    const bounds = document.querySelector('.ladder-row--selected')?.getBoundingClientRect()
+    dragGhost.value = { player: pendingDrag.player, x: bounds ? bounds.left + bounds.width / 2 : event.clientX, y: event.clientY, width: bounds?.width || 440 }
+  }
+  dragGhost.value = { ...dragGhost.value, player: pendingDrag.player, y: event.clientY }
+}
+function endHandDrag(event) {
+  if (!pendingDrag?.active) { clearHandDrag(); return }
+  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-ladder-player-id]')
+  const targetId = target?.getAttribute('data-ladder-player-id') || ''
+  if (eligiblePlayerIds.value.has(targetId)) { dragDropTargetId.value = targetId; dragActionOpen.value = true } else { resetChallengeSelection() }
+  clearHandDrag()
+}
+function clearHandDrag() {
+  pendingDrag = null
+  dragGhost.value = null
+  draggingChallengePlayerId.value = ''
+  window.removeEventListener('pointermove', moveHandDrag)
+}
+function beginChallengeDrag(player, event) {
+  if (!challengeSelectionActive.value || player.id !== dragChallengePlayerId.value) {
+    event.preventDefault()
+    return
+  }
+event.dataTransfer?.setData('text/plain', player.id)
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    const row = event.currentTarget?.closest('.ladder-row')
+    if (row) event.dataTransfer.setDragImage(row, Math.min(row.clientWidth / 2, 140), 28)
+  }
+}
+
+function allowChallengeDrop(player, event) {
+  if (!challengeSelectionActive.value || !eligiblePlayerIds.value.has(player.id)) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+}
+
+function completeChallengeDrop(player, event) {
+  if (!challengeSelectionActive.value || !eligiblePlayerIds.value.has(player.id)) return
+  event.preventDefault()
+  selectedOpponentId.value = player.id
+  drawerResult.value = null
+  dragChallengePlayerId.value = ''
+  draggingChallengePlayerId.value = ''
+}
 function handlePlayerRow(player) {
   if (!canManageLadder.value) return
 
@@ -737,6 +811,7 @@ function closeDrawer() {
 }
 
 function resetChallengeSelection() {
+  dragChallengePlayerId.value = ''
   selectedPlayerId.value = ''
   selectedOpponentId.value = ''
   drawerResult.value = null
@@ -1588,7 +1663,11 @@ function continueLadderSetup(ladder = activeLadder.value) {
               :tabindex="
                 canManageLadder ? 0 : undefined
               "
+:draggable="challengeSelectionActive && player.id === dragChallengePlayerId"
+              :data-ladder-player-id="player.id"
+              :style="player.id === draggingChallengePlayerId ? { opacity: .38 } : undefined"
               @click="handlePlayerRow(player)"
+              @dragend="draggingChallengePlayerId = ''"
               @keydown="
                 handlePlayerKeydown(
                   player,
@@ -1686,6 +1765,9 @@ function continueLadderSetup(ladder = activeLadder.value) {
                   v-else
                   class="ladder-row__manage-state"
                 >
+                  <button class="ladder-row__drag-handle" type="button" data-tooltip="Hold and drag to choose an eligible opponent" :aria-label="`Hold and drag ${player.name} to an eligible opponent`" @click.stop.prevent @pointerdown.stop="startHandDrag(player, $event)">
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 10V5.6a1.25 1.25 0 0 1 2.5 0v3.15" /><path d="M10 8.75V4.5a1.25 1.25 0 0 1 2.5 0v4.25" /><path d="M12.5 8.75V5.9a1.25 1.25 0 0 1 2.5 0v5.1" /><path d="M7.5 8.65 6.7 8a1.28 1.28 0 0 0-1.75 1.87l3.4 3.2a3.8 3.8 0 0 0 2.6 1.04h1.5a3.8 3.8 0 0 0 3.8-3.8v-1.56" /></svg>
+                  </button>
                   <small
                     v-if="player.challengePaused"
                     class="ladder-row__paused-state"
@@ -1770,6 +1852,14 @@ function continueLadderSetup(ladder = activeLadder.value) {
       </template>
     </main>
 
+    <teleport to="body">
+      <article v-if="dragGhost" class="ladder-drag-ghost" :style="{ left: `${dragGhost.x}px`, top: `${dragGhost.y}px`, width: `${dragGhost.width}px` }"><strong>#{{ dragGhost.player.rank }}</strong><PersonAvatar :name="dragGhost.player.name" :image="dragGhost.player.imageUrl" :size="40" /><span>{{ dragGhost.player.name }}</span></article>
+    </teleport>
+    <teleport to="body">
+      <div v-if="dragActionOpen" class="ladder-drag-action" @click.self="dragActionOpen = false; dragDropTargetId = ''; resetChallengeSelection()">
+        <section class="ladder-drag-action__panel"><p>Choose an action</p><h2>{{ selectedPlayer?.name }} vs {{ players.find((player) => player.id === dragDropTargetId)?.name }}</h2><div><button class="button-primary" type="button" @click="selectedOpponentId = dragDropTargetId; dragActionOpen = false; dragDropTargetId = ''">Set up challenge</button><button type="button" @click="managedPlayerId = selectedPlayerId; missingMatchDialogOpen = true; dragActionOpen = false; dragDropTargetId = ''">Record missing match</button></div></section>
+      </div>
+    </teleport>
     <AdminLadderMatchDrawer
       :open="drawerOpen"
       :ladder="activeLadder"
@@ -2663,5 +2753,18 @@ function continueLadderSetup(ladder = activeLadder.value) {
   }
 }
 
+
+.ladder-row__drag-handle { display: inline-grid; width: 28px; height: 28px; place-items: center; margin-right: 6px; border: 0; border-radius: 7px; background: #edf5ee; color: #387247; }
+.ladder-row__drag-handle:hover { background: #dff0e2; }
+.ladder-row__drag-handle { position: relative; }
+.ladder-row__drag-handle::after { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 20; width: max-content; max-width: 180px; padding: 7px 9px; border-radius: 7px; background: #243128; color: #fff; content: attr(data-tooltip); font-size: 9px; font-weight: 600; line-height: 1.35; opacity: 0; pointer-events: none; transform: translateY(3px); transition: opacity .16s ease, transform .16s ease; }
+.ladder-row__drag-handle:hover::after, .ladder-row__drag-handle:focus-visible::after { opacity: 1; transform: translateY(0); }
+.ladder-row__drag-handle svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
+.ladder-row[draggable='true'] { cursor: grab; }
+.ladder-row[draggable='true']:active { cursor: grabbing; }
+.ladder-drag-ghost { position: fixed; z-index: 10040; display: grid; grid-template-columns: 42px 40px minmax(0,1fr); align-items: center; gap: 11px; width: min(440px,calc(100vw - 32px)); padding: 13px 16px; border: 1px solid rgba(8,173,43,.38); border-radius: 12px; background: #fff; box-shadow: 0 20px 44px rgba(20,38,25,.24); color: #334037; font-size: 12px; font-weight: 650; pointer-events: none; transform: translate(-50%,-50%) rotate(1deg); }
+.ladder-drag-ghost > strong { color: var(--color-primary-strong); }
+
+.ladder-drag-action{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;padding:20px;background:rgba(17,28,20,.32)}.ladder-drag-action__panel{width:min(360px,100%);padding:20px;border-radius:14px;background:#fff;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.2)}.ladder-drag-action__panel p,.ladder-drag-action__panel h2{margin:0}.ladder-drag-action__panel p{color:var(--color-muted);font-size:10px;text-transform:uppercase}.ladder-drag-action__panel h2{margin-top:7px;font-size:16px}.ladder-drag-action__panel div{display:grid;gap:8px;margin-top:18px}.ladder-drag-action__panel button{min-height:40px;border:1px solid #dfe5e0;border-radius:8px;background:#fff;color:#526057;font-size:11px;font-weight:650}.ladder-drag-action__panel .button-primary{border:0;color:#fff}
 </style>
 
