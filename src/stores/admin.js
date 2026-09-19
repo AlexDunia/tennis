@@ -13,6 +13,7 @@ import {
   importClubMemberData,
   previewClubMemberImport,
   updateClubMemberRecord,
+  updateClubMemberLadderPosition,
   createClub as createClubRelationship,
   createMemberRecordInvite,
   discardClubSetupDraft,
@@ -414,7 +415,24 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-  async function previewMemberImport(draft, resolutions = {}) {
+
+  async function saveMemberLadderPosition(memberId, ladderId, position) {
+    isSaving.value = true
+    error.value = ''
+    try {
+      const currentActor = actor()
+      const result = await updateClubMemberLadderPosition(memberId, ladderId, position, currentActor)
+      const directory = await getClubDirectory(currentActor)
+      applyDirectory(directory)
+      setup.value = directory.clubs.find((club) => club.id === directory.activeClubId)?.setup || setup.value
+      return result
+    } catch (ladderError) {
+      error.value = ladderError?.message || 'Unable to update this Ladder position.'
+      throw ladderError
+    } finally {
+      isSaving.value = false
+    }
+  }  async function previewMemberImport(draft, resolutions = {}) {
     error.value = ''
 
     try {
@@ -683,6 +701,7 @@ export const useAdminStore = defineStore('admin', () => {
     createMemberInvite,
     addMemberRecord,
     saveMemberRecord,
+    saveMemberLadderPosition,
     previewMemberImport,
     importMemberData,
     clearActiveClubTestData,

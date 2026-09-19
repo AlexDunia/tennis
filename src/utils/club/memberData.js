@@ -141,7 +141,25 @@ export function memberCollectionsPatch(setup, memberIdInput, update) {
   }
 }
 
-function nextMemberId(name, existingIds) {
+
+export function syncClubMemberLadderOrder(setup, { ladderId: ladderIdInput, ladderName: ladderNameInput, orderedMemberIds = [] } = {}) {
+  const ladderId = sanitizeDirectoryId(ladderIdInput)
+  const ladderName = sanitizePlainText(ladderNameInput, 70)
+  if (!ladderId || !ladderName) throw new Error('Choose a valid Ladder.')
+  const order = [...new Set((Array.isArray(orderedMemberIds) ? orderedMemberIds : []).map((memberId) => sanitizeDirectoryId(memberId)).filter(Boolean))]
+  const positionByMember = new Map(order.map((memberId, index) => [memberId, index + 1]))
+  const collections = collectionsFrom(setup)
+  CLUB_MEMBER_COLLECTIONS.forEach((collectionKey) => {
+    collections[collectionKey] = collections[collectionKey].map((member) => {
+      const position = positionByMember.get(sanitizeDirectoryId(member?.id))
+      const current = normalizedLadderMemberships(member?.ladderMemberships)
+      const next = current.filter((membership) => !((membership.ladderId && membership.ladderId === ladderId) || membership.ladderName.toLowerCase() === ladderName.toLowerCase()))
+      if (position) next.push({ ladderId, ladderName, position })
+      return { ...member, ladderMemberships: normalizedLadderMemberships(next) }
+    })
+  })
+  return { ...(setup.membership || {}), ...collections }
+}function nextMemberId(name, existingIds) {
   const base = sanitizeDirectoryId(name, 'member')
   if (!existingIds.has(base)) return base
 

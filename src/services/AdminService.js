@@ -48,8 +48,10 @@ import {
   memberCollectionsPatch,
   mergeMemberImportIntoSetup,
   previewMemberImportIntoSetup,
+  syncClubMemberLadderOrder,
 } from '../utils/club/memberData.js'
 import { isSafeImageSource, sanitizePlainText } from '../utils/formSafety.js'
+import { normalizeMemberRatings } from '../domain/playerRatings.js'
 
 const LEGACY_SETUP_SCHEMA_VERSION = 1
 const MANAGER_ROLES = new Set(['admin', 'co-admin'])
@@ -1579,6 +1581,9 @@ export async function updateClubMemberRecord(memberIdInput, input = {}, actor) {
             40,
           )
         : sanitizePlainText(current.rating, 40),
+      ratings: canManage
+        ? normalizeMemberRatings(input.ratings === undefined ? current.ratings : input.ratings)
+        : normalizeMemberRatings(current.ratings),
       memberNumber: sanitizePlainText(
         input.memberNumber === undefined ? current.memberNumber : input.memberNumber,
         80,
@@ -1725,7 +1730,34 @@ export async function discardClubSetupDraft(actor) {
   return activeClub ? normalizeClubSetup(activeClub.setup) : createDefaultClubSetup()
 }
 
-export const previewInvite = previewClubInvite
+
+export async function updateClubMemberLadderPosition(memberIdInput, ladderIdInput, positionInput, actor) {
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+  const memberId = sanitizeDirectoryId(memberIdInput)
+  const ladderId = sanitizeDirectoryId(ladderIdInput)
+  const requestedPosition = Number.parseInt(positionInput, 10)
+  if (!memberId || !ladderId || !Number.isInteger(requestedPosition) || requestedPosition < 1) {
+    throw createServiceError('Choose a valid Ladder position.', 'INVALID_LADDER_POSITION')
+  }
+  const ladder = (context.club.setup.ladders || []).find((item) => item.id === ladderId)
+  if (!ladder || ladder.archived || ladder.enabled === false) throw createServiceError('This Ladder is not active.', 'LADDER_UNAVAILABLE')
+  const entries = normalizeLadderEntries(ladder.entries)
+  const orderedIds = entries.slice().sort((a,b) => (a.position ?? a.setupOrder ?? 10000) - (b.position ?? b.setupOrder ?? 10000)).map((entry) => entry.memberId)
+  if (!orderedIds.includes(memberId)) throw createServiceError('This member is not on that Ladder.', 'MEMBER_NOT_ON_LADDER')
+  const nextIds = orderedIds.filter((id) => id !== memberId)
+  nextIds.splice(Math.min(Math.max(requestedPosition - 1, 0), nextIds.length), 0, memberId)
+  const byMember = new Map(entries.map((entry) => [entry.memberId, entry]))
+  const active = ladder.status === 'active'
+  const nextLadder = { ...ladder, entries: nextIds.map((id, index) => ({ ...byMember.get(id), memberId: id, position: active ? index + 1 : null, setupOrder: index + 1 })) }
+  const membership = syncClubMemberLadderOrder(context.club.setup, { ladderId, ladderName: ladder.name, orderedMemberIds: nextIds })
+  const nextSetup = normalizeClubSetup({ ...context.club.setup, membership, ladders: context.club.setup.ladders.map((item) => item.id === ladderId ? nextLadder : item), updatedAt: nowIso() })
+  directory.clubs[context.clubIndex] = { ...context.club, name: nextSetup.workspace.name, setup: nextSetup, updatedAt: nowIso() }
+  directory = writeDirectory(directory, userId)
+  const club = publicDirectoryForUser(directory, userId).clubs.find((item) => item.id === context.clubId)
+  return { club, ladder: club?.setup?.ladders?.find((item) => item.id === ladderId) || null }
+}export const previewInvite = previewClubInvite
 export const joinClub = joinClubWithInvite
 export const switchClub = switchActiveClub
 export const updateActiveClub = updateActiveClubSetup

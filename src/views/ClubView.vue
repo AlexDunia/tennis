@@ -19,6 +19,14 @@ const notificationStore = useNotificationStore()
 const appearanceDialog = ref(null)
 const pageError = ref('')
 const appearanceBusy = ref(false)
+const clubPicker = ref(null)
+const switchingClubId = ref('')
+const switchLine = ref(null)
+const switchLineStuck = ref(false)
+const clubPicker = ref(null)
+const switchingClubId = ref('')
+const switchLine = ref(null)
+const switchLineStuck = ref(false)
 
 const appearanceDraft = reactive({
   logoUrl: '',
@@ -39,6 +47,8 @@ const tournaments = computed(() =>
   ),
 )
 const canManage = computed(() => adminStore.hasActiveClubPermission('club.manage'))
+const pickerClubs = computed(() => adminStore.clubOptions.map((item) => { const record = adminStore.clubs.find((entry) => entry.id === item.id); return { ...item, city: record?.setup?.workspace?.city || record?.setup?.workspace?.location || 'Local courts' } }))
+const pickerClubs = computed(() => adminStore.clubOptions.map((item) => { const record = adminStore.clubs.find((club) => club.id === item.id); return { ...item, city: record?.setup?.workspace?.city || record?.setup?.workspace?.location || 'Local courts' } }))
 
 const manageItems = computed(() => {
   const items = [
@@ -82,7 +92,13 @@ function open(to) {
   router.push(to)
 }
 
-function openAppearance() {
+function clubInitials(name) { return String(name || 'Club').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() }
+function roleCopy(role) { const value = String(role || '').toLowerCase(); return ['admin', 'co-admin', 'owner'].includes(value) ? 'You run this one' : value === 'captain' ? "You're the captain" : 'You play here' }
+function openClubPicker() { pageError.value = ''; clubPicker.value?.showModal() }
+function closeClubPicker() { if (!switchingClubId.value) clubPicker.value?.close() }
+async function switchClub(clubId) { if (!clubId || clubId === adminStore.activeClubId) return closeClubPicker(); switchingClubId.value = clubId; try { await adminStore.switchClub(clubId); await tournamentStore.fetchTournaments(); clubPicker.value?.close(); notificationStore.addToast({ message: (club.value?.name || 'That club') + ' is now in play.', type: 'success' }) } catch (cause) { pageError.value = cause?.message || 'That club would not switch just now. Try another swing.' } finally { switchingClubId.value = '' } }
+function openClubFlow(view) { closeClubPicker(); router.push({ name: 'Clubs', query: { view } }) }
+function updateStickyState() { const top = switchLine.value?.getBoundingClientRect().top; switchLineStuck.value = Boolean(top !== undefined && top <= 78) }function openAppearance() {
   if (!canManage.value || appearanceBusy.value) return
 
   Object.assign(appearanceDraft, {
@@ -130,6 +146,8 @@ async function saveAppearance() {
 }
 
 onMounted(async () => {
+  window.addEventListener('scroll', updateStickyState, { passive: true })
+  window.addEventListener('scroll', updateStickyState, { passive: true })
   pageError.value = ''
 
   try {
@@ -142,9 +160,9 @@ onMounted(async () => {
 })
 
 useShellNestedHeader(() => ({
-  label: 'Back to clubs',
-  backLabel: 'Back to clubs',
-  back: () => router.push({ name: 'Clubs' }),
+  label: club.value?.name || 'Club',
+  backLabel: 'Back',
+  back: () => router.back(),
   crumbs: [
     { label: 'Club' },
     { label: club.value?.name || 'Current club' },
@@ -157,6 +175,7 @@ useShellNestedHeader(() => ({
     <p v-if="pageError" class="ref-inline-alert" role="alert">{{ pageError }}</p>
 
     <section v-if="club" class="club-profile">
+      <div ref="switchLine" class="club-profile__switch" :class="{ 'club-profile__switch--stuck': switchLineStuck }"><p>You're playing out of <strong>{{ club.name }}</strong></p><button class="ref-button" type="button" @click="openClubPicker">Change club</button></div>
       <ClubIdentityHero
         :name="club.name"
         :location="workspace.location || ''"
@@ -283,6 +302,10 @@ useShellNestedHeader(() => ({
 </template>
 
 <style scoped>
+.club-profile__switch { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--g-line, #e4e9e5); }
+.club-profile__switch p { margin: 0; color: var(--g-muted, #778079); font-size: 13px; }
+.club-profile__switch strong { color: var(--g-ink, #28332c); }
+
 .club-profile {
   display: grid;
   gap: 34px;
@@ -435,7 +458,11 @@ useShellNestedHeader(() => ({
 }
 
 @media (max-width: 760px) {
-  .club-profile {
+  .club-profile__switch { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--g-line, #e4e9e5); }
+.club-profile__switch p { margin: 0; color: var(--g-muted, #778079); font-size: 13px; }
+.club-profile__switch strong { color: var(--g-ink, #28332c); }
+
+.club-profile {
     gap: 27px;
   }
 

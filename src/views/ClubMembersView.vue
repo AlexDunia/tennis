@@ -234,6 +234,16 @@ useShellNestedHeader(() => ({
       <div class="ref-members-head-copy">
         <h1>All members of {{ club?.name || 'this club' }}</h1>
       </div>
+
+      <button
+        v-if="canManage"
+        class="ref-button primary ref-members-head-add"
+        type="button"
+        @click="scrollToAddPeople"
+      >
+        <FlowIcon name="plus" />
+        Add members
+      </button>
     </header>
 
     <p v-if="pageError" class="ref-inline-alert" role="alert">{{ pageError }}</p>
@@ -307,12 +317,19 @@ useShellNestedHeader(() => ({
             </span>
           </span>
 
-          <span class="ref-member-contact">
-            <strong>{{ member.email || 'No email' }}</strong>
-            <span>{{ member.userId ? 'Connected account' : 'Club record' }}</span>
+          <span
+            class="ref-member-contact"
+            :class="{ 'is-missing': !String(member.email || '').trim() }"
+          >
+            <strong>{{ member.email || '—' }}</strong>
           </span>
 
-          <span class="ref-member-ladder">{{ memberPrimaryLadder(member) }}</span>
+          <span
+            class="ref-member-ladder"
+            :class="{ 'is-missing': memberPrimaryLadder(member) === '—' }"
+          >
+            {{ memberPrimaryLadder(member) }}
+          </span>
 
           <span class="ref-member-role">
             {{

@@ -479,7 +479,7 @@ const routes = [
     component: ClubsView,
     meta: {
       title: 'Club',
-      subtitle: 'Join a club, create one, or open one you already belong to.',
+      subtitle: 'Choose the club you are playing in, or start a new one.',
       primarySection: 'club',
     },
   },

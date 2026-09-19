@@ -471,7 +471,7 @@ const navigationItems = Object.freeze([
     label: 'Tournament',
     icon: tournamentIcon,
   },
-  { to: { name: 'Clubs' }, section: 'club', label: 'Club', icon: clubIcon },
+  { to: { name: 'Club' }, section: 'club', label: 'Club', icon: clubIcon },
 ])
 
 const accountItems = computed(() => {
