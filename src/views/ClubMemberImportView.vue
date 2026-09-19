@@ -1,11 +1,15 @@
-<script setup>
+﻿<script setup>
 import MemberImportReconciliation from '../components/club/MemberImportReconciliation.vue'
 import MemberListArt from '../components/club/MemberListArt.vue'
+import ClubImportLadderChooser from '../components/club/ClubImportLadderChooser.vue'
 import { memberTemplateMatrix, memberTemplateDelimited, memberTemplateGuide } from '../utils/onboarding/memberImportTemplates.js'
 import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
+import {
+  ladderRequirementsLabel,
+} from '../domain/ladderWorkspace.js'
 import { useAdminStore } from '../stores/admin'
 import { useNotificationStore } from '../stores/notification'
 import {
@@ -46,6 +50,9 @@ const query = ref('')
 const columnFilter = ref('all')
 const pasteText = ref('')
 const manualScenarioOverride = ref(false)
+const ladderChooser = ref(null)
+const ladderChooserScreen = ref('start')
+const ladderReturnScreen = ref('start')
 
 const reconciliation = ref(null)
 const reconciliationDraft = ref(null)
@@ -73,6 +80,7 @@ const workspace = reactive({
   detectedLadders: [],
   looksLikePeople: true,
   oneLadderName: '',
+  selectedLadders: [],
 })
 
 const SCENARIO_DETAIL_LEVEL = Object.freeze({
@@ -237,52 +245,18 @@ watch(
 )
 
 const importActionLabel = computed(() => {
-  if (busy.value) return 'Adding…'
-  if (workspace.scenario === 'one-ladder') return 'Add ladder'
-  if (workspace.scenario === 'multiple-ladders') return 'Add ladders'
-  return 'Add members'
+  if (busy.value) return 'Importing...'
+  return 'Import members'
 })
 
 const helpCopy = computed(() => {
-  if (workspace.scenario === 'one-ladder') {
-    return {
-      title: 'How to prepare one ladder',
-      intro: 'Use the ladder list your club already keeps.',
-      steps: [
-        ['Keep one player on each row', 'Use First Name, Last Name, Email, Position and Year of Entry.'],
-        ['Enter the ladder name once in Gorra', 'You do not need to repeat the same ladder name on every row.'],
-        ['Positions should describe the current order', '1 is the top position, then 2, 3 and so on.'],
-        ['Upload even if your headings are different', 'Gorra will match familiar columns and only ask when it is not sure.'],
-      ],
-    }
-  }
-
-  if (workspace.scenario === 'multiple-ladders') {
-    return {
-      title: 'How to prepare multiple ladders',
-      intro: 'One file can carry more than one ladder.',
-      steps: [
-        ['Use one row for each ladder position', 'Use First Name, Last Name, Email, Ladder, Position and Year of Entry.'],
-        ['Repeat a player when they belong to another ladder', 'Gorra uses the email or member number to recognise the same club record.'],
-        ['Keep the official ladder names if you can', 'Small differences can be cleaned during import.'],
-        ['Review before adding', 'Gorra shows conflicts such as duplicate positions instead of guessing.'],
-      ],
-    }
-  }
-
-  return {
-    title: 'How to prepare a member list',
-    intro: 'You can use the spreadsheet your club already has.',
-    steps: [
-      ['Keep one person on each row', 'Use a clear member name on every row.'],
-      ['Use clear member columns', 'First Name, Last Name, Email and Year of Entry are the best starting point.'],
-      ['Do not rebuild a messy file just for Gorra', 'Upload it first. If Gorra is unsure about a column, choose the right one in the table header.'],
-      ['Save as Excel or CSV', 'Then upload the file and check the players before anything is added.'],
-    ],
-  }
+  if (workspace.scenario === 'one-ladder') return { title: 'One Ladder file', intro: 'The destination Ladder is already selected.', steps: [['Keep one player on each row', 'Use First Name, Last Name, Email, Position and Year of Entry.'], ['Positions describe the current order', '1 is the top position, then 2, 3 and so on.'], ['No Ladder column is needed', 'We already know which Ladder this file belongs to.'], ['Your headings can be different', 'We match familiar columns and only ask when something is unclear.']] }
+  if (workspace.scenario === 'multiple-ladders') return { title: 'Multiple Ladder file', intro: 'Use the Ladders you selected before upload.', steps: [['Use one row for each Ladder position', 'Use First Name, Last Name, Email, Ladder, Position and Year of Entry.'], ['Use the selected Ladder names', 'The Ladder column tells us which selected Ladder each row belongs to.'], ['Repeat a player when needed', 'If one person belongs to more than one Ladder, they can appear on more than one row.'], ['Review before import', 'We show conflicts instead of guessing.']] }
+  return { title: 'Member list', intro: 'Use the spreadsheet your club already has.', steps: [['Keep one person on each row', 'Use a clear member name on every row.'], ['Use clear member columns', 'First Name, Last Name, Email and Year of Entry are the best starting point.'], ['Do not rebuild a messy file first', 'Upload it. If we are unsure about a column, choose the right one in the review table.'], ['Save as Excel or CSV', 'Then upload the file and review it before anything is added.']] }
 })
-
-function resetWorkspace(nextScenario = scenario.value || 'members-only') {
+function resetWorkspace(nextScenario = scenario.value || 'members-only', { preserveDestinations = false } = {}) {
+  const keptLadders = preserveDestinations ? JSON.parse(JSON.stringify(workspace.selectedLadders || [])) : []
+  const keptOneLadderName = preserveDestinations ? workspace.oneLadderName : ''
   Object.assign(workspace, {
     scenario: nextScenario,
     fileName: '',
@@ -297,7 +271,8 @@ function resetWorkspace(nextScenario = scenario.value || 'members-only') {
     suggestedScenario: nextScenario,
     detectedLadders: [],
     looksLikePeople: true,
-    oneLadderName: workspace.oneLadderName || '',
+    oneLadderName: keptOneLadderName,
+    selectedLadders: keptLadders,
   })
   query.value = ''
   columnFilter.value = 'all'
@@ -312,11 +287,29 @@ function resetWorkspace(nextScenario = scenario.value || 'members-only') {
 
 function chooseScenario(value) {
   resetWorkspace(value)
+  ladderChooserScreen.value = 'start'
+  ladderReturnScreen.value = 'start'
+  router.replace({ name: 'ClubMemberImport', query: { scenario: value } })
+  stage.value = value === 'members-only' ? 'prepare' : 'ladder'
+}
+
+function ladderScreenChanged(value) {
+  ladderChooserScreen.value = value || 'start'
+}
+
+function useImportLadders({ ladders = [], origin = 'start' } = {}) {
+  const selected = (Array.isArray(ladders) ? ladders : []).map((ladder) => ({ id: String(ladder?.id || '').trim(), name: String(ladder?.name || '').trim().slice(0, 70), matchType: ladder?.matchType === 'doubles' ? 'doubles' : 'singles', eligibility: JSON.parse(JSON.stringify(ladder?.eligibility || {})) })).filter((ladder) => ladder.id && ladder.name)
+  const minimum = workspace.scenario === 'multiple-ladders' ? 2 : 1
+  if (selected.length < minimum) { error.value = workspace.scenario === 'multiple-ladders' ? 'Choose at least two Ladders.' : 'Choose a Ladder.'; return }
+  workspace.selectedLadders = selected
+  workspace.oneLadderName = workspace.scenario === 'one-ladder' ? selected[0].name : ''
+  ladderReturnScreen.value = origin || ladderChooserScreen.value
+  error.value = ''
   stage.value = 'prepare'
-  router.replace({
-    name: 'ClubMemberImport',
-    query: { scenario: value },
-  })
+}
+
+function changeImportLadders() {
+  if (workspace.scenario !== 'members-only') stage.value = 'ladder'
 }
 
 function back() {
@@ -328,6 +321,18 @@ function back() {
 
   if (stage.value === 'scenario') {
     router.push({ name: 'ClubMembers' })
+    return
+  }
+
+  if (stage.value === 'ladder') {
+    if (ladderChooser.value?.back?.()) return
+    router.replace({ name: 'ClubMemberImport' })
+    stage.value = 'scenario'
+    return
+  }
+
+  if (stage.value === 'prepare' && workspace.scenario !== 'members-only') {
+    stage.value = 'ladder'
     return
   }
 
@@ -393,6 +398,9 @@ function scenarioDetailLevel(value) {
 }
 
 function autoPromoteDetectedScenario(analysis) {
+  if (Array.isArray(workspace.selectedLadders) && workspace.selectedLadders.length) {
+    return { analysis, scenario: workspace.scenario || scenario.value || 'members-only', promoted: false }
+  }
   const current =
     workspace.scenario ||
     scenario.value ||
@@ -454,12 +462,19 @@ function applyAnalysis(initialAnalysis) {
     )
 
   const analysis = promoted.analysis
+  const selectedLadders = JSON.parse(JSON.stringify(workspace.selectedLadders || []))
+  const selectedOneLadderName = workspace.oneLadderName
 
   Object.assign(workspace, analysis)
-
   workspace.scenario = promoted.scenario
 
+  if (selectedLadders.length) {
+    workspace.selectedLadders = selectedLadders
+    workspace.oneLadderName = workspace.scenario === 'one-ladder' ? selectedOneLadderName || selectedLadders[0]?.name || '' : ''
+  }
+
   if (
+    !selectedLadders.length &&
     workspace.scenario === 'one-ladder' &&
     !workspace.oneLadderName &&
     analysis.detectedLadders?.length === 1
@@ -608,10 +623,7 @@ function usePastedSpreadsheet() {
 }
 
 function changeFile() {
-  const keepScenario = workspace.scenario
-  const keepLadder = workspace.oneLadderName
-  resetWorkspace(keepScenario)
-  workspace.oneLadderName = keepLadder
+  resetWorkspace(workspace.scenario, { preserveDestinations: true })
   stage.value = 'prepare'
   error.value = ''
 }
@@ -729,7 +741,7 @@ async function applyImport(draft, selectedResolutions = {}) {
     }
 
     notificationStore.addToast({
-      message: parts.join(' · ') || 'Club data is up to date.',
+      message: parts.join(' Â· ') || 'Club data is up to date.',
       type: 'success',
     })
 
@@ -831,7 +843,9 @@ watch(
 
     if (workspace.scenario !== value || stage.value === 'scenario') {
       resetWorkspace(value)
-      stage.value = 'prepare'
+      ladderChooserScreen.value = 'start'
+      ladderReturnScreen.value = 'start'
+      stage.value = value === 'members-only' ? 'prepare' : 'ladder'
     }
   },
   { immediate: true },
@@ -1008,27 +1022,36 @@ useShellNestedHeader(() => {
       </div>
     </section>
 
-    <section v-else-if="stage === 'prepare'" class="ref-page-narrow">
-      <label
-        v-if="workspace.scenario === 'one-ladder'"
-        class="ref-form-field ref-one-ladder-context"
-      >
-        <span>Which ladder is this list for?</span>
+    <section v-show="stage === 'ladder'" class="ref-page-narrow">
+      <ClubImportLadderChooser
+        :key="workspace.scenario"
+        ref="ladderChooser"
+        :scenario="workspace.scenario"
+        :club="club"
+        @screen-change="ladderScreenChanged"
+        @complete="useImportLadders"
+      />
+    </section>
 
-        <input
-          v-model="workspace.oneLadderName"
-          type="text"
-          maxlength="70"
-          placeholder="Men's Singles"
-          required
-        />
-
-        <small>
-          Examples: Men's Singles, Women's Singles, Open Doubles.
-          Set it once here — your file does not need a Ladder column.
-        </small>
-      </label>
-
+    <section v-if="stage === 'prepare'" class="ref-page-narrow">
+      <template v-if="workspace.scenario !== 'members-only'">
+        <div class="ci-selected-head">
+          <strong>{{ workspace.scenario === 'multiple-ladders' ? 'Selected Ladders' : 'Selected Ladder' }}</strong>
+          <button class="ci-change-action" type="button" @click="changeImportLadders">Change</button>
+        </div>
+        <div class="ci-selected-grid">
+          <article v-for="ladder in workspace.selectedLadders" :key="ladder.id" class="ci-selected-card">
+            <strong>{{ ladder.name }}</strong>
+            <small>{{ ladderRequirementsLabel(ladder.eligibility, club?.setup?.playerLevels?.levels || []) }}</small>
+          </article>
+        </div>
+        <section class="ci-file-requirements">
+          <p>Make sure your CSV or Excel file includes: <button class="ci-inline-help" type="button" aria-label="How to prepare this file" title="How to prepare this file" @click="helpDialog?.showModal()"><FlowIcon name="help" /></button></p>
+          <div class="ci-file-requirements__fields"><span v-for="label in importPageCopy.required" :key="label">{{ label }}</span></div>
+          <small v-if="workspace.scenario === 'one-ladder'">No Ladder column is needed. The destination is already selected.</small>
+          <small v-else>Use the selected Ladder names in the Ladder column.</small>
+        </section>
+      </template>
       <section
         class="ref-import-empty-state"
         :class="{ dragging }"
@@ -1053,7 +1076,7 @@ useShellNestedHeader(() => {
             :disabled="busy"
             @click="fileInput?.click()"
           >
-            {{ busy ? 'Reading…' : 'Choose file' }}
+            {{ busy ? 'Readingâ€¦' : 'Choose file' }}
           </button>
 
           <button
@@ -1067,7 +1090,7 @@ useShellNestedHeader(() => {
         </div>
 
         <div class="ref-import-drop-note">
-          CSV or Excel (.xlsx) · up to 5 MB · you review everything before it is added
+          CSV or Excel (.xlsx) Â· up to 5 MB Â· you review everything before it is added
         </div>
 
         <input
@@ -1080,7 +1103,7 @@ useShellNestedHeader(() => {
       </section>
     </section>
 
-    <section v-else-if="stage === 'unrecognized'" class="ref-page-narrow">
+    <section v-if="stage === 'unrecognized'" class="ref-page-narrow">
       <header class="ref-section-heading">
         <div class="ref-page-head-main">
           <h2>This does not look like a member list yet.</h2>
@@ -1095,7 +1118,7 @@ useShellNestedHeader(() => {
     </section>
 
     <section
-      v-else-if="stage === 'reconcile'"
+      v-if="stage === 'reconcile'"
       class="ref-import-reconcile"
     >
       <MemberImportReconciliation
@@ -1138,7 +1161,7 @@ useShellNestedHeader(() => {
                 ? 'member'
                 : 'members'
             }}
-            · Review before adding
+            Â· Review before adding
           </span>
         </div>
 
@@ -1151,18 +1174,9 @@ useShellNestedHeader(() => {
         </button>
       </header>
 
-      <label
-        v-if="workspace.scenario === 'one-ladder'"
-        class="ref-form-field ref-import-review-ladder"
-      >
-        <span>Ladder name</span>
-
-        <input
-          v-model="workspace.oneLadderName"
-          type="text"
-          maxlength="70"
-        />
-      </label>
+      <div v-if="workspace.scenario === 'one-ladder' && workspace.selectedLadders[0]" class="ci-review-ladder">
+        <span>Ladder</span><strong>{{ workspace.selectedLadders[0].name }}</strong>
+      </div>
 
       <div
         class="ref-import-toolbar gorra-data-toolbar"
@@ -1517,7 +1531,7 @@ useShellNestedHeader(() => {
                         'field'
                     "
                   >
-                    ·
+                    Â·
                     {{
                       mobileColumn.field.required
                         ? 'Required'
@@ -1526,7 +1540,7 @@ useShellNestedHeader(() => {
                   </template>
 
                   <template v-else>
-                    · Not importing
+                    Â· Not importing
                   </template>
                 </span>
               </div>
@@ -1668,7 +1682,7 @@ useShellNestedHeader(() => {
                 <FlowIcon name="search" />
 
                 <span>
-                  Results for “{{ query }}”
+                  Results for â€œ{{ query }}â€
                 </span>
 
                 <button
@@ -1716,7 +1730,7 @@ useShellNestedHeader(() => {
                 "
               >
                 <strong>
-                  {{ index + 1 }} ·
+                  {{ index + 1 }} Â·
                   {{
                     mobileRowLabel(
                       row,
@@ -1815,7 +1829,7 @@ useShellNestedHeader(() => {
             >
               {{
                 reconciliationBusy
-                  ? 'Checking…'
+                  ? 'Checkingâ€¦'
                   : importActionLabel
               }}
             </button>
@@ -1827,7 +1841,7 @@ useShellNestedHeader(() => {
         v-if="workspace.fixes.length"
         class="ref-import-fixes"
       >
-        {{ workspace.fixes.join(' · ') }}
+        {{ workspace.fixes.join(' Â· ') }}
       </p>
     </section>
 
@@ -2068,7 +2082,7 @@ useShellNestedHeader(() => {
           </select>
         </label>
         <p v-if="templateExamples" class="ref-inline-note">Fictional example members: replace these rows with your club's real data before importing. {{ workspace.scenario === 'multiple-ladders' ? 'Includes 8 people across 3 ladders, with consistent identities and positions.' : 'Includes 8 members and all supported columns.' }}</p>
-        <p v-if="workspace.scenario === 'one-ladder'" class="ref-inline-note">Enter your ladder name in Gorra before uploading this list.</p>
+        <p v-if="workspace.scenario === 'one-ladder' && workspace.selectedLadders[0]" class="ref-inline-note">This file is for {{ workspace.selectedLadders[0].name }}.</p>
         <div class="ref-template-download-options">
           <button
             class="ref-template-download-option"
@@ -2081,7 +2095,7 @@ useShellNestedHeader(() => {
             </span>
             <span>
               <strong>Excel</strong>
-              <small>.xlsx · recommended</small>
+              <small>.xlsx Â· recommended</small>
             </span>
             <FlowIcon name="download" />
           </button>
@@ -2096,7 +2110,7 @@ useShellNestedHeader(() => {
             </span>
             <span>
               <strong>CSV</strong>
-              <small>.csv · works everywhere</small>
+              <small>.csv Â· works everywhere</small>
             </span>
             <FlowIcon name="download" />
           </button>
@@ -2190,4 +2204,26 @@ useShellNestedHeader(() => {
 <style scoped>
 .template-content-choice { margin-bottom: 12px; }
 .template-content-choice select { padding-right: 36px; }
-</style>
+
+.ci-selected-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:9px; }
+.ci-selected-head > strong { color:var(--color-text); font-size:12px; font-weight:var(--font-weight-semibold); }
+.ci-change-action { min-height:30px; padding:0 3px; border:0; background:transparent; color:var(--color-primary-strong); font:inherit; font-size:11px; font-weight:var(--font-weight-semibold); }
+.ci-selected-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:16px; }
+.ci-selected-card { min-height:70px; padding:11px 12px; border:1px solid var(--color-border); border-radius:9px; background:var(--color-surface-soft); }
+.ci-selected-card strong { display:block; color:var(--color-text); font-size:12px; font-weight:var(--font-weight-semibold); }
+.ci-selected-card small { display:block; margin-top:4px; color:var(--color-muted); font-size:10.5px; line-height:1.4; }
+.ci-file-requirements { display:grid; gap:9px; margin-bottom:18px; padding:14px 15px; border:1px solid rgba(202,128,27,.16); border-radius:9px; background:rgba(226,147,43,.065); }
+.ci-file-requirements p { margin:0; color:var(--color-text-soft); font-size:12px; line-height:1.5; }
+.ci-file-requirements__fields { display:flex; flex-wrap:wrap; gap:6px; }
+.ci-file-requirements__fields > span { display:inline-flex; min-height:29px; align-items:center; padding:0 9px; border:1px solid rgba(202,128,27,.15); border-radius:7px; background:rgba(226,147,43,.09); color:#80571f; font-size:10.5px; font-weight:var(--font-weight-semibold); }
+.ci-file-requirements > small { color:var(--color-muted); font-size:10.5px; line-height:1.45; }
+.ci-inline-help { display:inline-grid; width:20px; height:20px; margin-left:3px; place-items:center; vertical-align:middle; border:0; border-radius:50%; background:rgba(0,0,0,.045); color:var(--color-muted); }
+.ci-inline-help :deep(svg) { width:12px; height:12px; }
+.ci-review-ladder { display:flex; align-items:baseline; gap:7px; margin-bottom:12px; color:var(--color-muted); font-size:11px; }
+.ci-review-ladder strong { color:var(--color-text); font-size:12px; font-weight:var(--font-weight-semibold); }
+@media (max-width:760px) { .ci-selected-grid { grid-template-columns:1fr; } }</style>
+
+
+
+
+
