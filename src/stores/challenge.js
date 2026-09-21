@@ -5,6 +5,8 @@ import {
   acceptChallenge as acceptChallengeRequest,
   createChallenge as createChallengeRequest,
   createAdminLadderMatch as createAdminLadderMatchRequest,
+  updateAdminLadderMatchSchedule as updateAdminLadderMatchScheduleRequest,
+  cancelAdminLadderMatch as cancelAdminLadderMatchRequest,
   declineChallenge as declineChallengeRequest,
   getChallenges,
   reviewChallenge as reviewChallengeRequest,
@@ -20,6 +22,23 @@ export const useChallengeStore = defineStore('challenge', () => {
   const filterStatus = ref('all')
   const isLoading = ref(false)
   const error = ref('')
+
+  function applyAdminLadderMatchResult(data) {
+    const challenge = data?.challenge
+    const match = data?.match
+    if (challenge) {
+      const index = challenges.value.findIndex((item) => item.id === challenge.id)
+      if (index === -1) challenges.value.push(challenge)
+      else challenges.value[index] = challenge
+    }
+    if (match) {
+      const matchStore = useMatchStore()
+      const index = matchStore.matches.findIndex((item) => item.id === match.id)
+      if (index === -1) matchStore.matches.push(match)
+      else matchStore.matches[index] = match
+    }
+    return data
+  }
 
   const filteredChallenges = computed(() => {
     if (filterStatus.value === 'all') {
@@ -107,6 +126,35 @@ export const useChallengeStore = defineStore('challenge', () => {
     return null
   }
 
+  const updateAdminLadderMatchSchedule = async (challengeId, payload) => {
+    error.value = ''
+    isLoading.value = true
+    try {
+      const response = await updateAdminLadderMatchScheduleRequest(challengeId, payload)
+      if (response.success) return applyAdminLadderMatchResult(response.data)
+      error.value = response.message || 'Unable to update this Ladder match.'
+    } catch (updateError) {
+      error.value = updateError?.message || 'Unable to update this Ladder match.'
+    } finally {
+      isLoading.value = false
+    }
+    return null
+  }
+
+  const cancelAdminLadderMatch = async (challengeId, payload) => {
+    error.value = ''
+    isLoading.value = true
+    try {
+      const response = await cancelAdminLadderMatchRequest(challengeId, payload)
+      if (response.success) return applyAdminLadderMatchResult(response.data)
+      error.value = response.message || 'Unable to cancel this Ladder match.'
+    } catch (cancelError) {
+      error.value = cancelError?.message || 'Unable to cancel this Ladder match.'
+    } finally {
+      isLoading.value = false
+    }
+    return null
+  }
   const acceptChallenge = async (challengeId, scheduledAt, actorId) => {
     error.value = ''
     isLoading.value = true
@@ -301,6 +349,8 @@ export const useChallengeStore = defineStore('challenge', () => {
     loadChallenges,
     createChallenge,
     createAdminLadderMatch,
+    updateAdminLadderMatchSchedule,
+    cancelAdminLadderMatch,
     acceptChallenge,
     scheduleChallenge,
     startChallenge,

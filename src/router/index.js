@@ -855,6 +855,18 @@ router.beforeEach(async (to) => {
     return { name: 'SignIn', query: { redirect: to.fullPath } }
   }
 
+  if (to.name === 'Clubs' && !to.query.view) {
+    const adminStore = useAdminStore()
+    await adminStore.loadClubs()
+
+    if (adminStore.activeClubId) {
+      return {
+        name: 'Club',
+        params: { clubId: adminStore.activeClubId },
+        replace: true,
+      }
+    }
+  }
   if (to.name === 'Club') {
     const adminStore = useAdminStore()
     await adminStore.loadClubs()

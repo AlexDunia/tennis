@@ -27,6 +27,7 @@ const cropSource = ref('')
 const cropKind = ref('cover')
 const focalX = ref(50)
 const focalY = ref(50)
+const zoom = ref(1)
 const busy = ref(false)
 const error = ref('')
 
@@ -84,6 +85,7 @@ function chooseFile(event, kind) {
   cropSource.value = URL.createObjectURL(file)
   focalX.value = 50
   focalY.value = 50
+  zoom.value = 1
 
   cropDialog.value?.showModal()
 }
@@ -99,6 +101,7 @@ async function saveCrop() {
       kind: cropKind.value,
       focalX: focalX.value / 100,
       focalY: focalY.value / 100,
+      zoom: zoom.value,
     })
 
     if (cropKind.value === 'logo') emit('update:logoUrl', result)
@@ -249,7 +252,7 @@ onUnmounted(clearCropSource)
             v-if="cropSource"
             :src="cropSource"
             alt=""
-            :style="{ objectPosition: cropObjectPosition }"
+            :style="{ objectPosition: cropObjectPosition, transform: 'scale(' + zoom + ')' }"
           />
         </div>
 
@@ -262,6 +265,10 @@ onUnmounted(clearCropSource)
           <label>
             <span>Vertical focus</span>
             <input v-model.number="focalY" type="range" min="0" max="100" />
+          </label>
+          <label>
+            <span>Zoom</span>
+            <input v-model.number="zoom" type="range" min="1" max="3" step="0.05" />
           </label>
         </div>
 

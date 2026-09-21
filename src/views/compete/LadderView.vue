@@ -12,6 +12,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import EmptyState from '../../components/EmptyState.vue'
 import PersonAvatar from '../../components/PersonAvatar.vue'
 import LadderClubRail from '../../components/ladder/LadderClubRail.vue'
+import LadderBulkScheduler from '../../components/ladder/LadderBulkScheduler.vue'
 import AdminLadderMatchDrawer from '../../components/ladder/AdminLadderMatchDrawer.vue'
 import LadderPlayerOptions from '../../components/ladder/LadderPlayerOptions.vue'
 import MoveLadderPlayerDialog from '../../components/ladder/MoveLadderPlayerDialog.vue'
@@ -53,6 +54,7 @@ const playerStore = usePlayerStore()
 const shell = inject('gorraShell', null)
 
 const activeLadderId = ref('')
+const ladderMode = ref(route.query.mode === 'bulk' ? 'bulk' : 'individual')
 const managedPlayerId = ref('')
 const selectedPlayerId = ref('')
 const selectedOpponentId = ref('')
@@ -244,6 +246,7 @@ const courts = computed(
 const canManageLadder = computed(() =>
   adminStore.hasActiveClubPermission('club.manage'),
 )
+const bulkModeActive = computed(() => canManageLadder.value && ladderMode.value === 'bulk')
 
 const canAdminSetUpMatch = computed(
   () =>
@@ -797,6 +800,16 @@ function openMemberChallenge(player) {
   })
 }
 
+function setLadderMode(mode) {
+  const next = mode === 'bulk' && canManageLadder.value ? 'bulk' : 'individual'
+  if (next === ladderMode.value) return
+
+  // This is a local workspace switch. Do not navigate, reload, or reset the
+  // Individual workspace—the rail and player state stay exactly where they are.
+  ladderMode.value = next
+}
+
+
 function selectLadder(ladderId) {
   activeLadderId.value = ladderId
   if (route.query.ladder && route.query.ladder !== ladderId) {
@@ -1302,6 +1315,8 @@ async function viewMatch(result) {
   })
 }
 
+watch(canManageLadder, (canManage) => { if (!canManage) ladderMode.value = 'individual' })
+
 watch(
   [ladders, () => route.query.ladder],
   ([items, requestedLadderId]) => {
@@ -1447,9 +1462,11 @@ function continueLadderSetup(ladder = activeLadder.value) {
       :ladders="ladders"
       :active-ladder-id="activeLadder?.id || ''"
       :can-manage="canManageLadder"
+      :mode="ladderMode"
       @select="selectLadder"
       @create="createLadder"
       @import="importLadder"
+      @mode="setLadderMode"
     />
 
     <section
@@ -1492,7 +1509,8 @@ function continueLadderSetup(ladder = activeLadder.value) {
     </section>
 
 
-    <main v-if="activeLadder && activeLadder.status !== 'setup'" class="ladder-workspace">
+    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup'" :ladder="activeLadder" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" />
+    <main v-if="!bulkModeActive && activeLadder && activeLadder.status !== 'setup'" class="ladder-workspace">
       <div
         v-if="playerStore.isLoading"
         class="ladder-loading"
@@ -2766,5 +2784,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
 .ladder-drag-ghost > strong { color: var(--color-primary-strong); }
 
 .ladder-drag-action{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;padding:20px;background:rgba(17,28,20,.32)}.ladder-drag-action__panel{width:min(360px,100%);padding:20px;border-radius:14px;background:#fff;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.2)}.ladder-drag-action__panel p,.ladder-drag-action__panel h2{margin:0}.ladder-drag-action__panel p{color:var(--color-muted);font-size:10px;text-transform:uppercase}.ladder-drag-action__panel h2{margin-top:7px;font-size:16px}.ladder-drag-action__panel div{display:grid;gap:8px;margin-top:18px}.ladder-drag-action__panel button{min-height:40px;border:1px solid #dfe5e0;border-radius:8px;background:#fff;color:#526057;font-size:11px;font-weight:650}.ladder-drag-action__panel .button-primary{border:0;color:#fff}
-</style>
 
+
+
+</style>

@@ -2850,6 +2850,357 @@ const mockAdapter = async (config) => {
 
   /*
     |--------------------------------------------------------------------------
+    | ADMIN LADDER MATCH
+    |--------------------------------------------------------------------------
+    */
+
+
+  /*
+    |--------------------------------------------------------------------------
+    | ADMIN LADDER MATCH — RESCHEDULE
+    |--------------------------------------------------------------------------
+    */
+
+  if (
+    method === 'post' &&
+    path.match(
+      /^\/admin\/ladder-matches\/[^/]+\/schedule$/,
+    )
+  ) {
+    const challengeId =
+      path.split('/')[3]
+
+    const challenge =
+      mockDatabase.challenges.find(
+        (item) =>
+          item.id === challengeId,
+      )
+
+    if (!challenge) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'Challenge not found',
+        },
+        status: 404,
+        statusText: 'Not Found',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    if (
+      challenge.type &&
+      challenge.type !== 'ladder'
+    ) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message:
+            'Only Ladder matches can be managed here.',
+        },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    if (
+      !['scheduled', 'ready'].includes(
+        challenge.status,
+      )
+    ) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message:
+            'Only a scheduled Ladder match can be moved.',
+        },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    const scheduledTime =
+      new Date(
+        body?.scheduledAt || 0,
+      ).getTime()
+
+    if (
+      !Number.isFinite(
+        scheduledTime,
+      ) ||
+      scheduledTime <= Date.now()
+    ) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message:
+            'Choose a future match date and time.',
+        },
+        status: 422,
+        statusText:
+          'Unprocessable Entity',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    challenge.status = 'scheduled'
+    challenge.scheduledAt =
+      new Date(
+        scheduledTime,
+      ).toISOString()
+    challenge.court =
+      sanitizePlainText(
+        body?.courtId,
+        80,
+      )
+    challenge.scheduleUpdatedAt =
+      new Date().toISOString()
+    challenge.scheduledBy =
+      body?.actorId ||
+      challenge.scheduledBy ||
+      null
+
+    let match =
+      mockDatabase.matches.find(
+        (item) =>
+          item.challengeId ===
+          challenge.id,
+      )
+
+    if (!match) {
+      match = ensureMatchDefaults({
+        id:
+          `match-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        challengeId:
+          challenge.id,
+        ladderId:
+          challenge.ladderId,
+        accountScope:
+          challenge.accountScope ||
+          'demo',
+        challengerId:
+          challenge.challengerId,
+        defenderId:
+          challenge.defenderId,
+        scorerId:
+          challenge.scorerId ||
+          null,
+        type: 'ladder',
+        status: 'scheduled',
+        scheduledAt:
+          challenge.scheduledAt,
+        score: null,
+        winnerId: null,
+        matchRuleSource:
+          challenge.matchRuleSource ||
+          'ladder_default',
+        rulesSnapshot:
+          challenge.rulesSnapshot,
+        matchConfig:
+          challenge.matchConfig,
+        ladderConfigSnapshot:
+          challenge.ladderConfigSnapshot,
+        preMatchPositions:
+          challenge.preMatchPositions,
+        playDeadline:
+          challenge.playDeadline,
+        court:
+          challenge.court,
+      })
+
+      mockDatabase.matches.push(
+        match,
+      )
+    } else {
+      match.status = 'scheduled'
+      match.scheduledAt =
+        challenge.scheduledAt
+      match.court =
+        challenge.court
+    }
+
+    saveLadderState()
+
+    return {
+      data: buildResponse({
+        challenge:
+          buildChallengeResponse(
+            challenge,
+          ),
+        match:
+          buildMatchResponse(
+            match,
+          ),
+      }),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | ADMIN LADDER MATCH — CANCEL
+    |--------------------------------------------------------------------------
+    */
+
+  if (
+    method === 'post' &&
+    path.match(
+      /^\/admin\/ladder-matches\/[^/]+\/cancel$/,
+    )
+  ) {
+    const challengeId =
+      path.split('/')[3]
+
+    const challenge =
+      mockDatabase.challenges.find(
+        (item) =>
+          item.id === challengeId,
+      )
+
+    if (!challenge) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message: 'Challenge not found',
+        },
+        status: 404,
+        statusText: 'Not Found',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    if (
+      !['scheduled', 'ready'].includes(
+        challenge.status,
+      )
+    ) {
+      return {
+        data: {
+          success: false,
+          data: null,
+          message:
+            'Only a scheduled Ladder match can be cancelled here.',
+        },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    const cancelledAt =
+      new Date().toISOString()
+
+    challenge.status = 'cancelled'
+    challenge.cancelledAt =
+      cancelledAt
+    challenge.cancelledBy =
+      body?.actorId || null
+
+    let match =
+      mockDatabase.matches.find(
+        (item) =>
+          item.challengeId ===
+          challenge.id,
+      )
+
+    if (match) {
+      match.status = 'cancelled'
+      match.cancelledAt =
+        cancelledAt
+    } else {
+      match = ensureMatchDefaults({
+        id:
+          `match-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        challengeId:
+          challenge.id,
+        ladderId:
+          challenge.ladderId,
+        accountScope:
+          challenge.accountScope ||
+          'demo',
+        challengerId:
+          challenge.challengerId,
+        defenderId:
+          challenge.defenderId,
+        scorerId:
+          challenge.scorerId ||
+          null,
+        type: 'ladder',
+        status: 'cancelled',
+        scheduledAt:
+          challenge.scheduledAt ||
+          null,
+        score: null,
+        winnerId: null,
+        matchRuleSource:
+          challenge.matchRuleSource ||
+          'ladder_default',
+        rulesSnapshot:
+          challenge.rulesSnapshot,
+        matchConfig:
+          challenge.matchConfig,
+        ladderConfigSnapshot:
+          challenge.ladderConfigSnapshot,
+        preMatchPositions:
+          challenge.preMatchPositions,
+        playDeadline:
+          challenge.playDeadline,
+        court:
+          challenge.court || '',
+        cancelledAt,
+      })
+
+      mockDatabase.matches.push(
+        match,
+      )
+    }
+
+    saveLadderState()
+
+    return {
+      data: buildResponse({
+        challenge:
+          buildChallengeResponse(
+            challenge,
+          ),
+        match:
+          buildMatchResponse(
+            match,
+          ),
+      }),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+    }
+  }
+
+  /*
+    |--------------------------------------------------------------------------
     | CREATE CHALLENGE
     |--------------------------------------------------------------------------
     */

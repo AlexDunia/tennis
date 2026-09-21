@@ -14,6 +14,15 @@ export async function createAdminLadderMatch(payload) {
   const response = await ApiService.post('/admin/ladder-matches', payload)
   return response.data
 }
+export async function updateAdminLadderMatchSchedule(challengeId, payload) {
+  const response = await ApiService.post(`/admin/ladder-matches/${challengeId}/schedule`, payload)
+  return response.data
+}
+
+export async function cancelAdminLadderMatch(challengeId, payload) {
+  const response = await ApiService.post(`/admin/ladder-matches/${challengeId}/cancel`, payload)
+  return response.data
+}
 
 export async function acceptChallenge(challengeId, scheduledAt, actorId) {
   const response = await ApiService.post(`/challenges/${challengeId}/accept`, {

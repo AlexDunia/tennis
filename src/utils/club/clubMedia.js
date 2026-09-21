@@ -85,7 +85,7 @@ function blobToDataUrl(blob) {
 
 export async function cropClubImage(
   file,
-  { kind = 'cover', focalX = 0.5, focalY = 0.5 } = {},
+  { kind = 'cover', focalX = 0.5, focalY = 0.5, zoom = 1 } = {},
 ) {
   validateClubImageFile(file)
 
@@ -114,6 +114,10 @@ export async function cropClubImage(
       sourceWidth = imageWidth
       sourceHeight = sourceWidth / targetRatio
     }
+
+    const zoomFactor = clamp(Number(zoom) || 1, 1, 3)
+    sourceWidth = sourceWidth / zoomFactor
+    sourceHeight = sourceHeight / zoomFactor
 
     const centerX = clamp(Number(focalX) || 0.5, 0, 1) * imageWidth
     const centerY = clamp(Number(focalY) || 0.5, 0, 1) * imageHeight

@@ -5,10 +5,21 @@ const props = defineProps({
   club: { type: Object, default: null },
   ladders: { type: Array, default: () => [] },
   activeLadderId: { type: String, default: '' },
-  canManage: { type: Boolean, default: false },
+canManage: { type: Boolean, default: false },
+  mode: {
+    type: String,
+    default: 'individual',
+    validator: (value) =>
+      ['individual', 'bulk'].includes(value),
+  },
 })
 
-const emit = defineEmits(['select', 'create', 'import'])
+const emit = defineEmits([
+  'select',
+  'create',
+  'import',
+  'mode',
+])
 
 const clubName = computed(() => props.club?.name || 'Your tennis club')
 const clubLogo = computed(
@@ -61,6 +72,14 @@ function selectLadder(ladderId) {
         </option>
       </select>
     </label>
+    <div
+      v-if="canManage && activeLadderId"
+      class="ladder-navigation__mobile-mode"
+      aria-label="Ladder scheduling mode"
+    >
+      <button type="button" :class="{ active: mode === 'individual' }" :aria-pressed="mode === 'individual'" @click="emit('mode', 'individual')">Individual</button>
+      <button type="button" :class="{ active: mode === 'bulk' }" :aria-pressed="mode === 'bulk'" @click="emit('mode', 'bulk')">Bulk</button>
+    </div>
 
     <aside class="ladder-rail" aria-label="Club ladders">
       <div class="ladder-rail__club">
@@ -70,6 +89,10 @@ function selectLadder(ladderId) {
           <strong>{{ clubName }}</strong>
           <small>Ladders</small>
         </span>
+      </div>
+      <div v-if="canManage && activeLadderId" class="ladder-rail__mode" aria-label="Ladder scheduling mode">
+        <button type="button" :class="{ active: mode === 'individual' }" :aria-pressed="mode === 'individual'" @click="emit('mode', 'individual')">Individual</button>
+        <button type="button" :class="{ active: mode === 'bulk' }" :aria-pressed="mode === 'bulk'" @click="emit('mode', 'bulk')">Bulk</button>
       </div>
 
       <div v-if="canManage" class="ladder-rail__actions">
@@ -194,7 +217,10 @@ function selectLadder(ladderId) {
   font-size: 10px;
 }
 
-.ladder-rail__group {
+.ladder-rail__mode { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:14px 0 4px; padding:4px; border-radius:10px; background:color-mix(in srgb,var(--color-text) 4%,white); }
+.ladder-rail__mode button { min-height:34px; padding:0 8px; border:0; border-radius:7px; background:transparent; color:var(--color-muted); font-size:10px; font-weight:var(--font-weight-semibold); }
+.ladder-rail__mode button.active { background:var(--color-surface); color:var(--color-primary-strong); box-shadow:0 2px 8px rgba(20,45,28,.06); }
+.ladder-navigation__mobile-mode { display:none; }.ladder-rail__group {
   margin-top: 20px;
 }
 
@@ -296,7 +322,9 @@ function selectLadder(ladderId) {
   display: none;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 767px) {  .ladder-navigation__mobile-mode { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:10px 12px 0; padding:4px; border-radius:10px; background:color-mix(in srgb,var(--color-text) 4%,white); }
+  .ladder-navigation__mobile-mode button { min-height:38px; border:0; border-radius:7px; background:transparent; color:var(--color-muted); font-size:11px; font-weight:var(--font-weight-semibold); }
+  .ladder-navigation__mobile-mode button.active { background:var(--color-surface); color:var(--color-primary-strong); box-shadow:0 2px 8px rgba(20,45,28,.06); }
   .ladder-navigation__mobile-actions {
     display: flex;
     gap: 8px;

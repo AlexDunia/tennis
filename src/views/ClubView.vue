@@ -23,10 +23,6 @@ const clubPicker = ref(null)
 const switchingClubId = ref('')
 const switchLine = ref(null)
 const switchLineStuck = ref(false)
-const clubPicker = ref(null)
-const switchingClubId = ref('')
-const switchLine = ref(null)
-const switchLineStuck = ref(false)
 
 const appearanceDraft = reactive({
   logoUrl: '',
@@ -47,7 +43,6 @@ const tournaments = computed(() =>
   ),
 )
 const canManage = computed(() => adminStore.hasActiveClubPermission('club.manage'))
-const pickerClubs = computed(() => adminStore.clubOptions.map((item) => { const record = adminStore.clubs.find((entry) => entry.id === item.id); return { ...item, city: record?.setup?.workspace?.city || record?.setup?.workspace?.location || 'Local courts' } }))
 const pickerClubs = computed(() => adminStore.clubOptions.map((item) => { const record = adminStore.clubs.find((club) => club.id === item.id); return { ...item, city: record?.setup?.workspace?.city || record?.setup?.workspace?.location || 'Local courts' } }))
 
 const manageItems = computed(() => {
@@ -283,7 +278,14 @@ useShellNestedHeader(() => ({
       </dialog>
     </section>
 
-    <section v-else class="ref-page-narrow">
+    <dialog ref="clubPicker" class="club-picker" aria-labelledby="club-picker-title" @click.self="closeClubPicker">
+      <section class="club-picker__sheet">
+        <header><div><h2 id="club-picker-title">Your clubs</h2><p>Pick the one you are playing in today.</p></div><button type="button" aria-label="Close your clubs" @click="closeClubPicker"><FlowIcon name="close" /></button></header>
+        <div class="club-picker__actions"><button class="club-picker__action club-picker__action--start" type="button" @click="openClubFlow('create')"><span><strong>Start a new club</strong><small>Be the one who runs the ladder.</small></span><FlowIcon name="arrow-right" /></button><button class="club-picker__action club-picker__action--join" type="button" @click="openClubFlow('join')"><span><strong>Join with an invite</strong><small>Got a code from a club? Bring it here.</small></span><FlowIcon name="arrow-right" /></button></div>
+        <div class="club-picker__list"><p>Your clubs</p><button v-for="item in pickerClubs" :key="item.id" type="button" :class="{ 'club-picker__club--active': item.id === adminStore.activeClubId }" :disabled="Boolean(switchingClubId)" @click="switchClub(item.id)"><b>{{ clubInitials(item.name) }}</b><span><strong>{{ item.name }}</strong><small>{{ item.city }} · {{ roleCopy(item.role) }}</small></span><FlowIcon v-if="item.id === adminStore.activeClubId" name="check" /></button></div>
+      </section>
+    </dialog>
+    <section v-if="!club" class="ref-page-narrow">
       <div class="ref-flow-head">
         <p class="ref-kicker">Club</p>
         <h1>No active club</h1>
@@ -529,5 +531,31 @@ useShellNestedHeader(() => ({
   }
 }
 .club-profile .ref-choice-row { text-decoration: none; }
-</style>
+.gorra-club-ref.ref-page { padding-top: 8px; padding-bottom: 22px; }
+.club-profile__switch { position: sticky; top: var(--app-header-height, 76px); z-index: 12; margin-inline: calc(50% - 50vw); padding: 12px max(20px, calc((100vw - var(--app-header-content-width, 1100px)) / 2)); background: var(--color-bg, #fff); transition: background-color 160ms ease, color 160ms ease; }
+.club-profile__switch--stuck { background: #163d2b; color: #fff; box-shadow: 0 8px 18px rgba(10, 36, 23, .12); }
+.club-profile__switch--stuck p, .club-profile__switch--stuck strong { color: #fff; }.club-profile__switch--stuck strong { text-decoration: underline; text-decoration-color: #d8ff47; text-underline-offset: 3px; }.club-profile__switch--stuck .ref-button { border-color: #d8ff47; color: #163d2b; background: #d8ff47; }
+.club-picker { width: min(480px, 100vw); height: 100%; max-height: none; margin: 0 0 0 auto; padding: 0; border: 0; background: transparent; }.club-picker::backdrop { background: rgba(18, 32, 23, .32); }.club-picker__sheet { display: grid; height: 100%; grid-template-rows: auto auto 1fr; background: #fff; box-shadow: -16px 0 44px rgba(13,38,23,.14); }.club-picker header { display: flex; justify-content: space-between; gap: 16px; padding: 28px; border-bottom: 1px solid var(--g-line, #e4e9e5); }.club-picker h2, .club-picker p { margin: 0; }.club-picker header p { margin-top: 5px; color: var(--g-muted,#778079); font-size: 13px; }.club-picker header button { width: 38px; height: 38px; border: 1px solid var(--g-line,#e4e9e5); border-radius: 10px; background: #fff; }.club-picker__actions { display: grid; padding: 12px 18px; border-bottom: 1px solid var(--g-line,#e4e9e5); }.club-picker__actions button { display: grid; grid-template-columns: 1fr 20px; align-items: center; gap: 12px; padding: 14px 4px; border: 0; color: inherit; background: transparent; text-align: left; }.club-picker__actions button + button { border-top: 1px solid var(--g-line,#e4e9e5); }.club-picker__actions span, .club-picker__list span { display: grid; gap: 3px; }.club-picker small { color: var(--g-muted,#778079); font-size: 11px; }.club-picker__list { display: grid; align-content: start; gap: 6px; padding: 18px; overflow: auto; }.club-picker__list > p { color: var(--g-muted,#778079); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }.club-picker__list button { display: grid; grid-template-columns: 46px 1fr auto; align-items: center; gap: 12px; min-height: 70px; padding: 10px; border: 0; border-radius: 12px; color: inherit; background: transparent; text-align: left; }.club-picker__list button:hover { background: #f2f7f3; }.club-picker__list b { display: grid; width: 46px; height: 46px; place-items: center; border-radius: 13px; color: #25703e; background: #e8f1e9; font-size: 13px; }/* Compact, fixed Club picker aligned to the authenticated app scale. */
+.club-picker { position: fixed; inset: 0 0 0 auto; z-index: 1000; width: min(410px, 100vw); height: 100dvh; margin: 0; }
+.club-picker__sheet { position: relative; z-index: 1001; }
+.club-picker header { align-items: flex-start; gap: 12px; padding: 18px 20px 15px; }
+.club-picker h2 { font-size: 18px; font-weight: var(--font-weight-semibold, 600); line-height: 1.25; letter-spacing: -0.02em; }
+.club-picker header p { margin-top: 3px; font-size: 11px; line-height: 1.45; }
+.club-picker header button { width: 32px; height: 32px; min-height: 32px; border-radius: 9px; }
+.club-picker header button :deep(svg) { width: 15px; height: 15px; }
+.club-picker__actions { padding: 8px 14px; }
+.club-picker__actions button { gap: 10px; padding: 10px 6px; }
+.club-picker__actions strong, .club-picker__list strong { font-size: 12px; font-weight: var(--font-weight-semibold, 600); line-height: 1.35; }
+.club-picker small { font-size: 10px; line-height: 1.35; }
+.club-picker__list { gap: 3px; padding: 12px 14px 18px; }
+.club-picker__list > p { margin: 4px 6px 6px; font-size: 9px; }
+.club-picker__list button { grid-template-columns: 38px minmax(0, 1fr) 18px; gap: 10px; min-height: 58px; padding: 8px 6px; border-radius: 10px; }
+.club-picker__list b { width: 38px; height: 38px; border-radius: 10px; font-size: 11px; }
+.club-picker__list button :deep(.flow-icon) { width: 16px; height: 16px; }.club-picker__actions { gap: 8px; padding: 14px; }
+.club-picker__actions .club-picker__action { min-height: 64px; padding: 12px; border: 1px solid transparent; border-radius: 11px; transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease; }
+.club-picker__actions .club-picker__action + .club-picker__action { border-top: 1px solid var(--g-line, #e4e9e5); }
+.club-picker__action--start { color: #fff !important; background: #163d2b !important; border-color: #163d2b !important; }
+.club-picker__action--start strong { color: #fff; }.club-picker__action--start small { color: rgba(255,255,255,.68); }.club-picker__action--start :deep(.flow-icon) { color: #d8ff47; }
+.club-picker__action--join { background: #f1f4f2 !important; border-color: #e1e7e2 !important; color: #415046; }.club-picker__action--join strong { color: #2f4035; }.club-picker__action--join small { color: #728077; }
+.club-picker__club--active { background: rgba(8, 173, 43, .10) !important; }.club-picker__club--active:hover { background: rgba(8, 173, 43, .14) !important; }.club-picker__club--active b { background: rgba(8, 173, 43, .16); color: #087c29; }.club-picker__club--active :deep(.flow-icon) { color: #087c29; }</style>
 

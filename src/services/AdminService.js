@@ -2,6 +2,7 @@ import {
   digestLadderInviteToken,
   evaluateLadderEligibility,
   ladderEligibilityMissingFields,
+  LADDER_ENTRY_STATUSES,
   normalizeLadderEntries,
   sanitizeLadderJoinProfile,
   validLadderInviteToken,
@@ -1738,26 +1739,34 @@ export async function updateClubMemberLadderPosition(memberIdInput, ladderIdInpu
   const memberId = sanitizeDirectoryId(memberIdInput)
   const ladderId = sanitizeDirectoryId(ladderIdInput)
   const requestedPosition = Number.parseInt(positionInput, 10)
-  if (!memberId || !ladderId || !Number.isInteger(requestedPosition) || requestedPosition < 1) {
-    throw createServiceError('Choose a valid Ladder position.', 'INVALID_LADDER_POSITION')
-  }
-  const ladder = (context.club.setup.ladders || []).find((item) => item.id === ladderId)
-  if (!ladder || ladder.archived || ladder.enabled === false) throw createServiceError('This Ladder is not active.', 'LADDER_UNAVAILABLE')
-  const entries = normalizeLadderEntries(ladder.entries)
-  const orderedIds = entries.slice().sort((a,b) => (a.position ?? a.setupOrder ?? 10000) - (b.position ?? b.setupOrder ?? 10000)).map((entry) => entry.memberId)
-  if (!orderedIds.includes(memberId)) throw createServiceError('This member is not on that Ladder.', 'MEMBER_NOT_ON_LADDER')
-  const nextIds = orderedIds.filter((id) => id !== memberId)
-  nextIds.splice(Math.min(Math.max(requestedPosition - 1, 0), nextIds.length), 0, memberId)
-  const byMember = new Map(entries.map((entry) => [entry.memberId, entry]))
-  const active = ladder.status === 'active'
-  const nextLadder = { ...ladder, entries: nextIds.map((id, index) => ({ ...byMember.get(id), memberId: id, position: active ? index + 1 : null, setupOrder: index + 1 })) }
-  const membership = syncClubMemberLadderOrder(context.club.setup, { ladderId, ladderName: ladder.name, orderedMemberIds: nextIds })
-  const nextSetup = normalizeClubSetup({ ...context.club.setup, membership, ladders: context.club.setup.ladders.map((item) => item.id === ladderId ? nextLadder : item), updatedAt: nowIso() })
-  directory.clubs[context.clubIndex] = { ...context.club, name: nextSetup.workspace.name, setup: nextSetup, updatedAt: nowIso() }
+  if (!memberId || !ladderId || !Number.isInteger(requestedPosition) || requestedPosition < 1) throw createServiceError('Choose a valid Ladder position.', 'INVALID_LADDER_POSITION')
+  const setup = context.club.setup
+  const ladders = Array.isArray(setup.ladders) ? setup.ladders.map((ladder) => ({ ...ladder })) : []
+  const ladderIndex = ladders.findIndex((ladder) => sanitizeDirectoryId(ladder.id) === ladderId)
+  if (ladderIndex === -1) throw createServiceError('This Ladder could not be found.', 'LADDER_NOT_FOUND')
+  const ladder = ladders[ladderIndex]
+  if (ladder.archived || ladder.enabled === false) throw createServiceError('This Ladder is not active.', 'LADDER_UNAVAILABLE')
+  const clubMembers = collectClubMembers(setup)
+  if (!clubMembers.some((member) => member.id === memberId)) throw createServiceError('This member could not be found.', 'MEMBER_NOT_FOUND')
+  const ladderName = String(ladder.name || '').trim()
+  const existingEntries = normalizeLadderEntries(ladder.entries)
+  const entryByMember = new Map(existingEntries.map((entry) => [entry.memberId, entry]))
+  const currentMemberships = clubMembers.flatMap((member) => (Array.isArray(member.ladderMemberships) ? member.ladderMemberships : []).filter((membership) => (membership.ladderId && sanitizeDirectoryId(membership.ladderId) === ladderId) || (!membership.ladderId && String(membership.ladderName || '').trim().toLowerCase() === ladderName.toLowerCase())).map((membership) => ({ memberId: member.id, position: Number(membership.position) || 10000 })))
+  const allOrderedIds = [...new Set([...existingEntries.slice().sort((left, right) => (left.position ?? left.setupOrder ?? 10000) - (right.position ?? right.setupOrder ?? 10000)).map((entry) => entry.memberId), ...currentMemberships.slice().sort((left, right) => left.position - right.position).map((membership) => membership.memberId)])]
+  if (!allOrderedIds.includes(memberId)) throw createServiceError('This member is not on that Ladder.', 'MEMBER_NOT_ON_LADDER')
+  const orderedMemberIds = allOrderedIds.filter((id) => id !== memberId)
+  orderedMemberIds.splice(Math.min(Math.max(requestedPosition - 1, 0), orderedMemberIds.length), 0, memberId)
+  const isActive = ladder.status === 'active'
+  ladders[ladderIndex] = { ...ladder, entries: normalizeLadderEntries(orderedMemberIds.map((orderedMemberId, index) => { const existing = entryByMember.get(orderedMemberId); return { memberId: orderedMemberId, status: isActive ? LADDER_ENTRY_STATUSES.ACTIVE : LADDER_ENTRY_STATUSES.PENDING_PLACEMENT, position: isActive ? index + 1 : null, setupOrder: index + 1, joinedAt: existing?.joinedAt || '', source: existing?.source || 'admin' } })) }
+  const membership = syncClubMemberLadderOrder(setup, { ladderId, ladderName, orderedMemberIds })
+  const timestamp = nowIso()
+  const nextSetup = normalizeClubSetup({ ...setup, membership, ladders, updatedAt: timestamp })
+  directory.clubs[context.clubIndex] = { ...context.club, name: nextSetup.workspace.name, setup: nextSetup, updatedAt: timestamp }
   directory = writeDirectory(directory, userId)
-  const club = publicDirectoryForUser(directory, userId).clubs.find((item) => item.id === context.clubId)
-  return { club, ladder: club?.setup?.ladders?.find((item) => item.id === ladderId) || null }
-}export const previewInvite = previewClubInvite
+  const savedClub = publicDirectoryForUser(directory, userId).clubs.find((club) => club.id === context.clubId)
+  return { club: savedClub, ladder: savedClub?.setup?.ladders?.find((item) => item.id === ladderId) || null }
+}
+export const previewInvite = previewClubInvite
 export const joinClub = joinClubWithInvite
 export const switchClub = switchActiveClub
 export const updateActiveClub = updateActiveClubSetup
