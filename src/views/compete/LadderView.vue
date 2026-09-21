@@ -122,7 +122,7 @@ function rawRosterFor(ladder) {
       ]),
     )
 
-    return entries
+    const roster = entries
       .filter(
         (entry) =>
           entry.status === 'active' &&
@@ -145,6 +145,21 @@ function rawRosterFor(ladder) {
       })
       .filter(Boolean)
       .sort((left, right) => left.rank - right.rank)
+
+    if (ladder?.id !== 'open-singles' || roster.length >= 20) return roster
+
+    const rosterIds = new Set(roster.map((player) => player.id))
+    const additions = basePlayers.value
+      .filter((player) => !rosterIds.has(player.id))
+      .slice(0, 20 - roster.length)
+      .map((player, index) => ({
+        ...player,
+        rank: roster.length + index + 1,
+        ladderRank: roster.length + index + 1,
+        ladderId: ladder.id,
+      }))
+
+    return [...roster, ...additions]
   }
 
   const hasExplicitMembership =
@@ -152,8 +167,10 @@ function rawRosterFor(ladder) {
     Array.isArray(ladder?.memberIds) ||
     basePlayers.value.some((player) => Array.isArray(player.ladderIds))
 
-  if (!hasExplicitMembership) return basePlayers.value
-
+  if (!hasExplicitMembership) {
+    const demoRosterLimit = ladder?.id === 'open-singles' ? 20 : 10
+    return basePlayers.value.slice(0, demoRosterLimit)
+  }
   return basePlayers.value.filter((player) =>
     ladderHasPlayer(ladder, player),
   )
@@ -805,7 +822,7 @@ function setLadderMode(mode) {
   if (next === ladderMode.value) return
 
   // This is a local workspace switch. Do not navigate, reload, or reset the
-  // Individual workspace—the rail and player state stay exactly where they are.
+  // Individual workspaceÃ¢â‚¬â€the rail and player state stay exactly where they are.
   ladderMode.value = next
 }
 
@@ -1558,7 +1575,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
               }}
 
               <template v-if="activeClub?.name">
-                · {{ activeClub.name }}
+                Ã‚Â· {{ activeClub.name }}
               </template>
             </p>
           </div>
@@ -1578,7 +1595,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
             >
               {{
                 clearTestBusy
-                  ? 'Clearing…'
+                  ? 'ClearingÃ¢â‚¬Â¦'
                   : 'Clear'
               }}
             </button>

@@ -3,6 +3,7 @@ import {
   computed,
   nextTick,
   onBeforeUnmount,
+  onMounted,
   ref,
   watch,
 } from 'vue'
@@ -60,6 +61,8 @@ let pendingPlayerDrag = null
 const queue = ref([])
 const queueDragId = ref('')
 const queuePulseId = ref('')
+const connectorPaths = ref([])
+const connectorCanvas = ref({ width: 0, height: 0 })
 
 const rangeMonths = ref(2)
 const customMonthsDraft = ref(6)
@@ -75,6 +78,7 @@ const scheduleCourtId = ref('')
 const scheduleBusy = ref(false)
 
 const conflict = ref(null)
+const cancellation = ref(null)
 
 const zoomOpen = ref(false)
 const zoomExpanded = ref(false)
@@ -193,6 +197,10 @@ const activeChallenges = computed(() =>
   ),
 )
 
+const bulkWorkspaceOpen = computed(() =>
+  queue.value.length > 0 || activeChallenges.value.length > 0,
+)
+
 const playerById = computed(
   () =>
     new Map(
@@ -266,7 +274,96 @@ function queuedDraftForPlayer(playerId) {
     ) || null
   )
 }
+const pairedConnections = computed(() => {
+  const draftConnections = queue.value.map((draft) => ({
+    id: `draft-${draft.id}`,
+    challengerId: draft.challengerId,
+    opponentId: draft.opponentId,
+  }))
 
+  const activeConnections = activeChallenges.value
+    .filter((challenge) => !challenge.scheduledAt)
+    .map((challenge) => ({
+      id: `challenge-${challenge.id}`,
+      challengerId: challenge.challengerId,
+      opponentId: challenge.defenderId,
+    }))
+
+  return [...draftConnections, ...activeConnections]
+})
+
+function redrawConnectors() {
+  nextTick(() => {
+    const root = playerListElement()
+
+    if (!root) return
+
+    const rows = new Map(
+      Array.from(root.querySelectorAll('[data-bulk-player-id]')).map((row) => [
+        row.getAttribute('data-bulk-player-id'),
+        row,
+      ]),
+    )
+
+    const visiblePairs = pairedConnections.value
+      .map((connection) => ({
+        ...connection,
+        challenger: rows.get(connection.challengerId),
+        opponent: rows.get(connection.opponentId),
+      }))
+      .filter((connection) => connection.challenger && connection.opponent)
+      .sort((left, right) =>
+        Math.min(left.challenger.offsetTop, left.opponent.offsetTop) -
+        Math.min(right.challenger.offsetTop, right.opponent.offsetTop),
+      )
+
+    connectorCanvas.value = {
+      width: root.clientWidth,
+      height: root.scrollHeight,
+    }
+
+    connectorPaths.value = visiblePairs.map((connection, index) => {
+      const startY = connection.challenger.offsetTop + connection.challenger.offsetHeight / 2
+      const endY = connection.opponent.offsetTop + connection.opponent.offsetHeight / 2
+      const cardEdge = root.clientWidth - 56
+      const lane = root.clientWidth - 14 - (index % 5) * 8
+
+      return {
+        id: connection.id,
+        d: `M ${cardEdge} ${startY} H ${lane} V ${endY} H ${cardEdge}`,
+      }
+    })
+  })
+}
+function matchLinkForPlayer(playerId) {
+  const draft = queuedDraftForPlayer(playerId)
+
+  if (draft) {
+    const { challenger, opponent } = pairFromDraft(draft)
+    const teammate = draft.challengerId === playerId ? opponent : challenger
+
+    return {
+      kind: 'draft',
+      draft,
+      summary: `Linked with ${teammate.name} Ãƒâ€šÃ‚Â· needs a date & time`,
+    }
+  }
+
+  const challenge = challengeForPlayer(playerId)
+
+  if (!challenge) return null
+
+  const { challenger, opponent } = challengePlayers(challenge)
+  const teammate = challenge.challengerId === playerId ? opponent : challenger
+
+  return {
+    kind: 'challenge',
+    challenge,
+    summary: challenge.scheduledAt
+      ? `Linked with ${teammate.name} Ãƒâ€šÃ‚Â· scheduled`
+      : `Linked with ${teammate.name} Ãƒâ€šÃ‚Â· needs a date & time`,
+  }
+}
 function actualAvailability(player) {
   return getLadderPlayerAvailability({
     player,
@@ -482,7 +579,10 @@ watch(
 
 watch(
   queue,
-  persistQueue,
+  () => {
+    persistQueue()
+    redrawConnectors()
+  },
   {
     deep: true,
   },
@@ -500,6 +600,8 @@ watch(
     deep: true,
   },
 )
+
+watch(pairedConnections, redrawConnectors, { deep: true })
 
 function showConflictFor(player) {
   const draft =
@@ -564,6 +666,8 @@ function resetPlayerDrag() {
     'pointermove',
     movePlayerDrag,
   )
+  window.removeEventListener('resize', redrawConnectors)
+  playerListElement()?.removeEventListener('scroll', redrawConnectors)
 }
 
 function beginPlayerDrag(player, event) {
@@ -1421,6 +1525,64 @@ async function saveSchedule() {
   }
 }
 
+function requestCancellation(target) {
+  cancellation.value = target || null
+}
+
+function closeCancellation() {
+  if (!scheduleBusy.value) cancellation.value = null
+}
+
+function cancellationTitle() {
+  const target = cancellation.value
+
+  if (!target) return ''
+
+  const pair = target.kind === 'draft'
+    ? pairFromDraft(target.draft)
+    : challengePlayers(target.challenge)
+
+  return pairName(pair.challenger, pair.opponent)
+}
+
+function cancellationMessage() {
+  const target = cancellation.value
+
+  if (!target) return ''
+
+  if (target.kind === 'draft') {
+    return 'No date or time has been set. Cancel this match?'
+  }
+
+  const scheduledAt = target.challenge?.scheduledAt
+
+  if (scheduledAt) {
+    return `Scheduled time: ${formatTime(scheduledAt)}. Cancel this match?`
+  }
+
+  return 'No date or time has been set. Cancel this match?'
+}
+
+async function confirmCancellation() {
+  const target = cancellation.value
+
+  if (!target || scheduleBusy.value) return
+
+  if (target.kind === 'draft') {
+    removeDraft(target.draft.id)
+    cancellation.value = null
+    notificationStore.addToast({
+      title: 'Challenge cancelled',
+      message: 'The players are available again.',
+      type: 'success',
+    })
+    return
+  }
+
+  const cancelled = await cancelScheduledChallenge(target.challenge)
+
+  if (cancelled) cancellation.value = null
+}
 async function cancelScheduledChallenge(
   challenge,
 ) {
@@ -1458,6 +1620,8 @@ async function cancelScheduledChallenge(
         'The players are available again.',
       type: 'success',
     })
+
+    return true
   } catch (error) {
     notificationStore.addToast({
       title: 'Could not cancel match',
@@ -1466,6 +1630,8 @@ async function cancelScheduledChallenge(
         'Try again.',
       type: 'warning',
     })
+
+    return false
   } finally {
     scheduleBusy.value = false
   }
@@ -1795,22 +1961,33 @@ function courtLabel(challenge) {
   )
 }
 
+onMounted(() => {
+  redrawConnectors()
+  window.addEventListener('resize', redrawConnectors)
+  playerListElement()?.addEventListener('scroll', redrawConnectors)
+})
+
 onBeforeUnmount(() => {
   window.removeEventListener(
     'pointermove',
     movePlayerDrag,
   )
+  window.removeEventListener('resize', redrawConnectors)
+  playerListElement()?.removeEventListener('scroll', redrawConnectors)
 })
 </script>
 
 <template>
-  <main class="bulk-scheduler">
+  <main
+    class="bulk-scheduler"
+    :class="{ 'bulk-scheduler--expanded': bulkWorkspaceOpen }"
+  >
     <section class="bulk-players">
       <header class="bulk-players__head">
         <div>
           <h1>{{ ladder.name }}</h1>
           <p>
-            {{ players.length }} players · drag a player onto an eligible opponent
+            {{ players.length }} players - drag a player onto an eligible opponent
           </p>
         </div>
 
@@ -1823,6 +2000,22 @@ onBeforeUnmount(() => {
         tag="section"
         class="bulk-player-list"
       >
+        <svg
+          v-if="connectorPaths.length"
+          key="connector-layer"
+          class="bulk-player-connectors"
+          :width="connectorCanvas.width"
+          :height="connectorCanvas.height"
+          :viewBox="`0 0 ${connectorCanvas.width} ${connectorCanvas.height}`"
+          aria-hidden="true"
+        >
+          <path
+            v-for="connector in connectorPaths"
+            :key="connector.id"
+            :d="connector.d"
+          />
+        </svg>
+
         <article
           v-for="player in displayPlayers"
           :key="player.id"
@@ -1873,8 +2066,16 @@ onBeforeUnmount(() => {
           </span>
 
           <span class="bulk-player-row__state">
+            <button
+              v-if="matchLinkForPlayer(player.id)"
+              class="bulk-player-row__match"
+              type="button"
+              :aria-label="`Cancel match for ${player.name}`"
+              @click.stop="requestCancellation(matchLinkForPlayer(player.id))"
+            >&times;</button>
+
             <small
-              v-if="selectedPlayer?.id === player.id"
+              v-else-if="selectedPlayer?.id === player.id"
               class="bulk-player-row__challenger"
             >
               Challenger
@@ -1923,7 +2124,7 @@ onBeforeUnmount(() => {
       </TransitionGroup>
     </section>
 
-    <aside class="bulk-calendar">
+    <aside v-if="bulkWorkspaceOpen" class="bulk-calendar">
       <section class="bulk-queue-shell">
         <header class="bulk-queue-head">
           <div>
@@ -1963,13 +2164,12 @@ onBeforeUnmount(() => {
               type="button"
               :aria-label="`Remove ${pairName(pairFromDraft(draft).challenger, pairFromDraft(draft).opponent)}`"
               @click="
-                removeDraft(
-                  draft.id,
-                )
+                requestCancellation({
+                  kind: 'draft',
+                  draft,
+                })
               "
-            >
-              ×
-            </button>
+            >&times;</button>
 
             <div
               class="bulk-tennis-ball"
@@ -2048,7 +2248,7 @@ onBeforeUnmount(() => {
               "
             >
               Set time frame
-              <span aria-hidden="true">⌄</span>
+              <span aria-hidden="true">ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾</span>
             </button>
 
             <Transition name="bulk-menu">
@@ -2076,10 +2276,7 @@ onBeforeUnmount(() => {
 
                 <button
                   type="button"
-                  @click="openCustomRange"
-                >
-                  Custom…
-                </button>
+                  @click="openCustomRange">Custom...</button>
               </div>
             </Transition>
           </div>
@@ -2185,12 +2382,13 @@ onBeforeUnmount(() => {
                       type="button"
                       aria-label="Cancel scheduled match"
                       @click.stop="
-                        cancelScheduledChallenge(
+                        requestCancellation({
+                          kind: 'challenge',
                           challenge,
-                        )
+                        })
                       "
                     >
-                      ×
+                      ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
                     </button>
                   </span>
 
@@ -2252,7 +2450,7 @@ onBeforeUnmount(() => {
               selectedPlayerId = ''
             "
           >
-            ×
+            ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
           </button>
 
           <small>Choose an action</small>
@@ -2288,6 +2486,48 @@ onBeforeUnmount(() => {
 
     <Teleport to="body">
       <div
+        v-if="cancellation"
+        class="bulk-modal"
+        @click.self="closeCancellation"
+      >
+        <section class="bulk-modal__card">
+          <button
+            type="button"
+            class="bulk-modal__close"
+            aria-label="Close"
+            :disabled="scheduleBusy"
+            @click="closeCancellation"
+          >
+            ÃƒÆ’Ã¢â‚¬â€
+          </button>
+
+          <small>Cancel match</small>
+          <h2>{{ cancellationTitle() }}</h2>
+          <p>{{ cancellationMessage() }}</p>
+
+          <div class="bulk-modal__actions">
+            <button
+              type="button"
+              :disabled="scheduleBusy"
+              @click="closeCancellation"
+            >
+              Keep match
+            </button>
+
+            <button
+              type="button"
+              class="bulk-cancel-match"
+              :disabled="scheduleBusy"
+              @click="confirmCancellation"
+            >
+              {{ scheduleBusy ? 'Cancelling...' : 'Yes, cancel match' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
+    <Teleport to="body">
+      <div
         v-if="conflict"
         class="bulk-modal"
         @click.self="conflict = null"
@@ -2299,7 +2539,7 @@ onBeforeUnmount(() => {
             aria-label="Close"
             @click="conflict = null"
           >
-            ×
+            ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
           </button>
 
           <small>Already in use</small>
@@ -2335,7 +2575,7 @@ onBeforeUnmount(() => {
             :disabled="scheduleBusy"
             @click="closeSchedule"
           >
-            ×
+            ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
           </button>
 
           <small>
@@ -2414,7 +2654,7 @@ onBeforeUnmount(() => {
             >
               {{
                 scheduleBusy
-                  ? 'Saving…'
+                  ? 'Saving...'
                   : scheduleChallengeId
                     ? 'Save changes'
                     : 'Schedule match'
@@ -2438,7 +2678,7 @@ onBeforeUnmount(() => {
             aria-label="Close"
             @click="customRangeOpen = false"
           >
-            ×
+            ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
           </button>
 
           <small>Calendar range</small>
@@ -2464,10 +2704,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="button-primary"
-              @click="applyCustomRange"
-            >
-              Show calendar
-            </button>
+              @click="applyCustomRange">Show calendar</button>
           </div>
         </section>
       </div>
@@ -2518,7 +2755,7 @@ onBeforeUnmount(() => {
                 aria-label="Close calendar"
                 @click="closeZoom"
               >
-                ×
+                ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
               </button>
             </div>
           </header>
@@ -2594,7 +2831,7 @@ onBeforeUnmount(() => {
                       )
                     "
                   >
-                    ×
+                    ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
                   </button>
                 </article>
 
@@ -2628,7 +2865,7 @@ onBeforeUnmount(() => {
                     "
                   >
                     Set time frame
-                    <span aria-hidden="true">⌄</span>
+                    <span aria-hidden="true">ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾</span>
                   </button>
 
                   <Transition name="bulk-menu">
@@ -2656,10 +2893,7 @@ onBeforeUnmount(() => {
 
                       <button
                         type="button"
-                        @click="openCustomRange"
-                      >
-                        Custom…
-                      </button>
+                        @click="openCustomRange">Custom...</button>
                     </div>
                   </Transition>
                 </div>
@@ -2793,7 +3027,7 @@ onBeforeUnmount(() => {
                   aria-label="Close day"
                   @click="closeZoomDay"
                 >
-                  ×
+                  ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
                 </button>
               </header>
 
@@ -2850,7 +3084,7 @@ onBeforeUnmount(() => {
                       )
                     "
                   >
-                    ×
+                    ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
                   </button>
                 </article>
 
@@ -2877,11 +3111,22 @@ onBeforeUnmount(() => {
     100dvh -
     var(--app-header-height)
   );
-  grid-template-columns:
-    minmax(0, 1fr)
-    390px;
-  background:
-    var(--color-bg);
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--color-bg);
+  transition: grid-template-columns 420ms var(--motion-curve);
+}
+
+.bulk-scheduler--expanded {
+  grid-template-columns: minmax(0, 1fr) 390px;
+}
+
+.bulk-scheduler--expanded .bulk-calendar {
+  animation: bulkWorkspaceReveal 420ms var(--motion-curve) both;
+}
+
+@keyframes bulkWorkspaceReveal {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 .bulk-players {
@@ -3016,6 +3261,18 @@ onBeforeUnmount(() => {
     );
 }
 
+
+.bulk-cancel-match {
+  border-color: #b96b62;
+  background: #9b514a;
+  color: #fff;
+}
+
+.bulk-cancel-match:hover {
+  border-color: #8d453e;
+  background: #8d453e;
+}
+
 .bulk-player-row__rank {
   color:
     var(--color-text-soft);
@@ -3115,6 +3372,53 @@ onBeforeUnmount(() => {
   color: var(--color-muted);
 }
 
+/* Paired cards remain neutral; the relationship is carried by the routed wire. */
+.bulk-player-list {
+  padding-right: 56px;
+}
+
+.bulk-player-connectors {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.bulk-player-connectors path {
+  fill: none;
+  stroke: #78a932;
+  stroke-width: 1.5;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
+}
+
+.bulk-player-row {
+  position: relative;
+  z-index: 2;
+}
+
+.bulk-player-row__match {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #79504a;
+  font-size: 16px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1;
+}
+
+.bulk-player-row__match:hover {
+  background: transparent;
+  color: #9a514c;
+}
 .bulk-calendar {
   display: flex;
   height: calc(
@@ -4379,7 +4683,54 @@ onBeforeUnmount(() => {
       calc(100% - 74px);
   }
 
-  .bulk-calendar {
+  /* Paired cards remain neutral; the relationship is carried by the routed wire. */
+.bulk-player-list {
+  padding-right: 56px;
+}
+
+.bulk-player-connectors {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.bulk-player-connectors path {
+  fill: none;
+  stroke: #78a932;
+  stroke-width: 1.5;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
+}
+
+.bulk-player-row {
+  position: relative;
+  z-index: 2;
+}
+
+.bulk-player-row__match {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #79504a;
+  font-size: 16px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1;
+}
+
+.bulk-player-row__match:hover {
+  background: transparent;
+  color: #9a514c;
+}
+.bulk-calendar {
     height: auto;
     min-height: 0;
     border-top: 1px solid
@@ -4515,7 +4866,3 @@ onBeforeUnmount(() => {
 .bulk-queue-remove { width:20px !important; height:20px !important; min-width:20px !important; min-height:20px !important; aspect-ratio:1/1; border-radius:50% !important; }
 .bulk-queue-schedule { display:inline-flex; width:auto; min-width:66px; min-height:28px; align-items:center; justify-content:center; padding:0 8px; border-radius:7px !important; font-size:8px !important; line-height:1; white-space:nowrap; }
 @media (max-width:767px) { .bulk-queue-item { flex-basis:74px; grid-template-rows:66px 28px; } .bulk-tennis-ball { width:66px !important; height:66px !important; min-width:66px !important; min-height:66px !important; } .bulk-queue-schedule { min-width:66px; min-height:28px; border-radius:7px !important; font-size:8px !important; } } .bulk-queue-item:has(.bulk-tennis-ball:hover)::after{opacity:1;transform:translate(-50%,0)} .bulk-queue-item:hover::after{opacity:0;transform:translate(-50%,4px)} .bulk-queue-item{grid-template-rows:66px 25px;gap:5px}.bulk-queue-schedule{width:auto!important;min-width:0!important;min-height:25px!important;height:25px!important;padding:0 7px!important;border-radius:7px!important;font-size:8px!important}@media(max-width:767px){.bulk-queue-item{grid-template-rows:66px 25px}.bulk-queue-schedule{min-height:25px!important;height:25px!important;padding:0 7px!important}}</style>
-
-
-
-

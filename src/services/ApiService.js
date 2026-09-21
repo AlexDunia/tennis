@@ -1272,7 +1272,7 @@ function getStatusLabel(status) {
       return 'Awaiting Acceptance'
 
     case 'accepted':
-      return 'Accepted · Schedule Needed'
+      return 'Accepted Ã‚Â· Schedule Needed'
 
     case 'scheduled':
       return 'Scheduled'
@@ -1303,12 +1303,26 @@ function getStatusLabel(status) {
   }
 }
 
+function topUpDemoRoster(players, minimum = 20) {
+  if (!Array.isArray(players) || players.length >= minimum) return players
+
+  const existingIds = new Set(players.map((player) => player.id))
+  const additions = createPlayers().filter((player) => !existingIds.has(player.id))
+
+  return [...players, ...additions]
+    .slice(0, minimum)
+    .map((player, index) => ({
+      ...player,
+      rank: index + 1,
+      ladderRank: index + 1,
+    }))
+}
 function ensureData() {
   if (mockDatabase.players.length === 0) {
     const savedLadderState = loadLadderState()
 
     if (savedLadderState?.players?.length) {
-      mockDatabase.players = savedLadderState.players
+      mockDatabase.players = topUpDemoRoster(savedLadderState.players)
 
       mockDatabase.challenges = Array.isArray(savedLadderState.challenges)
         ? savedLadderState.challenges
@@ -2746,7 +2760,7 @@ const mockAdapter = async (config) => {
       : !challenger?.rank || !defender?.rank
         ? 'Both players must belong to the active Ladder.'
         : !isEligibleLadderOpponent(challenger, defender, ladderConfig)
-          ? 'The selected opponent is outside this player’s eligible challenge window.'
+          ? 'The selected opponent is outside this playerÃ¢â‚¬â„¢s eligible challenge window.'
           : Math.max(
                 activeChallengeCountFor(challenger.id),
                 activeChallengeCountFor(defender.id),
@@ -2857,7 +2871,7 @@ const mockAdapter = async (config) => {
 
   /*
     |--------------------------------------------------------------------------
-    | ADMIN LADDER MATCH — RESCHEDULE
+    | ADMIN LADDER MATCH Ã¢â‚¬â€ RESCHEDULE
     |--------------------------------------------------------------------------
     */
 
@@ -3056,7 +3070,7 @@ const mockAdapter = async (config) => {
 
   /*
     |--------------------------------------------------------------------------
-    | ADMIN LADDER MATCH — CANCEL
+    | ADMIN LADDER MATCH Ã¢â‚¬â€ CANCEL
     |--------------------------------------------------------------------------
     */
 

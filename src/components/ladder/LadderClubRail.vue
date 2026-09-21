@@ -219,7 +219,7 @@ function selectLadder(ladderId) {
 
 .ladder-rail__mode { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:14px 0 4px; padding:4px; border-radius:10px; background:color-mix(in srgb,var(--color-text) 4%,white); }
 .ladder-rail__mode button { min-height:34px; padding:0 8px; border:0; border-radius:7px; background:transparent; color:var(--color-muted); font-size:10px; font-weight:var(--font-weight-semibold); }
-.ladder-rail__mode button.active { background:var(--color-surface); color:var(--color-primary-strong); box-shadow:0 2px 8px rgba(20,45,28,.06); }
+.ladder-rail__mode button.active { background:var(--color-primary-strong); color:#fff; box-shadow:0 2px 8px rgba(20,45,28,.14); }
 .ladder-navigation__mobile-mode { display:none; }.ladder-rail__group {
   margin-top: 20px;
 }
@@ -324,7 +324,7 @@ function selectLadder(ladderId) {
 
 @media (max-width: 767px) {  .ladder-navigation__mobile-mode { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:10px 12px 0; padding:4px; border-radius:10px; background:color-mix(in srgb,var(--color-text) 4%,white); }
   .ladder-navigation__mobile-mode button { min-height:38px; border:0; border-radius:7px; background:transparent; color:var(--color-muted); font-size:11px; font-weight:var(--font-weight-semibold); }
-  .ladder-navigation__mobile-mode button.active { background:var(--color-surface); color:var(--color-primary-strong); box-shadow:0 2px 8px rgba(20,45,28,.06); }
+  .ladder-navigation__mobile-mode button.active { background:var(--color-primary-strong); color:#fff; box-shadow:0 2px 8px rgba(20,45,28,.14); }
   .ladder-navigation__mobile-actions {
     display: flex;
     gap: 8px;
