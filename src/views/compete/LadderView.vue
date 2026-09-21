@@ -1729,14 +1729,10 @@ function continueLadderSetup(ladder = activeLadder.value) {
         <header class="ladder-heading ladder-heading--setup">
           <h1>{{ activeLadder?.name || 'Ladder' }}</h1>
           <div v-if="canManageLadder" class="ladder-heading__match-setup">
-            <div class="ladder-mode-menu">
-              <button type="button" class="ladder-mode-menu__trigger" @click="matchSetupMenuOpen = !matchSetupMenuOpen">
-                Set up matches <span aria-hidden="true">&#9662;</span>
-              </button>
-              <div v-if="matchSetupMenuOpen" class="ladder-mode-menu__options">
-                <button type="button" :class="{ active: ladderMode === 'individual' }" @click="setLadderMode('individual'); matchSetupMenuOpen = false"><strong>Individual</strong><small>Set one match at a time</small></button>
-                <button type="button" :class="{ active: ladderMode === 'bulk' }" @click="setLadderMode('bulk'); matchSetupMenuOpen = false"><strong>Bulk</strong><small>Arrange several matches together</small></button>
-              </div>
+            <span>Match setup</span>
+            <div class="ladder-mode-tabs" aria-label="Ladder scheduling mode">
+              <button type="button" :class="{ active: ladderMode === 'individual' }" :aria-pressed="ladderMode === 'individual'" @click="setLadderMode('individual')">Individual</button>
+              <button type="button" :class="{ active: ladderMode === 'bulk' }" :aria-pressed="ladderMode === 'bulk'" @click="setLadderMode('bulk')">Bulk</button>
             </div>
           </div>
         </header>
@@ -3028,4 +3024,22 @@ function continueLadderSetup(ladder = activeLadder.value) {
 }
 .ladder-mode-menu__options button::before { content: ''; grid-row: 1 / span 2; width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 50%; opacity: .7; }
 .ladder-mode-menu__options button strong, .ladder-mode-menu__options button small { grid-column: 2; }
-</style>
+
+/* Shared match-mode header: switching mode changes only the workspace below. */
+.ladder-heading__match-setup { display: grid; justify-items: end; gap: 5px; margin-left: auto; }
+.ladder-heading__match-setup > span { color: var(--color-muted); font-size: 9px; font-weight: var(--font-weight-semibold); letter-spacing: .07em; text-transform: uppercase; }
+.ladder-mode-tabs { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border-radius: 8px; background: var(--color-surface-soft); }
+.ladder-mode-tabs button { min-width: 82px; min-height: 32px; padding: 0 11px; border: 0; border-radius: 6px; background: transparent; color: var(--color-muted); font-size: 10px; font-weight: var(--font-weight-semibold); cursor: pointer; }
+.ladder-mode-tabs button.active { background: #111; color: #fff; }
+.ladder-mode-tabs button:focus-visible { outline: 2px solid var(--color-primary-strong); outline-offset: 2px; }
+/* Persistent hierarchy: the match mode stays visible below the app header while its workspace scrolls. */
+.ladder-workspace > .ladder-heading--setup {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: -24px -30px 14px;
+  padding: 24px 30px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  background: color-mix(in srgb, var(--color-bg) 96%, transparent);
+  backdrop-filter: blur(10px);
+}</style>
