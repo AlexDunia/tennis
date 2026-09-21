@@ -1,0 +1,218 @@
+name: One-time GORRA Vite memory repair
+
+on:
+  push:
+    branches:
+      - repair/gorra-vite-memory
+    paths:
+      - .github/workflows/repair-gorra-vite-memory.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: repair/gorra-vite-memory
+          fetch-depth: 0
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Repair repeated encoding corruption
+        shell: bash
+        run: |
+          cat > /tmp/repair_gorra_encoding.py <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          path = Path("src/components/ladder/LadderBulkScheduler.vue")
+          temp = path.with_suffix(path.suffix + ".repairing")
+
+          control_bytes = {
+              "\x81": 0x81,
+              "\x8d": 0x8D,
+              "\x8f": 0x8F,
+              "\x90": 0x90,
+              "\x9d": 0x9D,
+          }
+
+          def reverse_one_layer(value: str):
+              raw = bytearray()
+              for char in value:
+                  if char in control_bytes:
+                      raw.append(control_bytes[char])
+                      continue
+                  try:
+                      encoded = char.encode("cp1252")
+                  except UnicodeEncodeError:
+                      return None
+                  if len(encoded) != 1:
+                      return None
+                  raw.extend(encoded)
+              try:
+                  return raw.decode("utf-8")
+              except UnicodeDecodeError:
+                  return None
+
+          def repair_run(value: str):
+              current = value
+              for _ in range(30):
+                  repaired = reverse_one_layer(current)
+                  if repaired is None or repaired == current:
+                      break
+                  current = repaired
+              return current
+
+          non_ascii = re.compile(r"[^\x00-\x7f]+")
+          before = path.stat().st_size
+          changed_runs = 0
+          total_runs = 0
+
+          with path.open("r", encoding="utf-8", newline="") as source, temp.open(
+              "w", encoding="utf-8", newline=""
+          ) as target:
+              for line in source:
+                  def replace(match):
+                      nonlocal_state[0] += 1
+                      repaired = repair_run(match.group(0))
+                      if repaired != match.group(0):
+                          nonlocal_state[1] += 1
+                      return repaired
+
+                  nonlocal_state = [0, 0]
+                  target.write(non_ascii.sub(replace, line))
+                  total_runs += nonlocal_state[0]
+                  changed_runs += nonlocal_state[1]
+
+          os.replace(temp, path)
+
+          raw = path.read_bytes()
+          text = raw.decode("utf-8", errors="strict")
+          lines = text.splitlines()
+          longest = max((len(line) for line in lines), default=0)
+          bad_patterns = ("Ãƒ", "Ã‚", "â€", "â‚¬", "Æ’")
+          remaining = [pattern for pattern in bad_patterns if pattern in text]
+
+          print(f"before_bytes={before}")
+          print(f"after_bytes={len(raw)}")
+          print(f"line_count={len(lines)}")
+          print(f"longest_line={longest}")
+          print(f"non_ascii_runs={total_runs}")
+          print(f"changed_runs={changed_runs}")
+          print(f"remaining_mojibake={remaining}")
+
+          if len(raw) >= 500 * 1024:
+              raise SystemExit(f"Repair failed: component still too large ({len(raw)} bytes)")
+          if longest >= 10000:
+              raise SystemExit(f"Repair failed: longest line is still {longest} chars")
+          if remaining:
+              raise SystemExit(f"Repair failed: mojibake remains: {remaining}")
+          PY
+
+          python /tmp/repair_gorra_encoding.py
+
+      - name: Remove accidentally tracked browser QA profile
+        shell: bash
+        run: |
+          git rm -r --ignore-unmatch .dashboard-check-9332
+
+      - name: Add UTF-8 editor guard
+        shell: bash
+        run: |
+          cat > .editorconfig <<'EOF'
+          root = true
+
+          [*]
+          charset = utf-8
+          end_of_line = lf
+          insert_final_newline = true
+
+          [*.{js,vue,json,md}]
+          charset = utf-8
+          EOF
+
+      - name: Add source corruption regression test
+        shell: bash
+        run: |
+          cat > test/encoding-guard.test.js <<'EOF'
+          import test from 'node:test'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
+          import { TextDecoder } from 'node:util'
+
+          const target = new URL(
+            '../src/components/ladder/LadderBulkScheduler.vue',
+            import.meta.url,
+          )
+
+          test('LadderBulkScheduler source stays valid, small UTF-8', () => {
+            const raw = readFileSync(target)
+
+            assert.ok(
+              raw.length < 500 * 1024,
+              `LadderBulkScheduler.vue unexpectedly grew to ${raw.length} bytes`,
+            )
+
+            const source = new TextDecoder('utf-8', { fatal: true }).decode(raw)
+            const longestLine = Math.max(
+              0,
+              ...source.split(/\r?\n/).map((line) => line.length),
+            )
+
+            assert.ok(
+              longestLine < 10_000,
+              `LadderBulkScheduler.vue contains an abnormally long line: ${longestLine} chars`,
+            )
+
+            for (const signature of ['Ãƒ', 'Ã‚', 'â€', 'â‚¬', 'Æ’']) {
+              assert.equal(
+                source.includes(signature),
+                false,
+                `LadderBulkScheduler.vue contains mojibake signature: ${signature}`,
+              )
+            }
+          })
+          EOF
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Show repaired source metrics
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("src/components/ladder/LadderBulkScheduler.vue")
+          data = p.read_bytes()
+          text = data.decode("utf-8")
+          lines = text.splitlines()
+          print("FINAL_BYTES=" + str(len(data)))
+          print("FINAL_LINES=" + str(len(lines)))
+          print("FINAL_LONGEST_LINE=" + str(max(map(len, lines), default=0)))
+          PY
+
+      - name: Commit verified repair
+        shell: bash
+        run: |
+          git config user.name "GORRA repair"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A src/components/ladder/LadderBulkScheduler.vue .dashboard-check-9332 .editorconfig test/encoding-guard.test.js
+          git status --short
+          git commit -m "repair ladder scheduler encoding and Vite memory crash"
+          git push origin HEAD:repair/gorra-vite-memory
