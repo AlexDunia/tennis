@@ -3042,4 +3042,19 @@ function continueLadderSetup(ladder = activeLadder.value) {
   border-bottom: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
   background: color-mix(in srgb, var(--color-bg) 96%, transparent);
   backdrop-filter: blur(10px);
-}</style>
+}
+/* Individual and Bulk are the primary fixed workspace headers; the ladder name is contextual. */
+.ladder-workspace > .ladder-heading--setup { align-items: center; }
+.ladder-workspace > .ladder-heading--setup > h1 { order: 2; color: var(--color-muted); font-size: 12px; font-weight: var(--font-weight-semibold); letter-spacing: 0; }
+.ladder-workspace > .ladder-heading--setup .ladder-heading__match-setup { order: 1; justify-items: start; margin-left: 0; }
+.ladder-workspace > .ladder-heading--setup .ladder-heading__match-setup > span { display: none; }
+.ladder-workspace > .ladder-heading--setup .ladder-mode-tabs { gap: 0; padding: 0; border-radius: 0; background: transparent; }
+.ladder-workspace > .ladder-heading--setup .ladder-mode-tabs button { min-width: 124px; min-height: 44px; padding: 0 18px; border-radius: 0; color: var(--color-muted); font-size: 15px; font-weight: var(--font-weight-bold); }
+.ladder-workspace > .ladder-heading--setup .ladder-mode-tabs button.active { border-bottom: 3px solid var(--color-primary-strong); background: transparent; box-shadow: none; color: var(--color-text); }
+/* Stable header: ladder title left, black shadowed mode toggle right. */
+.ladder-workspace > .ladder-heading--setup > h1 { order: 0; color: var(--color-text); font-size: 23px; font-weight: var(--font-weight-bold); letter-spacing: -0.025em; }
+.ladder-workspace > .ladder-heading--setup .ladder-heading__match-setup { order: 0; justify-items: end; margin-left: auto; }
+.ladder-workspace > .ladder-heading--setup .ladder-heading__match-setup > span { display: none; }
+.ladder-workspace > .ladder-heading--setup .ladder-mode-tabs { gap: 3px; padding: 3px; border-radius: 8px; background: var(--color-surface-soft); }
+.ladder-workspace > .ladder-heading--setup .ladder-mode-tabs button { min-width: 82px; min-height: 34px; padding: 0 11px; border-radius: 6px; font-size: 10px; }
+.ladder-workspace > .ladder-heading--setup .ladder-mode-tabs button.active { border-bottom: 0; background: #111; box-shadow: 0 2px 8px rgba(0, 0, 0, .16); color: #fff; }</style>
