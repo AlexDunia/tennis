@@ -43,7 +43,7 @@ const MAX_FILE_BYTES =
   5 * 1024 * 1024
 
 const props = defineProps({ ladderId: { type: String, default: '' }, embedded: { type: Boolean, default: false } })
-const emit = defineEmits(['back'])
+const emit = defineEmits(['back', 'complete'])
 
 const route = useRoute()
 const router = useRouter()
@@ -654,6 +654,11 @@ async function applyImport() {
         `${result.summary.imported} ${result.summary.imported === 1 ? 'player is' : 'players are'} ready on ${result.ladder.name}.`,
       type: 'success',
     })
+    if (props.embedded) {
+      emit('complete', result)
+      return
+    }
+
 
     if (
       result.ladder.status ===
@@ -693,6 +698,7 @@ async function applyImport() {
 }
 
 function leaveImport() {
+  if (props.embedded) { emit('back'); return }
   return router.push(
     ladderImportBackRoute({
       origin:

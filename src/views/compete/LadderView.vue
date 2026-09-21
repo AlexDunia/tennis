@@ -81,8 +81,7 @@ const ladderRevision = ref(0)
 
 const ladderListRef = ref(null)
 const addPeopleOptionsRef = ref(null)
-const addPeopleOpen = ref(false)
-const addPeopleStep = ref('')
+const addPeopleFlows = ref({})
 
 const playerRowRefs = new Map()
 
@@ -221,6 +220,40 @@ const activeLadder = computed(
     ladders.value[0] ||
     null,
 )
+
+const activeAddPeopleFlow = computed(() =>
+  addPeopleFlows.value[activeLadder.value?.id] || { open: false, step: '' },
+)
+const addPeopleOpen = computed(() => activeAddPeopleFlow.value.open)
+const addPeopleStep = computed(() => activeAddPeopleFlow.value.step)
+
+function updateActiveAddPeopleFlow(patch) {
+  const ladderId = activeLadder.value?.id
+  if (!ladderId) return
+
+  const nextFlow = {
+    ...(addPeopleFlows.value[ladderId] || { open: false, step: '' }),
+    ...patch,
+  }
+  addPeopleFlows.value = {
+    ...addPeopleFlows.value,
+    [ladderId]: nextFlow,
+  }
+
+  if (typeof window !== 'undefined') {
+    const url = new URL(window.location.href)
+    url.searchParams.set('ladder', ladderId)
+    if (nextFlow.open) {
+      url.searchParams.set('flow', 'add-people')
+      if (nextFlow.step) url.searchParams.set('step', nextFlow.step)
+      else url.searchParams.delete('step')
+    } else {
+      url.searchParams.delete('flow')
+      url.searchParams.delete('step')
+    }
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+}
 
 const rawPlayers = computed(() =>
   activeLadder.value
@@ -1358,6 +1391,17 @@ watch(
 
     if (items.some((ladder) => ladder.id === requestedLadderId)) {
       activeLadderId.value = requestedLadderId
+      if (route.query.flow === 'add-people') {
+        addPeopleFlows.value = {
+          ...addPeopleFlows.value,
+          [requestedLadderId]: {
+            open: true,
+            step: ['members', 'invite', 'import'].includes(String(route.query.step || ''))
+              ? String(route.query.step)
+              : '',
+          },
+        }
+      }
       return
     }
 
@@ -1466,13 +1510,12 @@ function scrollToAddPeople(step = false) {
 }
 
 function revealAddPeopleOptions() {
-  addPeopleStep.value = ''
-  addPeopleOpen.value = true
+  updateActiveAddPeopleFlow({ open: true, step: '' })
   nextTick(() => scrollToAddPeople())
 }
 
 function openAddPeopleStep(step) {
-  addPeopleStep.value = step
+  updateActiveAddPeopleFlow({ open: true, step })
   nextTick(() => window.setTimeout(() => scrollToAddPeople(true), 40))
 }
 
@@ -1624,24 +1667,25 @@ function continueLadderSetup(ladder = activeLadder.value) {
         </div>
 
         <section v-if="addPeopleStep" class="ladder-add-people__step">
-          <button class="ladder-add-people__back" type="button" @click="addPeopleStep = ''">Back to add people</button>
+          <button class="ladder-add-people__back" type="button" @click="updateActiveAddPeopleFlow({ step: '' })"><span aria-hidden="true">&larr;</span> Back to add people</button>
           <LadderAddClubMembersView
             v-if="addPeopleStep === 'members'"
             :ladder-id="activeLadder.id"
             embedded
-            @back="addPeopleStep = ''"
+            @back="updateActiveAddPeopleFlow({ step: '' })"
           />
           <LadderShareInviteView
             v-else-if="addPeopleStep === 'invite'"
             :ladder-id="activeLadder.id"
             embedded
-            @back="addPeopleStep = ''"
+            @back="updateActiveAddPeopleFlow({ step: '' })"
           />
           <LadderImportView
             v-else
             :ladder-id="activeLadder.id"
             embedded
-            @back="addPeopleStep = ''"
+            @back="updateActiveAddPeopleFlow({ step: '' })"
+                      @complete="updateActiveAddPeopleFlow({ open: false, step: '' })"
           />
         </section>
       </section>
@@ -2881,15 +2925,20 @@ function continueLadderSetup(ladder = activeLadder.value) {
   right: 0;
   bottom: 0;
   left: calc(var(--app-sidebar-width) + 236px);
+  box-sizing: border-box;
   width: auto;
   margin: 0;
-  padding: 42px max(32px, calc((100% - 760px) / 2)) 64px;
+  padding: 42px 56px 64px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: auto;
   scrollbar-width: thin;
   background: var(--color-bg);
 }
+
+.ladder-add-people__heading,
+.ladder-add-people__choices,
+.ladder-add-people__step { width: 100%; max-width: none; }
 
 .ladder-add-people::-webkit-scrollbar { width: 6px; }
 .ladder-add-people::-webkit-scrollbar-track { background: transparent; }
@@ -2899,7 +2948,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
 .ladder-add-people__heading span { color: var(--color-primary-strong); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .ladder-add-people__heading h2 { margin: 7px 0 6px; color: var(--color-text); font-size: 21px; line-height: 1.25; }
 .ladder-add-people__heading p { margin: 0; color: var(--color-muted); font-size: 13px; line-height: 1.55; }
-.ladder-add-people__choices { display: grid; gap: 10px; }
+.ladder-add-people__choices { display: grid; width: 100%; gap: 10px; }
 .ladder-add-people__choices button { display: grid; grid-template-columns: 42px minmax(0, 1fr) 18px; width: 100%; align-items: center; gap: 14px; padding: 15px 16px; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; color: var(--color-text); text-align: left; cursor: pointer; }
 .ladder-add-people__choices button > span:nth-child(2) { display: grid; gap: 3px; }
 .ladder-add-people__choices strong { font-size: 13px; font-weight: var(--font-weight-semibold); }
@@ -2910,7 +2959,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
 .ladder-add-options-enter-active, .ladder-add-options-leave-active { transition: opacity .2s ease, transform .2s ease; }
 .ladder-add-options-enter-from, .ladder-add-options-leave-to { opacity: 0; transform: translateY(10px); }
 .ladder-add-people__step { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--color-border); }
-.ladder-add-people__back { margin-bottom: 18px; padding: 0; border: 0; background: transparent; color: var(--color-primary-strong); font-size: 12px; font-weight: var(--font-weight-semibold); cursor: pointer; }
+.ladder-add-people__back { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 18px; padding: 0; border: 0; background: transparent; color: var(--color-primary-strong); font-size: 12px; font-weight: var(--font-weight-semibold); cursor: pointer; }
 .ladder-view--switching .ladder-empty-workspace,
 .ladder-view--switching .ladder-workspace,
 .ladder-view--switching :deep(.bulk-scheduler) { opacity: .72; transform: translateY(3px); }
