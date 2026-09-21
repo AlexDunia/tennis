@@ -59,6 +59,7 @@ const shell = inject('gorraShell', null)
 
 const activeLadderId = ref('')
 const ladderSwitching = ref(false)
+const matchSetupMenuOpen = ref(false)
 const ladderMode = ref(route.query.mode === 'bulk' ? 'bulk' : 'individual')
 const managedPlayerId = ref('')
 const selectedPlayerId = ref('')
@@ -1691,7 +1692,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
       </section>
     </Transition>
 
-    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :ladder="activeLadder" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" />
+    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :ladder="activeLadder" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" @mode="setLadderMode" />
     <main v-if="!bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" class="ladder-workspace">
       <div
         v-if="playerStore.isLoading"
@@ -1725,75 +1726,23 @@ function continueLadderSetup(ladder = activeLadder.value) {
       </section>
 
       <template v-else>
-        <header class="ladder-heading">
-          <div>
-            <h1>
-              {{ activeLadder?.name || 'Ladder' }}
-            </h1>
-
-            <p>
-              {{ players.length }}
-              {{
-                players.length === 1
-                  ? 'player'
-                  : 'players'
-              }}
-
-              <template v-if="activeClub?.name">`n                - {{ activeClub.name }}`n              </template>
-            </p>
-          </div>
-
-          <div class="ladder-heading__actions">
-            <button
-              v-if="
-                showDevTestControls &&
-                canManageLadder
-              "
-              class="compete-secondary"
-              type="button"
-              data-dev-only="clear-test-data"
-              :disabled="clearTestBusy"
-              title="Development only"
-              @click="clearTestData"
-            >
-              {{
-                clearTestBusy
-                  ? 'Clearing...'
-                  : 'Clear'
-              }}
-            </button>
-            <RouterLink
-              class="compete-secondary"
-              :to="{ name: 'Challenges' }"
-            >
-              Challenges
-            </RouterLink>
-
-            <RouterLink
-              v-if="canManageLadder && activeLadder"
-              class="compete-secondary"
-              :to="{
-                name: 'LadderSettings',
-                params: {
-                  ladderId: activeLadder.id,
-                },
-              }"
-            >
-              Settings
-            </RouterLink>
-
-            <RouterLink
-              v-if="!canManageLadder"
-              class="compete-primary"
-              :to="{ name: 'CreateChallenge' }"
-            >
-              New challenge
-            </RouterLink>
+        <header class="ladder-heading ladder-heading--setup">
+          <h1>{{ activeLadder?.name || 'Ladder' }}</h1>
+          <div v-if="canManageLadder" class="ladder-heading__match-setup">
+            <div class="ladder-mode-menu">
+              <button type="button" class="ladder-mode-menu__trigger" @click="matchSetupMenuOpen = !matchSetupMenuOpen">
+                Set up matches <span aria-hidden="true">&#9662;</span>
+              </button>
+              <div v-if="matchSetupMenuOpen" class="ladder-mode-menu__options">
+                <button type="button" :class="{ active: ladderMode === 'individual' }" @click="setLadderMode('individual'); matchSetupMenuOpen = false"><strong>Individual</strong><small>Set one match at a time</small></button>
+                <button type="button" :class="{ active: ladderMode === 'bulk' }" @click="setLadderMode('bulk'); matchSetupMenuOpen = false"><strong>Bulk</strong><small>Arrange several matches together</small></button>
+              </div>
+            </div>
           </div>
         </header>
 
         <section
-          v-if="players.length"
+          v-if="players.length" 
           ref="ladderListRef"
           class="ladder-list"
           :aria-label="
@@ -2129,6 +2078,37 @@ function continueLadderSetup(ladder = activeLadder.value) {
   padding: 24px 30px 46px;
 }
 
+
+.ladder-heading__match-setup { display: grid; justify-items: end; gap: 5px; margin-left: auto; }
+.ladder-heading__match-setup > span { color: var(--color-muted); font-size: 9px; font-weight: var(--font-weight-semibold); letter-spacing: .07em; text-transform: uppercase; }
+.ladder-heading__match-setup > div { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border-radius: 8px; background: var(--color-surface-soft); }
+.ladder-heading__match-setup button { min-height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--color-muted); font-size: 10px; font-weight: var(--font-weight-semibold); }
+.ladder-heading__match-setup button.active { background: #111; color: #fff; }
+
+.ladder-heading--setup { align-items: end; }
+.ladder-heading--setup > h1 { margin: 0; color: var(--color-text); font-size: 23px; line-height: 1.25; }
+.ladder-heading--setup .ladder-heading__match-setup { margin-left: auto; }
+.ladder-heading__match-setup p { margin: 0; color: var(--color-muted); font-size: 10px; line-height: 1.35; }
+.ladder-heading__match-setup > div { padding: 4px; border-radius: 9px; }
+.ladder-heading__match-setup button { min-width: 82px; min-height: 34px; font-size: 10px; }
+
+.ladder-mode-menu { position: relative; }
+.ladder-mode-menu__trigger { min-width: 150px; min-height: 36px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text); font-size: 11px; font-weight: var(--font-weight-semibold); }
+.ladder-mode-menu__trigger span { margin-left: 8px; color: var(--color-muted); }
+.ladder-mode-menu__options { position: absolute; z-index: 20; top: calc(100% + 7px); right: 0; display: grid; width: 220px; gap: 3px; padding: 5px; border: 1px solid var(--color-border); border-radius: 10px; background: #fff; box-shadow: 0 12px 30px rgba(20, 45, 27, .14); }
+.ladder-mode-menu__options button { display: grid; justify-items: start; min-width: 0 !important; min-height: 0 !important; padding: 9px 10px; border-radius: 7px; text-align: left; }
+.ladder-mode-menu__options button:hover { background: var(--color-surface-soft); }
+.ladder-mode-menu__options strong { color: var(--color-text); font-size: 11px; }
+.ladder-mode-menu__options small { margin-top: 2px; color: var(--color-muted); font-size: 9px; }
+
+.ladder-heading--setup { align-items: center; min-width: 0; }
+.ladder-heading__match-setup { width: auto !important; justify-self: end; }
+.ladder-mode-menu__trigger { min-width: 132px; padding: 0 10px 0 12px; border-color: var(--color-border) !important; background: #fff !important; color: var(--color-text) !important; box-shadow: none; }
+.ladder-mode-menu__trigger:hover, .ladder-mode-menu__trigger:focus-visible { border-color: var(--color-border-strong) !important; background: var(--color-surface-soft) !important; color: var(--color-text) !important; outline: none; }
+.ladder-mode-menu__trigger span { display: inline-block; margin-left: 14px; padding-right: 2px; }
+.ladder-mode-menu__options button { color: var(--color-text) !important; }
+.ladder-mode-menu__options button:hover { background: var(--color-surface-soft) !important; color: var(--color-text) !important; }
+.ladder-mode-menu__options button.active { background: var(--color-surface-soft) !important; color: var(--color-primary-dark) !important; }
 .ladder-loading {
   display: grid;
   gap: 10px;
@@ -3030,4 +3010,22 @@ function continueLadderSetup(ladder = activeLadder.value) {
 
 
 
+
+/* One compact control: the menu wrapper must never read as a second button. */
+.ladder-heading--setup { align-items: center; }
+.ladder-heading__match-setup { display: block; margin-left: auto; padding: 0; background: transparent; }
+.ladder-heading__match-setup > div { display: block; padding: 0; background: transparent; border-radius: 0; }
+.ladder-mode-menu__trigger {
+  display: inline-flex; align-items: center; gap: 7px; width: 190px; min-width: 190px; min-height: 36px;
+  padding: 0 10px 0 12px; border: 1px solid var(--color-border) !important;
+  border-radius: 8px; background: #fff !important; color: var(--color-text) !important;
+}
+.ladder-mode-menu__trigger::before { content: ''; width: 12px; height: 12px; flex: 0 0 12px; border: 1.5px solid currentColor; border-radius: 50%; opacity: .72; }
+.ladder-mode-menu__trigger span { margin-left: auto; padding: 0; }
+.ladder-mode-menu__options button {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: center;
+  justify-items: start; width: 100%; padding: 9px 10px;
+}
+.ladder-mode-menu__options button::before { content: ''; grid-row: 1 / span 2; width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 50%; opacity: .7; }
+.ladder-mode-menu__options button strong, .ladder-mode-menu__options button small { grid-column: 2; }
 </style>

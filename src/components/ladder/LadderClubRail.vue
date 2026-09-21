@@ -227,7 +227,7 @@ function selectLadder(ladderId) {
 }
 
 
-.ladder-rail__mode-wrap { margin-top: 14px; }
+.ladder-rail__mode-wrap { display: none; }
 .ladder-rail__mode-label { display: block; padding: 0 9px 6px; color: var(--color-muted); font-size: 9px; font-weight: var(--font-weight-semibold); letter-spacing: .08em; text-transform: uppercase; }
 .ladder-rail__mode-wrap .ladder-rail__mode { margin: 0 0 4px; }
 .ladder-rail__mode { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:14px 0 4px; padding:4px; border-radius:10px; background:color-mix(in srgb,var(--color-text) 4%,white); }

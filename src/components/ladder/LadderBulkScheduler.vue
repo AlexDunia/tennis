@@ -43,6 +43,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'record-missing-match',
+  'mode',
 ])
 
 const challengeStore = useChallengeStore()
@@ -62,6 +63,7 @@ const queue = ref([])
 const queueDragId = ref('')
 const queuePulseId = ref('')
 const bulkWorkspaceOpen = ref(false)
+const modeMenuOpen = ref(false)
 const connectorPaths = ref([])
 const connectorCanvas = ref({ width: 0, height: 0 })
 
@@ -2001,7 +2003,15 @@ onBeforeUnmount(() => {
     <section class="bulk-players">
       <header class="bulk-players__head">
         <h1>{{ ladder.name }}</h1>
-        <span>Bulk mode</span>
+        <div class="bulk-players__setup">
+          <div class="bulk-mode-menu">
+            <button type="button" class="bulk-mode-menu__trigger" :aria-expanded="modeMenuOpen" @click="modeMenuOpen = !modeMenuOpen">Match setup: Bulk <span aria-hidden="true">&#9662;</span></button>
+            <div v-if="modeMenuOpen" class="bulk-mode-menu__options">
+              <button type="button" @click="emit('mode', 'individual'); modeMenuOpen = false"><strong>Individual</strong><small>Set one match at a time</small></button>
+              <button type="button" class="active" @click="modeMenuOpen = false"><strong>Bulk</strong><small>Arrange several matches together</small></button>
+            </div>
+          </div>
+        </div>
       </header>
 
       <TransitionGroup
@@ -4611,7 +4621,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1080px) {
-  .bulk-scheduler {
+  .bulk-scheduler--expanded {
     grid-template-columns:
       minmax(0, 1fr)
       350px;
@@ -4958,4 +4968,50 @@ onBeforeUnmount(() => {
 .bulk-queue-shell { position: relative; z-index: 30; }
 .bulk-queue { position: relative; z-index: 31; overflow: visible; }
 .bulk-match-preview { z-index: 80; }
+
+.bulk-players__mode { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border-radius: 8px; background: var(--color-surface-soft); }
+.bulk-players__mode button { min-height: 28px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--color-muted); font-size: 9px; font-weight: var(--font-weight-semibold); }
+.bulk-players__mode button.active { background: #111; color: #fff; }
+
+.bulk-players__setup { display: grid; justify-items: end; gap: 5px; margin-left: auto; }
+.bulk-players__setup > span { color: var(--color-muted); font-size: 9px; font-weight: var(--font-weight-semibold); letter-spacing: .07em; text-transform: uppercase; }
+.bulk-players__mode button { min-width: 76px; min-height: 32px; font-size: 10px; }
+
+.bulk-mode-menu { position: relative; }
+.bulk-mode-menu__trigger { min-width: 150px; min-height: 36px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text); font-size: 11px; font-weight: var(--font-weight-semibold); }
+.bulk-mode-menu__trigger span { margin-left: 8px; color: var(--color-muted); }
+.bulk-mode-menu__options { position: absolute; z-index: 30; top: calc(100% + 7px); right: 0; display: grid; width: 220px; gap: 3px; padding: 5px; border: 1px solid var(--color-border); border-radius: 10px; background: #fff; box-shadow: 0 12px 30px rgba(20, 45, 27, .14); }
+.bulk-mode-menu__options button { display: grid; justify-items: start; padding: 9px 10px; border: 0; border-radius: 7px; background: transparent; text-align: left; }
+.bulk-mode-menu__options button:hover { background: var(--color-surface-soft); }
+.bulk-mode-menu__options strong { color: var(--color-text); font-size: 11px; }
+.bulk-mode-menu__options small { margin-top: 2px; color: var(--color-muted); font-size: 9px; }
+
+.bulk-players__setup { width: auto; justify-self: end; }
+.bulk-mode-menu__trigger { min-width: 132px; padding: 0 10px 0 12px; border-color: var(--color-border) !important; background: #fff !important; color: var(--color-text) !important; box-shadow: none; }
+.bulk-mode-menu__trigger:hover, .bulk-mode-menu__trigger:focus-visible { border-color: var(--color-border-strong) !important; background: var(--color-surface-soft) !important; color: var(--color-text) !important; outline: none; }
+.bulk-mode-menu__trigger span { display: inline-block; margin-left: 14px; padding-right: 2px; }
+.bulk-mode-menu__options button { color: var(--color-text) !important; }
+.bulk-mode-menu__options button:hover { background: var(--color-surface-soft) !important; color: var(--color-text) !important; }
+.bulk-mode-menu__options button.active { background: var(--color-surface-soft) !important; color: var(--color-primary-dark) !important; }
+.bulk-player-list { width: 100%; min-width: 0; padding-right: 0; box-sizing: border-box; }
+.bulk-scheduler--expanded .bulk-player-list { padding-right: 56px; }
+.bulk-player-row { width: 100%; min-width: 0; box-sizing: border-box; }
+
+/* Match Individual exactly: no coloured wrapper, one compact control and aligned menu rows. */
+.bulk-players__head { align-items: center; justify-content: space-between; }
+.bulk-players__setup { display: block; margin-left: auto; padding: 0; background: transparent; }
+.bulk-players__setup > div { display: block; padding: 0; background: transparent; border-radius: 0; }
+.bulk-mode-menu__trigger {
+  display: inline-flex; align-items: center; gap: 7px; width: 190px; min-width: 190px; min-height: 36px;
+  padding: 0 10px 0 12px; border: 1px solid var(--color-border) !important;
+  border-radius: 8px; background: #fff !important; color: var(--color-text) !important;
+}
+.bulk-mode-menu__trigger::before { content: ''; width: 12px; height: 12px; flex: 0 0 12px; border: 1.5px solid currentColor; border-radius: 50%; opacity: .72; }
+.bulk-mode-menu__trigger span { margin-left: auto; padding: 0; }
+.bulk-mode-menu__options button {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: center;
+  justify-items: start; width: 100%; padding: 9px 10px;
+}
+.bulk-mode-menu__options button::before { content: ''; grid-row: 1 / span 2; width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 50%; opacity: .7; }
+.bulk-mode-menu__options button strong, .bulk-mode-menu__options button small { grid-column: 2; }
 </style>
