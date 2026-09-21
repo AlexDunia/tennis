@@ -90,9 +90,12 @@ function selectLadder(ladderId) {
           <small>Ladders</small>
         </span>
       </div>
-      <div v-if="canManage && activeLadderId" class="ladder-rail__mode" aria-label="Ladder scheduling mode">
-        <button type="button" :class="{ active: mode === 'individual' }" :aria-pressed="mode === 'individual'" @click="emit('mode', 'individual')">Individual</button>
-        <button type="button" :class="{ active: mode === 'bulk' }" :aria-pressed="mode === 'bulk'" @click="emit('mode', 'bulk')">Bulk</button>
+      <div v-if="canManage && activeLadderId" class="ladder-rail__mode-wrap">
+        <span class="ladder-rail__mode-label">Match setup mode</span>
+        <div class="ladder-rail__mode" aria-label="Ladder scheduling mode">
+          <button type="button" :class="{ active: mode === 'individual' }" :aria-pressed="mode === 'individual'" @click="emit('mode', 'individual')">Individual</button>
+          <button type="button" :class="{ active: mode === 'bulk' }" :aria-pressed="mode === 'bulk'" @click="emit('mode', 'bulk')">Bulk</button>
+        </div>
       </div>
 
       <div v-if="canManage" class="ladder-rail__actions">
@@ -162,12 +165,18 @@ function selectLadder(ladderId) {
   height: calc(100dvh - var(--app-header-height));
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: auto;
+  scrollbar-width: thin;
   overscroll-behavior: contain;
   padding: 22px 14px;
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
 }
 
+
+.ladder-rail::-webkit-scrollbar { width: 6px; }
+.ladder-rail::-webkit-scrollbar-track { background: transparent; }
+.ladder-rail::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(22, 61, 43, .18); }
 .ladder-rail__club {
   display: flex;
   align-items: center;
@@ -217,9 +226,13 @@ function selectLadder(ladderId) {
   font-size: 10px;
 }
 
+
+.ladder-rail__mode-wrap { margin-top: 14px; }
+.ladder-rail__mode-label { display: block; padding: 0 9px 6px; color: var(--color-muted); font-size: 9px; font-weight: var(--font-weight-semibold); letter-spacing: .08em; text-transform: uppercase; }
+.ladder-rail__mode-wrap .ladder-rail__mode { margin: 0 0 4px; }
 .ladder-rail__mode { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:14px 0 4px; padding:4px; border-radius:10px; background:color-mix(in srgb,var(--color-text) 4%,white); }
 .ladder-rail__mode button { min-height:34px; padding:0 8px; border:0; border-radius:7px; background:transparent; color:var(--color-muted); font-size:10px; font-weight:var(--font-weight-semibold); }
-.ladder-rail__mode button.active { background:var(--color-primary-strong); color:#fff; box-shadow:0 2px 8px rgba(20,45,28,.14); }
+.ladder-rail__mode button.active { background:#111; color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.16); }
 .ladder-navigation__mobile-mode { display:none; }.ladder-rail__group {
   margin-top: 20px;
 }
@@ -238,6 +251,7 @@ function selectLadder(ladderId) {
   display: flex;
   width: 100%;
   min-height: 44px;
+  margin: 2px 0;
   align-items: center;
   justify-content: space-between;
   gap: 9px;
@@ -324,7 +338,7 @@ function selectLadder(ladderId) {
 
 @media (max-width: 767px) {  .ladder-navigation__mobile-mode { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:10px 12px 0; padding:4px; border-radius:10px; background:color-mix(in srgb,var(--color-text) 4%,white); }
   .ladder-navigation__mobile-mode button { min-height:38px; border:0; border-radius:7px; background:transparent; color:var(--color-muted); font-size:11px; font-weight:var(--font-weight-semibold); }
-  .ladder-navigation__mobile-mode button.active { background:var(--color-primary-strong); color:#fff; box-shadow:0 2px 8px rgba(20,45,28,.14); }
+  .ladder-navigation__mobile-mode button.active { background:#111; color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.16); }
   .ladder-navigation__mobile-actions {
     display: flex;
     gap: 8px;
@@ -379,5 +393,32 @@ function selectLadder(ladderId) {
   .ladder-rail {
     display: none;
   }
+}
+
+/* Ladder selection changes only on click; selected ladders share one clear state. */
+.ladder-rail__group button,
+.ladder-rail__mode button,
+.ladder-navigation__mobile-mode button {
+  transition: none;
+}
+
+.ladder-rail__group button:hover,
+.ladder-rail__actions button:hover {
+  background: transparent;
+  border-color: inherit;
+}
+
+.ladder-rail__group button.active {
+  background: #111;
+  color: #fff;
+}
+
+.ladder-rail__group button.active small {
+  color: rgba(255, 255, 255, .72);
+}
+
+.ladder-rail__group button.active i {
+  border-color: #fff;
+  background: #fff;
 }
 </style>

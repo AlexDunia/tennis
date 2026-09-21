@@ -10,6 +10,10 @@ import {
 } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import EmptyState from '../../components/EmptyState.vue'
+import FlowIcon from '../../components/friendly/FlowIcon.vue'
+import LadderAddClubMembersView from '../LadderAddClubMembersView.vue'
+import LadderShareInviteView from '../LadderShareInviteView.vue'
+import LadderImportView from '../LadderImportView.vue'
 import PersonAvatar from '../../components/PersonAvatar.vue'
 import LadderClubRail from '../../components/ladder/LadderClubRail.vue'
 import LadderBulkScheduler from '../../components/ladder/LadderBulkScheduler.vue'
@@ -54,6 +58,7 @@ const playerStore = usePlayerStore()
 const shell = inject('gorraShell', null)
 
 const activeLadderId = ref('')
+const ladderSwitching = ref(false)
 const ladderMode = ref(route.query.mode === 'bulk' ? 'bulk' : 'individual')
 const managedPlayerId = ref('')
 const selectedPlayerId = ref('')
@@ -75,6 +80,9 @@ const showDevTestControls =
 const ladderRevision = ref(0)
 
 const ladderListRef = ref(null)
+const addPeopleOptionsRef = ref(null)
+const addPeopleOpen = ref(false)
+const addPeopleStep = ref('')
 
 const playerRowRefs = new Map()
 
@@ -822,17 +830,23 @@ function setLadderMode(mode) {
   if (next === ladderMode.value) return
 
   // This is a local workspace switch. Do not navigate, reload, or reset the
-  // Individual workspaceÃ¢â‚¬â€the rail and player state stay exactly where they are.
+  // Individual workspace keeps the rail and player state exactly where they are.
   ladderMode.value = next
 }
 
 
 function selectLadder(ladderId) {
+  if (!ladderId || ladderId === activeLadderId.value) return
+
+  // Keep selection local. Direct links can still set the initial ladder via
+  // ?ladder=, but an ordinary rail click should not feel like navigation.
+  ladderSwitching.value = true
   activeLadderId.value = ladderId
-  if (route.query.ladder && route.query.ladder !== ladderId) {
-    router.replace({ query: { ...route.query, ladder: ladderId } })
-  }
   resetAllPlayerActions()
+
+  window.setTimeout(() => {
+    ladderSwitching.value = false
+  }, 180)
 }
 
 function closeDrawer() {
@@ -1435,6 +1449,41 @@ function importLadder() {
   })
 }
 
+function scrollToAddPeople(step = false) {
+  const flow = addPeopleOptionsRef.value
+  if (!flow) return
+
+  if (!step) {
+    flow.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
+
+  const detail = flow.querySelector('.ladder-add-people__step')
+  flow.scrollTo({
+    top: Math.max(0, (detail?.offsetTop || 0) - 18),
+    behavior: 'smooth',
+  })
+}
+
+function revealAddPeopleOptions() {
+  addPeopleStep.value = ''
+  addPeopleOpen.value = true
+  nextTick(() => scrollToAddPeople())
+}
+
+function openAddPeopleStep(step) {
+  addPeopleStep.value = step
+  nextTick(() => window.setTimeout(() => scrollToAddPeople(true), 40))
+}
+
+function openClubMemberPicker() {
+  openAddPeopleStep('members')
+}
+
+function openLadderInvite() {
+  openAddPeopleStep('invite')
+}
+
 function continueLadderSetup(ladder = activeLadder.value) {
   if (!ladder?.id) return
 
@@ -1460,6 +1509,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
       'ladder-view--drawer': drawerOpen,
       'ladder-view--selection':
         challengeFocusActive,
+      'ladder-view--switching': ladderSwitching,
     }"
   >
     <Transition name="challenge-backdrop">
@@ -1487,7 +1537,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
     />
 
     <section
-      v-if="activeLadder?.status === 'setup'"
+      v-if="activeLadder?.status === 'setup' && players.length"
       class="ladder-setup-gate"
     >
       <div>
@@ -1525,9 +1575,80 @@ function continueLadderSetup(ladder = activeLadder.value) {
       />
     </section>
 
+    <section
+      v-else-if="activeLadder && !players.length"
+      class="ladder-empty-workspace"
+    >
+      <EmptyState
+        illustration="ladder"
+        title="This ladder is waiting for players"
+        description="Add the first members to turn this ladder into a live playing order. Choose club members, share an invite, or bring in a list your club already uses."
+      >
+        <template v-if="canManageLadder" #actions>
+          <button type="button" class="button-primary" @click="revealAddPeopleOptions">
+            Add people
+          </button>
+        </template>
+      </EmptyState>
+    </section>
 
-    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup'" :ladder="activeLadder" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" />
-    <main v-if="!bulkModeActive && activeLadder && activeLadder.status !== 'setup'" class="ladder-workspace">
+    <Transition name="ladder-add-options">
+      <section
+        v-if="activeLadder && addPeopleOpen"
+        ref="addPeopleOptionsRef"
+        class="ladder-add-people"
+        aria-label="Add people to this ladder"
+      >
+        <div class="ladder-add-people__heading">
+          <span>Next step</span>
+          <h2>Add people to {{ activeLadder.name }}</h2>
+          <p>Choose how you want to bring the first players into this ladder.</p>
+        </div>
+
+        <div class="ladder-add-people__choices">
+          <button type="button" @click="openClubMemberPicker">
+            <span class="ladder-add-people__icon"><FlowIcon name="users" /></span>
+            <span><strong>Choose club members</strong><small>Pick eligible people already in your club.</small></span>
+            <FlowIcon name="arrow-right" />
+          </button>
+          <button type="button" @click="openLadderInvite">
+            <span class="ladder-add-people__icon"><FlowIcon name="send" /></span>
+            <span><strong>Share ladder invite</strong><small>Send a secure link for players to request to join.</small></span>
+            <FlowIcon name="arrow-right" />
+          </button>
+          <button type="button" @click="openAddPeopleStep('import')">
+            <span class="ladder-add-people__icon"><FlowIcon name="upload" /></span>
+            <span><strong>Bring your ladder list</strong><small>Import the player list and starting order you already use.</small></span>
+            <FlowIcon name="arrow-right" />
+          </button>
+        </div>
+
+        <section v-if="addPeopleStep" class="ladder-add-people__step">
+          <button class="ladder-add-people__back" type="button" @click="addPeopleStep = ''">Back to add people</button>
+          <LadderAddClubMembersView
+            v-if="addPeopleStep === 'members'"
+            :ladder-id="activeLadder.id"
+            embedded
+            @back="addPeopleStep = ''"
+          />
+          <LadderShareInviteView
+            v-else-if="addPeopleStep === 'invite'"
+            :ladder-id="activeLadder.id"
+            embedded
+            @back="addPeopleStep = ''"
+          />
+          <LadderImportView
+            v-else
+            :ladder-id="activeLadder.id"
+            embedded
+            @back="addPeopleStep = ''"
+          />
+        </section>
+      </section>
+    </Transition>
+
+    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :ladder="activeLadder" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" />
+    <main v-if="!bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" class="ladder-workspace">
       <div
         v-if="playerStore.isLoading"
         class="ladder-loading"
@@ -1574,9 +1695,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
                   : 'players'
               }}
 
-              <template v-if="activeClub?.name">
-                Ã‚Â· {{ activeClub.name }}
-              </template>
+              <template v-if="activeClub?.name">`n                - {{ activeClub.name }}`n              </template>
             </p>
           </div>
 
@@ -1595,7 +1714,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
             >
               {{
                 clearTestBusy
-                  ? 'ClearingÃ¢â‚¬Â¦'
+                  ? 'Clearing...'
                   : 'Clear'
               }}
             </button>
@@ -1877,13 +1996,6 @@ function continueLadderSetup(ladder = activeLadder.value) {
           </article>
           </TransitionGroup>
         </section>
-
-        <EmptyState
-          v-else
-          illustration="ladder"
-          title="This Ladder is waiting for players"
-          description="Club members will appear here once they are placed on this Ladder."
-        />
       </template>
     </main>
 
@@ -2057,10 +2169,11 @@ function continueLadderSetup(ladder = activeLadder.value) {
   padding: 2px 4px 5px;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
   scrollbar-width: thin;
   overflow-anchor: none;
   scroll-behavior: auto;
+  overscroll-behavior: contain;
 }
 
 .ladder-list::-webkit-scrollbar {
@@ -2739,6 +2852,70 @@ function continueLadderSetup(ladder = activeLadder.value) {
   padding: 0 20px;
 }
 
+.ladder-empty-workspace {
+  display: grid;
+  width: min(100% - 64px, 860px);
+  min-height: min(500px, calc(100vh - 250px));
+  margin: 32px auto 24px;
+  padding: 16px 32px;
+  place-items: center;
+}
+
+.ladder-empty-workspace :deep(.empty-state-system) {
+  min-height: 390px;
+  max-width: 590px;
+  gap: 18px;
+  padding: 48px 32px 56px;
+}
+
+.ladder-empty-workspace :deep(.empty-state-system__visual) { width: 64px; height: 64px; border-radius: 18px; }
+.ladder-empty-workspace :deep(.empty-state-system__visual .flow-icon) { width: 32px; height: 32px; }
+.ladder-empty-workspace :deep(.empty-state-system__content h3) { color: var(--color-text); font-size: 23px; line-height: 1.25; }
+.ladder-empty-workspace :deep(.empty-state-system__content p) { max-width: 500px; margin-top: 10px; font-size: 14px; line-height: 1.65; }
+.ladder-empty-workspace :deep(.empty-state-system__actions) { margin-top: 10px; }
+.ladder-empty-workspace :deep(.empty-state-system__actions button) { min-width: 144px; min-height: 46px; padding-inline: 22px; }
+.ladder-add-people {
+  position: fixed;
+  z-index: 32;
+  top: var(--app-header-height);
+  right: 0;
+  bottom: 0;
+  left: calc(var(--app-sidebar-width) + 236px);
+  width: auto;
+  margin: 0;
+  padding: 42px max(32px, calc((100% - 760px) / 2)) 64px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: auto;
+  scrollbar-width: thin;
+  background: var(--color-bg);
+}
+
+.ladder-add-people::-webkit-scrollbar { width: 6px; }
+.ladder-add-people::-webkit-scrollbar-track { background: transparent; }
+.ladder-add-people::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(22, 61, 43, .18); }
+
+.ladder-add-people__heading { max-width: 470px; margin-bottom: 22px; }
+.ladder-add-people__heading span { color: var(--color-primary-strong); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.ladder-add-people__heading h2 { margin: 7px 0 6px; color: var(--color-text); font-size: 21px; line-height: 1.25; }
+.ladder-add-people__heading p { margin: 0; color: var(--color-muted); font-size: 13px; line-height: 1.55; }
+.ladder-add-people__choices { display: grid; gap: 10px; }
+.ladder-add-people__choices button { display: grid; grid-template-columns: 42px minmax(0, 1fr) 18px; width: 100%; align-items: center; gap: 14px; padding: 15px 16px; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; color: var(--color-text); text-align: left; cursor: pointer; }
+.ladder-add-people__choices button > span:nth-child(2) { display: grid; gap: 3px; }
+.ladder-add-people__choices strong { font-size: 13px; font-weight: var(--font-weight-semibold); }
+.ladder-add-people__choices small { color: var(--color-muted); font-size: 11px; line-height: 1.4; }
+.ladder-add-people__choices > button > .flow-icon { width: 16px; height: 16px; color: var(--color-muted); }
+.ladder-add-people__icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 10px; background: var(--color-surface-soft); color: var(--color-primary-strong); }
+.ladder-add-people__icon .flow-icon { width: 20px; height: 20px; }
+.ladder-add-options-enter-active, .ladder-add-options-leave-active { transition: opacity .2s ease, transform .2s ease; }
+.ladder-add-options-enter-from, .ladder-add-options-leave-to { opacity: 0; transform: translateY(10px); }
+.ladder-add-people__step { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--color-border); }
+.ladder-add-people__back { margin-bottom: 18px; padding: 0; border: 0; background: transparent; color: var(--color-primary-strong); font-size: 12px; font-weight: var(--font-weight-semibold); cursor: pointer; }
+.ladder-view--switching .ladder-empty-workspace,
+.ladder-view--switching .ladder-workspace,
+.ladder-view--switching :deep(.bulk-scheduler) { opacity: .72; transform: translateY(3px); }
+.ladder-empty-workspace, .ladder-workspace, :deep(.bulk-scheduler) { transition: opacity .18s ease, transform .18s ease; }
+
 .ladder-setup-gate {
   display: flex;
   align-items: center;
@@ -2789,7 +2966,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
 }
 
 
-.ladder-row__drag-handle { display: inline-grid; width: 28px; height: 28px; place-items: center; margin-right: 6px; border: 0; border-radius: 7px; background: #edf5ee; color: #387247; }
+.ladder-row__drag-handle { display: inline-grid; width: 28px; height: 28px; min-width: 28px; min-height: 28px; flex: 0 0 28px; aspect-ratio: 1 / 1; place-items: center; margin-right: 6px; border: 0; border-radius: 50%; background: #edf5ee; color: #387247; }
 .ladder-row__drag-handle:hover { background: #dff0e2; }
 .ladder-row__drag-handle { position: relative; }
 .ladder-row__drag-handle::after { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 20; width: max-content; max-width: 180px; padding: 7px 9px; border-radius: 7px; background: #243128; color: #fff; content: attr(data-tooltip); font-size: 9px; font-weight: 600; line-height: 1.35; opacity: 0; pointer-events: none; transform: translateY(3px); transition: opacity .16s ease, transform .16s ease; }

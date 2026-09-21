@@ -42,6 +42,9 @@ import '../assets/ladder-workspace.css'
 const MAX_FILE_BYTES =
   5 * 1024 * 1024
 
+const props = defineProps({ ladderId: { type: String, default: '' }, embedded: { type: Boolean, default: false } })
+const emit = defineEmits(['back'])
+
 const route = useRoute()
 const router = useRouter()
 const adminStore = useAdminStore()
@@ -62,7 +65,7 @@ const skippedRowIds = ref([])
 
 const ladderId = computed(() =>
   String(
-    route.params.ladderId ||
+    props.ladderId || route.params.ladderId ||
       '',
   ),
 )

@@ -8,6 +8,9 @@ import { useNotificationStore } from '../stores/notification.js'
 import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import '../assets/ladder-workspace.css'
 
+const props = defineProps({ ladderId: { type: String, default: '' }, embedded: { type: Boolean, default: false } })
+const emit = defineEmits(['back'])
+
 const route = useRoute()
 const router = useRouter()
 const adminStore = useAdminStore()
@@ -18,7 +21,7 @@ const busy = ref(false)
 const error = ref('')
 const inviteUrl = ref('')
 
-const ladderId = computed(() => String(route.params.ladderId || ''))
+const ladderId = computed(() => String(props.ladderId || route.params.ladderId || ''))
 const activeClub = computed(() => adminStore.activeClub)
 
 const ladder = computed(
@@ -29,6 +32,7 @@ const ladder = computed(
 )
 
 function backToAddPeople() {
+  if (props.embedded) { emit('back'); return }
   router.push({
     name: 'LadderSetup',
     params: {
