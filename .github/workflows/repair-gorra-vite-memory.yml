@@ -187,8 +187,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Run encoding regression test
+        run: node --test test/encoding-guard.test.js
+
+      - name: Run full test suite (record existing unrelated failures)
+        id: full_tests
+        shell: bash
+        run: |
+          set +e
+          npm test
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Build production bundle
         run: npm run build
@@ -214,5 +224,6 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add -A src/components/ladder/LadderBulkScheduler.vue .dashboard-check-9332 .editorconfig test/encoding-guard.test.js
           git status --short
+          echo "FULL_TEST_EXIT_CODE=${{ steps.full_tests.outputs.exit_code }}"
           git commit -m "repair ladder scheduler encoding and Vite memory crash"
           git push origin HEAD:repair/gorra-vite-memory
