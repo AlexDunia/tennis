@@ -63,6 +63,13 @@ const matchSetupMenuOpen = ref(false)
 const ladderMode = ref(route.query.mode === 'bulk' ? 'bulk' : 'individual')
 const individualSearchOpen = ref(false)
 const individualSearchQuery = ref('')
+
+const individualDeleteSelectionMode =
+  ref(false)
+
+const individualDeletePlayerIds =
+  ref([])
+
 const managedPlayerId = ref('')
 const selectedPlayerId = ref('')
 const selectedOpponentId = ref('')
@@ -801,8 +808,42 @@ function completeChallengeDrop(player, event) {
   dragChallengePlayerId.value = ''
   draggingChallengePlayerId.value = ''
 }
+const individualDeleteCount = computed(() => individualDeletePlayerIds.value.length)
+const allVisibleIndividualPlayersSelected = computed(() => displayPlayers.value.length > 0 && displayPlayers.value.every((player) => individualDeletePlayerIds.value.includes(player.id)))
+
+function beginIndividualDeletion() {
+  resetChallengeSelection()
+  managedPlayerId.value = ''
+  moveDialogOpen.value = false
+  missingMatchDialogOpen.value = false
+  individualDeletePlayerIds.value = []
+  individualDeleteSelectionMode.value = true
+}
+
+function toggleIndividualDeletePlayer(playerId) {
+  const selected = new Set(individualDeletePlayerIds.value)
+  if (selected.has(playerId)) selected.delete(playerId)
+  else selected.add(playerId)
+  individualDeletePlayerIds.value = [...selected]
+}
+
+function exitIndividualDeletion() {
+  individualDeleteSelectionMode.value = false
+  individualDeletePlayerIds.value = []
+}
+
+function requestIndividualDeletion() {
+  if (!individualDeletePlayerIds.value.length) return
+  openBulkRemove(individualDeletePlayerIds.value)
+  exitIndividualDeletion()
+}
 function handlePlayerRow(player) {
   if (!canManageLadder.value) return
+
+  if (individualDeleteSelectionMode.value) {
+    toggleIndividualDeletePlayer(player.id)
+    return
+  }
 
   if (selectedPlayer.value) {
     if (
@@ -1755,7 +1796,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
                 <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
                 <input v-model="individualSearchQuery" type="search" placeholder="Search players" aria-label="Search players in this ladder" />
               </label>
-              <button type="button" class="ladder-header-delete" aria-label="Select players to delete" title="Select players to delete">
+              <button type="button" class="ladder-header-delete" :class="{ active: individualDeleteSelectionMode }" aria-label="Select players to remove" title="Select players to remove" :aria-pressed="individualDeleteSelectionMode" @click="beginIndividualDeletion">
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2m-6 0 .7 10h6.6L14 6M8.5 9v4m3-4v4" /></svg>
               </button>
             </div>
