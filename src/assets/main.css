@@ -47,7 +47,7 @@
   --radius-lg: 0.625rem;
   --app-sidebar-width: 220px;
   --app-card-radius: 10px;
-  --app-inner-radius: 7px;
+  --app-inner-radius: 7px;`r`n  --app-control-height: 44px;`r`n  --app-control-radius: 9px;`r`n  --app-compact-control-height: 36px;
   --app-button-height: 44px;
   --app-hairline: 0.5px solid var(--color-border);
   --flow-content-width: 920px;

@@ -1794,7 +1794,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
             <div class="ladder-header-tools">
               <label class="ladder-player-search" :class="{ 'is-open': individualSearchOpen }" @click="window.innerWidth <= 640 && (individualSearchOpen = true)">
                 <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
-                <input v-model="individualSearchQuery" type="search" placeholder="Search players" aria-label="Search players in this ladder" />
+                <input v-model="individualSearchQuery" type="search" placeholder="Search player" aria-label="Search player in this ladder" />
               </label>
               <button type="button" class="ladder-header-delete" :class="{ active: individualDeleteSelectionMode }" aria-label="Select players to remove" title="Select players to remove" :aria-pressed="individualDeleteSelectionMode" @click="beginIndividualDeletion">
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2m-6 0 .7 10h6.6L14 6M8.5 9v4m3-4v4" /></svg>
@@ -3384,6 +3384,314 @@ function continueLadderSetup(ladder = activeLadder.value) {
 
   .ladder-player-search.is-open {
     width: min(260px, calc(100vw - 32px)) !important;
+  }
+
+  .ladder-workspace
+    > .ladder-heading--setup
+    .ladder-mode-tabs
+    button {
+    min-width: 58px !important;
+    padding: 0 8px !important;
+  }
+}
+
+/* ==========================================================
+   FINAL LADDER HEADER VISUAL LOCK — INDIVIDUAL
+   Keep this at the end of the scoped stylesheet.
+   ========================================================== */
+
+.ladder-workspace
+  > .ladder-heading--setup {
+  min-height: 72px;
+  margin: -24px -30px 14px;
+  padding: 18px 30px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow:
+    0 7px 18px
+    rgba(15, 34, 24, 0.035);
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  > .ladder-heading__title {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  > .ladder-heading__title
+  h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 23px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Match-selection badge is context, not an action. */
+.ladder-mode-tag {
+  display: inline-flex !important;
+  min-height: 30px !important;
+  flex: 0 0 auto;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: 1px !important;
+  padding: 3px 9px !important;
+  border: 1px solid
+    rgba(17, 17, 17, 0.11) !important;
+  border-radius:
+    var(--app-control-radius, 9px) !important;
+  background:
+    rgba(17, 17, 17, 0.055) !important;
+  color: #111 !important;
+  line-height: 1.05 !important;
+  white-space: nowrap !important;
+}
+
+.ladder-mode-tag span {
+  display: block;
+  color: #111 !important;
+  font-size: 8px !important;
+  font-weight: var(--font-weight-medium);
+}
+
+.ladder-mode-tag strong {
+  display: block;
+  color: #111 !important;
+  font-size: 9px !important;
+  font-weight: var(--font-weight-bold);
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-heading__match-setup {
+  display: flex !important;
+  flex: 0 0 auto;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  margin-left: auto !important;
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-heading__match-setup
+  > span {
+  display: none !important;
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-heading__match-setup
+  > .ladder-header-tools {
+  display: flex !important;
+  min-width: 0;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+/* Search: exact same geometry as Bulk. */
+.ladder-player-search {
+  display: inline-flex !important;
+  width: 170px !important;
+  min-width: 170px !important;
+  height: 36px !important;
+  flex: 0 0 170px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  padding: 0 11px !important;
+  overflow: hidden;
+  border: 1px solid var(--color-border) !important;
+  border-radius:
+    var(--app-control-radius, 9px) !important;
+  background: var(--color-surface) !important;
+  box-shadow: none !important;
+}
+
+.ladder-player-search svg {
+  width: 15px !important;
+  height: 15px !important;
+  flex: 0 0 15px;
+  fill: none;
+  stroke: #4f5b52;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ladder-player-search input {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 100%;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-text) !important;
+  font: inherit;
+  font-size: 10px !important;
+  line-height: 1 !important;
+}
+
+.ladder-player-search input::placeholder {
+  overflow: visible;
+  color: var(--color-muted) !important;
+  opacity: 1 !important;
+  text-overflow: clip;
+}
+
+.ladder-player-search:focus-within {
+  border-color:
+    rgba(0, 181, 26, 0.38) !important;
+  box-shadow:
+    inset 0 0 0 1px
+    rgba(0, 181, 26, 0.08) !important;
+}
+
+.ladder-player-search input:focus,
+.ladder-player-search input:focus-visible {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Delete: exact same geometry as Bulk. */
+.ladder-header-delete {
+  display: grid !important;
+  width: 36px !important;
+  min-width: 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  flex: 0 0 36px !important;
+  place-items: center;
+  padding: 0 !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius:
+    var(--app-control-radius, 9px) !important;
+  background: var(--color-surface) !important;
+  color: #5e6961 !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+.ladder-header-delete svg {
+  width: 16px !important;
+  height: 16px !important;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ladder-header-delete:hover,
+.ladder-header-delete:focus-visible,
+.ladder-header-delete.active {
+  border-color:
+    rgba(164, 71, 64, 0.22) !important;
+  background:
+    rgba(164, 71, 64, 0.05) !important;
+  color: #94463f !important;
+}
+
+/* Same mode switch dimensions as Bulk. */
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-mode-tabs {
+  display: inline-grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  flex: 0 0 auto;
+  gap: 3px !important;
+  padding: 3px !important;
+  border-radius:
+    var(--app-control-radius, 9px) !important;
+  background: var(--color-surface-soft) !important;
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-mode-tabs
+  button {
+  min-width: 82px !important;
+  min-height: 36px !important;
+  padding: 0 11px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-muted) !important;
+  font-size: 10px !important;
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-mode-tabs
+  button.active {
+  background: #111 !important;
+  box-shadow:
+    0 2px 8px
+    rgba(0, 0, 0, 0.14) !important;
+  color: #fff !important;
+}
+
+@media (max-width: 640px) {
+  .ladder-mode-tag {
+    display: none !important;
+  }
+
+  .ladder-player-search {
+    width: 36px !important;
+    min-width: 36px !important;
+    flex-basis: 36px !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border-color: transparent !important;
+  }
+
+  .ladder-player-search input {
+    display: none !important;
+  }
+
+  .ladder-player-search.is-open {
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 8px);
+    right: 90px;
+    width:
+      min(
+        290px,
+        calc(100vw - 32px)
+      ) !important;
+    min-width: 0 !important;
+    padding: 0 11px !important;
+    border-color: var(--color-border) !important;
+    box-shadow:
+      0 12px 28px
+      rgba(20, 45, 27, 0.12) !important;
+  }
+
+  .ladder-player-search.is-open input {
+    display: block !important;
   }
 
   .ladder-workspace

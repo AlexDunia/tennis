@@ -40,7 +40,7 @@ const avatarStyle = computed(() => ({
   overflow: hidden;
   font-size: 12px;
   font-weight: var(--font-weight-semibold);
-  color: var(--color-primary-strong);
+  color: #111;
 }
 
 .person-avatar img {

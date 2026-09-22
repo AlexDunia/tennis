@@ -2121,7 +2121,7 @@ onBeforeUnmount(() => {
           <div class="bulk-header-tools">
             <label class="bulk-player-search" :class="{ 'is-open': playerSearchOpen }" @click="window.innerWidth <= 640 && (playerSearchOpen = true)">
               <svg class="bulk-player-search__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
-              <input v-model="playerSearchQuery" type="search" placeholder="Search players" aria-label="Search players in this ladder" />
+              <input v-model="playerSearchQuery" type="search" placeholder="Search player" aria-label="Search player in this ladder" />
             </label>
             <button
               type="button"
@@ -5469,6 +5469,299 @@ onBeforeUnmount(() => {
   }
 
   .bulk-players__setup > .bulk-mode-tabs button {
+    min-width: 58px !important;
+    padding: 0 8px !important;
+  }
+}
+
+/* ==========================================================
+   FINAL LADDER HEADER VISUAL LOCK — BULK
+   This intentionally matches Individual pixel-for-pixel.
+   ========================================================== */
+
+.bulk-players__head {
+  min-height: 72px !important;
+  margin: 0 -30px 14px !important;
+  padding: 18px 30px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  background: var(--color-surface) !important;
+  box-shadow:
+    0 7px 18px
+    rgba(15, 34, 24, 0.035) !important;
+}
+
+.bulk-players__title {
+  display: flex !important;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.bulk-players__title h1 {
+  min-width: 0;
+  margin: 0 !important;
+  overflow: hidden;
+  color: var(--color-text) !important;
+  font-size: 23px !important;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.025em !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bulk-mode-tag {
+  display: inline-flex !important;
+  min-height: 30px !important;
+  flex: 0 0 auto;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: 1px !important;
+  padding: 3px 9px !important;
+  border: 1px solid
+    rgba(17, 17, 17, 0.11) !important;
+  border-radius:
+    var(--app-control-radius, 9px) !important;
+  background:
+    rgba(17, 17, 17, 0.055) !important;
+  color: #111 !important;
+  line-height: 1.05 !important;
+  white-space: nowrap !important;
+}
+
+.bulk-mode-tag span {
+  display: block;
+  color: #111 !important;
+  font-size: 8px !important;
+  font-weight: var(--font-weight-medium);
+}
+
+.bulk-mode-tag strong {
+  display: block;
+  color: #111 !important;
+  font-size: 9px !important;
+  font-weight: var(--font-weight-bold);
+}
+
+.bulk-players__setup {
+  display: flex !important;
+  flex: 0 0 auto;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  margin-left: auto !important;
+}
+
+.bulk-players__setup > span {
+  display: none !important;
+}
+
+.bulk-players__setup
+  > .bulk-header-tools {
+  display: flex !important;
+  min-width: 0;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+/* Search — same as Individual. */
+.bulk-player-search {
+  display: inline-flex !important;
+  width: 170px !important;
+  min-width: 170px !important;
+  height: 36px !important;
+  flex: 0 0 170px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  padding: 0 11px !important;
+  overflow: hidden;
+  border: 1px solid var(--color-border) !important;
+  border-radius:
+    var(--app-control-radius, 9px) !important;
+  background: var(--color-surface) !important;
+  box-shadow: none !important;
+}
+
+.bulk-player-search__icon,
+.bulk-player-search svg {
+  width: 15px !important;
+  height: 15px !important;
+  flex: 0 0 15px;
+  fill: none;
+  stroke: #4f5b52;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bulk-player-search input {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 100%;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-text) !important;
+  font: inherit;
+  font-size: 10px !important;
+  line-height: 1 !important;
+}
+
+.bulk-player-search input::placeholder {
+  overflow: visible;
+  color: var(--color-muted) !important;
+  opacity: 1 !important;
+  text-overflow: clip;
+}
+
+.bulk-player-search:focus-within {
+  border-color:
+    rgba(0, 181, 26, 0.38) !important;
+  box-shadow:
+    inset 0 0 0 1px
+    rgba(0, 181, 26, 0.08) !important;
+}
+
+.bulk-player-search input:focus,
+.bulk-player-search input:focus-visible {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Delete — same as Individual. */
+.bulk-header-tool--delete {
+  display: grid !important;
+  width: 36px !important;
+  min-width: 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  flex: 0 0 36px !important;
+  place-items: center;
+  padding: 0 !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius:
+    var(--app-control-radius, 9px) !important;
+  background: var(--color-surface) !important;
+  color: #5e6961 !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+.bulk-header-tool--delete svg {
+  width: 16px !important;
+  height: 16px !important;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bulk-header-tool--delete:hover,
+.bulk-header-tool--delete:focus-visible {
+  border-color:
+    rgba(164, 71, 64, 0.22) !important;
+  background:
+    rgba(164, 71, 64, 0.05) !important;
+  color: #94463f !important;
+}
+
+.bulk-players__setup
+  > .bulk-mode-tabs {
+  display: inline-grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  flex: 0 0 auto;
+  gap: 3px !important;
+  padding: 3px !important;
+  border-radius:
+    var(--app-control-radius, 9px) !important;
+  background: var(--color-surface-soft) !important;
+}
+
+.bulk-players__setup
+  > .bulk-mode-tabs
+  button {
+  min-width: 82px !important;
+  min-height: 36px !important;
+  padding: 0 11px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-muted) !important;
+  font-size: 10px !important;
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+.bulk-players__setup
+  > .bulk-mode-tabs
+  button.active {
+  background: #111 !important;
+  box-shadow:
+    0 2px 8px
+    rgba(0, 0, 0, 0.14) !important;
+  color: #fff !important;
+}
+
+@media (max-width: 640px) {
+  .bulk-mode-tag {
+    display: none !important;
+  }
+
+  .bulk-player-search {
+    width: 36px !important;
+    min-width: 36px !important;
+    flex-basis: 36px !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border-color: transparent !important;
+  }
+
+  .bulk-player-search input {
+    display: none !important;
+  }
+
+  .bulk-player-search.is-open {
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 8px);
+    right: 90px;
+    width:
+      min(
+        290px,
+        calc(100vw - 32px)
+      ) !important;
+    min-width: 0 !important;
+    padding: 0 11px !important;
+    border-color: var(--color-border) !important;
+    box-shadow:
+      0 12px 28px
+      rgba(20, 45, 27, 0.12) !important;
+  }
+
+  .bulk-player-search.is-open input {
+    display: block !important;
+  }
+
+  .bulk-players__setup
+    > .bulk-mode-tabs
+    button {
     min-width: 58px !important;
     padding: 0 8px !important;
   }
