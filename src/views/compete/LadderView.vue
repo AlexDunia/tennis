@@ -3129,4 +3129,228 @@ function continueLadderSetup(ladder = activeLadder.value) {
 .ladder-mode-tag span { font-size: 8px; font-weight: var(--font-weight-medium); }
 .ladder-mode-tag strong { font-size: 9px; font-weight: var(--font-weight-bold); }
 .ladder-player-search { width: 118px; }
-.ladder-heading__match-setup { margin-left: auto; }</style>
+.ladder-heading__match-setup { margin-left: auto; }
+
+/* ==========================================================
+   LOCKED LADDER MODE HEADER — EXACT BULK GEOMETRY
+   Switching Individual/Bulk may change active color only.
+   ========================================================== */
+
+.ladder-workspace
+  > .ladder-heading--setup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  > .ladder-heading__title {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  > .ladder-heading__title
+  h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 23px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ladder-mode-tag {
+  display: inline-flex;
+  min-height: 30px;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  padding: 3px 9px;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--color-primary) 22%,
+      transparent
+    );
+  border-radius: var(--app-control-radius, 7px);
+  background:
+    color-mix(
+      in srgb,
+      var(--color-primary) 9%,
+      transparent
+    );
+  color: var(--color-primary-strong);
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.ladder-mode-tag span {
+  display: block;
+  font-size: 8px;
+  font-weight: var(--font-weight-medium);
+}
+
+.ladder-mode-tag strong {
+  display: block;
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-heading__match-setup {
+  display: flex !important;
+  flex: 0 0 auto;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  margin-left: auto !important;
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-heading__match-setup
+  > span {
+  display: none !important;
+}
+
+/*
+  IMPORTANT:
+  This selector intentionally beats the older
+  ".ladder-heading__match-setup > div" grid rule.
+*/
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-heading__match-setup
+  > .ladder-header-tools {
+  display: flex !important;
+  min-width: 0;
+  grid-template-columns: none !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.ladder-player-search {
+  width: 104px !important;
+  min-width: 104px !important;
+  height: 30px;
+  flex: 0 0 104px !important;
+}
+
+.ladder-header-delete {
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 30px;
+  flex: 0 0 30px !important;
+}
+
+/*
+  IMPORTANT:
+  Keep this as the second direct div in the same horizontal track.
+*/
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-heading__match-setup
+  > .ladder-mode-tabs {
+  display: inline-grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  flex: 0 0 auto;
+  gap: 3px !important;
+  padding: 3px !important;
+  border-radius: 8px !important;
+  background: var(--color-surface-soft) !important;
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-mode-tabs
+  button {
+  min-width: 82px !important;
+  min-height: 34px !important;
+  padding: 0 11px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-muted) !important;
+  font-size: 10px !important;
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+.ladder-workspace
+  > .ladder-heading--setup
+  .ladder-mode-tabs
+  button.active {
+  background: #111 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16) !important;
+  color: #fff !important;
+}
+
+@media (max-width: 640px) {
+  .ladder-workspace
+    > .ladder-heading--setup {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ladder-workspace
+    > .ladder-heading--setup
+    > .ladder-heading__title {
+    min-width: 0;
+  }
+
+  .ladder-workspace
+    > .ladder-heading--setup
+    > .ladder-heading__title
+    h1 {
+    font-size: 18px;
+  }
+
+  .ladder-mode-tag {
+    display: none;
+  }
+
+  .ladder-workspace
+    > .ladder-heading--setup
+    .ladder-heading__match-setup {
+    width: auto !important;
+    gap: 4px !important;
+    margin-left: auto !important;
+  }
+
+  .ladder-player-search {
+    width: 30px !important;
+    min-width: 30px !important;
+    flex-basis: 30px !important;
+  }
+
+  .ladder-player-search.is-open {
+    width: min(260px, calc(100vw - 32px)) !important;
+  }
+
+  .ladder-workspace
+    > .ladder-heading--setup
+    .ladder-mode-tabs
+    button {
+    min-width: 58px !important;
+    padding: 0 8px !important;
+  }
+}
+</style>

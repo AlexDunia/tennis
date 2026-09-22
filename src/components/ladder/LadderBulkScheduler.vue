@@ -5295,4 +5295,182 @@ onBeforeUnmount(() => {
 .bulk-mode-tag { display: inline-flex; flex-direction: column; justify-content: center; gap: 1px; min-height: 30px; padding: 3px 9px; line-height: 1.05; }
 .bulk-mode-tag span { font-size: 8px; font-weight: var(--font-weight-medium); }
 .bulk-mode-tag strong { font-size: 9px; font-weight: var(--font-weight-bold); }
-.bulk-player-search { width: 118px; flex-basis: 118px; }</style>
+.bulk-player-search { width: 118px; flex-basis: 118px; }
+
+/* ==========================================================
+   LOCKED LADDER MODE HEADER — BULK REFERENCE
+   The right-side control track must never reflow between modes.
+   ========================================================== */
+
+.bulk-players__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bulk-players__title {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.bulk-players__title h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 23px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bulk-mode-tag {
+  display: inline-flex;
+  min-height: 30px;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  padding: 3px 9px;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--color-primary) 22%,
+      transparent
+    );
+  border-radius: var(--app-control-radius, 7px);
+  background:
+    color-mix(
+      in srgb,
+      var(--color-primary) 9%,
+      transparent
+    );
+  color: var(--color-primary-strong);
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.bulk-mode-tag span {
+  display: block;
+  font-size: 8px;
+  font-weight: var(--font-weight-medium);
+}
+
+.bulk-mode-tag strong {
+  display: block;
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+}
+
+.bulk-players__setup {
+  display: flex !important;
+  flex: 0 0 auto;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  margin-left: auto !important;
+}
+
+.bulk-players__setup > span {
+  display: none !important;
+}
+
+.bulk-players__setup > .bulk-header-tools {
+  display: flex !important;
+  min-width: 0;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.bulk-player-search {
+  width: 104px !important;
+  min-width: 104px !important;
+  height: 30px;
+  flex: 0 0 104px !important;
+}
+
+.bulk-header-tool--delete {
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 30px;
+  flex: 0 0 30px !important;
+}
+
+.bulk-players__setup > .bulk-mode-tabs {
+  display: inline-grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  flex: 0 0 auto;
+  gap: 3px !important;
+  padding: 3px !important;
+  border-radius: 8px !important;
+  background: var(--color-surface-soft) !important;
+}
+
+.bulk-players__setup > .bulk-mode-tabs button {
+  min-width: 82px !important;
+  min-height: 34px !important;
+  padding: 0 11px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-muted) !important;
+  font-size: 10px !important;
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+.bulk-players__setup > .bulk-mode-tabs button.active {
+  background: #111 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16) !important;
+  color: #fff !important;
+}
+
+@media (max-width: 640px) {
+  .bulk-players__head {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bulk-players__title {
+    min-width: 0;
+  }
+
+  .bulk-players__title h1 {
+    font-size: 18px;
+  }
+
+  .bulk-mode-tag {
+    display: none;
+  }
+
+  .bulk-players__setup {
+    gap: 4px !important;
+  }
+
+  .bulk-player-search {
+    width: 30px !important;
+    min-width: 30px !important;
+    flex-basis: 30px !important;
+  }
+
+  .bulk-player-search.is-open {
+    width: min(260px, calc(100vw - 32px)) !important;
+  }
+
+  .bulk-players__setup > .bulk-mode-tabs button {
+    min-width: 58px !important;
+    padding: 0 8px !important;
+  }
+}
+</style>
