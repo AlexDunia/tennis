@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import PersonAvatar from '../PersonAvatar.vue'
 
 const props = defineProps({
@@ -7,10 +7,13 @@ const props = defineProps({
   player: { type: Object, default: null },
   ladderName: { type: String, default: 'this ladder' },
   busy: { type: Boolean, default: false },
+  players: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['close', 'confirm'])
 const dialog = ref(null)
+const removingMultiple = computed(() => props.players.length > 1)
+const playerNames = computed(() => props.players.map((player) => player.name).join(', '))
 
 watch(
   () => props.open,
@@ -35,22 +38,20 @@ function close() {
     <section>
       <header>
         <PersonAvatar
-          v-if="player"
+          v-if="player && !removingMultiple"
           :name="player.name"
           :image="player.imageUrl"
           :size="42"
         />
 
         <div>
-          <h2>Remove from this ladder?</h2>
-          <p>
-            {{ player?.name }} will leave {{ ladderName }}.
-          </p>
+          <h2>{{ removingMultiple ? 'Remove selected players?' : 'Remove from this ladder?' }}</h2>
+          <p>{{ removingMultiple ? `${players.length} players will leave ${ladderName}.` : `${player?.name} will leave ${ladderName}.` }}</p>
         </div>
       </header>
 
       <p class="remove-ladder-player-dialog__note">
-        They will still be a member of the club. Previous match and ladder activity stays available.
+        This cannot be undone. They will still be club members and previous activity stays available; restore access only by adding them to this ladder again.
       </p>
 
       <footer>
@@ -69,7 +70,7 @@ function close() {
           :disabled="busy"
           @click="emit('confirm')"
         >
-          {{ busy ? 'Removing…' : 'Remove from ladder' }}
+          {{ busy ? 'Removing...' : removingMultiple ? `Remove ${players.length} players` : 'Remove from ladder' }}
         </button>
       </footer>
     </section>

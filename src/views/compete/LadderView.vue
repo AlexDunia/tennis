@@ -61,6 +61,8 @@ const activeLadderId = ref('')
 const ladderSwitching = ref(false)
 const matchSetupMenuOpen = ref(false)
 const ladderMode = ref(route.query.mode === 'bulk' ? 'bulk' : 'individual')
+const individualSearchOpen = ref(false)
+const individualSearchQuery = ref('')
 const managedPlayerId = ref('')
 const selectedPlayerId = ref('')
 const selectedOpponentId = ref('')
@@ -68,6 +70,7 @@ const drawerResult = ref(null)
 const moveDialogOpen = ref(false)
 const missingMatchDialogOpen = ref(false)
 const removeDialogOpen = ref(false)
+const pendingRemovalIds = ref([])
 const dragChallengePlayerId = ref('')
 const draggingChallengePlayerId = ref('')
 const dragGhost = ref(null)
@@ -398,11 +401,15 @@ const challengeFocusActive = computed(() =>
   challengeSelectionActive.value || drawerOpen.value,
 )
 
-const displayPlayers = computed(() =>
-  challengeFocusActive.value
+const displayPlayers = computed(() => {
+  const source = challengeFocusActive.value
     ? challengeFocusPlayers.value
-    : players.value,
-)
+    : players.value
+  const query = individualSearchQuery.value.trim().toLocaleLowerCase()
+  return query
+    ? source.filter((player) => String(player.name || '').toLocaleLowerCase().includes(query))
+    : source
+})
 
 let challengeScrollFrame = 0
 
@@ -1260,52 +1267,62 @@ function recordMissingMatch(input) {
 }
 
 function openRemove(player) {
+  pendingRemovalIds.value = [player.id]
   managedPlayerId.value = player.id
   removeDialogOpen.value = true
 }
 
-function confirmRemove() {
-  const player = managedPlayer.value
+function openBulkRemove(playerIds) {
+  const ids = [...new Set(playerIds || [])].filter(Boolean)
+  if (!ids.length) return
+  pendingRemovalIds.value = ids
+  managedPlayerId.value = ids[0]
+  removeDialogOpen.value = true
+}
 
-  if (
-    !player ||
-    ladderActionBusy.value
-  ) {
-    return
-  }
+function confirmRemove() {
+  const playerIds = pendingRemovalIds.value.length
+    ? pendingRemovalIds.value
+    : [managedPlayerId.value]
+  const removablePlayers = players.value.filter((player) => playerIds.includes(player.id))
+
+  if (!removablePlayers.length || ladderActionBusy.value) return
 
   ladderActionBusy.value = true
 
   try {
-    removePlayerFromLadder({
-      scope: ladderScope.value,
-      roster: rawPlayers.value,
-      playerId: player.id,
-      actorName: actorName(),
-    })
+    for (const player of removablePlayers) {
+      removePlayerFromLadder({
+        scope: ladderScope.value,
+        roster: rawPlayers.value,
+        playerId: player.id,
+        actorName: actorName(),
+      })
+    }
 
-    if (
-      selectedPlayerId.value === player.id ||
-      selectedOpponentId.value === player.id
-    ) {
+    if (playerIds.includes(selectedPlayerId.value) || playerIds.includes(selectedOpponentId.value)) {
       resetChallengeSelection()
     }
 
     removeDialogOpen.value = false
     managedPlayerId.value = ''
+    pendingRemovalIds.value = []
     refreshLadder()
 
     notificationStore.addToast({
-      title: 'Removed from ladder',
-      message: `${player.name} is no longer on ${activeLadder.value?.name || 'this ladder'}.`,
+      title: removablePlayers.length === 1 ? 'Removed from ladder' : 'Players removed from ladder',
+      message: removablePlayers.length === 1
+        ? `${removablePlayers[0].name} is no longer on ${activeLadder.value?.name || 'this ladder'}. Add them again to restore access.`
+        : `${removablePlayers.length} players are no longer on ${activeLadder.value?.name || 'this ladder'}. Add them again to restore access.`,
       type: 'success',
+      duration: 9000,
     })
   } catch (error) {
     notificationStore.addToast({
       title: 'Could not remove player',
-      message:
-        error?.message || 'Try again.',
+      message: error?.message || 'Try again.',
       type: 'warning',
+      duration: 9000,
     })
   } finally {
     ladderActionBusy.value = false
@@ -1692,7 +1709,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
       </section>
     </Transition>
 
-    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :ladder="activeLadder" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" @mode="setLadderMode" />
+    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :ladder="activeLadder" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" @mode="setLadderMode" @remove-player="openRemove" @remove-players="openBulkRemove" />
     <main v-if="!bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" class="ladder-workspace">
       <div
         v-if="playerStore.isLoading"
@@ -1727,9 +1744,21 @@ function continueLadderSetup(ladder = activeLadder.value) {
 
       <template v-else>
         <header class="ladder-heading ladder-heading--setup">
-          <h1>{{ activeLadder?.name || 'Ladder' }}</h1>
+          <div class="ladder-heading__title">
+            <h1>{{ activeLadder?.name || 'Ladder' }}</h1>
+            <span class="ladder-mode-tag"><span>Match selection</span><strong>Individual mode</strong></span>
+          </div>
           <div v-if="canManageLadder" class="ladder-heading__match-setup">
             <span>Match setup</span>
+            <div class="ladder-header-tools">
+              <label class="ladder-player-search" :class="{ 'is-open': individualSearchOpen }" @click="window.innerWidth <= 640 && (individualSearchOpen = true)">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
+                <input v-model="individualSearchQuery" type="search" placeholder="Search players" aria-label="Search players in this ladder" />
+              </label>
+              <button type="button" class="ladder-header-delete" aria-label="Select players to delete" title="Select players to delete">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2m-6 0 .7 10h6.6L14 6M8.5 9v4m3-4v4" /></svg>
+              </button>
+            </div>
             <div class="ladder-mode-tabs" aria-label="Ladder scheduling mode">
               <button type="button" :class="{ active: ladderMode === 'individual' }" :aria-pressed="ladderMode === 'individual'" @click="setLadderMode('individual')">Individual</button>
               <button type="button" :class="{ active: ladderMode === 'bulk' }" :aria-pressed="ladderMode === 'bulk'" @click="setLadderMode('bulk')">Bulk</button>
@@ -2045,6 +2074,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
         activeLadder?.name || 'this ladder'
       "
       :busy="ladderActionBusy"
+      :players="players.filter((player) => pendingRemovalIds.includes(player.id))"
       @close="removeDialogOpen = false"
       @confirm="confirmRemove"
     />
@@ -3057,4 +3087,46 @@ function continueLadderSetup(ladder = activeLadder.value) {
 .ladder-workspace > .ladder-heading--setup .ladder-heading__match-setup > span { display: none; }
 .ladder-workspace > .ladder-heading--setup .ladder-mode-tabs { gap: 3px; padding: 3px; border-radius: 8px; background: var(--color-surface-soft); }
 .ladder-workspace > .ladder-heading--setup .ladder-mode-tabs button { min-width: 82px; min-height: 34px; padding: 0 11px; border-radius: 6px; font-size: 10px; }
-.ladder-workspace > .ladder-heading--setup .ladder-mode-tabs button.active { border-bottom: 0; background: #111; box-shadow: 0 2px 8px rgba(0, 0, 0, .16); color: #fff; }</style>
+.ladder-workspace > .ladder-heading--setup .ladder-mode-tabs button.active { border-bottom: 0; background: #111; box-shadow: 0 2px 8px rgba(0, 0, 0, .16); color: #fff; }
+/* Keep the ladder context and active selection mode together; controls stay at the far edge. */
+.ladder-workspace > .ladder-heading--setup > .ladder-heading__title { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.ladder-workspace > .ladder-heading--setup > .ladder-heading__title h1 { margin: 0; color: var(--color-text); font-size: 23px; font-weight: var(--font-weight-bold); letter-spacing: -0.025em; }
+.ladder-mode-tag { display: inline-flex; min-height: 24px; align-items: center; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent); border-radius: var(--app-control-radius, 7px); background: color-mix(in srgb, var(--color-primary) 9%, transparent); color: var(--color-primary-strong); font-size: 10px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
+@media (max-width: 640px) { .ladder-workspace > .ladder-heading--setup { align-items: flex-start; } .ladder-workspace > .ladder-heading--setup > .ladder-heading__title { flex-wrap: wrap; gap: 6px 8px; } .ladder-mode-tag { white-space: normal; } }
+
+/* Mobile keeps the same controls while allowing every player name and action to remain readable. */
+@media (max-width: 767px) {
+  .ladder-workspace > .ladder-heading--setup { display: flex; flex-wrap: wrap; gap: 10px; }
+  .ladder-workspace > .ladder-heading--setup > .ladder-heading__title { width: 100%; }
+  .ladder-workspace > .ladder-heading--setup .ladder-heading__match-setup { margin-left: auto; }
+  .ladder-mode-tag { display: none; }
+  .ladder-row { align-items: start; min-height: 64px; }
+  .ladder-row__player strong { display: block; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+  .ladder-row__state, .ladder-row__status small { max-width: none; white-space: normal; }
+}
+@media (max-width: 420px) {
+  .ladder-workspace > .ladder-heading--setup .ladder-heading__match-setup { width: 100%; margin-left: 0; }
+  .ladder-workspace > .ladder-heading--setup .ladder-mode-tabs { display: inline-grid; }
+}
+
+/* Shared Individual header actions: same right-side track as Bulk. */
+.ladder-heading__match-setup { display: flex !important; flex-direction: row !important; align-items: center !important; gap: 8px; }
+.ladder-header-tools { display: flex; align-items: center; gap: 6px; }
+.ladder-player-search { display: inline-flex; align-items: center; width: 148px; height: 30px; padding: 0 8px; gap: 6px; border: 1px solid var(--color-border); border-radius: var(--app-control-radius, 7px); background: var(--color-surface); }
+.ladder-player-search svg, .ladder-header-delete svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.ladder-player-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--color-text); font: inherit; font-size: 10px; }
+.ladder-header-delete { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: var(--app-control-radius, 7px); background: transparent; color: var(--color-muted); cursor: pointer; }
+.ladder-header-delete:hover, .ladder-header-delete:focus-visible { border-color: var(--color-border); background: var(--color-surface-soft); color: #8d453e; outline: none; }
+@media (max-width: 640px) {
+  .ladder-heading__match-setup { gap: 4px; }
+  .ladder-player-search { position: relative; width: 30px; padding: 0; justify-content: center; border-color: transparent; cursor: pointer; }
+  .ladder-player-search input { display: none; }
+  .ladder-player-search.is-open { position: absolute; z-index: 50; top: calc(100% + 8px); right: 86px; width: min(260px, calc(100vw - 32px)); padding: 0 9px; border-color: var(--color-border); box-shadow: 0 12px 28px rgba(20, 45, 27, .16); }
+  .ladder-player-search.is-open input { display: block; }
+}
+/* Individual deliberately reuses Bulk’s compact header proportions. */
+.ladder-mode-tag { display: inline-flex; flex-direction: column; justify-content: center; gap: 1px; min-height: 30px; padding: 3px 9px; line-height: 1.05; }
+.ladder-mode-tag span { font-size: 8px; font-weight: var(--font-weight-medium); }
+.ladder-mode-tag strong { font-size: 9px; font-weight: var(--font-weight-bold); }
+.ladder-player-search { width: 118px; }
+.ladder-heading__match-setup { margin-left: auto; }</style>

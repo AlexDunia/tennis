@@ -44,6 +44,8 @@ const props = defineProps({
 const emit = defineEmits([
   'record-missing-match',
   'mode',
+  'remove-player',
+  'remove-players',
 ])
 
 const challengeStore = useChallengeStore()
@@ -55,6 +57,10 @@ const queueRef = ref(null)
 const zoomCalendarScrollRef = ref(null)
 
 const selectedPlayerId = ref('')
+const deleteSelectionMode = ref(false)
+const playerSearchOpen = ref(false)
+const playerSearchQuery = ref('')
+const selectedDeletePlayerIds = ref([])
 const pendingPair = ref(null)
 const dragGhost = ref(null)
 let pendingPlayerDrag = null
@@ -63,6 +69,8 @@ const queue = ref([])
 const queueDragId = ref('')
 const queuePulseId = ref('')
 const bulkWorkspaceOpen = ref(false)
+const bulkWorkspaceMinimized = ref(false)
+const cancelBulkSetupOpen = ref(false)
 const modeMenuOpen = ref(false)
 const connectorPaths = ref([])
 const connectorCanvas = ref({ width: 0, height: 0 })
@@ -96,6 +104,51 @@ const ACTIVE_WEIGHT = Object.freeze({
   accepted: 2,
   awaiting: 1,
 })
+
+const filteredDisplayPlayers = computed(() => {
+  const query = playerSearchQuery.value.trim().toLocaleLowerCase()
+  if (!query) return displayPlayers.value
+  return displayPlayers.value.filter((player) =>
+    String(player.name || '').toLocaleLowerCase().includes(query),
+  )
+})
+
+const selectedDeleteCount = computed(() => selectedDeletePlayerIds.value.length)
+const allPlayersMarkedForDeletion = computed(() => displayPlayers.value.length > 0 && selectedDeleteCount.value === displayPlayers.value.length)
+
+function toggleDeleteSelection(playerId) {
+  const selected = new Set(selectedDeletePlayerIds.value)
+  if (selected.has(playerId)) selected.delete(playerId)
+  else selected.add(playerId)
+  selectedDeletePlayerIds.value = [...selected]
+  if (!selectedDeletePlayerIds.value.length) exitDeleteSelectionMode()
+}
+
+function beginMultipleDeletion(playerId) {
+  deleteSelectionMode.value = true
+  deleteMenuPlayerId.value = ''
+  selectedDeletePlayerIds.value = playerId ? [playerId] : []
+}
+
+function toggleAllDeleteSelections() {
+  if (allPlayersMarkedForDeletion.value) {
+    exitDeleteSelectionMode()
+    return
+  }
+  selectedDeletePlayerIds.value = filteredDisplayPlayers.value.map((player) => player.id)
+}
+
+function exitDeleteSelectionMode() {
+  deleteSelectionMode.value = false
+  selectedDeletePlayerIds.value = []
+}
+
+
+function requestSelectedDeletion() {
+  if (!selectedDeletePlayerIds.value.length) return
+  emit('remove-players', selectedDeletePlayerIds.value)
+  exitDeleteSelectionMode()
+}
 
 function localToday() {
   const value = new Date()
@@ -613,10 +666,66 @@ watch(
     () => activeChallenges.value.length,
   ],
   ([queuedCount, activeCount]) => {
-    bulkWorkspaceOpen.value = queuedCount > 0 || activeCount > 0
+    if (!queuedCount && !activeCount) {
+      bulkWorkspaceOpen.value = false
+      bulkWorkspaceMinimized.value = false
+      return
+    }
+
+    if (!bulkWorkspaceMinimized.value) {
+      bulkWorkspaceOpen.value = true
+    }
   },
   { immediate: true },
 )
+
+function minimizeBulkWorkspace() {
+  bulkWorkspaceMinimized.value = true
+  bulkWorkspaceOpen.value = false
+  closeZoom()
+  notificationStore.addToast({
+    title: 'Calendar minimized',
+    message: 'Your queued pairings and calendar choices are saved. Open the calendar whenever you are ready.',
+    type: 'success',
+    duration: 7000,
+  })
+}
+
+function restoreBulkWorkspace() {
+  bulkWorkspaceMinimized.value = false
+  bulkWorkspaceOpen.value = true
+}
+
+function requestCancelBulkSetup() {
+  if (!queue.value.length) {
+    minimizeBulkWorkspace()
+    return
+  }
+  cancelBulkSetupOpen.value = true
+}
+
+function closeCancelBulkSetup() {
+  if (!scheduleBusy.value) cancelBulkSetupOpen.value = false
+}
+
+function confirmCancelBulkSetup() {
+  if (scheduleBusy.value) return
+  const cancelledCount = queue.value.length
+  queue.value = []
+  pendingPair.value = null
+  selectedPlayerId.value = ''
+  resetPlayerDrag()
+  cancelBulkSetupOpen.value = false
+  bulkWorkspaceMinimized.value = false
+  bulkWorkspaceOpen.value = false
+  closeZoom()
+  notificationStore.addToast({
+    title: 'Bulk setup cancelled',
+    message: `${cancelledCount} unscheduled ${cancelledCount === 1 ? 'pairing was' : 'pairings were'} cleared. Scheduled matches remain unchanged.`,
+    type: 'success',
+    duration: 9000,
+  })
+}
 
 function showConflictFor(player) {
   const draft =
@@ -940,6 +1049,7 @@ function addPendingPairToQueue() {
       new Date().toISOString(),
   }
 
+  bulkWorkspaceMinimized.value = false
   bulkWorkspaceOpen.value = true
 
   queue.value = [
@@ -2002,15 +2112,40 @@ onBeforeUnmount(() => {
   >
     <section class="bulk-players">
       <header class="bulk-players__head">
-        <h1>{{ ladder.name }}</h1>
+        <div class="bulk-players__title">
+          <h1>{{ ladder.name }}</h1>
+          <span class="bulk-mode-tag"><span>Match selection</span><strong>Bulk mode</strong></span>
+        </div>
         <div class="bulk-players__setup">
           <span>Match setup</span>
+          <div class="bulk-header-tools">
+            <label class="bulk-player-search" :class="{ 'is-open': playerSearchOpen }" @click="window.innerWidth <= 640 && (playerSearchOpen = true)">
+              <svg class="bulk-player-search__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
+              <input v-model="playerSearchQuery" type="search" placeholder="Search players" aria-label="Search players in this ladder" />
+            </label>
+            <button
+              type="button"
+              class="bulk-header-tool bulk-header-tool--delete"
+              aria-label="Select players to delete"
+              title="Select players to delete"
+              @click="beginMultipleDeletion()"
+            ><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2m-6 0 .7 10h6.6L14 6M8.5 9v4m3-4v4" /></svg></button>
+          </div>
           <div class="bulk-mode-tabs" aria-label="Ladder scheduling mode">
             <button type="button" @click="emit('mode', 'individual')">Individual</button>
             <button type="button" class="active" aria-pressed="true">Bulk</button>
           </div>
         </div>
       </header>
+
+      <section v-if="deleteSelectionMode" class="bulk-delete-toolbar" aria-label="Multiple player deletion">
+        <strong>{{ selectedDeleteCount }} selected</strong>
+        <div>
+          <button type="button" class="bulk-delete-toolbar__text" @click="toggleAllDeleteSelections">{{ allPlayersMarkedForDeletion ? 'Clear all' : 'Select all' }}</button>
+          <button type="button" class="bulk-delete-toolbar__text" @click="exitDeleteSelectionMode">Cancel</button>
+          <button type="button" class="bulk-delete-toolbar__confirm" :disabled="!selectedDeleteCount" @click="requestSelectedDeletion">Delete selected</button>
+        </div>
+      </section>
 
       <TransitionGroup
         ref="playerListRef"
@@ -2035,7 +2170,7 @@ onBeforeUnmount(() => {
         </svg>
 
         <article
-          v-for="player in displayPlayers"
+          v-for="player in filteredDisplayPlayers"
           :key="player.id"
           class="bulk-player-row"
           :class="{
@@ -2048,15 +2183,13 @@ onBeforeUnmount(() => {
               selectedPlayer?.id !== player.id,
             'bulk-player-row--mapped':
               Boolean(matchLinkForPlayer(player.id)),
+            'bulk-player-row--deleting': deleteSelectionMode && selectedDeletePlayerIds.includes(player.id),
             'bulk-player-row--mapped-lead':
               matchLinkForPlayer(player.id)?.draft?.challengerId === player.id ||
               matchLinkForPlayer(player.id)?.challenge?.challengerId === player.id,
           }"
           :data-bulk-player-id="player.id"
-          @click="
-            !bulkAvailability(player).available &&
-            showConflictFor(player)
-          "
+          @click="deleteSelectionMode ? toggleDeleteSelection(player.id) : (!bulkAvailability(player).available && showConflictFor(player))"
         >
           <strong class="bulk-player-row__rank">
             #{{ player.rank }}
@@ -2085,6 +2218,14 @@ onBeforeUnmount(() => {
           </span>
 
           <span class="bulk-player-row__state">
+            <button
+              v-if="deleteSelectionMode"
+              class="bulk-player-row__check"
+              type="button"
+              :aria-label="`${selectedDeletePlayerIds.includes(player.id) ? 'Unselect' : 'Select'} ${player.name} for deletion`"
+              @click.stop="toggleDeleteSelection(player.id)"
+            >{{ selectedDeletePlayerIds.includes(player.id) ? '✓' : '' }}</button>
+
             <button
               v-if="matchLinkForPlayer(player.id)"
               class="bulk-player-row__match"
@@ -2143,6 +2284,15 @@ onBeforeUnmount(() => {
       </TransitionGroup>
     </section>
 
+    <button
+      v-if="bulkWorkspaceMinimized"
+      type="button"
+      class="bulk-workspace-restore"
+      @click="restoreBulkWorkspace"
+    >
+      Open calendar ({{ queue.length }})
+    </button>
+
     <Transition name="bulk-workspace">
       <aside v-if="bulkWorkspaceOpen" class="bulk-calendar">
       <section class="bulk-queue-shell">
@@ -2154,13 +2304,11 @@ onBeforeUnmount(() => {
             </p>
           </div>
 
-          <button
-            type="button"
-            class="bulk-view-calendar"
-            @click="openZoom()"
-          >
-            View calendar
-          </button>
+          <div class="bulk-workspace-actions">
+            <button type="button" class="bulk-view-calendar" @click="openZoom()">View calendar</button>
+            <button type="button" class="bulk-workspace-actions__minimize" @click="minimizeBulkWorkspace">Minimize</button>
+            <button type="button" class="bulk-workspace-actions__cancel" aria-label="Cancel bulk setup" title="Cancel bulk setup" @click="requestCancelBulkSetup">&times;</button>
+          </div>
         </header>
 
         <TransitionGroup
@@ -2699,6 +2847,20 @@ onBeforeUnmount(() => {
     </Teleport>
 
     <Teleport to="body">
+      <div v-if="cancelBulkSetupOpen" class="bulk-modal" @click.self="closeCancelBulkSetup">
+        <section class="bulk-modal__card bulk-cancel-dialog">
+          <button type="button" class="bulk-modal__close" aria-label="Close" @click="closeCancelBulkSetup">&times;</button>
+          <div class="bulk-cancel-dialog__status"><small>Bulk setup</small><strong>Cancel all queued pairings?</strong></div>
+          <p class="bulk-cancel-dialog__message">This clears {{ queue.length }} unscheduled {{ queue.length === 1 ? 'pairing' : 'pairings' }} and cannot be undone. Scheduled matches will remain unchanged.</p>
+          <div class="bulk-modal__actions bulk-cancel-dialog__actions">
+            <button type="button" @click="closeCancelBulkSetup">Keep setup</button>
+            <button type="button" class="bulk-cancel-match" @click="confirmCancelBulkSetup">Cancel setup</button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
       <div
         v-if="zoomOpen"
         class="bulk-zoom"
@@ -2738,13 +2900,8 @@ onBeforeUnmount(() => {
                 }}
               </button>
 
-              <button
-                type="button"
-                aria-label="Close calendar"
-                @click="closeZoom"
-              >
-                &times;
-              </button>
+              <button type="button" @click="minimizeBulkWorkspace">Minimize</button>
+              <button type="button" aria-label="Cancel bulk setup" title="Cancel bulk setup" @click="requestCancelBulkSetup">&times;</button>
             </div>
           </header>
 
@@ -5042,4 +5199,100 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   margin: 0 -30px 14px;
   padding: 24px 30px 14px;
-}</style>
+}
+/* Keep the ladder context and active selection mode together; controls stay at the far edge. */
+.bulk-players__title { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.bulk-players__title h1 { margin: 0; color: var(--color-text); font-size: 23px; font-weight: var(--font-weight-bold); letter-spacing: -0.025em; }
+.bulk-mode-tag { display: inline-flex; min-height: 24px; align-items: center; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent); border-radius: var(--app-control-radius, 7px); background: color-mix(in srgb, var(--color-primary) 9%, transparent); color: var(--color-primary-strong); font-size: 10px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
+@media (max-width: 640px) { .bulk-players__head { align-items: flex-start; } .bulk-players__title { flex-wrap: wrap; gap: 6px 8px; } .bulk-mode-tag { white-space: normal; } }
+
+/* Header actions keep search and deletion discoverable without changing each player card. */
+.bulk-header-tools { display: inline-flex; align-items: center; gap: 5px; }
+.bulk-header-tool { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: var(--app-control-radius, 7px); background: transparent; color: var(--color-muted); cursor: pointer; opacity: .58; }
+.bulk-header-tool:hover, .bulk-header-tool:focus-visible { border-color: var(--color-border); background: var(--color-surface-soft); color: var(--color-text); opacity: 1; outline: none; }
+.bulk-header-tool--delete:hover, .bulk-header-tool--delete:focus-visible { color: #8d453e; }
+.bulk-header-tool svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.bulk-player-search { display: inline-flex; height: 30px; align-items: center; border: 1px solid var(--color-border); border-radius: var(--app-control-radius, 7px); background: var(--color-surface); }
+.bulk-player-search input { width: 142px; min-width: 0; height: 100%; padding: 0 6px 0 9px; border: 0; outline: 0; background: transparent; color: var(--color-text); font: inherit; font-size: 10px; }
+.bulk-player-search button { display: grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; background: transparent; color: var(--color-muted); cursor: pointer; }
+.bulk-delete-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: var(--app-card-radius); background: var(--color-surface-soft); color: var(--color-text); font-size: 11px; }
+.bulk-delete-toolbar > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.bulk-delete-toolbar button { min-height: 30px; border-radius: var(--app-control-radius, 7px); font: inherit; font-weight: var(--font-weight-semibold); cursor: pointer; }
+.bulk-delete-toolbar__text { padding: 0 7px; border: 0; background: transparent; color: var(--color-muted); }
+.bulk-delete-toolbar__text:hover, .bulk-delete-toolbar__text:focus-visible { color: var(--color-text); text-decoration: underline; }
+.bulk-delete-toolbar__confirm { padding: 0 10px; border: 1px solid rgba(164, 71, 64, .25); background: #a44740; color: #fff; }
+.bulk-delete-toolbar__confirm:disabled { cursor: not-allowed; opacity: .45; }
+.bulk-player-row--deleting { border-color: rgba(164, 71, 64, .55); background: color-mix(in srgb, #a44740 7%, var(--color-surface)); }
+.bulk-player-row__check { display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 1px solid var(--color-border); border-radius: 50%; background: transparent; color: #9b514a; cursor: pointer; }
+.bulk-player-row--deleting .bulk-player-row__check { border-color: #9b514a; background: #9b514a; color: #fff; }
+/* Toolbar order is stable: title, mode context, tools, then the mode switch. */
+.bulk-players__head { display: flex; align-items: center; gap: 12px; }
+.bulk-players__setup { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.bulk-players__setup > span { display: none; }
+.bulk-header-tools { order: 1; }
+.bulk-mode-tabs { order: 2; }
+@media (max-width: 640px) {
+  .bulk-players__head { gap: 8px; }
+  .bulk-mode-tag { display: none; }
+  .bulk-player-search input { width: min(30vw, 112px); }
+  .bulk-header-tool, .bulk-player-search { flex: 0 0 auto; }
+}@media (max-width: 767px) { .bulk-header-tools { gap: 4px; } .bulk-player-search input { width: min(34vw, 142px); } .bulk-delete-toolbar { align-items: flex-start; flex-direction: column; } .bulk-delete-toolbar > div { justify-content: flex-start; } }
+
+/* Single desktop toolbar: context, search, delete, then mode switch. */
+.bulk-players__head { justify-content: flex-start; flex-wrap: nowrap; }
+.bulk-players__setup { margin-left: 8px; }
+.bulk-header-tools { gap: 8px; }
+.bulk-player-search { position: relative; width: 174px; padding-left: 8px; }
+.bulk-player-search__icon { width: 15px; height: 15px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.bulk-player-search input { width: 100%; }
+.bulk-header-tool--delete { display: inline-flex; width: auto; min-width: 76px; gap: 6px; padding: 0 10px; opacity: 1; border-color: var(--color-border); color: #8d453e; }
+.bulk-header-tool--delete span { font-size: 10px; font-weight: var(--font-weight-semibold); }
+@media (max-width: 640px) {
+  .bulk-players__head { position: relative; flex-wrap: nowrap; align-items: center; overflow: visible; }
+  .bulk-players__title h1 { font-size: 18px; white-space: nowrap; }
+  .bulk-players__setup { gap: 5px; margin-left: auto; }
+  .bulk-player-search { width: 30px; padding: 0; justify-content: center; border-color: transparent; cursor: pointer; }
+  .bulk-player-search input, .bulk-player-search button { display: none; }
+  .bulk-player-search.is-open { position: absolute; z-index: 50; top: calc(100% + 8px); right: 96px; width: min(260px, calc(100vw - 32px)); padding-left: 9px; border-color: var(--color-border); box-shadow: 0 12px 28px rgba(20, 45, 27, .16); }
+  .bulk-player-search.is-open input, .bulk-player-search.is-open button { display: block; }
+  .bulk-player-search.is-open button { display: grid; }
+  .bulk-header-tool--delete { width: 30px; min-width: 30px; padding: 0; justify-content: center; border-color: transparent; }
+  .bulk-header-tool--delete span { display: none; }
+  .bulk-mode-tabs button { min-width: 58px !important; padding: 0 8px !important; }
+}
+/* Bulk uses the same unchanging header track as Individual. */
+.bulk-players__head { justify-content: space-between; flex-wrap: nowrap; }
+.bulk-players__title { flex-wrap: nowrap; }
+.bulk-players__title h1 { white-space: nowrap; }
+.bulk-players__setup { margin-left: auto; }
+.bulk-header-tools { gap: 6px; }
+.bulk-player-search { width: 148px; }
+.bulk-player-search button { display: none; }
+.bulk-header-tool--delete { display: grid; width: 30px; min-width: 30px; padding: 0; border-color: transparent; color: var(--color-muted); }
+.bulk-header-tool--delete:hover, .bulk-header-tool--delete:focus-visible { color: #8d453e; }
+.bulk-header-tool--delete span { display: none; }
+@media (max-width: 640px) {
+  .bulk-players__head { align-items: center; }
+  .bulk-player-search.is-open { right: 86px; }
+  .bulk-player-search.is-open input { display: block; }
+}
+/* Final shared header geometry: this is the Individual header track, reused by Bulk. */
+.bulk-players__head { display: flex; align-items: center; justify-content: space-between; gap: 0; }
+.bulk-players__title { flex: 0 0 auto; }
+.bulk-players__setup { display: flex; align-items: center; flex: 0 0 auto; margin-left: auto; gap: 8px; }
+.bulk-header-tools { display: inline-flex; align-items: center; gap: 6px; }
+.bulk-mode-tabs { flex: 0 0 auto; }
+@media (max-width: 640px) {
+  .bulk-players__title { min-width: 0; }
+  .bulk-players__setup { gap: 4px; }
+}
+/* Keep Bulk actions on the one horizontal track immediately before the fixed tabs. */
+.bulk-players__setup { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: flex-end !important; }
+.bulk-header-tools { display: flex !important; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; }
+.bulk-player-search { flex: 0 0 148px; }
+.bulk-header-tool--delete { flex: 0 0 30px; }
+/* Compact Bulk reference header. */
+.bulk-mode-tag { display: inline-flex; flex-direction: column; justify-content: center; gap: 1px; min-height: 30px; padding: 3px 9px; line-height: 1.05; }
+.bulk-mode-tag span { font-size: 8px; font-weight: var(--font-weight-medium); }
+.bulk-mode-tag strong { font-size: 9px; font-weight: var(--font-weight-bold); }
+.bulk-player-search { width: 118px; flex-basis: 118px; }</style>
