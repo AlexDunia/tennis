@@ -847,6 +847,22 @@ export function recordMissingLadderMatch({
   }
 }
 
+export function applyCompletedLadderResult({ scope, roster, challengerId, defenderId, winnerId, movementSystem = 'position-swap', actorName = '' } = {}) {
+  const current = effectiveLadderRoster(scope, roster)
+  const ids = current.map(playerId)
+  const challenger = cleanText(challengerId, 100)
+  const defender = cleanText(defenderId, 100)
+  const winnerIdClean = cleanText(winnerId, 100)
+  if (!ids.includes(challenger) || !ids.includes(defender)) throw new Error('Both players must belong to this Ladder.')
+  if (![challenger, defender].includes(winnerIdClean)) throw new Error('The winner must be one of the Ladder Match players.')
+  const loserId = winnerIdClean === challenger ? defender : challenger
+  const movement = moveForMatchResult({ ids, winnerId: winnerIdClean, loserId, movementSystem: movementSystem === 'leapfrog' ? 'bump-rank' : movementSystem })
+  const winner = current.find((player) => playerId(player) === winnerIdClean)
+  const loser = current.find((player) => playerId(player) === loserId)
+  const nextState = appendActivity({ ...getLadderAdminState(scope), order: movement.ids }, { type: 'ladder-match-completed', playerIds: [challenger, defender], winnerId: winnerIdClean, loserId, movementSystem, winnerFrom: movement.winnerFrom, winnerTo: movement.winnerTo, actorName: cleanText(actorName, 100), message: movement.moved ? `${cleanText(winner?.name, 100)} moved from #${movement.winnerFrom} to #${movement.winnerTo}.` : `${cleanText(winner?.name, 100)} beat ${cleanText(loser?.name, 100)}. The Ladder order did not change.` })
+  persist(scope, nextState)
+  return { moved: movement.moved, winner, loser, winnerFrom: movement.winnerFrom, winnerTo: movement.winnerTo, players: effectiveLadderRoster(scope, roster) }
+}
 export function ladderAdminActivity(scope) {
   return getLadderAdminState(scope).activity
 }

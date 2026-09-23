@@ -19,6 +19,7 @@ import { useChallengeStore } from '../../stores/challenge'
 import { useNotificationStore } from '../../stores/notification'
 
 const props = defineProps({
+  clubId: { type: String, default: '' },
   ladder: {
     type: Object,
     required: true,

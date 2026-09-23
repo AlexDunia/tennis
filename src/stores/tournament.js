@@ -278,7 +278,7 @@ export const useTournamentStore = defineStore('tournament', () => {
       return previousMatch
     }
     const isResultEdit = ['completed', 'walkover'].includes(previousMatch?.status)
-    const result = await matchStore.submitResult(matchId, payload)
+    const result = await matchStore.submitResult(matchId, { ...payload, clubId: activeTournament.value?.clubId || previousMatch?.clubId || '', tournamentId: previousMatch?.tournamentId || activeTournament.value?.id || '', categoryId: previousMatch?.categoryId || '' })
 
     if (result?.type === 'tournament') {
       await Promise.all([fetchTournament(result.tournamentId), matchStore.loadMatches()])
@@ -306,6 +306,7 @@ export const useTournamentStore = defineStore('tournament', () => {
 
   const updateMatchSchedule = async (matchId, payload) => {
     const matchStore = useMatchStore()
+    const previousMatch = matchStore.matchById(matchId)
     const scheduledAt =
       payload.date && payload.time ? `${payload.date}T${payload.time}:00` : null
     return matchStore.patchMatch(matchId, {
@@ -314,6 +315,9 @@ export const useTournamentStore = defineStore('tournament', () => {
       scheduledAt,
       court: payload.court,
       rescheduleNote: payload.note,
+      expectedClubId: activeTournament.value?.clubId || previousMatch?.clubId || '',
+      expectedTournamentId: previousMatch?.tournamentId || activeTournament.value?.id || '',
+      expectedCategoryId: previousMatch?.categoryId || '',
     })
   }
 

@@ -175,6 +175,7 @@ export async function verifyLadderCreationAccess(context) {
       body: JSON.stringify({
         playerId: context.player?.id,
         ladderId: config.id,
+    config,
         action: 'create_ladder_challenge',
       }),
     })

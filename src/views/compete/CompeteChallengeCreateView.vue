@@ -9,12 +9,14 @@ import { useNotificationStore } from '../../stores/notification'
 import { usePlayerStore } from '../../stores/player'
 import {
   ACTIVE_LADDER_CHALLENGE_STATUSES,
-  getActiveLadderConfig,
+  resolveLadderConfigFromSetup,
   ladderMatchConfig,
   ladderMovementFor,
   ladderWindowFor,
 } from '../../config/ladder'
-import { verifyLadderCreationAccess } from '../../services/LadderAccessService'
+import { getEligibleLadderOpponents, verifyLadderCreationAccess } from '../../services/LadderAccessService'
+import { ladderRosterFromSetup } from '../../domain/competitionScope.js'
+import { effectiveLadderRoster } from '../../services/LadderAdminService.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,26 +32,21 @@ const accessDecision = ref({ allowed: false, message: '' })
 const submitError = ref('')
 const form = reactive({ scheduledAt: '', court: '', note: '' })
 
-const config = computed(() => getActiveLadderConfig())
+const activeClub = computed(() => adminStore.activeClub)
+const activeLadderId = computed(() => String(route.query.ladder || '').trim() || activeClub.value?.setup?.primaryLadderId || '')
+const config = computed(() => resolveLadderConfigFromSetup(activeClub.value?.setup || {}, activeLadderId.value))
 const lockedMatchConfig = computed(() => ladderMatchConfig(config.value))
-const currentPlayer = computed(() => playerStore.currentPlayer)
-const activeChallenge = computed(() =>
-  challengeStore.challenges.find(
-    (challenge) =>
-      ACTIVE_LADDER_CHALLENGE_STATUSES.includes(challenge.status) &&
-      [challenge.challengerId, challenge.defenderId].includes(currentPlayer.value?.id),
-  ),
-)
+const rawLadderRoster = computed(() => ladderRosterFromSetup({ setup: activeClub.value?.setup || {}, ladderId: activeLadderId.value }).roster)
+const ladderScope = computed(() => ({ clubId: adminStore.activeClubId || '', ladderId: activeLadderId.value }))
+const ladderRoster = computed(() => effectiveLadderRoster(ladderScope.value, rawLadderRoster.value))
+const profilePlayer = computed(() => playerStore.currentPlayer)
+function sameIdentity(member, profile) { const memberIds = [member?.id, member?.userId, member?.playerId].filter(Boolean).map(String); const profileIds = [profile?.id, profile?.userId, profile?.playerId].filter(Boolean).map(String); return memberIds.some((id) => profileIds.includes(id)) || Boolean(member?.email && profile?.email && String(member.email).trim().toLowerCase() === String(profile.email).trim().toLowerCase()) }
+const currentPlayer = computed(() => ladderRoster.value.find((member) => sameIdentity(member, profilePlayer.value)) || null)
+const activeChallenge = computed(() => challengeStore.challenges.find((challenge) => (!challenge.clubId || challenge.clubId === adminStore.activeClubId) && (challenge.ladderId === activeLadderId.value || challenge.ladderConfigSnapshot?.id === activeLadderId.value) && ACTIVE_LADDER_CHALLENGE_STATUSES.includes(challenge.status) && [challenge.challengerId, challenge.defenderId].includes(currentPlayer.value?.id)))
 const ladderWindow = computed(() => ladderWindowFor(currentPlayer.value, config.value))
-const eligibleOpponents = computed(() => {
-  const query = search.value.trim().toLowerCase()
-  return playerStore.availableOpponents.filter(
-    (player) => !query || `${player.name} ${player.rank}`.toLowerCase().includes(query),
-  )
-})
-const selectedOpponent = computed(
-  () => playerStore.players.find((player) => player.id === selectedOpponentId.value) || null,
-)
+const scopedEligibleOpponents = computed(() => currentPlayer.value ? getEligibleLadderOpponents(currentPlayer.value, ladderRoster.value, challengeStore.challenges, { ...config.value, clubId: adminStore.activeClubId || '' }) : [])
+const eligibleOpponents = computed(() => { const query = search.value.trim().toLowerCase(); return scopedEligibleOpponents.value.filter((player) => !query || `${player.name} ${player.rank}`.toLowerCase().includes(query)) })
+const selectedOpponent = computed(() => ladderRoster.value.find((player) => player.id === selectedOpponentId.value) || null)
 const movement = computed(() =>
   ladderMovementFor(currentPlayer.value, selectedOpponent.value, config.value),
 )
@@ -68,7 +65,7 @@ function chooseOpponent(player) {
 
 function selectRequestedOpponent() {
   const requestedId = String(route.query.opponent || '')
-  if (playerStore.availableOpponents.some((player) => player.id === requestedId)) {
+  if (ladderRoster.value.some((player) => player.id === requestedId)) {
     selectedOpponentId.value = requestedId
   }
 }
@@ -78,6 +75,7 @@ async function checkAccess() {
   accessDecision.value = await verifyLadderCreationAccess({
     player: currentPlayer.value,
     challenges: challengeStore.challenges,
+    config: { ...config.value, clubId: adminStore.activeClubId || '' },
   })
   accessChecking.value = false
 }
@@ -87,6 +85,8 @@ async function submitChallenge() {
   submitError.value = ''
   const scheduledAt = form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null
   const created = await challengeStore.createChallenge({
+    clubId: adminStore.activeClubId,
+    ladderId: activeLadderId.value,
     challengerId: currentPlayer.value.id,
     defenderId: selectedOpponent.value.id,
     scheduledAt,
@@ -115,7 +115,7 @@ watch(
 )
 
 onMounted(async () => {
-  await Promise.all([playerStore.loadPlayers(), challengeStore.loadChallenges()])
+  await Promise.all([playerStore.loadPlayers(), challengeStore.loadChallenges(), adminStore.activeClub ? Promise.resolve() : adminStore.loadClubs()])
   selectRequestedOpponent()
   await checkAccess()
 })

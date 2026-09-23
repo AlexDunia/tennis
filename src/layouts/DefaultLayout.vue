@@ -1438,7 +1438,7 @@ onUnmounted(() => {
 }
 
 .nav-link.active {
-  background: #111;
+  background: #163d2b;
   color: var(--color-light);
 }
 
@@ -1474,7 +1474,7 @@ onUnmounted(() => {
 }
 
 .nav-sub-link.active {
-  background: #111;
+  background: #163d2b;
   color: var(--color-light);
 }
 

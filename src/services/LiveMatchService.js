@@ -164,6 +164,9 @@ export async function startOrResumeTournamentMatch(options = {}) {
       await persistMatch(matchId, {
         rulesSnapshot: canonical.match.rulesSnapshot,
         rulesState: 'resolved',
+        expectedClubId: cleanId(options.clubId || tournament?.clubId),
+        expectedTournamentId: cleanId(rawMatch.tournamentId),
+        expectedCategoryId: cleanId(rawMatch.categoryId),
       }),
     )
     if (!persisted?.id || persisted.id !== matchId) {

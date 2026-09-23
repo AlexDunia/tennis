@@ -1,0 +1,7 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { ladderRosterFromSetup, tournamentMatchScopeIssue } from '../src/domain/competitionScope.js'
+
+const setup = { membership: { roster: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }], importedMembers: [], manualMembers: [] }, ladders: [{ id: 'one', entries: [{ memberId: 'a', status: 'active', position: 1 }, { memberId: 'b', status: 'active', position: 2 }] }, { id: 'two', entries: [{ memberId: 'c', status: 'active', position: 1 }] }] }
+test('Ladder roster contains only active entries from requested Ladder', () => { const result = ladderRosterFromSetup({ setup, ladderId: 'one' }); assert.deepEqual(result.roster.map((p) => p.id), ['a', 'b']); assert.equal(result.memberIds.has('c'), false) })
+test('Tournament Match accepts exact scope and rejects wrong category', () => { const tournament = { id: 't', clubId: 'club', categories: [{ id: 'a', players: [{ playerId: 'p1' }, { playerId: 'p2' }], groups: [{ id: 'A', players: [{ playerId: 'p1' }, { playerId: 'p2' }] }] }, { id: 'b', players: [{ playerId: 'p3' }], groups: [] }] }; const match = { type: 'tournament', tournamentId: 't', categoryId: 'a', groupId: 'A', player1Id: 'p1', player2Id: 'p2' }; assert.equal(tournamentMatchScopeIssue({ match, tournament, expectedClubId: 'club', expectedTournamentId: 't', expectedCategoryId: 'a' }), ''); assert.match(tournamentMatchScopeIssue({ match, tournament, expectedCategoryId: 'b' }), /different Tournament category/i) })

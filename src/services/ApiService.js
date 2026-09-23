@@ -8,6 +8,9 @@ import { generateRoundRobinFixtures } from '../composables/useTournamentFixtures
 import { calculateGroupStandings } from '../composables/useTournamentStandings'
 import { isSafeImageSource, sanitizePlainText, sanitizeSlugList } from '../utils/formSafety'
 import { APP_DATA_MODES, getAppDataMode } from '../dataMode'
+import { CLUB_DIRECTORY_STORAGE_KEY } from '../config/admin.js'
+import { ladderRosterFromSetup, tournamentMatchScopeIssue } from '../domain/competitionScope.js'
+import { applyCompletedLadderResult, effectiveLadderRoster } from './LadderAdminService.js'
 import {
   FRESH_ACCOUNT_LADDER_SCOPE,
 } from '../data/freshAccountLadder'
@@ -15,6 +18,7 @@ import {
   ACTIVE_LADDER_CHALLENGE_STATUSES,
   deadlineFromNow,
   getActiveLadderConfig,
+  resolveLadderConfigFromSetup,
   isEligibleLadderOpponent,
   ladderMatchConfig,
 } from '../config/ladder'
@@ -1425,6 +1429,11 @@ function getPlayerById(playerId) {
   return mockDatabase.players.find((player) => player.id === playerId)
 }
 
+function readStoredClubDirectory() { if (typeof window === 'undefined' || !window.localStorage) return null; try { const value = JSON.parse(window.localStorage.getItem(CLUB_DIRECTORY_STORAGE_KEY) || 'null'); return value && Array.isArray(value.clubs) ? value : null } catch { return null } }
+function storedClub(clubId) { const id = String(clubId || '').trim(); return id ? readStoredClubDirectory()?.clubs?.find((club) => String(club?.id) === id) || null : null }
+function storedLadderScope(clubId, ladderId) { const club = storedClub(clubId); if (!club) return { club: null, ladder: null, rawRoster: [], roster: [] }; const resolved = ladderRosterFromSetup({ setup: club.setup || {}, ladderId }); const scope = { clubId: String(club.id), ladderId: String(ladderId || '') }; return { club, ladder: resolved.ladder, rawRoster: resolved.roster, roster: effectiveLadderRoster(scope, resolved.roster) } }
+function playerSnapshot(player) { return player ? { id: player.id, name: player.name || 'Club member', imageUrl: player.imageUrl || player.photoUrl || '', rank: Number(player.rank || player.ladderRank) || null } : null }
+function scopedLadderPlayer(record, playerId) { if (record?.clubId && record?.ladderId) { const player = storedLadderScope(record.clubId, record.ladderId).roster.find((item) => String(item.id) === String(playerId)); if (player) return player } const snapshot = String(playerId) === String(record?.challengerId) ? record?.challengerSnapshot : String(playerId) === String(record?.defenderId) ? record?.defenderSnapshot : null; return snapshot || getPlayerById(playerId) || null }
 function reorderRankings() {
   mockDatabase.players.sort((a, b) => a.rank - b.rank)
 }
@@ -1434,9 +1443,9 @@ function updateRankingsForResult(match) {
     return
   }
 
-  const challenger = getPlayerById(match.challengerId)
+  const challenger = scopedLadderPlayer(match, match.challengerId)
 
-  const defender = getPlayerById(match.defenderId)
+  const defender = scopedLadderPlayer(match, match.defenderId)
 
   if (!challenger || !defender) {
     return
@@ -1497,9 +1506,9 @@ function updateRankingsForResult(match) {
 }
 
 function buildChallengeResponse(challenge) {
-  const challenger = getPlayerById(challenge.challengerId)
+  const challenger = scopedLadderPlayer(challenge, challenge.challengerId)
 
-  const defender = getPlayerById(challenge.defenderId)
+  const defender = scopedLadderPlayer(challenge, challenge.defenderId)
 
   const scorer = challenge.scorerId ? getPlayerById(challenge.scorerId) : null
 
@@ -1541,9 +1550,9 @@ function buildMatchResponse(match) {
     }
   }
 
-  const challenger = getPlayerById(match.challengerId)
+  const challenger = scopedLadderPlayer(match, match.challengerId)
 
-  const defender = getPlayerById(match.defenderId)
+  const defender = scopedLadderPlayer(match, match.defenderId)
 
   return {
     ...ensureMatchDefaults(match),
@@ -2018,13 +2027,14 @@ const mockAdapter = async (config) => {
       }
     }
 
-    mockDatabase.matches[matchIndex] = {
-      ...mockDatabase.matches[matchIndex],
-
-      ...body,
-
-      updatedAt: new Date().toISOString(),
+    const currentMatch = mockDatabase.matches[matchIndex]
+    if (currentMatch.type === 'tournament') {
+      const scopeIssue = tournamentMatchScopeIssue({ match: currentMatch, tournament: findTournament(currentMatch.tournamentId), expectedClubId: body?.expectedClubId || '', expectedTournamentId: body?.expectedTournamentId || '', expectedCategoryId: body?.expectedCategoryId || '' })
+      if (scopeIssue) return { data: { success: false, data: null, message: scopeIssue }, status: 409, statusText: 'Conflict', headers: {}, config, request: {} }
     }
+    const allowedPatchKeys = new Set(['scheduledDate', 'scheduledTime', 'scheduledAt', 'court', 'courtId', 'note', 'liveState', 'rulesSnapshot', 'rulesState', 'liveSessionId', 'scorerId', 'startedAt', 'status'])
+    const safePatch = Object.fromEntries(Object.entries(body || {}).filter(([key]) => allowedPatchKeys.has(key)))
+    mockDatabase.matches[matchIndex] = { ...currentMatch, ...safePatch, updatedAt: new Date().toISOString() }
 
     if (mockDatabase.matches[matchIndex].type === 'tournament') {
       saveTournamentState()

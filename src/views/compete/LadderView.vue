@@ -36,7 +36,7 @@ import {
   getEligibleLadderOpponents,
   getLadderPlayerAvailability,
 } from '../../services/LadderAccessService'
-import { collectClubMembers } from '../../utils/club/memberData.js'
+import { ladderRosterFromSetup } from '../../domain/competitionScope.js'
 import { startOrResumeLadderMatch } from '../../services/LadderLiveMatchService.js'
 import {
   clearLadderAdminTestState,
@@ -130,70 +130,12 @@ function ladderHasPlayer(ladder, player) {
 }
 
 function rawRosterFor(ladder) {
-  const entries = Array.isArray(ladder?.entries) ? ladder.entries : []
-
-  if (entries.length) {
-    const membersById = new Map(
-      collectClubMembers(activeClub.value?.setup || {}).map((member) => [
-        member.id,
-        member,
-      ]),
-    )
-
-    const roster = entries
-      .filter(
-        (entry) =>
-          entry.status === 'active' &&
-          Number(entry.position) >= 1,
-      )
-      .map((entry) => {
-        const member = membersById.get(entry.memberId)
-        if (!member) return null
-
-        return {
-          ...member,
-          id: member.id,
-          name: member.name || 'Club member',
-          imageUrl: member.photoUrl || '',
-          rank: Number(entry.position),
-          ladderRank: Number(entry.position),
-          ladderId: ladder.id,
-          ladderEntryStatus: entry.status,
-        }
-      })
-      .filter(Boolean)
-      .sort((left, right) => left.rank - right.rank)
-
-    if (ladder?.id !== 'open-singles' || roster.length >= 20) return roster
-
-    const rosterIds = new Set(roster.map((player) => player.id))
-    const additions = basePlayers.value
-      .filter((player) => !rosterIds.has(player.id))
-      .slice(0, 20 - roster.length)
-      .map((player, index) => ({
-        ...player,
-        rank: roster.length + index + 1,
-        ladderRank: roster.length + index + 1,
-        ladderId: ladder.id,
-      }))
-
-    return [...roster, ...additions]
-  }
-
-  const hasExplicitMembership =
-    Array.isArray(ladder?.playerIds) ||
-    Array.isArray(ladder?.memberIds) ||
-    basePlayers.value.some((player) => Array.isArray(player.ladderIds))
-
-  if (!hasExplicitMembership) {
-    const demoRosterLimit = ladder?.id === 'open-singles' ? 20 : 10
-    return basePlayers.value.slice(0, demoRosterLimit)
-  }
-  return basePlayers.value.filter((player) =>
-    ladderHasPlayer(ladder, player),
-  )
+  if (!ladder?.id) return []
+  if (Array.isArray(ladder.entries)) return ladderRosterFromSetup({ setup: activeClub.value?.setup || {}, ladderId: ladder.id }).roster
+  const hasExplicitMembership = Array.isArray(ladder?.playerIds) || Array.isArray(ladder?.memberIds) || basePlayers.value.some((player) => Array.isArray(player.ladderIds))
+  if (!hasExplicitMembership) { const demoRosterLimit = ladder?.id === 'open-singles' ? 20 : 10; return basePlayers.value.slice(0, demoRosterLimit).map((player) => ({ ...player, ladderId: ladder.id })) }
+  return basePlayers.value.filter((player) => ladderHasPlayer(ladder, player)).map((player) => ({ ...player, ladderId: ladder.id }))
 }
-
 function scopeFor(ladder) {
   return {
     clubId: adminStore.activeClubId || activeClub.value?.id || '',
@@ -903,7 +845,7 @@ function openMemberChallenge(player) {
 
   router.push({
     name: 'CreateChallenge',
-    query: { opponent: player.id },
+    query: { ladder: activeLadder.value?.id || '', opponent: player.id },
   })
 }
 
@@ -1373,6 +1315,7 @@ function confirmRemove() {
 async function createAdminMatch(setup) {
   const result =
     await challengeStore.createAdminLadderMatch({
+      clubId: adminStore.activeClubId,
       ladderId: activeLadder.value.id,
       challengerPlayerId:
         selectedPlayer.value.id,
@@ -1750,7 +1693,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
       </section>
     </Transition>
 
-    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :ladder="activeLadder" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" @mode="setLadderMode" @remove-player="openRemove" @remove-players="openBulkRemove" />
+    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :ladder="activeLadder" :club-id="adminStore.activeClubId || ''" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" @mode="setLadderMode" @remove-player="openRemove" @remove-players="openBulkRemove" />
     <main v-if="!bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" class="ladder-workspace">
       <div
         v-if="playerStore.isLoading"
