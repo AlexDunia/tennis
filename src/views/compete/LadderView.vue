@@ -3913,4 +3913,92 @@ function continueLadderSetup(ladder = activeLadder.value) {
   height: 16px;
   flex: 0 0 16px;
 }
+
+/* Strict Bulk visual replica for the Individual list. */
+.ladder-list {
+  margin-right: 16px;
+  padding: 0 !important;
+}
+
+.ladder-list__rows {
+  gap: 8px !important;
+}
+
+.ladder-row {
+  min-height: 65px !important;
+  grid-template-columns: 42px 40px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 11px !important;
+  padding: 10px 14px 10px 18px !important;
+}
+
+.ladder-row__rank {
+  color: var(--color-text-soft) !important;
+  font-size: 12px !important;
+  font-weight: var(--font-weight-regular) !important;
+}
+
+.ladder-row__player {
+  display: grid !important;
+  min-width: 0;
+  align-content: center;
+  gap: 0 !important;
+}
+
+.ladder-row__player strong {
+  overflow: hidden;
+  color: var(--color-text) !important;
+  font-size: 12px !important;
+  font-weight: var(--font-weight-semibold) !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ladder-row__player .ladder-row__metric {
+  display: block !important;
+  margin-top: 2px !important;
+  color: var(--color-muted) !important;
+  font-size: 9.5px !important;
+  font-weight: var(--font-weight-regular) !important;
+  letter-spacing: 0 !important;
+  line-height: normal !important;
+  text-transform: none !important;
+  white-space: nowrap;
+}
+
+.ladder-row__status {
+  display: inline-flex !important;
+  min-width: 0 !important;
+  align-items: center;
+  gap: 10px;
+}
+
+.ladder-row__manage-state {
+  min-height: 30px;
+  gap: 10px;
+}
+
+.ladder-row__drag-handle {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  flex: 0 0 30px;
+  margin-right: 0;
+  background: #edf5ee;
+  color: #387247;
+}
+
+.ladder-row__drag-handle svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.45;
+}
+
+.ladder-row__chevron {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  stroke-width: 1.6;
+}
 </style>
