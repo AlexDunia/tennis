@@ -2806,10 +2806,11 @@ const mockAdapter = async (config) => {
     const court = sanitizePlainText(body.courtId, 80)
     const challenge = {
       id: challengeId,
+      clubId: body.clubId || null,
       ladderId: body.ladderId,
       challengerId: challenger.id,
       defenderId: defender.id,
-      scorerId: body.actorId || null,
+      scorerId: null,
       type: 'ladder',
       accountScope: isFreshAccount ? FRESH_ACCOUNT_LADDER_SCOPE : 'demo',
       status,
@@ -2837,11 +2838,12 @@ const mockAdapter = async (config) => {
     const match = ensureMatchDefaults({
       id: matchId,
       challengeId,
+      clubId: body.clubId || null,
       ladderId: body.ladderId,
       accountScope: challenge.accountScope,
       challengerId: challenger.id,
       defenderId: defender.id,
-      scorerId: body.actorId || null,
+      scorerId: null,
       type: 'ladder',
       status,
       scheduledAt,
