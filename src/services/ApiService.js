@@ -1280,7 +1280,7 @@ function getStatusLabel(status) {
       return 'Awaiting Acceptance'
 
     case 'accepted':
-      return 'Accepted Ã‚Â· Schedule Needed'
+      return 'Accepted Ãƒâ€šÃ‚Â· Schedule Needed'
 
     case 'scheduled':
       return 'Scheduled'
@@ -2745,28 +2745,38 @@ const mockAdapter = async (config) => {
     */
 
   if (method === 'post' && path === '/admin/ladder-matches') {
-    const requestedClubId = String(body?.clubId || '').trim()
-    const requestedLadderId = String(body?.ladderId || '').trim()
-    const incomingChallengerId = String(body?.challengerPlayerId || '').trim()
-    const incomingDefenderId = String(body?.opponentPlayerId || '').trim()
+    const requestedClubId =
+      String(body?.clubId || '').trim()
+    const requestedLadderId =
+      String(body?.ladderId || '').trim()
+    const incomingChallengerId =
+      String(body?.challengerPlayerId || '').trim()
+    const incomingDefenderId =
+      String(body?.opponentPlayerId || '').trim()
+    const timing = body?.timing === 'scheduled' ? 'scheduled' : 'now'
+    const creationMode = ['individual', 'bulk'].includes(body?.creationMode)
+      ? body.creationMode
+      : 'individual'
+    const clientRequestId = sanitizePlainText(body?.clientRequestId, 200)
+    const scheduledTime = timing === 'scheduled'
+      ? new Date(body?.scheduledAt || '').getTime()
+      : NaN
+    const scheduledAt = timing === 'scheduled' && Number.isFinite(scheduledTime)
+      ? new Date(scheduledTime).toISOString()
+      : null
+    const court = sanitizePlainText(body?.courtId, 80)
     if (!requestedLadderId || !clientRequestId) return { data: { success: false, data: null, message: !requestedLadderId ? 'Choose an active Ladder.' : 'A client request ID is required.' }, status: 422, statusText: 'Unprocessable Entity', headers: {}, config, request: {} }
     const existingRetry = mockDatabase.challenges.find((challenge) => challenge.createdByAdmin === true && String(challenge.clubId || '').trim() === requestedClubId && String(challenge.ladderId || challenge.ladderConfigSnapshot?.id || '').trim() === requestedLadderId && String(challenge.clientRequestId || '').trim() === clientRequestId)
-    if (existingRetry) { const existingMatch = mockDatabase.matches.find((match) => match.challengeId === existingRetry.id); if (!existingMatch) return { data:{success:false,data:null,message:'The existing match request is incomplete.'},status:409,statusText:'Conflict',headers:{},config,request:{} }; const existingTiming=existingRetry.commitTiming || (existingRetry.scheduledAt?'scheduled':'now'); const sameIntent=String(existingRetry.challengerId||'')===incomingChallengerId && String(existingRetry.defenderId||'')===incomingDefenderId && (existingRetry.creationMode||'individual')===creationMode && existingTiming===timing && (existingRetry.scheduledAt||null)===scheduledAt && sanitizePlainText(existingRetry.court,80)===court && String(existingRetry.matchRuleSource||'')===String(body?.matchRuleSource||''); if (!sameIntent) return {data:{success:false,data:null,message:'This match request ID has already been used for a different Ladder match.'},status:409,statusText:'Conflict',headers:{},config,request:{}}; return {data:buildResponse({challenge:buildChallengeResponse(existingRetry),match:buildMatchResponse(existingMatch)}),status:200,statusText:'OK',headers:{},config,request:{}} }
-    const storedScope = requestedClubId && requestedLadderId ? storedLadderScope(requestedClubId, requestedLadderId) : { club: null, ladder: null, roster: [] }
+    if (existingRetry) { const existingMatch = mockDatabase.matches.find((match) => match.challengeId === existingRetry.id); if (!existingMatch) return { data:{success:false,data:null,message:'The existing match request is incomplete.'},status:409,statusText:'Conflict',headers:{},config,request:{} }; const existingTiming=existingRetry.commitTiming || (existingRetry.scheduledAt?'scheduled':'now'); const sameIntent=String(existingRetry.challengerId||'')===incomingChallengerId && String(existingRetry.defenderId||'')===incomingDefenderId && (existingRetry.creationMode||'individual')===creationMode && existingTiming===timing && (existingRetry.scheduledAt||null)===scheduledAt && sanitizePlainText(existingRetry.court,80)===court && String(existingRetry.matchRuleSource||'')===String(body?.matchRuleSource||''); if (!sameIntent) return {data:{success:false,data:null,message:'This match request ID has already been used for a different Ladder match.'},status:409,statusText:'Conflict',headers:{},config,request:{}}; return {data:buildResponse({challenge:buildChallengeResponse(existingRetry),match:buildMatchResponse(existingMatch)}),status:200,statusText:'OK',headers:{},config,request:{}} }    const storedScope = requestedClubId && requestedLadderId ? storedLadderScope(requestedClubId, requestedLadderId) : { club: null, ladder: null, roster: [] }
     const ladderConfig = storedScope.ladder ? resolveLadderConfigFromSetup(storedScope.club?.setup || {}, requestedLadderId) : getActiveLadderConfig(requestedLadderId)
+    if (storedScope.club && !storedScope.ladder) return { data:{success:false,data:null,message:'Choose an active Ladder.'},status:422,statusText:'Unprocessable Entity',headers:{},config,request:{} }
     const players = storedScope.club ? storedScope.roster : mockDatabase.players
     const challenger = storedScope.club ? storedScope.roster.find((p) => String(p.id) === String(body.challengerPlayerId)) || null : getPlayerById(body.challengerPlayerId)
     const defender = storedScope.club ? storedScope.roster.find((p) => String(p.id) === String(body.opponentPlayerId)) || null : getPlayerById(body.opponentPlayerId)
-    const timing = body.timing === 'scheduled' ? 'scheduled' : 'now'
-    const creationMode = ['individual', 'bulk'].includes(body.creationMode) ? body.creationMode : 'individual'
-    const clientRequestId = sanitizePlainText(body?.clientRequestId, 200)
-    const scheduledTime = timing === 'scheduled' ? new Date(body?.scheduledAt || '').getTime() : NaN; const scheduledAt = timing === 'scheduled' && Number.isFinite(scheduledTime) ? new Date(scheduledTime).toISOString() : null; const court = sanitizePlainText(body.courtId, 80)
     const resolvedRules = ladderRulesToMatchRulesSnapshot({ rulesSnapshot: body.rulesSnapshot, ladderConfigSnapshot: ladderConfig, matchConfig: body.matchRuleSource === 'admin_override' ? body.matchRules : ladderMatchConfig(ladderConfig) })
     const matchupDecision = evaluateLadderMatchup({ challenger, opponent: defender, players, challenges: mockDatabase.challenges, config: ladderConfig, clubId: requestedClubId, ladderId: requestedLadderId })
     const message = !requestedLadderId ? 'Choose an active Ladder.' : !clientRequestId ? 'A client request ID is required.' : !matchupDecision.allowed ? matchupDecision.message : timing === 'scheduled' && (!Number.isFinite(scheduledTime) || scheduledTime <= Date.now()) ? 'Choose a future match date and time.' : !['ladder_default', 'admin_override'].includes(body.matchRuleSource) ? 'Choose whether to use the Ladder default or an admin override.' : !resolvedRules.ok ? 'Choose a valid match format for this Ladder match.' : ''
     if (message) return { data: { success: false, data: null, message }, status: 422, statusText: 'Unprocessable Entity', headers: {}, config, request: {} }
-    const existing = mockDatabase.challenges.find((c) => c.createdByAdmin === true && c.clubId === requestedClubId && c.ladderId === requestedLadderId && c.clientRequestId === clientRequestId)
-    if (existing) { const match = mockDatabase.matches.find((m) => m.challengeId === existing.id); if (!match) return { data:{success:false,data:null,message:'The existing match request is incomplete.'},status:409,statusText:'Conflict',headers:{},config,request:{} }; const same = existing.challengerId === challenger.id && existing.defenderId === defender.id && existing.creationMode === creationMode && existing.commitTiming === timing && (existing.scheduledAt || null) === scheduledAt && String(existing.court || '').trim() === court && existing.matchRuleSource === body.matchRuleSource; if (!same) return { data:{success:false,data:null,message:'This match request ID has already been used for a different Ladder match.'},status:409,statusText:'Conflict',headers:{},config,request:{} }; return {data:buildResponse({challenge:buildChallengeResponse(existing),match:buildMatchResponse(match)}),status:200,statusText:'OK',headers:{},config,request:{}} }
     const now=new Date().toISOString(),challengeId=`challenge-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,matchId=`match-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,rulesSnapshot=freezeMatchRulesSnapshot(resolvedRules.snapshot),matchConfig=matchRulesSnapshotToLegacyLadderConfig(rulesSnapshot),status=timing==='scheduled'?'scheduled':'ready'
     const challenge={id:challengeId,clubId:requestedClubId||null,ladderId:requestedLadderId,challengerId:challenger.id,defenderId:defender.id,scorerId:null,type:'ladder',accountScope:isFreshAccount?FRESH_ACCOUNT_LADDER_SCOPE:'demo',status,requestedAt:now,acceptedAt:now,createdAt:now,startedAt:null,creationMode,clientRequestId,commitTiming:timing,scheduledAt,createdByAdmin:true,matchRuleSource:body.matchRuleSource,responseDeadline:now,playDeadline:deadlineFromNow(ladderConfig.completionDays,'days'),preMatchPositions:{challenger:challenger.rank,defender:defender.rank},ladderConfigSnapshot:{...ladderConfig},rulesSnapshot:freezeMatchRulesSnapshot(rulesSnapshot),matchConfig,court,note:''}
     const match=ensureMatchDefaults({id:matchId,challengeId,clubId:requestedClubId||null,ladderId:requestedLadderId,accountScope:challenge.accountScope,challengerId:challenger.id,defenderId:defender.id,scorerId:null,type:'ladder',status,scheduledAt,startedAt:null,creationMode,clientRequestId,commitTiming:timing,score:null,winnerId:null,matchRuleSource:body.matchRuleSource,rulesSnapshot,matchConfig,ladderConfigSnapshot:challenge.ladderConfigSnapshot,preMatchPositions:challenge.preMatchPositions,playDeadline:challenge.playDeadline,court})
@@ -2774,7 +2784,7 @@ const mockAdapter = async (config) => {
   }
   /*
     |--------------------------------------------------------------------------
-    | ADMIN LADDER MATCH Ã¢â‚¬â€ RESCHEDULE
+    | ADMIN LADDER MATCH ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â RESCHEDULE
     |--------------------------------------------------------------------------
     */
 
@@ -2973,7 +2983,7 @@ const mockAdapter = async (config) => {
 
   /*
     |--------------------------------------------------------------------------
-    | ADMIN LADDER MATCH Ã¢â‚¬â€ CANCEL
+    | ADMIN LADDER MATCH ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â CANCEL
     |--------------------------------------------------------------------------
     */
 

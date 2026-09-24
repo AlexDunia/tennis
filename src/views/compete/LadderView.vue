@@ -1980,21 +1980,21 @@ function continueLadderSetup(ladder = activeLadder.value) {
                 >
                   {{ availabilityFor(player).label }}
                 </small>
-              </span>
 
-              <span class="ladder-row__metric">
-                <template v-if="usesPoints">
-                  {{ pointsFor(player) }} pts
-                </template>
+                <small class="ladder-row__metric">
+                  <template v-if="usesPoints">
+                    {{ pointsFor(player) }} pts
+                  </template>
 
-                <template v-else>
-                  {{ matchesFor(player) }}
-                  {{
-                    matchesFor(player) === 1
-                      ? 'match'
-                      : 'matches'
-                  }}
-                </template>
+                  <template v-else>
+                    {{ matchesFor(player) }}
+                    {{
+                      matchesFor(player) === 1
+                        ? 'match'
+                        : 'matches'
+                    }}
+                  </template>
+                </small>
               </span>
 
               <span
@@ -3865,5 +3865,52 @@ function continueLadderSetup(ladder = activeLadder.value) {
 /* Match the Bulk reference title scale. */
 .ladder-workspace > .ladder-heading--setup > .ladder-heading__top > .ladder-heading__title h1 {
   font-size: 20px !important;
+}
+
+/* Individual adopts the Bulk reference header and static player-card layout. */
+.ladder-workspace > .ladder-heading--setup > .ladder-heading__top > .ladder-heading__title h1 {
+  color: var(--color-text) !important;
+  font-size: 20px !important;
+  font-weight: var(--font-weight-bold) !important;
+}
+
+.ladder-row {
+  min-height: 65px;
+  grid-template-columns: 42px 40px minmax(0, 1fr) auto;
+  gap: 11px;
+  padding: 10px 14px 10px 18px;
+}
+
+.ladder-row__player {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 3px;
+}
+
+.ladder-row__player strong {
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.ladder-row__metric {
+  display: block;
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.2;
+}
+
+.ladder-row__status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.ladder-row__chevron {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
 }
 </style>
