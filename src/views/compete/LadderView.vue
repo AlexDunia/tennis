@@ -26,6 +26,7 @@ import { useAdminStore } from '../../stores/admin'
 import { useChallengeStore } from '../../stores/challenge'
 import { useNotificationStore } from '../../stores/notification'
 import { usePlayerStore } from '../../stores/player'
+import { useLadderMatchWorkspaceStore } from '../../stores/ladderMatchWorkspace.js'
 import {
   getActiveLadderConfig,
   isEligibleLadderOpponent,
@@ -55,12 +56,13 @@ const adminStore = useAdminStore()
 const challengeStore = useChallengeStore()
 const notificationStore = useNotificationStore()
 const playerStore = usePlayerStore()
+const ladderMatchWorkspaceStore = useLadderMatchWorkspaceStore()
 const shell = inject('gorraShell', null)
 
 const activeLadderId = ref('')
 const ladderSwitching = ref(false)
 const matchSetupMenuOpen = ref(false)
-const ladderMode = ref(route.query.mode === 'bulk' ? 'bulk' : 'individual')
+
 const individualSearchOpen = ref(false)
 const individualSearchQuery = ref('')
 
@@ -257,6 +259,7 @@ const courts = computed(
 const canManageLadder = computed(() =>
   adminStore.hasActiveClubPermission('club.manage'),
 )
+const ladderMode = computed(() => !canManageLadder.value ? 'individual' : (ladderMatchWorkspaceStore.mode === 'bulk' ? 'bulk' : 'individual'))
 const bulkModeActive = computed(() => canManageLadder.value && ladderMode.value === 'bulk')
 
 const canAdminSetUpMatch = computed(
@@ -266,6 +269,11 @@ const canAdminSetUpMatch = computed(
       'challenges.create',
     ),
 )
+
+function matchWorkspaceScope(ladderId = activeLadderId.value) { return { clubId: String(adminStore.activeClubId || '').trim(), ladderId: String(ladderId || '').trim() } }
+function rememberIndividualSelection(playerId) { const scope = matchWorkspaceScope(); if (scope.clubId && scope.ladderId) ladderMatchWorkspaceStore.setIndividualSelectedPlayer({ ...scope, playerId }) }
+function clearRememberedIndividualSelection() { const scope = matchWorkspaceScope(); if (scope.clubId && scope.ladderId) ladderMatchWorkspaceStore.clearIndividualDraft(scope.clubId, scope.ladderId) }
+function restoreIndividualSelection() { if (bulkModeActive.value || !canAdminSetUpMatch.value) return; const scope = matchWorkspaceScope(); if (!scope.clubId || !scope.ladderId || !players.value.length) return; const draft = ladderMatchWorkspaceStore.getIndividualDraft(scope.clubId, scope.ladderId); const player = players.value.find((item) => item.id === draft.selectedPlayerId); if (!player) { if (draft.selectedPlayerId) ladderMatchWorkspaceStore.clearIndividualDraft(scope.clubId, scope.ladderId); return }; managedPlayerId.value = ''; selectedPlayerId.value = player.id; selectedOpponentId.value = ''; drawerResult.value = null }
 
 const managedPlayer = computed(
   () =>
@@ -321,7 +329,7 @@ const eligiblePlayerIds = computed(
 
 const drawerOpen = computed(
   () =>
-    Boolean(
+    !bulkModeActive.value && Boolean(
       selectedPlayer.value &&
       selectedOpponent.value,
     ),
@@ -329,7 +337,7 @@ const drawerOpen = computed(
 
 const challengeSelectionActive = computed(
   () =>
-    Boolean(
+    !bulkModeActive.value && Boolean(
       canAdminSetUpMatch.value &&
       selectedPlayer.value &&
       !selectedOpponent.value,
@@ -850,12 +858,12 @@ function openMemberChallenge(player) {
 }
 
 function setLadderMode(mode) {
-  const next = mode === 'bulk' && canManageLadder.value ? 'bulk' : 'individual'
+  if (!canManageLadder.value) return
+  const next = mode === 'bulk' ? 'bulk' : 'individual'
   if (next === ladderMode.value) return
-
-  // This is a local workspace switch. Do not navigate, reload, or reset the
-  // Individual workspace keeps the rail and player state exactly where they are.
-  ladderMode.value = next
+  if (next === 'bulk') { selectedOpponentId.value = ''; drawerResult.value = null; managedPlayerId.value = ''; moveDialogOpen.value = false; missingMatchDialogOpen.value = false; removeDialogOpen.value = false; individualDeleteSelectionMode.value = false; individualDeletePlayerIds.value = [] }
+  ladderMatchWorkspaceStore.setMode(next)
+  if (next === 'individual') void nextTick(restoreIndividualSelection)
 }
 
 
@@ -865,8 +873,9 @@ function selectLadder(ladderId) {
   // Keep selection local. Direct links can still set the initial ladder via
   // ?ladder=, but an ordinary rail click should not feel like navigation.
   ladderSwitching.value = true
+  resetAllPlayerActions({ preserveWorkspaceDraft: true })
   activeLadderId.value = ladderId
-  resetAllPlayerActions()
+  if (ladderMode.value === 'individual') void nextTick(restoreIndividualSelection)
 
   window.setTimeout(() => {
     ladderSwitching.value = false
@@ -878,11 +887,12 @@ function closeDrawer() {
   drawerResult.value = null
 }
 
-function resetChallengeSelection() {
+function resetChallengeSelection({ preserveWorkspaceDraft = false } = {}) {
   dragChallengePlayerId.value = ''
   selectedPlayerId.value = ''
   selectedOpponentId.value = ''
   drawerResult.value = null
+  if (!preserveWorkspaceDraft) clearRememberedIndividualSelection()
 }
 
 async function cancelChallengeSelection() {
@@ -892,6 +902,7 @@ async function cancelChallengeSelection() {
   selectedPlayerId.value = ''
   selectedOpponentId.value = ''
   drawerResult.value = null
+  clearRememberedIndividualSelection()
 
   if (playerId) {
     managedPlayerId.value = playerId
@@ -919,12 +930,12 @@ async function cancelChallengeSelection() {
   }
 }
 
-function resetAllPlayerActions() {
+function resetAllPlayerActions({ preserveWorkspaceDraft = false } = {}) {
   managedPlayerId.value = ''
   moveDialogOpen.value = false
   missingMatchDialogOpen.value = false
   removeDialogOpen.value = false
-  resetChallengeSelection()
+  resetChallengeSelection({ preserveWorkspaceDraft })
 }
 
 async function clearTestData() {
@@ -1019,6 +1030,7 @@ function startAdminChallenge(player) {
   selectedPlayerId.value = player.id
   selectedOpponentId.value = ''
   drawerResult.value = null
+  rememberIndividualSelection(player.id)
 }
 
 function actorName() {
@@ -1381,8 +1393,6 @@ async function viewMatch(result) {
   })
 }
 
-watch(canManageLadder, (canManage) => { if (!canManage) ladderMode.value = 'individual' })
-
 watch(
   [ladders, () => route.query.ladder],
   ([items, requestedLadderId]) => {
@@ -1424,6 +1434,20 @@ watch(
   { immediate: true },
 )
 
+watch(
+  [() => adminStore.activeClubId, activeLadderId],
+  ([clubId, ladderId], [previousClubId, previousLadderId]) => {
+    if (!clubId || !ladderId) return
+    if (clubId !== previousClubId || ladderId !== previousLadderId) resetAllPlayerActions({ preserveWorkspaceDraft: true })
+    if (ladderMode.value === 'individual') void nextTick(restoreIndividualSelection)
+  },
+  { flush: 'post' },
+)
+watch(
+  [() => players.value.map((player) => player.id).join('|'), ladderMode],
+  () => { if (ladderMode.value === 'individual' && !selectedPlayerId.value) void nextTick(restoreIndividualSelection) },
+  { flush: 'post' },
+)
 watch(drawerOpen, (isOpen) => {
   if (isOpen) {
     shell?.beginAdminMatchDrawer?.()
@@ -1461,6 +1485,9 @@ onMounted(async () => {
   }
 
   await Promise.allSettled(tasks)
+  const requestedMode = String(route.query.mode || '').toLowerCase()
+  if (requestedMode === 'bulk' || requestedMode === 'individual') setLadderMode(requestedMode)
+  else if (ladderMode.value === 'individual') restoreIndividualSelection()
 })
 
 onUnmounted(() => {
@@ -1693,7 +1720,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
       </section>
     </Transition>
 
-    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :ladder="activeLadder" :club-id="adminStore.activeClubId || ''" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" @mode="setLadderMode" @remove-player="openRemove" @remove-players="openBulkRemove" />
+    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :key="`${adminStore.activeClubId || 'club'}:${activeLadder.id}`" :ladder="activeLadder" :club-id="adminStore.activeClubId || ''" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" @mode="setLadderMode" @remove-player="openRemove" @remove-players="openBulkRemove" />
     <main v-if="!bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" class="ladder-workspace">
       <div
         v-if="playerStore.isLoading"

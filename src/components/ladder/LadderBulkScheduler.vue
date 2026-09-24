@@ -17,6 +17,7 @@ import {
 } from '../../services/LadderAccessService.js'
 import { useChallengeStore } from '../../stores/challenge'
 import { useNotificationStore } from '../../stores/notification'
+import { useLadderMatchWorkspaceStore } from '../../stores/ladderMatchWorkspace.js'
 
 const props = defineProps({
   clubId: { type: String, default: '' },
@@ -51,6 +52,7 @@ const emit = defineEmits([
 
 const challengeStore = useChallengeStore()
 const notificationStore = useNotificationStore()
+const ladderMatchWorkspaceStore = useLadderMatchWorkspaceStore()
 
 const playerListRef = ref(null)
 const calendarScrollRef = ref(null)
@@ -66,7 +68,9 @@ const pendingPair = ref(null)
 const dragGhost = ref(null)
 let pendingPlayerDrag = null
 
-const queue = ref([])
+const workspaceClubId = computed(() => String(props.clubId || props.config?.clubId || '').trim())
+const workspaceLadderId = computed(() => String(props.ladder?.id || '').trim())
+const queue = computed({ get: () => ladderMatchWorkspaceStore.getBulkDrafts(workspaceClubId.value, workspaceLadderId.value), set: (drafts) => ladderMatchWorkspaceStore.replaceBulkDrafts({ clubId: workspaceClubId.value, ladderId: workspaceLadderId.value, drafts }) })
 const queueDragId = ref('')
 const queuePulseId = ref('')
 const bulkWorkspaceOpen = ref(false)
@@ -502,87 +506,10 @@ const displayPlayers = computed(() => {
   )
 })
 
-function queueStorageKey() {
-  return [
-    'gorra',
-    'bulk-ladder-queue',
-    'v1',
-    props.config?.clubId || 'club',
-    props.ladder?.id || 'ladder',
-  ].join(':')
-}
-
-function hydrateQueue() {
-  queue.value = []
-
-  if (
-    typeof window === 'undefined' ||
-    !props.ladder?.id
-  ) {
-    return
-  }
-
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(
-        queueStorageKey(),
-      ) || '[]',
-    )
-
-    if (!Array.isArray(parsed)) return
-
-    queue.value = parsed
-      .map((draft) => ({
-        id: String(draft?.id || ''),
-        challengerId: String(
-          draft?.challengerId || '',
-        ),
-        opponentId: String(
-          draft?.opponentId || '',
-        ),
-        createdAt: String(
-          draft?.createdAt || '',
-        ),
-      }))
-      .filter(
-        (draft) =>
-          draft.id &&
-          playerById.value.has(
-            draft.challengerId,
-          ) &&
-          playerById.value.has(
-            draft.opponentId,
-          ),
-      )
-  } catch {
-    queue.value = []
-  }
-
-  pruneQueue()
-}
-
-function persistQueue() {
-  if (
-    typeof window === 'undefined' ||
-    !props.ladder?.id
-  ) {
-    return
-  }
-
-  try {
-    window.localStorage.setItem(
-      queueStorageKey(),
-      JSON.stringify(queue.value),
-    )
-  } catch {
-    // Queue persistence is a convenience only.
-  }
-}
-
 function pruneQueue() {
   const used = new Set()
 
-  queue.value = queue.value.filter(
+  const nextQueue = queue.value.filter(
     (draft) => {
       const challenger =
         playerById.value.get(
@@ -619,6 +546,8 @@ function pruneQueue() {
       return true
     },
   )
+  const changed = nextQueue.length !== queue.value.length || nextQueue.some((draft, index) => draft.id !== queue.value[index]?.id)
+  if (changed) queue.value = nextQueue
 }
 
 watch(
@@ -628,7 +557,6 @@ watch(
     pendingPair.value = null
     rangeMenuOpen.value = false
     zoomSelectedDateKey.value = ''
-    hydrateQueue()
   },
   {
     immediate: true,
@@ -638,7 +566,6 @@ watch(
 watch(
   queue,
   () => {
-    persistQueue()
     redrawConnectors()
   },
   {
@@ -1092,12 +1019,8 @@ function recordMissingFromPair() {
   }
 }
 
-function removeDraft(draftId) {
-  queue.value =
-    queue.value.filter(
-      (draft) =>
-        draft.id !== draftId,
-    )
+function removeDraft(draftId, scope = { clubId: workspaceClubId.value, ladderId: workspaceLadderId.value }) {
+  ladderMatchWorkspaceStore.removeBulkDraft({ ...scope, draftId })
 
   if (
     scheduleDraftId.value ===
@@ -1548,11 +1471,12 @@ async function saveSchedule() {
       const draft =
         schedulingDraft.value
 
+      const commitScope = { clubId: workspaceClubId.value, ladderId: workspaceLadderId.value }
       const result =
         await challengeStore
           .createAdminLadderMatch({
             ladderId:
-              props.ladder.id,
+              commitScope.ladderId,
             challengerPlayerId:
               draft.challengerId,
             opponentPlayerId:
@@ -1579,12 +1503,11 @@ async function saveSchedule() {
         )
       }
 
-      removeDraft(
-        draft.id,
-      )
+      removeDraft(draft.id, commitScope)
     } else if (
       schedulingChallenge.value
     ) {
+      const commitScope = { clubId: workspaceClubId.value, ladderId: workspaceLadderId.value }
       const result =
         await challengeStore
           .updateAdminLadderMatchSchedule(
@@ -2090,6 +2013,7 @@ function courtLabel(challenge) {
 }
 
 onMounted(() => {
+  pruneQueue()
   bulkWorkspaceOpen.value = queue.value.length > 0 || activeChallenges.value.length > 0
   redrawConnectors()
   window.addEventListener('resize', redrawConnectors)
