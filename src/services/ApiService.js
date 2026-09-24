@@ -27,7 +27,10 @@ import {
   matchRulesSnapshotToLegacyLadderConfig,
 } from '../domain/ruleAdapters/ladderMatchRules'
 import { freezeMatchRulesSnapshot } from '../domain/matchRules'
-import { evaluateLadderMatchup } from './LadderAccessService.js'
+import {
+  challengeBelongsToScope,
+  evaluateLadderMatchup,
+} from './LadderAccessService.js'
 import { tournamentRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/tournamentMatchRules'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
@@ -2744,15 +2747,20 @@ const mockAdapter = async (config) => {
   if (method === 'post' && path === '/admin/ladder-matches') {
     const requestedClubId = String(body?.clubId || '').trim()
     const requestedLadderId = String(body?.ladderId || '').trim()
+    const incomingChallengerId = String(body?.challengerPlayerId || '').trim()
+    const incomingDefenderId = String(body?.opponentPlayerId || '').trim()
+    if (!requestedLadderId || !clientRequestId) return { data: { success: false, data: null, message: !requestedLadderId ? 'Choose an active Ladder.' : 'A client request ID is required.' }, status: 422, statusText: 'Unprocessable Entity', headers: {}, config, request: {} }
+    const existingRetry = mockDatabase.challenges.find((challenge) => challenge.createdByAdmin === true && String(challenge.clubId || '').trim() === requestedClubId && String(challenge.ladderId || challenge.ladderConfigSnapshot?.id || '').trim() === requestedLadderId && String(challenge.clientRequestId || '').trim() === clientRequestId)
+    if (existingRetry) { const existingMatch = mockDatabase.matches.find((match) => match.challengeId === existingRetry.id); if (!existingMatch) return { data:{success:false,data:null,message:'The existing match request is incomplete.'},status:409,statusText:'Conflict',headers:{},config,request:{} }; const existingTiming=existingRetry.commitTiming || (existingRetry.scheduledAt?'scheduled':'now'); const sameIntent=String(existingRetry.challengerId||'')===incomingChallengerId && String(existingRetry.defenderId||'')===incomingDefenderId && (existingRetry.creationMode||'individual')===creationMode && existingTiming===timing && (existingRetry.scheduledAt||null)===scheduledAt && sanitizePlainText(existingRetry.court,80)===court && String(existingRetry.matchRuleSource||'')===String(body?.matchRuleSource||''); if (!sameIntent) return {data:{success:false,data:null,message:'This match request ID has already been used for a different Ladder match.'},status:409,statusText:'Conflict',headers:{},config,request:{}}; return {data:buildResponse({challenge:buildChallengeResponse(existingRetry),match:buildMatchResponse(existingMatch)}),status:200,statusText:'OK',headers:{},config,request:{}} }
     const storedScope = requestedClubId && requestedLadderId ? storedLadderScope(requestedClubId, requestedLadderId) : { club: null, ladder: null, roster: [] }
     const ladderConfig = storedScope.ladder ? resolveLadderConfigFromSetup(storedScope.club?.setup || {}, requestedLadderId) : getActiveLadderConfig(requestedLadderId)
-    const players = storedScope.roster?.length ? storedScope.roster : mockDatabase.players
+    const players = storedScope.club ? storedScope.roster : mockDatabase.players
     const challenger = storedScope.club ? storedScope.roster.find((p) => String(p.id) === String(body.challengerPlayerId)) || null : getPlayerById(body.challengerPlayerId)
     const defender = storedScope.club ? storedScope.roster.find((p) => String(p.id) === String(body.opponentPlayerId)) || null : getPlayerById(body.opponentPlayerId)
     const timing = body.timing === 'scheduled' ? 'scheduled' : 'now'
     const creationMode = ['individual', 'bulk'].includes(body.creationMode) ? body.creationMode : 'individual'
     const clientRequestId = sanitizePlainText(body?.clientRequestId, 200)
-    const scheduledTime = new Date(body.scheduledAt || 0).getTime(); const scheduledAt = timing === 'scheduled' ? new Date(scheduledTime).toISOString() : null; const court = sanitizePlainText(body.courtId, 80)
+    const scheduledTime = timing === 'scheduled' ? new Date(body?.scheduledAt || '').getTime() : NaN; const scheduledAt = timing === 'scheduled' && Number.isFinite(scheduledTime) ? new Date(scheduledTime).toISOString() : null; const court = sanitizePlainText(body.courtId, 80)
     const resolvedRules = ladderRulesToMatchRulesSnapshot({ rulesSnapshot: body.rulesSnapshot, ladderConfigSnapshot: ladderConfig, matchConfig: body.matchRuleSource === 'admin_override' ? body.matchRules : ladderMatchConfig(ladderConfig) })
     const matchupDecision = evaluateLadderMatchup({ challenger, opponent: defender, players, challenges: mockDatabase.challenges, config: ladderConfig, clubId: requestedClubId, ladderId: requestedLadderId })
     const message = !requestedLadderId ? 'Choose an active Ladder.' : !clientRequestId ? 'A client request ID is required.' : !matchupDecision.allowed ? matchupDecision.message : timing === 'scheduled' && (!Number.isFinite(scheduledTime) || scheduledTime <= Date.now()) ? 'Choose a future match date and time.' : !['ladder_default', 'admin_override'].includes(body.matchRuleSource) ? 'Choose whether to use the Ladder default or an admin override.' : !resolvedRules.ok ? 'Choose a valid match format for this Ladder match.' : ''
@@ -3124,7 +3132,7 @@ const mockAdapter = async (config) => {
       ? resolveLadderConfigFromSetup(storedScope.club?.setup || {}, requestedLadderId)
       : getActiveLadderConfig(requestedLadderId)
     const ladderId = requestedLadderId || ladderConfig.id
-    const scopedRoster = storedScope.roster?.length ? storedScope.roster : mockDatabase.players
+    const scopedRoster = storedScope.club ? storedScope.roster : mockDatabase.players
     const challenger = storedScope.club
       ? storedScope.roster.find((player) => String(player.id) === String(body.challengerId)) || null
       : getPlayerById(body.challengerId)
@@ -3136,18 +3144,6 @@ const mockAdapter = async (config) => {
       challenges: mockDatabase.challenges, config: ladderConfig,
       clubId: requestedClubId, ladderId,
     })
-    const activeChallengeCountFor = (playerId) =>
-      mockDatabase.challenges.filter(
-        (challenge) =>
-          (challenge.ladderId || challenge.ladderConfigSnapshot?.id) === ladderId &&
-          ACTIVE_LADDER_CHALLENGE_STATUSES.includes(challenge.status) &&
-          [challenge.challengerId, challenge.defenderId].includes(playerId),
-      ).length
-
-    const challengerActiveCount = activeChallengeCountFor(body.challengerId)
-
-    const defenderActiveCount = activeChallengeCountFor(body.defenderId)
-
     const previousMeeting = mockDatabase.challenges
       .filter((challenge) => challenge.status === 'completed')
       .filter(
@@ -3190,10 +3186,7 @@ const mockAdapter = async (config) => {
               ? 'The selected opponent is outside your eligible challenge window.'
               : rematchIsCoolingDown
                 ? `This rematch is available after ${new Date(cooldownEndsAt).toLocaleDateString()}.`
-                : Math.max(challengerActiveCount, defenderActiveCount) >=
-                    ladderConfig.maxActiveChallenges
-                  ? 'One of these players must finish an active challenge first.'
-                  : !preparedRules.ok
+                : !preparedRules.ok
                     ? 'The Ladder match format is invalid.'
                     : ''
 

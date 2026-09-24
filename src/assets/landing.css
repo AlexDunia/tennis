@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 .marketing-home {
   --g: #087a3e;
@@ -1539,7 +1538,7 @@ body:has(.marketing-home) {
 
 /* Cohesive clubhouse typography and shared landing-page rail */
 .marketing-home {
-  --landing-font: 'Poppins', 'Segoe UI', sans-serif;
+  --landing-font: var(--font-family-app);
   --content-width: 85%;
   --rail-gutter: 7.5vw;
   --page-gutter: var(--rail-gutter);

@@ -718,6 +718,37 @@ function showConflictFor(player) {
   }
 }
 
+function selectPlayerForPair(player) {
+  if (deleteSelectionMode.value || !player) return
+
+  if (!selectedPlayer.value) {
+    if (!bulkAvailability(player).available) {
+      showConflictFor(player)
+      return
+    }
+
+    selectedPlayerId.value = player.id
+    return
+  }
+
+  if (selectedPlayer.value.id === player.id) {
+    selectedPlayerId.value = ''
+    return
+  }
+
+  if (!eligiblePlayerIds.value.has(player.id)) {
+    showConflictFor(player)
+    return
+  }
+
+  pendingPair.value = {
+    id: newDraftId(),
+    challengerId: selectedPlayer.value.id,
+    opponentId: player.id,
+    createdAt: new Date().toISOString(),
+  }
+}
+
 function resetPlayerDrag() {
   selectedPlayerId.value = ''
   dragGhost.value = null
@@ -2124,30 +2155,30 @@ onBeforeUnmount(() => {
   >
     <section class="bulk-players">
       <header class="bulk-players__head">
-        <div class="bulk-players__title">
-          <h1>{{ ladder.name }}</h1>
-          <span class="bulk-mode-tag"><span>Match selection</span><strong>Bulk mode</strong></span>
-        </div>
-        <div class="bulk-players__setup">
-          <span>Match setup</span>
-          <div class="bulk-header-tools">
-            <label class="bulk-player-search" :class="{ 'is-open': playerSearchOpen }" @click="window.innerWidth <= 640 && (playerSearchOpen = true)">
-              <svg class="bulk-player-search__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
-              <input v-model="playerSearchQuery" type="search" placeholder="Search player" aria-label="Search player in this ladder" />
-            </label>
-            <button
-              type="button"
-              class="bulk-header-tool bulk-header-tool--delete"
-              aria-label="Select players to delete"
-              title="Select players to delete"
-              @click="beginMultipleDeletion()"
-            ><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2m-6 0 .7 10h6.6L14 6M8.5 9v4m3-4v4" /></svg></button>
+        <div class="bulk-players__top">
+          <div class="bulk-players__title">
+            <h1>{{ ladder.name }}</h1>
           </div>
-          <div class="bulk-mode-tabs" aria-label="Ladder scheduling mode">
-            <button type="button" @click="emit('mode', 'individual')">Individual</button>
-            <button type="button" class="active" aria-pressed="true">Bulk</button>
+          <div class="bulk-players__setup">
+            <div class="bulk-header-tools">
+              <label class="bulk-player-search" :class="{ 'is-open': playerSearchOpen }" @click="window.innerWidth <= 640 && (playerSearchOpen = true)">
+                <svg class="bulk-player-search__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
+                <input v-model="playerSearchQuery" type="search" placeholder="Search player" aria-label="Search player in this ladder" />
+              </label>
+              <button
+                type="button"
+                class="bulk-header-tool bulk-header-tool--delete"
+                aria-label="Select players to delete"
+                title="Select players to delete"
+                @click="beginMultipleDeletion()"
+              ><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2m-6 0 .7 10h6.6L14 6M8.5 9v4m3-4v4" /></svg></button>
+            </div>
           </div>
         </div>
+        <nav class="bulk-match-setup-tabs" aria-label="Ladder scheduling mode">
+          <button type="button" @click="emit('mode', 'individual')">Individual</button>
+          <button type="button" class="active" aria-pressed="true">Bulk</button>
+        </nav>
       </header>
 
       <section v-if="deleteSelectionMode" class="bulk-delete-toolbar" aria-label="Multiple player deletion">
@@ -2289,6 +2320,19 @@ onBeforeUnmount(() => {
                 <path d="M10 8.75V4.5a1.25 1.25 0 0 1 2.5 0v4.25" />
                 <path d="M12.5 8.75V5.9a1.25 1.25 0 0 1 2.5 0v5.1" />
                 <path d="M7.5 8.65 6.7 8a1.28 1.28 0 0 0-1.75 1.87l3.4 3.2a3.8 3.8 0 0 0 2.6 1.04h1.5a3.8 3.8 0 0 0 3.8-3.8v-1.56" />
+              </svg>
+            </button>
+
+            <button
+              v-if="!deleteSelectionMode"
+              class="bulk-player-row__chevron"
+              type="button"
+              :aria-label="selectedPlayer?.id === player.id ? `Deselect ${player.name}` : `Choose ${player.name} without dragging`"
+              :title="selectedPlayer?.id === player.id ? 'Deselect player' : 'Choose without dragging'"
+              @click.stop="selectPlayerForPair(player)"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="m6 8 4 4 4-4" />
               </svg>
             </button>
           </span>
@@ -5787,5 +5831,153 @@ onBeforeUnmount(() => {
     min-width: 58px !important;
     padding: 0 8px !important;
   }
+}
+
+/* Keep the Bulk view on the same plain-text mode switch as Individual. */
+.bulk-players__head {
+  display: block !important;
+  min-height: 0 !important;
+  margin: 0 -30px 14px !important;
+  padding: 16px 30px 0 !important;
+}
+
+.bulk-players__top {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+.bulk-players__top > .bulk-players__title {
+  display: flex !important;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center !important;
+}
+
+.bulk-players__setup {
+  display: flex !important;
+  width: auto !important;
+  flex: 0 0 auto;
+  align-items: center !important;
+  margin-left: auto !important;
+}
+
+.bulk-match-setup-tabs {
+  display: flex;
+  gap: 26px;
+  border-top: 1px solid var(--color-border);
+}
+
+.bulk-match-setup-tabs button {
+  position: relative;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 1px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.bulk-match-setup-tabs button.active {
+  color: var(--color-text);
+}
+
+.bulk-match-setup-tabs button.active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--color-primary);
+  content: '';
+}
+
+.bulk-match-setup-tabs button:hover:not(.active) {
+  color: var(--color-text-soft);
+}
+
+@media (max-width: 767px) {
+  .bulk-players__head {
+    margin: 0 -12px 10px !important;
+    padding: 14px 12px 0 !important;
+  }
+
+  .bulk-players__top {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .bulk-players__top > .bulk-players__title {
+    width: 100%;
+  }
+
+  .bulk-match-setup-tabs {
+    display: none;
+  }
+}
+
+/* Shared card and title scale: Bulk is the visual source for both modes. */
+.bulk-players__title h1 {
+  font-size: 20px !important;
+}
+
+.bulk-player-row__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bulk-player-row__chevron {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  fill: none;
+  stroke: var(--color-muted);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Click-based pairing uses the same quiet affordance as the drag handle. */
+.bulk-player-row__chevron {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.bulk-player-row__chevron:hover,
+.bulk-player-row__chevron:focus-visible {
+  background: var(--color-surface-soft);
+  color: var(--color-text);
+  outline: none;
+}
+
+.bulk-player-row__chevron svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bulk-player-row--selected .bulk-player-row__chevron {
+  color: var(--color-primary-strong);
 }
 </style>

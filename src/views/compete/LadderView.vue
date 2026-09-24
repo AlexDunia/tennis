@@ -1854,26 +1854,26 @@ function continueLadderSetup(ladder = activeLadder.value) {
 
       <template v-else>
         <header class="ladder-heading ladder-heading--setup">
-          <div class="ladder-heading__title">
-            <h1>{{ activeLadder?.name || 'Ladder' }}</h1>
-            <span class="ladder-mode-tag"><span>Match selection</span><strong>Individual mode</strong></span>
-          </div>
-          <div v-if="canManageLadder" class="ladder-heading__match-setup">
-            <span>Match setup</span>
-            <div class="ladder-header-tools">
-              <label class="ladder-player-search" :class="{ 'is-open': individualSearchOpen }" @click="window.innerWidth <= 640 && (individualSearchOpen = true)">
-                <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
-                <input v-model="individualSearchQuery" type="search" placeholder="Search player" aria-label="Search player in this ladder" />
-              </label>
-              <button type="button" class="ladder-header-delete" :class="{ active: individualDeleteSelectionMode }" aria-label="Select players to remove" title="Select players to remove" :aria-pressed="individualDeleteSelectionMode" @click="beginIndividualDeletion">
-                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2m-6 0 .7 10h6.6L14 6M8.5 9v4m3-4v4" /></svg>
-              </button>
+          <div class="ladder-heading__top">
+            <div class="ladder-heading__title">
+              <h1>{{ activeLadder?.name || 'Ladder' }}</h1>
             </div>
-            <div class="ladder-mode-tabs" aria-label="Ladder scheduling mode">
-              <button type="button" :class="{ active: ladderMode === 'individual' }" :aria-pressed="ladderMode === 'individual'" @click="setLadderMode('individual')">Individual</button>
-              <button type="button" :class="{ active: ladderMode === 'bulk' }" :aria-pressed="ladderMode === 'bulk'" @click="setLadderMode('bulk')">Bulk</button>
+            <div v-if="canManageLadder" class="ladder-heading__match-setup">
+              <div class="ladder-header-tools">
+                <label class="ladder-player-search" :class="{ 'is-open': individualSearchOpen }" @click="window.innerWidth <= 640 && (individualSearchOpen = true)">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
+                  <input v-model="individualSearchQuery" type="search" placeholder="Search player" aria-label="Search player in this ladder" />
+                </label>
+                <button type="button" class="ladder-header-delete" :class="{ active: individualDeleteSelectionMode }" aria-label="Select players to remove" title="Select players to remove" :aria-pressed="individualDeleteSelectionMode" @click="beginIndividualDeletion">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2m-6 0 .7 10h6.6L14 6M8.5 9v4m3-4v4" /></svg>
+                </button>
+              </div>
             </div>
           </div>
+          <nav v-if="canManageLadder" class="match-setup-tabs" aria-label="Ladder scheduling mode">
+            <button type="button" :class="{ active: ladderMode === 'individual' }" :aria-pressed="ladderMode === 'individual'" @click="setLadderMode('individual')">Individual</button>
+            <button type="button" :class="{ active: ladderMode === 'bulk' }" :aria-pressed="ladderMode === 'bulk'" @click="setLadderMode('bulk')">Bulk</button>
+          </nav>
         </header>
 
         <section
@@ -3770,5 +3770,100 @@ function continueLadderSetup(ladder = activeLadder.value) {
     min-width: 58px !important;
     padding: 0 8px !important;
   }
+}
+/* Rankings mode switch: plain text tabs on their own desktop row. */
+.ladder-workspace > .ladder-heading--setup {
+  display: block !important;
+  min-height: 0;
+  padding: 16px 30px 0;
+}
+
+.ladder-workspace > .ladder-heading--setup > .ladder-heading__top {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+.ladder-workspace > .ladder-heading--setup > .ladder-heading__top > .ladder-heading__title {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+}
+
+.ladder-workspace > .ladder-heading--setup .ladder-heading__match-setup {
+  display: flex !important;
+  width: auto !important;
+  flex: 0 0 auto;
+  align-items: center !important;
+  margin-left: auto !important;
+}
+
+.ladder-workspace > .ladder-heading--setup .match-setup-tabs {
+  display: flex !important;
+  gap: 26px !important;
+  border-top: 1px solid var(--color-border);
+}
+
+.ladder-workspace > .ladder-heading--setup .match-setup-tabs button {
+  position: relative;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  padding: 0 1px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-muted) !important;
+  font-size: 13px !important;
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+.ladder-workspace > .ladder-heading--setup .match-setup-tabs button.active {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-text) !important;
+}
+
+.ladder-workspace > .ladder-heading--setup .match-setup-tabs button.active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--color-primary);
+  content: '';
+}
+
+.ladder-workspace > .ladder-heading--setup .match-setup-tabs button:hover:not(.active) {
+  color: var(--color-text-soft) !important;
+}
+
+@media (max-width: 767px) {
+  .ladder-workspace > .ladder-heading--setup {
+    padding: 14px 12px 0;
+  }
+
+  .ladder-workspace > .ladder-heading--setup > .ladder-heading__top {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .ladder-workspace > .ladder-heading--setup > .ladder-heading__top > .ladder-heading__title {
+    width: 100%;
+  }
+
+  .ladder-workspace > .ladder-heading--setup .match-setup-tabs {
+    display: none !important;
+  }
+}
+
+
+/* Match the Bulk reference title scale. */
+.ladder-workspace > .ladder-heading--setup > .ladder-heading__top > .ladder-heading__title h1 {
+  font-size: 20px !important;
 }
 </style>

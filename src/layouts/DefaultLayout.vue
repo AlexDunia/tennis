@@ -1110,8 +1110,8 @@ onUnmounted(() => {
 .layout {
   --app-header-height: 76px;
   --app-bottom-nav-height: 66px;
-  --app-shell-content-width: min(92%, 1280px);
-  --app-header-content-width: min(92%, 1280px);
+  --app-shell-content-width: min(calc(100% - 64px), 1200px);
+  --app-header-content-width: min(calc(100% - 64px), 1200px);
   min-height: 100vh;
   background: var(--color-bg);
   color: var(--color-text);
@@ -1119,8 +1119,8 @@ onUnmounted(() => {
 }
 
 .layout--migrated {
-  --app-header-content-width: 90%;
-  --app-shell-content-width: 87%;
+  --app-header-content-width: min(calc(100% - 64px), 1200px);
+  --app-shell-content-width: min(calc(100% - 64px), 1200px);
   --color-bg: #fbfcfb;
   --color-bg-muted: #f7fcf8;
   --color-surface: #ffffff;
@@ -1138,8 +1138,8 @@ onUnmounted(() => {
   --button-primary-bg: #08ad2b;
   --button-primary-bg-hover: #079624;
   --focus-ring: rgba(8, 173, 43, 0.24);
-  --app-card-radius: 12px;
-  --app-inner-radius: 9px;
+  --app-card-radius: var(--radius-lg);
+  --app-inner-radius: var(--radius-md);
   --flow-shadow-quiet: 0 8px 24px rgba(40, 51, 44, 0.025);
   font-family: var(--font-family-app);
 }
@@ -2428,13 +2428,13 @@ onUnmounted(() => {
   .layout {
     --app-header-height: 80px;
     --app-bottom-nav-height: 64px;
-    --app-shell-content-width: 80%;
-    --app-header-content-width: 85%;
+    --app-shell-content-width: min(calc(100% - 32px), 720px);
+    --app-header-content-width: min(calc(100% - 32px), 720px);
   }
 
   .layout--migrated {
-    --app-shell-content-width: 80%;
-    --app-header-content-width: 85%;
+    --app-shell-content-width: min(calc(100% - 32px), 720px);
+    --app-header-content-width: min(calc(100% - 32px), 720px);
   }
 
   .sidebar {
@@ -2681,7 +2681,7 @@ onUnmounted(() => {
 
 @media (max-width: 390px) {
   .layout {
-    --app-header-content-width: 85%;
+    --app-header-content-width: calc(100% - 24px);
   }
 
   .header-actions {

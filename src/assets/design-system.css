@@ -1,0 +1,482 @@
+/*
+ * GORRA design system
+ *
+ * This is the app-wide source of truth for visual primitives. Feature CSS may
+ * compose these values, but should not introduce another spacing, radius, type,
+ * or elevation scale. Public broadcast surfaces intentionally keep their dark
+ * presentation, while still inheriting the type, focus, and motion rules here.
+ */
+
+:root {
+  /* Brand and semantic colour roles */
+  --color-primary: #08ad2b;
+  --color-primary-strong: #067d20;
+  --color-primary-soft: #eef9f0;
+  --color-primary-faint: #f7fcf8;
+  --color-accent: #d9f77b;
+  --color-accent-strong: #d1e86e;
+  --color-clay: #d97832;
+
+  --color-bg: #fbfcfb;
+  --color-bg-muted: #f5f8f5;
+  --color-surface: #ffffff;
+  --color-surface-muted: #fbfdfb;
+  --color-surface-soft: #eef5ef;
+  --color-surface-softest: #f7faf7;
+  --color-text: #1e2b22;
+  --color-text-soft: #4b5b50;
+  --color-muted: #738077;
+  --color-border: #e1e8e2;
+  --color-border-strong: #cbd7cd;
+  --color-dark: #102217;
+  --color-dark-soft: #173125;
+
+  --color-success: #087d2a;
+  --color-success-soft: #eaf7ee;
+  --color-warning: #a56008;
+  --color-warning-soft: #fff6df;
+  --color-danger: #b43d35;
+  --color-danger-soft: #fff0ee;
+  --color-info: #1769aa;
+  --color-info-soft: #edf5ff;
+
+  /* Typography: strong headings, calm body copy, data only in mono. */
+  --font-family-app: Inter, "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-family-display: var(--font-family-app);
+  --font-family-data: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --type-display: clamp(1.75rem, 2.4vw, 2.5rem);
+  --type-page-title: clamp(1.45rem, 1.8vw, 2rem);
+  --type-section-title: clamp(1.0625rem, 1.25vw, 1.25rem);
+  --type-card-title: 0.9375rem;
+  --type-row-title: 0.875rem;
+  --type-body: 0.9375rem;
+  --type-page-description: 0.875rem;
+  --type-meta: 0.75rem;
+  --type-overline: 0.6875rem;
+  --type-line-heading: 1.18;
+  --type-line-body: 1.6;
+  --type-line-tight: 1.35;
+  --type-tracking-heading: -0.025em;
+  --type-tracking-eyebrow: 0.08em;
+  --measure-copy: 68ch;
+  --measure-reading: 64ch;
+
+  /* Four-point spacing rhythm. */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-heading-copy: var(--space-2);
+  --space-row-copy: var(--space-1);
+  --space-section: clamp(1.75rem, 4vw, 3.5rem);
+  --space-page: clamp(1.25rem, 3vw, 2rem);
+
+  /* Shape and elevation. Shadows identify elevation; borders identify groups. */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-pill: 999px;
+  --radius: var(--radius-sm);
+  --app-card-radius: var(--radius-lg);
+  --app-inner-radius: var(--radius-md);
+  --app-control-radius: var(--radius-md);
+  --app-control-height: 2.75rem;
+  --app-compact-control-height: 2.25rem;
+  --app-button-height: 2.75rem;
+  --app-hairline: 1px solid var(--color-border);
+  --shadow-xs: 0 1px 2px rgba(18, 38, 27, 0.04);
+  --shadow-soft: 0 8px 24px rgba(18, 38, 27, 0.05);
+  --shadow-strong: 0 18px 48px rgba(18, 38, 27, 0.1);
+  --shadow-float: 0 24px 60px rgba(18, 38, 27, 0.14);
+  --flow-shadow-quiet: var(--shadow-xs);
+  --flow-shadow-hover: var(--shadow-soft);
+
+  --button-primary-bg: var(--color-primary);
+  --button-primary-bg-hover: var(--color-primary-strong);
+  --button-secondary-bg: var(--color-surface);
+  --button-secondary-border: var(--color-border);
+  --button-secondary-color: var(--color-text);
+  --focus-ring: rgba(8, 173, 43, 0.3);
+  --focus-ring-offset: 3px;
+  --motion-short: 140ms;
+  --motion-press: 90ms;
+  --motion-card: 180ms;
+  --motion-medium: 200ms;
+  --motion-page-in: 180ms;
+  --motion-page-out: 120ms;
+  --motion-curve: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-spring: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html {
+  background: var(--color-bg);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family-app);
+  font-size: var(--type-body);
+  line-height: var(--type-line-body);
+}
+
+:where(h1, h2, h3, h4, h5, h6) {
+  margin-block: 0;
+  color: inherit;
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--type-tracking-heading);
+  line-height: var(--type-line-heading);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--type-page-title);
+}
+
+h2 {
+  font-size: var(--type-section-title);
+}
+
+h3 {
+  font-size: var(--type-card-title);
+}
+
+:where(p, li) {
+  text-wrap: pretty;
+}
+
+p {
+  margin-block: 0;
+  color: var(--color-text-soft);
+  line-height: var(--type-line-body);
+}
+
+:where(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+::placeholder {
+  color: color-mix(in srgb, var(--color-muted) 78%, transparent);
+  opacity: 1;
+}
+
+/* Shared, predictable interaction states. Individual components may add color,
+   but every focusable control remains visible with keyboard navigation. */
+:where(a, button, input, textarea, select, summary):focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[aria-disabled='true'] {
+  opacity: 0.55;
+}
+
+/* Reusable primitives for new work and a common language for existing views. */
+.ds-page {
+  display: grid;
+  width: min(100%, 1200px);
+  gap: var(--space-section);
+}
+
+.ds-page--narrow {
+  width: min(100%, 860px);
+}
+
+.ds-section {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.ds-section-heading,
+.ds-page-heading {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ds-page-heading > p,
+.ds-section-heading > p {
+  max-width: var(--measure-copy);
+}
+
+.ds-eyebrow {
+  margin: 0;
+  color: var(--color-primary-strong);
+  font-size: var(--type-overline);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--type-tracking-eyebrow);
+  line-height: var(--type-line-tight);
+  text-transform: uppercase;
+}
+
+.ds-card {
+  border: var(--app-hairline);
+  border-radius: var(--app-card-radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.ds-card--raised {
+  box-shadow: var(--shadow-soft);
+}
+
+.ds-stack {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.ds-stack--tight {
+  gap: var(--space-2);
+}
+
+.ds-stack--loose {
+  gap: var(--space-6);
+}
+
+.ds-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ds-prose {
+  max-width: var(--measure-reading);
+}
+
+.ds-prose > * + * {
+  margin-top: var(--space-4);
+}
+
+.ds-mono,
+.ds-stat,
+.ds-score {
+  font-family: var(--font-family-data);
+  font-variant-numeric: tabular-nums;
+}
+
+/* App-specific compatibility layer. The aliases keep Club, Compete, Ladder,
+   and Tournament surfaces visually related even while they retain local markup. */
+.layout--migrated {
+  --color-bg: #fbfcfb;
+  --color-bg-muted: #f5f8f5;
+  --color-surface: #ffffff;
+  --color-surface-muted: #fbfdfb;
+  --color-surface-soft: #eef5ef;
+  --color-surface-softest: #f7faf7;
+  --color-primary: #08ad2b;
+  --color-primary-strong: #067d20;
+  --color-text: #1e2b22;
+  --color-text-soft: #4b5b50;
+  --color-muted: #738077;
+  --color-border: #e1e8e2;
+  --color-border-strong: #cbd7cd;
+  --app-card-radius: var(--radius-lg);
+  --app-inner-radius: var(--radius-md);
+  --app-control-radius: var(--radius-md);
+  --app-control-height: 2.75rem;
+}
+
+.layout .page-shell :is(
+  .surface-card,
+  .section-card,
+  .t-shell-card,
+  .ref-card,
+  .compete-card,
+  .ladder-card,
+  .profile__card,
+  .notification-card,
+  .match-summary,
+  .result-panel,
+  .cc,
+  .court-booking-form,
+  .tournament-empty-state,
+  .empty-state
+) {
+  border-radius: var(--app-card-radius);
+}
+
+.layout .page-shell :is(
+  .surface-card,
+  .section-card,
+  .t-shell-card,
+  .ref-card,
+  .compete-card,
+  .ladder-card,
+  .profile__card,
+  .notification-card,
+  .match-summary,
+  .result-panel,
+  .cc,
+  .court-booking-form,
+  .tournament-empty-state,
+  .empty-state
+):not(.card--flat) {
+  box-shadow: var(--shadow-xs);
+}
+
+.layout .page-shell :is(
+  .type-page-description,
+  .compete-page-head p,
+  .ref-page-head p,
+  .ladder-workspace-page__description,
+  .t-page-subtitle,
+  .page-header__copy,
+  .friendly-flow__description
+) {
+  max-width: var(--measure-copy);
+}
+
+.layout .page-shell :is(
+  .type-meta,
+  .ref-meta,
+  .compete-meta,
+  .ladder-row__metric,
+  .t-meta
+) {
+  color: var(--color-muted);
+  font-size: var(--type-meta);
+  line-height: var(--type-line-tight);
+}
+
+.layout .page-shell :is(
+  .compete-primary,
+  .compete-secondary,
+  .t-button,
+  .ref-button,
+  .friendly-flow__button
+) {
+  border-radius: var(--app-control-radius);
+  font-weight: var(--font-weight-semibold);
+}
+
+.layout .page-shell :is(
+  .gorra-data-table,
+  .standings-table,
+  .ref-table,
+  .compete-table
+) {
+  border-color: var(--color-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.layout .page-shell :is(
+  .gorra-data-table th,
+  .standings-table th,
+  .ref-table th,
+  .compete-table th
+) {
+  color: var(--color-muted);
+  font-size: var(--type-overline);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gorra-club-ref {
+  --g-green: var(--color-primary);
+  --g-green-hover: var(--color-primary-strong);
+  --g-green-strong: var(--color-primary-strong);
+  --g-green-soft: var(--color-primary-soft);
+  --g-green-soft-2: var(--color-primary-faint);
+  --g-ink: var(--color-text);
+  --g-ink-2: var(--color-text-soft);
+  --g-muted: var(--color-muted);
+  --g-muted-2: color-mix(in srgb, var(--color-muted) 72%, white);
+  --g-line: var(--color-border);
+  --g-line-strong: var(--color-border-strong);
+  --g-page: var(--color-bg);
+  --g-surface: var(--color-surface);
+  --g-radius: var(--app-card-radius);
+  --g-radius-sm: var(--app-inner-radius);
+  --g-shadow: var(--shadow-xs);
+}
+
+.gorra-compete-ref {
+  --compete-green: var(--color-primary);
+  --compete-green-hover: var(--color-primary-strong);
+  --compete-green-strong: var(--color-primary-strong);
+  --compete-green-soft: var(--color-primary-soft);
+  --compete-ink: var(--color-text);
+  --compete-muted: var(--color-muted);
+  --compete-line: var(--color-border);
+  --compete-line-strong: var(--color-border-strong);
+  --compete-surface: var(--color-surface);
+}
+
+:root {
+  --tournament-green: var(--color-primary);
+  --tournament-green-soft: color-mix(in srgb, var(--color-primary) 9%, transparent);
+  --tournament-green-mid: var(--color-primary-strong);
+  --tournament-green-dark: var(--color-dark-soft);
+  --tournament-amber: var(--color-warning);
+  --tournament-amber-soft: var(--color-warning-soft);
+  --tournament-blue: var(--color-info);
+  --tournament-blue-soft: var(--color-info-soft);
+  --tournament-red: var(--color-danger);
+  --tournament-red-soft: var(--color-danger-soft);
+  --tournament-ink: var(--color-text);
+  --tournament-muted: var(--color-muted);
+  --tournament-faint: color-mix(in srgb, var(--color-muted) 67%, white);
+  --tournament-line: var(--color-border);
+  --tournament-shell: var(--color-bg-muted);
+  --tournament-card-shadow: var(--shadow-xs);
+  --tournament-lift-shadow: var(--shadow-soft);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .layout .page-shell :is(
+    .surface-card,
+    .section-card,
+    .t-shell-card,
+    .ref-card,
+    .compete-card,
+    .ladder-card,
+    .profile__card,
+    .notification-card,
+    .cc
+  ):hover {
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-soft);
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --type-page-title: 1.375rem;
+    --type-section-title: 1rem;
+    --type-body: 0.9375rem;
+    --space-section: 1.75rem;
+    --app-card-radius: var(--radius-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

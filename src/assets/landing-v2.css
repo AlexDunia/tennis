@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 .gorra-landing {
   --lp-deep: #052e20;
@@ -16,7 +15,7 @@
   overflow: clip;
   background: #fff;
   color: var(--lp-ink);
-  font-family: 'Poppins', 'Segoe UI', sans-serif;
+  font-family: var(--font-family-app);
   line-height: 1.65;
 }
 
