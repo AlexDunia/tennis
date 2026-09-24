@@ -894,7 +894,7 @@ function resetChallengeSelection({ preserveWorkspaceDraft = false } = {}) {
   selectedPlayerId.value = ''
   selectedOpponentId.value = ''
   drawerResult.value = null
-  if (!preserveWorkspaceDraft) clearRememberedIndividualSelection()
+  if (!preserveWorkspaceDraft) { clearRememberedIndividualSelection(); individualCommitRequestId.value = '' }
 }
 
 async function cancelChallengeSelection() {
@@ -905,6 +905,7 @@ async function cancelChallengeSelection() {
   selectedOpponentId.value = ''
   drawerResult.value = null
   clearRememberedIndividualSelection()
+  individualCommitRequestId.value = ''
 
   if (playerId) {
     managedPlayerId.value = playerId
