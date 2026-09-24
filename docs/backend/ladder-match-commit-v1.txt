@@ -1,0 +1,10 @@
+POST /api/v1/clubs/{club}/ladders/{ladder}/matches
+
+Authenticate server-side; never authorize from browser actorId. Route-bind Ladder through Club, require active membership and match-management permission, and validate both players belong to that Ladder. In a DB transaction, lock relevant ladder/player/active-match state, re-read availability, enforce challenge-window rules, validate rules and future scheduled time, then enforce idempotency and create exactly one canonical Challenge and Match.
+
+Request includes client_request_id. Recommended unique scope: club_id, ladder_id, created_by_user_id, client_request_id. Same logical intent returns the existing canonical match; same key with different intent returns 409 Conflict.
+
+Audit fields: creation_mode, client_request_id, commit_timing.
+READY: status=ready, scheduled_at=null, started_at=null, scorer_id=null.
+SCHEDULED: status=scheduled, scheduled_at=validated timestamp, started_at=null, scorer_id=null.
+Starting live is a separate authorized action; viewing never starts a match. Frontend workspace reservations are UX only and are never canonical availability.

@@ -12,12 +12,17 @@ import {
   ACTIVE_LADDER_CHALLENGE_STATUSES,
 } from '../../config/ladder.js'
 import {
+  evaluateLadderMatchup,
   getEligibleLadderOpponents,
   getLadderPlayerAvailability,
 } from '../../services/LadderAccessService.js'
 import { useChallengeStore } from '../../stores/challenge'
 import { useNotificationStore } from '../../stores/notification'
 import { useLadderMatchWorkspaceStore } from '../../stores/ladderMatchWorkspace.js'
+import {
+  buildAdminLadderMatchCommitPayload,
+  createLadderMatchCommitRequestId,
+} from '../../domain/ladderMatchCommit.js'
 
 const props = defineProps({
   clubId: { type: String, default: '' },
@@ -65,12 +70,29 @@ const playerSearchOpen = ref(false)
 const playerSearchQuery = ref('')
 const selectedDeletePlayerIds = ref([])
 const pendingPair = ref(null)
+const pendingPairBusy = ref(false)
 const dragGhost = ref(null)
 let pendingPlayerDrag = null
 
 const workspaceClubId = computed(() => String(props.clubId || props.config?.clubId || '').trim())
 const workspaceLadderId = computed(() => String(props.ladder?.id || '').trim())
 const queue = computed({ get: () => ladderMatchWorkspaceStore.getBulkDrafts(workspaceClubId.value, workspaceLadderId.value), set: (drafts) => ladderMatchWorkspaceStore.replaceBulkDrafts({ clubId: workspaceClubId.value, ladderId: workspaceLadderId.value, drafts }) })
+const individualWorkspaceDraft = computed(() => {
+  if (!workspaceClubId.value || !workspaceLadderId.value) {
+    return { selectedPlayerId: '' }
+  }
+
+  return ladderMatchWorkspaceStore.getIndividualDraft(
+    workspaceClubId.value,
+    workspaceLadderId.value,
+  )
+})
+
+const bulkWorkspaceReservations = computed(() => ({
+  bulkDrafts: queue.value,
+  individualSelectedPlayerId:
+    individualWorkspaceDraft.value.selectedPlayerId,
+}))
 const queueDragId = ref('')
 const queuePulseId = ref('')
 const bulkWorkspaceOpen = ref(false)
@@ -430,32 +452,23 @@ function actualAvailability(player) {
   return getLadderPlayerAvailability({
     player,
     challenges: challengeStore.challenges,
-    config: {
-      ...props.config,
-      maxActiveChallenges: 1,
-    },
+    config: props.config,
+    clubId: workspaceClubId.value,
+    ladderId: workspaceLadderId.value,
+    workspace: bulkWorkspaceReservations.value,
+    ignoreWorkspaceKinds: ['bulk'],
   })
 }
 
 function bulkAvailability(player) {
-  const actual = actualAvailability(player)
-
-  if (!actual.available) return actual
-
-  const draft =
-    queuedDraftForPlayer(player?.id)
-
-  if (draft) {
-    return {
-      available: false,
-      label: 'Match set',
-      reason: 'bulk_queue',
-      activeCount: 1,
-      limit: 1,
-    }
-  }
-
-  return actual
+  return getLadderPlayerAvailability({
+    player,
+    challenges: challengeStore.challenges,
+    config: props.config,
+    clubId: workspaceClubId.value,
+    ladderId: workspaceLadderId.value,
+    workspace: bulkWorkspaceReservations.value,
+  })
 }
 
 const selectedPlayer = computed(
@@ -466,8 +479,7 @@ const selectedPlayer = computed(
 )
 
 const eligiblePlayers = computed(() => {
-  const challenger =
-    selectedPlayer.value
+  const challenger = selectedPlayer.value
 
   if (!challenger) return []
 
@@ -475,14 +487,11 @@ const eligiblePlayers = computed(() => {
     challenger,
     players: props.players,
     challenges: challengeStore.challenges,
-    config: {
-      ...props.config,
-      maxActiveChallenges: 1,
-    },
-  }).filter(
-    (opponent) =>
-      !queuedDraftForPlayer(opponent.id),
-  )
+    config: props.config,
+    clubId: workspaceClubId.value,
+    ladderId: workspaceLadderId.value,
+    workspace: bulkWorkspaceReservations.value,
+  })
 })
 
 const eligiblePlayerIds = computed(
@@ -892,10 +901,13 @@ function endPlayerDrag(event) {
     )
   ) {
     pendingPair.value = {
+      id: newDraftId(),
       challengerId:
         pendingPlayerDrag.player.id,
       opponentId:
         targetId,
+      createdAt:
+        new Date().toISOString(),
     }
 
     dragGhost.value = null
@@ -933,75 +945,135 @@ function newDraftId() {
 }
 
 function addPendingPairToQueue() {
-  if (!pendingPair.value) return
+  if (!pendingPair.value) return null
 
-  const challenger =
-    playerFor(
-      pendingPair.value.challengerId,
-    )
+  const challenger = playerFor(pendingPair.value.challengerId)
+  const opponent = playerFor(pendingPair.value.opponentId)
+  const challengerState = bulkAvailability(challenger)
+  const opponentState = bulkAvailability(opponent)
 
-  const opponent =
-    playerFor(
-      pendingPair.value.opponentId,
-    )
-
-  const challengerState =
-    bulkAvailability(challenger)
-
-  const opponentState =
-    bulkAvailability(opponent)
-
-  if (
-    !challengerState.available ||
-    !opponentState.available
-  ) {
-    pendingPair.value = null
-    selectedPlayerId.value = ''
-
+  if (!challengerState.available || !opponentState.available) {
     showConflictFor(
-      !challengerState.available
-        ? challenger
-        : opponent,
+      !challengerState.available ? challenger : opponent,
     )
-
-    return
+    return null
   }
 
   const draft = {
-    id: newDraftId(),
-    challengerId:
-      challenger.id,
-    opponentId:
-      opponent.id,
+    id: pendingPair.value.id,
+    challengerId: challenger.id,
+    opponentId: opponent.id,
     createdAt:
+      pendingPair.value.createdAt ||
       new Date().toISOString(),
   }
 
   bulkWorkspaceMinimized.value = false
   bulkWorkspaceOpen.value = true
-
-  queue.value = [
-    ...queue.value,
-    draft,
-  ]
-
-  queuePulseId.value =
-    draft.id
-
+  queue.value = [...queue.value, draft]
+  queuePulseId.value = draft.id
   pendingPair.value = null
   selectedPlayerId.value = ''
 
-  window.setTimeout(
-    () => {
-      if (
-        queuePulseId.value ===
-        draft.id
-      ) {
-        queuePulseId.value = ''
-      }
-    },
-    900,
-  )
+  window.setTimeout(() => {
+    if (queuePulseId.value === draft.id) queuePulseId.value = ''
+  }, 900)
+
+  return draft
+}
+
+function schedulePendingPair() {
+  if (pendingPairBusy.value || !pendingPair.value) return
+
+  const draft = addPendingPairToQueue()
+  if (!draft) return
+
+  openScheduleDraft(draft)
+}
+
+async function playPendingPairNow() {
+  if (pendingPairBusy.value || !pendingPair.value) return
+
+  const pair = { ...pendingPair.value }
+  const scope = {
+    clubId: workspaceClubId.value,
+    ladderId: workspaceLadderId.value,
+  }
+  const challenger = playerFor(pair.challengerId)
+  const opponent = playerFor(pair.opponentId)
+  const decision = evaluateLadderMatchup({
+    challenger,
+    opponent,
+    players: props.players,
+    challenges: challengeStore.challenges,
+    config: props.config,
+    clubId: scope.clubId,
+    ladderId: scope.ladderId,
+    workspace: bulkWorkspaceReservations.value,
+  })
+
+  if (!decision.allowed) {
+    notificationStore.addToast({
+      title: 'Match unavailable',
+      message: decision.message || 'One of these players is not available for this Ladder match.',
+      type: 'warning',
+    })
+    return
+  }
+
+  let payload
+  try {
+    payload = buildAdminLadderMatchCommitPayload({
+      clubId: scope.clubId,
+      ladderId: scope.ladderId,
+      challengerPlayerId: pair.challengerId,
+      opponentPlayerId: pair.opponentId,
+      actorId: props.currentPlayerId || '',
+      timing: 'now',
+      scheduledAt: null,
+      courtId: null,
+      matchRuleSource: 'ladder_default',
+      creationMode: 'bulk',
+      clientRequestId: createLadderMatchCommitRequestId({
+        creationMode: 'bulk',
+        draftId: pair.id,
+      }),
+    })
+  } catch (error) {
+    notificationStore.addToast({
+      title: 'Could not create match',
+      message: error?.message || 'Check the match and try again.',
+      type: 'warning',
+    })
+    return
+  }
+
+  pendingPairBusy.value = true
+  try {
+    const result = await challengeStore.createAdminLadderMatch(payload)
+    if (!result) {
+      throw new Error(challengeStore.error || 'Unable to create this Ladder match.')
+    }
+
+    if (pendingPair.value?.id === pair.id) {
+      pendingPair.value = null
+      selectedPlayerId.value = ''
+    }
+
+    notificationStore.addToast({
+      title: 'Ladder match',
+      message: 'Match ready to play.',
+      type: 'success',
+    })
+  } catch (error) {
+    notificationStore.addToast({
+      title: 'Could not create match',
+      message: error?.message || 'Try again.',
+      type: 'warning',
+    })
+  } finally {
+    pendingPairBusy.value = false
+  }
 }
 
 function recordMissingFromPair() {
@@ -1468,39 +1540,54 @@ async function saveSchedule() {
     if (
       schedulingDraft.value
     ) {
-      const draft =
-        schedulingDraft.value
+      const draft = {
+        ...schedulingDraft.value,
+      }
+      const commitScope = {
+        clubId: workspaceClubId.value,
+        ladderId: workspaceLadderId.value,
+      }
+      const scheduledAt = scheduledDateTime.value.toISOString()
+      const courtId = scheduleCourtId.value || null
+      const challenger = playerFor(draft.challengerId)
+      const opponent = playerFor(draft.opponentId)
+      const decision = evaluateLadderMatchup({
+        challenger,
+        opponent,
+        players: props.players,
+        challenges: challengeStore.challenges,
+        config: props.config,
+        clubId: commitScope.clubId,
+        ladderId: commitScope.ladderId,
+        workspace: bulkWorkspaceReservations.value,
+        challengerIgnoreWorkspaceKinds: ['bulk'],
+        opponentIgnoreWorkspaceKinds: ['bulk'],
+      })
 
-      const commitScope = { clubId: workspaceClubId.value, ladderId: workspaceLadderId.value }
-      const result =
-        await challengeStore
-          .createAdminLadderMatch({
-            ladderId:
-              commitScope.ladderId,
-            challengerPlayerId:
-              draft.challengerId,
-            opponentPlayerId:
-              draft.opponentId,
-            actorId:
-              props.currentPlayerId ||
-              '',
-            timing:
-              'scheduled',
-            scheduledAt:
-              scheduledDateTime.value
-                .toISOString(),
-            courtId:
-              scheduleCourtId.value ||
-              null,
-            matchRuleSource:
-              'ladder_default',
-          })
+      if (!decision.allowed) {
+        throw new Error(decision.message || 'One of these players is not available for this Ladder match.')
+      }
+
+      const payload = buildAdminLadderMatchCommitPayload({
+        clubId: commitScope.clubId,
+        ladderId: commitScope.ladderId,
+        challengerPlayerId: draft.challengerId,
+        opponentPlayerId: draft.opponentId,
+        actorId: props.currentPlayerId || '',
+        timing: 'scheduled',
+        scheduledAt,
+        courtId,
+        matchRuleSource: 'ladder_default',
+        creationMode: 'bulk',
+        clientRequestId: createLadderMatchCommitRequestId({
+          creationMode: 'bulk',
+          draftId: draft.id,
+        }),
+      })
+      const result = await challengeStore.createAdminLadderMatch(payload)
 
       if (!result) {
-        throw new Error(
-          challengeStore.error ||
-            'Unable to schedule this Ladder match.',
-        )
+        throw new Error(challengeStore.error || 'Unable to schedule this Ladder match.')
       }
 
       removeDraft(draft.id, commitScope)
@@ -2558,13 +2645,23 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="button-primary"
-              @click="addPendingPairToQueue"
+              :disabled="pendingPairBusy"
+              @click="playPendingPairNow"
             >
-              Set challenge
+              {{ pendingPairBusy ? 'Creating match…' : 'Play Ladder Match' }}
             </button>
 
             <button
               type="button"
+              :disabled="pendingPairBusy"
+              @click="schedulePendingPair"
+            >
+              Schedule Match
+            </button>
+
+            <button
+              type="button"
+              :disabled="pendingPairBusy"
               @click="recordMissingFromPair"
             >
               Record missing match

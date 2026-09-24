@@ -100,3 +100,98 @@ test('unavailable player stays visible but is not legal opponent', () => {
     ['john'],
   )
 })
+
+test('Bulk drafts block Individual availability', () => {
+  const result = getLadderPlayerAvailability({
+    player: { id: 'alex', rank: 5 },
+    challenges: [],
+    config,
+    clubId: 'club-a',
+    ladderId: 'mens-singles',
+    workspace: {
+      bulkDrafts: [
+        { id: 'draft-1', challengerId: 'alex', opponentId: 'lucky' },
+      ],
+      individualSelectedPlayerId: '',
+    },
+    ignoreWorkspaceKinds: ['individual'],
+  })
+
+  assert.equal(result.available, false)
+  assert.equal(result.reason, 'bulk_draft')
+  assert.equal(result.blocking?.kind, 'bulk_draft')
+})
+
+test('Individual selection does not block itself when Individual is ignored', () => {
+  const result = getLadderPlayerAvailability({
+    player: { id: 'alex', rank: 5 },
+    challenges: [],
+    config,
+    clubId: 'club-a',
+    ladderId: 'mens-singles',
+    workspace: {
+      bulkDrafts: [],
+      individualSelectedPlayerId: 'alex',
+    },
+    ignoreWorkspaceKinds: ['individual'],
+  })
+
+  assert.equal(result.available, true)
+})
+
+test('Individual selection blocks Bulk-style availability when not ignored', () => {
+  const result = getLadderPlayerAvailability({
+    player: { id: 'alex', rank: 5 },
+    challenges: [],
+    config,
+    clubId: 'club-a',
+    ladderId: 'mens-singles',
+    workspace: {
+      bulkDrafts: [],
+      individualSelectedPlayerId: 'alex',
+    },
+  })
+
+  assert.equal(result.available, false)
+  assert.equal(result.reason, 'individual_draft')
+})
+
+test('canonical challenges on a different ladder do not block this ladder', () => {
+  const result = getLadderPlayerAvailability({
+    player: { id: 'alex', rank: 5 },
+    challenges: [
+      {
+        clubId: 'club-a',
+        ladderId: 'womens-singles',
+        challengerId: 'alex',
+        defenderId: 'lucky',
+        status: 'scheduled',
+      },
+    ],
+    config,
+    clubId: 'club-a',
+    ladderId: 'mens-singles',
+  })
+
+  assert.equal(result.available, true)
+})
+
+test('same ladder in a different club does not block this club', () => {
+  const result = getLadderPlayerAvailability({
+    player: { id: 'alex', rank: 5 },
+    challenges: [
+      {
+        clubId: 'club-b',
+        ladderId: 'mens-singles',
+        challengerId: 'alex',
+        defenderId: 'lucky',
+        status: 'scheduled',
+      },
+    ],
+    config,
+    clubId: 'club-a',
+    ladderId: 'mens-singles',
+  })
+
+  assert.equal(result.available, true)
+})

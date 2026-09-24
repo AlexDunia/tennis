@@ -27,6 +27,7 @@ import {
   matchRulesSnapshotToLegacyLadderConfig,
 } from '../domain/ruleAdapters/ladderMatchRules'
 import { freezeMatchRulesSnapshot } from '../domain/matchRules'
+import { evaluateLadderMatchup } from './LadderAccessService.js'
 import { tournamentRulesToMatchRulesSnapshot } from '../domain/ruleAdapters/tournamentMatchRules'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
@@ -2741,150 +2742,28 @@ const mockAdapter = async (config) => {
     */
 
   if (method === 'post' && path === '/admin/ladder-matches') {
-    const ladderConfig =
-      getActiveLadderConfig(
-        body?.ladderId || '',
-      )
-    const challenger = getPlayerById(body.challengerPlayerId)
-    const defender = getPlayerById(body.opponentPlayerId)
+    const requestedClubId = String(body?.clubId || '').trim()
+    const requestedLadderId = String(body?.ladderId || '').trim()
+    const storedScope = requestedClubId && requestedLadderId ? storedLadderScope(requestedClubId, requestedLadderId) : { club: null, ladder: null, roster: [] }
+    const ladderConfig = storedScope.ladder ? resolveLadderConfigFromSetup(storedScope.club?.setup || {}, requestedLadderId) : getActiveLadderConfig(requestedLadderId)
+    const players = storedScope.roster?.length ? storedScope.roster : mockDatabase.players
+    const challenger = storedScope.club ? storedScope.roster.find((p) => String(p.id) === String(body.challengerPlayerId)) || null : getPlayerById(body.challengerPlayerId)
+    const defender = storedScope.club ? storedScope.roster.find((p) => String(p.id) === String(body.opponentPlayerId)) || null : getPlayerById(body.opponentPlayerId)
     const timing = body.timing === 'scheduled' ? 'scheduled' : 'now'
-    const activeChallengeCountFor = (playerId) =>
-      mockDatabase.challenges.filter(
-        (challenge) =>
-          (challenge.ladderId || challenge.ladderConfigSnapshot?.id) === body.ladderId &&
-          ACTIVE_LADDER_CHALLENGE_STATUSES.includes(challenge.status) &&
-          [challenge.challengerId, challenge.defenderId].includes(playerId),
-      ).length
-    const scheduledTime = new Date(body.scheduledAt || 0).getTime()
-    const allowedRuleSources = ['ladder_default', 'admin_override']
-    const resolvedRules = ladderRulesToMatchRulesSnapshot({
-      rulesSnapshot: body.rulesSnapshot,
-      ladderConfigSnapshot: ladderConfig,
-      matchConfig:
-        body.matchRuleSource === 'admin_override'
-          ? body.matchRules
-          : ladderMatchConfig(ladderConfig),
-    })
-    const invalidMessage = !body.ladderId
-      ? 'Choose an active Ladder.'
-      : !challenger?.rank || !defender?.rank
-        ? 'Both players must belong to the active Ladder.'
-        : !isEligibleLadderOpponent(challenger, defender, ladderConfig)
-          ? 'The selected opponent is outside this playerÃ¢â‚¬â„¢s eligible challenge window.'
-          : Math.max(
-                activeChallengeCountFor(challenger.id),
-                activeChallengeCountFor(defender.id),
-              ) >= ladderConfig.maxActiveChallenges
-            ? 'One of these players must finish an active challenge first.'
-            : timing === 'scheduled' &&
-                (!Number.isFinite(scheduledTime) || scheduledTime <= Date.now())
-              ? 'Choose a future match date and time.'
-              : !allowedRuleSources.includes(body.matchRuleSource)
-                ? 'Choose whether to use the Ladder default or an admin override.'
-                : !resolvedRules.ok
-                  ? 'Choose a valid match format for this Ladder match.'
-                  : ''
-
-    if (invalidMessage) {
-      return {
-        data: { success: false, data: null, message: invalidMessage },
-        status: 422,
-        statusText: 'Unprocessable Entity',
-        headers: {},
-        config,
-        request: {},
-      }
-    }
-
-    const now = new Date().toISOString()
-    const challengeId = `challenge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    const matchId = `match-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    const rulesSnapshot = freezeMatchRulesSnapshot(resolvedRules.snapshot)
-    const matchConfig = matchRulesSnapshotToLegacyLadderConfig(rulesSnapshot)
-    const scheduledAt = timing === 'scheduled' ? new Date(scheduledTime).toISOString() : null
-    const status = timing === 'scheduled' ? 'scheduled' : 'ready'
-    const court = sanitizePlainText(body.courtId, 80)
-    const challenge = {
-      id: challengeId,
-      clubId: body.clubId || null,
-      ladderId: body.ladderId,
-      challengerId: challenger.id,
-      defenderId: defender.id,
-      scorerId: null,
-      type: 'ladder',
-      accountScope: isFreshAccount ? FRESH_ACCOUNT_LADDER_SCOPE : 'demo',
-      status,
-      requestedAt: now,
-      acceptedAt: now,
-      createdAt: now,
-      startedAt: null,
-      creationMode: ['individual', 'bulk'].includes(body.creationMode) ? body.creationMode : 'individual',
-      clientRequestId: sanitizePlainText(body.clientRequestId, 200),
-      scheduledAt,
-      createdByAdmin: true,
-      matchRuleSource: body.matchRuleSource,
-      responseDeadline: now,
-      playDeadline: deadlineFromNow(ladderConfig.completionDays, 'days'),
-      preMatchPositions: {
-        challenger: challenger.rank,
-        defender: defender.rank,
-      },
-      ladderConfigSnapshot: { ...ladderConfig },
-      rulesSnapshot: freezeMatchRulesSnapshot(rulesSnapshot),
-      matchConfig,
-      court,
-      note: '',
-    }
-    const match = ensureMatchDefaults({
-      id: matchId,
-      challengeId,
-      clubId: body.clubId || null,
-      ladderId: body.ladderId,
-      accountScope: challenge.accountScope,
-      challengerId: challenger.id,
-      defenderId: defender.id,
-      scorerId: null,
-      type: 'ladder',
-      status,
-      scheduledAt,
-      startedAt: null,
-      creationMode: challenge.creationMode,
-      clientRequestId: challenge.clientRequestId,
-      score: null,
-      winnerId: null,
-      matchRuleSource: body.matchRuleSource,
-      rulesSnapshot,
-      matchConfig,
-      ladderConfigSnapshot: challenge.ladderConfigSnapshot,
-      preMatchPositions: challenge.preMatchPositions,
-      playDeadline: challenge.playDeadline,
-      court,
-    })
-
-    mockDatabase.challenges.push(challenge)
-    mockDatabase.matches.push(match)
-    saveLadderState()
-
-    return {
-      data: buildResponse({
-        challenge: buildChallengeResponse(challenge),
-        match: buildMatchResponse(match),
-      }),
-      status: 201,
-      statusText: 'Created',
-      headers: {},
-      config,
-      request: {},
-    }
+    const creationMode = ['individual', 'bulk'].includes(body.creationMode) ? body.creationMode : 'individual'
+    const clientRequestId = sanitizePlainText(body?.clientRequestId, 200)
+    const scheduledTime = new Date(body.scheduledAt || 0).getTime(); const scheduledAt = timing === 'scheduled' ? new Date(scheduledTime).toISOString() : null; const court = sanitizePlainText(body.courtId, 80)
+    const resolvedRules = ladderRulesToMatchRulesSnapshot({ rulesSnapshot: body.rulesSnapshot, ladderConfigSnapshot: ladderConfig, matchConfig: body.matchRuleSource === 'admin_override' ? body.matchRules : ladderMatchConfig(ladderConfig) })
+    const matchupDecision = evaluateLadderMatchup({ challenger, opponent: defender, players, challenges: mockDatabase.challenges, config: ladderConfig, clubId: requestedClubId, ladderId: requestedLadderId })
+    const message = !requestedLadderId ? 'Choose an active Ladder.' : !clientRequestId ? 'A client request ID is required.' : !matchupDecision.allowed ? matchupDecision.message : timing === 'scheduled' && (!Number.isFinite(scheduledTime) || scheduledTime <= Date.now()) ? 'Choose a future match date and time.' : !['ladder_default', 'admin_override'].includes(body.matchRuleSource) ? 'Choose whether to use the Ladder default or an admin override.' : !resolvedRules.ok ? 'Choose a valid match format for this Ladder match.' : ''
+    if (message) return { data: { success: false, data: null, message }, status: 422, statusText: 'Unprocessable Entity', headers: {}, config, request: {} }
+    const existing = mockDatabase.challenges.find((c) => c.createdByAdmin === true && c.clubId === requestedClubId && c.ladderId === requestedLadderId && c.clientRequestId === clientRequestId)
+    if (existing) { const match = mockDatabase.matches.find((m) => m.challengeId === existing.id); if (!match) return { data:{success:false,data:null,message:'The existing match request is incomplete.'},status:409,statusText:'Conflict',headers:{},config,request:{} }; const same = existing.challengerId === challenger.id && existing.defenderId === defender.id && existing.creationMode === creationMode && existing.commitTiming === timing && (existing.scheduledAt || null) === scheduledAt && String(existing.court || '').trim() === court && existing.matchRuleSource === body.matchRuleSource; if (!same) return { data:{success:false,data:null,message:'This match request ID has already been used for a different Ladder match.'},status:409,statusText:'Conflict',headers:{},config,request:{} }; return {data:buildResponse({challenge:buildChallengeResponse(existing),match:buildMatchResponse(match)}),status:200,statusText:'OK',headers:{},config,request:{}} }
+    const now=new Date().toISOString(),challengeId=`challenge-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,matchId=`match-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,rulesSnapshot=freezeMatchRulesSnapshot(resolvedRules.snapshot),matchConfig=matchRulesSnapshotToLegacyLadderConfig(rulesSnapshot),status=timing==='scheduled'?'scheduled':'ready'
+    const challenge={id:challengeId,clubId:requestedClubId||null,ladderId:requestedLadderId,challengerId:challenger.id,defenderId:defender.id,scorerId:null,type:'ladder',accountScope:isFreshAccount?FRESH_ACCOUNT_LADDER_SCOPE:'demo',status,requestedAt:now,acceptedAt:now,createdAt:now,startedAt:null,creationMode,clientRequestId,commitTiming:timing,scheduledAt,createdByAdmin:true,matchRuleSource:body.matchRuleSource,responseDeadline:now,playDeadline:deadlineFromNow(ladderConfig.completionDays,'days'),preMatchPositions:{challenger:challenger.rank,defender:defender.rank},ladderConfigSnapshot:{...ladderConfig},rulesSnapshot:freezeMatchRulesSnapshot(rulesSnapshot),matchConfig,court,note:''}
+    const match=ensureMatchDefaults({id:matchId,challengeId,clubId:requestedClubId||null,ladderId:requestedLadderId,accountScope:challenge.accountScope,challengerId:challenger.id,defenderId:defender.id,scorerId:null,type:'ladder',status,scheduledAt,startedAt:null,creationMode,clientRequestId,commitTiming:timing,score:null,winnerId:null,matchRuleSource:body.matchRuleSource,rulesSnapshot,matchConfig,ladderConfigSnapshot:challenge.ladderConfigSnapshot,preMatchPositions:challenge.preMatchPositions,playDeadline:challenge.playDeadline,court})
+    mockDatabase.challenges.push(challenge);mockDatabase.matches.push(match);saveLadderState();return {data:buildResponse({challenge:buildChallengeResponse(challenge),match:buildMatchResponse(match)}),status:201,statusText:'Created',headers:{},config,request:{}}
   }
-
-  /*
-    |--------------------------------------------------------------------------
-    | ADMIN LADDER MATCH
-    |--------------------------------------------------------------------------
-    */
-
-
   /*
     |--------------------------------------------------------------------------
     | ADMIN LADDER MATCH Ã¢â‚¬â€ RESCHEDULE
@@ -3236,19 +3115,27 @@ const mockAdapter = async (config) => {
     */
 
   if (method === 'post' && path === '/challenges') {
-    const ladderConfig =
-      getActiveLadderConfig(
-        body?.ladderId || '',
-      )
-
-    const ladderId =
-      body.ladderId ||
-      ladderConfig.id
-
-    const challenger = getPlayerById(body.challengerId)
-
-    const defender = getPlayerById(body.defenderId)
-
+    const requestedClubId = String(body?.clubId || '').trim()
+    const requestedLadderId = String(body?.ladderId || '').trim()
+    const storedScope = requestedClubId && requestedLadderId
+      ? storedLadderScope(requestedClubId, requestedLadderId)
+      : { club: null, ladder: null, roster: [] }
+    const ladderConfig = storedScope.ladder
+      ? resolveLadderConfigFromSetup(storedScope.club?.setup || {}, requestedLadderId)
+      : getActiveLadderConfig(requestedLadderId)
+    const ladderId = requestedLadderId || ladderConfig.id
+    const scopedRoster = storedScope.roster?.length ? storedScope.roster : mockDatabase.players
+    const challenger = storedScope.club
+      ? storedScope.roster.find((player) => String(player.id) === String(body.challengerId)) || null
+      : getPlayerById(body.challengerId)
+    const defender = storedScope.club
+      ? storedScope.roster.find((player) => String(player.id) === String(body.defenderId)) || null
+      : getPlayerById(body.defenderId)
+    const matchupDecision = evaluateLadderMatchup({
+      challenger, opponent: defender, players: scopedRoster,
+      challenges: mockDatabase.challenges, config: ladderConfig,
+      clubId: requestedClubId, ladderId,
+    })
     const activeChallengeCountFor = (playerId) =>
       mockDatabase.challenges.filter(
         (challenge) =>
@@ -3293,13 +3180,13 @@ const mockAdapter = async (config) => {
     })
 
     const invalidMessage =
-      ladderConfig.seasonStatus !== 'active'
-        ? 'The Ladder is not accepting challenges right now.'
+      !matchupDecision.allowed
+        ? matchupDecision.message || 'The Ladder is not accepting challenges right now.'
         : !challenger?.rank
           ? 'A current Ladder position is required.'
           : !defender?.rank
             ? 'The selected opponent is not on the active Ladder.'
-            : !isEligibleLadderOpponent(challenger, defender, ladderConfig)
+            : false
               ? 'The selected opponent is outside your eligible challenge window.'
               : rematchIsCoolingDown
                 ? `This rematch is available after ${new Date(cooldownEndsAt).toLocaleDateString()}.`

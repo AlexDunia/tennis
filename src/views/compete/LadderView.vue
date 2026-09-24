@@ -78,6 +78,22 @@ const selectedPlayerId = ref('')
 const selectedOpponentId = ref('')
 const drawerResult = ref(null)
 const individualCommitRequestId = ref('')
+function newIndividualCommitRequestId() {
+  individualCommitRequestId.value =
+    createLadderMatchCommitRequestId({
+      creationMode: 'individual',
+    })
+
+  return individualCommitRequestId.value
+}
+
+function ensureIndividualCommitRequestId() {
+  if (!individualCommitRequestId.value) {
+    return newIndividualCommitRequestId()
+  }
+
+  return individualCommitRequestId.value
+}
 const moveDialogOpen = ref(false)
 const missingMatchDialogOpen = ref(false)
 const removeDialogOpen = ref(false)
@@ -227,6 +243,37 @@ const players = computed(() =>
 const ladderScope = computed(() =>
   scopeFor(activeLadder.value),
 )
+const individualWorkspaceDraft = computed(() => {
+  const { clubId, ladderId } = ladderScope.value
+
+  if (!clubId || !ladderId) {
+    return { selectedPlayerId: '' }
+  }
+
+  return ladderMatchWorkspaceStore.getIndividualDraft(
+    clubId,
+    ladderId,
+  )
+})
+
+const bulkWorkspaceDrafts = computed(() => {
+  const { clubId, ladderId } = ladderScope.value
+
+  if (!clubId || !ladderId) {
+    return []
+  }
+
+  return ladderMatchWorkspaceStore.getBulkDrafts(
+    clubId,
+    ladderId,
+  )
+})
+
+const ladderWorkspaceReservations = computed(() => ({
+  bulkDrafts: bulkWorkspaceDrafts.value,
+  individualSelectedPlayerId:
+    individualWorkspaceDraft.value.selectedPlayerId,
+}))
 
 const activeLadderConfig = computed(() => {
   const resolved = resolveLadderConfigFromSetup(
@@ -319,6 +366,11 @@ const eligiblePlayers = computed(() => {
     players: players.value,
     challenges: challengeStore.challenges,
     config: activeLadderConfig.value,
+    clubId: ladderScope.value.clubId,
+    ladderId: ladderScope.value.ladderId,
+    workspace: ladderWorkspaceReservations.value,
+    challengerIgnoreWorkspaceKinds: ['individual'],
+    opponentIgnoreWorkspaceKinds: ['individual'],
   }).filter((player) => !player.challengePaused)
 })
 
@@ -421,6 +473,10 @@ function availabilityFor(player) {
     player,
     challenges: challengeStore.challenges,
     config: activeLadderConfig.value,
+    clubId: ladderScope.value.clubId,
+    ladderId: ladderScope.value.ladderId,
+    workspace: ladderWorkspaceReservations.value,
+    ignoreWorkspaceKinds: ['individual'],
   })
 }
 
@@ -460,6 +516,11 @@ function adminEligibleOpponentsFor(player) {
     players: players.value,
     challenges: challengeStore.challenges,
     config: activeLadderConfig.value,
+    clubId: ladderScope.value.clubId,
+    ladderId: ladderScope.value.ladderId,
+    workspace: ladderWorkspaceReservations.value,
+    challengerIgnoreWorkspaceKinds: ['individual'],
+    opponentIgnoreWorkspaceKinds: ['individual'],
   }).filter(
     (opponent) => !opponent.challengePaused,
   )
@@ -756,6 +817,7 @@ function completeChallengeDrop(player, event) {
   if (!challengeSelectionActive.value || !eligiblePlayerIds.value.has(player.id)) return
   event.preventDefault()
   selectedOpponentId.value = player.id
+  newIndividualCommitRequestId()
   drawerResult.value = null
   dragChallengePlayerId.value = ''
   draggingChallengePlayerId.value = ''
@@ -818,6 +880,7 @@ function handlePlayerRow(player) {
     }
 
     selectedOpponentId.value = player.id
+    newIndividualCommitRequestId()
     drawerResult.value = null
     return
   }
@@ -886,6 +949,7 @@ function selectLadder(ladderId) {
 
 function closeDrawer() {
   selectedOpponentId.value = ''
+  individualCommitRequestId.value = ''
   drawerResult.value = null
 }
 
@@ -1328,19 +1392,84 @@ function confirmRemove() {
 }
 
 async function createAdminMatch(setup) {
-  const result =
-    await challengeStore.createAdminLadderMatch({
-      clubId: adminStore.activeClubId,
-      ladderId: activeLadder.value.id,
-      challengerPlayerId:
-        selectedPlayer.value.id,
-      opponentPlayerId:
-        selectedOpponent.value.id,
-      actorId: currentPlayer.value?.id || '',
-      ...setup,
+  if (
+    !activeLadder.value ||
+    !selectedPlayer.value ||
+    !selectedOpponent.value ||
+    !ladderScope.value.clubId ||
+    !ladderScope.value.ladderId
+  ) {
+    return
+  }
+
+  const decision = evaluateLadderMatchup({
+    challenger: selectedPlayer.value,
+    opponent: selectedOpponent.value,
+    players: players.value,
+    challenges: challengeStore.challenges,
+    config: activeLadderConfig.value,
+    clubId: ladderScope.value.clubId,
+    ladderId: ladderScope.value.ladderId,
+    workspace: ladderWorkspaceReservations.value,
+    challengerIgnoreWorkspaceKinds: ['individual'],
+    opponentIgnoreWorkspaceKinds: ['individual'],
+  })
+
+  if (!decision.allowed) {
+    notificationStore.addToast({
+      title: 'Match unavailable',
+      message:
+        decision.message ||
+        'One of these players is not available for this Ladder match.',
+      type: 'warning',
     })
 
-  if (!result) return
+    return
+  }
+
+  let payload
+
+  try {
+    payload = buildAdminLadderMatchCommitPayload({
+      clubId: ladderScope.value.clubId,
+      ladderId: ladderScope.value.ladderId,
+      challengerPlayerId: selectedPlayer.value.id,
+      opponentPlayerId: selectedOpponent.value.id,
+      actorId: currentPlayer.value?.id || '',
+      timing: setup.timing,
+      scheduledAt: setup.scheduledAt,
+      courtId: setup.courtId,
+      matchRuleSource: setup.matchRuleSource,
+      rulesSnapshot: setup.rulesSnapshot,
+      creationMode: 'individual',
+      clientRequestId: ensureIndividualCommitRequestId(),
+    })
+  } catch (error) {
+    notificationStore.addToast({
+      title: 'Could not create match',
+      message:
+        error?.message ||
+        'Check the match details and try again.',
+      type: 'warning',
+    })
+
+    return
+  }
+
+  const result =
+    await challengeStore.createAdminLadderMatch(payload)
+
+  if (!result) {
+    notificationStore.addToast({
+      title: 'Could not create match',
+      message:
+        challengeStore.error ||
+        'Unable to create this Ladder match.',
+      type: 'warning',
+    })
+
+    return
+  }
 
   drawerResult.value = {
     ...result,
@@ -1352,7 +1481,7 @@ async function createAdminMatch(setup) {
     message:
       setup.timing === 'scheduled'
         ? 'Ladder match scheduled.'
-        : 'Ladder match ready.',
+        : 'Ladder match ready to play.',
     type: 'success',
   })
 }

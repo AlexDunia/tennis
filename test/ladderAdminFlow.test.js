@@ -121,3 +121,37 @@ test('the admin drawer switches to overlay mode before its inline grid column cl
   assert.match(drawer, /@media \(max-width: 1180px\)/)
   assert.match(ladder, /@media \(max-width: 1180px\)[\s\S]*ladder-view--drawer/)
 })
+
+test('Individual creation is normalized, retry-safe, and View Match is side-effect free', () => {
+  const ladder = readFileSync('src/views/compete/LadderView.vue', 'utf8')
+
+  for (const marker of [
+    'evaluateLadderMatchup',
+    'buildAdminLadderMatchCommitPayload',
+    'createLadderMatchCommitRequestId',
+    'individualCommitRequestId',
+    'ladderWorkspaceReservations',
+    "creationMode: 'individual'",
+    'clientRequestId:',
+    "name: 'MatchDetails'",
+  ]) {
+    assert.ok(ladder.includes(marker), `expected ${marker}`)
+  }
+
+  assert.doesNotMatch(ladder, /explicitStart:\s*true/)
+  assert.doesNotMatch(ladder, /startOrResumeLadderMatch/)
+})
+
+test('player challenge creation uses the object eligibility API and shared matchup evaluation', () => {
+  const source = readFileSync(
+    'src/views/compete/CompeteChallengeCreateView.vue',
+    'utf8',
+  )
+
+  assert.match(source, /getEligibleLadderOpponents\s*\(\s*\{/)
+  assert.match(source, /evaluateLadderMatchup/)
+  assert.doesNotMatch(
+    source,
+    /getEligibleLadderOpponents\s*\(\s*[^\{\s]/,
+  )
+})
