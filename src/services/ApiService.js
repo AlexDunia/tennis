@@ -2802,7 +2802,7 @@ const mockAdapter = async (config) => {
     const rulesSnapshot = freezeMatchRulesSnapshot(resolvedRules.snapshot)
     const matchConfig = matchRulesSnapshotToLegacyLadderConfig(rulesSnapshot)
     const scheduledAt = timing === 'scheduled' ? new Date(scheduledTime).toISOString() : null
-    const status = timing === 'scheduled' ? 'scheduled' : 'live'
+    const status = timing === 'scheduled' ? 'scheduled' : 'ready'
     const court = sanitizePlainText(body.courtId, 80)
     const challenge = {
       id: challengeId,
@@ -2816,7 +2816,9 @@ const mockAdapter = async (config) => {
       requestedAt: now,
       acceptedAt: now,
       createdAt: now,
-      startedAt: timing === 'now' ? now : null,
+      startedAt: null,
+      creationMode: ['individual', 'bulk'].includes(body.creationMode) ? body.creationMode : 'individual',
+      clientRequestId: sanitizePlainText(body.clientRequestId, 200),
       scheduledAt,
       createdByAdmin: true,
       matchRuleSource: body.matchRuleSource,
@@ -2843,7 +2845,9 @@ const mockAdapter = async (config) => {
       type: 'ladder',
       status,
       scheduledAt,
-      startedAt: challenge.startedAt,
+      startedAt: null,
+      creationMode: challenge.creationMode,
+      clientRequestId: challenge.clientRequestId,
       score: null,
       winnerId: null,
       matchRuleSource: body.matchRuleSource,
