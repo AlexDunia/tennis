@@ -314,8 +314,8 @@ onUnmounted(() => {
                 <svg viewBox="0 0 24 24"><path d="m9 5 10 7-10 7V5Z" /></svg>
               </span>
               <span class="timing-choice__copy">
-                <strong>Play now</strong>
-                <small>Start when both players are ready.</small>
+                <strong>Play Ladder Match</strong>
+                <small>Make this match ready to play.</small>
               </span>
               <span class="timing-choice__check" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg>
@@ -331,7 +331,7 @@ onUnmounted(() => {
                 <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="3" /><path d="M8 3v4m8-4v4M4 11h16" /></svg>
               </span>
               <span class="timing-choice__copy">
-                <strong>Schedule</strong>
+                <strong>Schedule Match</strong>
                 <small>Choose when they will play.</small>
               </span>
               <span class="timing-choice__check" aria-hidden="true">
@@ -422,7 +422,7 @@ onUnmounted(() => {
             submitting
               ? 'Creating match…'
               : timing === 'now'
-                ? 'Create & start match'
+                ? 'Set match ready'
                 : 'Schedule match'
           }}
         </button>
@@ -441,7 +441,7 @@ onUnmounted(() => {
           <span v-if="result.match?.court">{{ result.match.court }}</span>
         </div>
         <button class="drawer-primary" type="button" @click="emit('view', result)">
-          {{ result.timing === 'scheduled' ? 'View scheduled match' : 'Open live scoring' }}
+          {{ result.timing === 'scheduled' ? 'View scheduled match' : 'View match' }}
         </button>
         <button class="drawer-secondary" type="button" @click="emit('done')">Done</button>
       </section>
