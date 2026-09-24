@@ -34,11 +34,12 @@ import {
   resolveLadderConfigFromSetup,
 } from '../../config/ladder'
 import {
+  evaluateLadderMatchup,
   getEligibleLadderOpponents,
   getLadderPlayerAvailability,
 } from '../../services/LadderAccessService'
 import { ladderRosterFromSetup } from '../../domain/competitionScope.js'
-import { startOrResumeLadderMatch } from '../../services/LadderLiveMatchService.js'
+import { buildAdminLadderMatchCommitPayload, createLadderMatchCommitRequestId } from '../../domain/ladderMatchCommit.js'
 import {
   clearLadderAdminTestState,
   effectiveLadderRoster,
@@ -76,6 +77,7 @@ const managedPlayerId = ref('')
 const selectedPlayerId = ref('')
 const selectedOpponentId = ref('')
 const drawerResult = ref(null)
+const individualCommitRequestId = ref('')
 const moveDialogOpen = ref(false)
 const missingMatchDialogOpen = ref(false)
 const removeDialogOpen = ref(false)
@@ -1357,40 +1359,7 @@ async function createAdminMatch(setup) {
 async function viewMatch(result) {
   const matchId = result?.match?.id
   if (!matchId) return
-
-  if (result.timing !== 'now') {
-    router.push({
-      name: 'MatchDetails',
-      params: { matchId },
-    })
-    return
-  }
-
-  const started =
-    await startOrResumeLadderMatch({
-      match: result.match,
-      actorId:
-        currentPlayer.value?.id || '',
-      clubId:
-        adminStore.activeClubId || '',
-      explicitStart: true,
-    })
-
-  if (!started.ok) {
-    notificationStore.addToast({
-      title: 'Match unavailable',
-      message:
-        started.message ||
-        'The canonical live Match could not be started.',
-      type: 'warning',
-    })
-    return
-  }
-
-  router.push({
-    name: 'LiveMatch',
-    params: { matchId: started.match.id },
-  })
+  router.push({ name: 'MatchDetails', params: { matchId } })
 }
 
 watch(
