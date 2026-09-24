@@ -1,0 +1,167 @@
+﻿GORRA LADDER FLOW — MANUAL TEST CHECKLIST
+IMPLEMENTATIONS 1 TO 4
+
+A. MODE + WORKSPACE
+1. Open Ladder A.
+2. Switch Individual to Bulk.
+3. Create a local Bulk draft.
+4. Open Ladder B.
+5. Return to Ladder A.
+6. Reload the browser.
+
+Look for:
+- The chosen mode is remembered globally.
+- Ladder A draft remains with Ladder A.
+- Ladder B does not receive Ladder A draft.
+- Meaningful drafts survive reload.
+- Search text, temporary drag state, and modal state do not unexpectedly restore.
+
+B. INDIVIDUAL / BULK PLAYER CONFLICT
+Individual: select Player A. Switch to Bulk and try to use Player A.
+
+Look for:
+- Player A is unavailable.
+
+Then create a Bulk draft with Player B and return to Individual.
+
+Look for:
+- Player B is unavailable.
+- Local selection alone does not write to the backend in Network.
+
+C. INDIVIDUAL PLAY LADDER MATCH
+Choose an eligible pair and click Play Ladder Match.
+
+Look for:
+- Exactly one Challenge and one Match are created.
+- The Match status is READY, not LIVE.
+- A scorer is not assigned merely because the match was created.
+- Opening View Match does not start it.
+
+D. INDIVIDUAL SCHEDULE
+Schedule a future date and time.
+
+Look for:
+- One canonical Match with SCHEDULED status.
+- Correct date, time, and court when one was chosen.
+- The match appears in Play.
+- Refreshing does not create a duplicate.
+
+E. BULK PLAY
+Create several Bulk pairs and use Play Ladder Match on one.
+
+Look for:
+- The selected pair becomes READY.
+- The successful pair is removed appropriately.
+- Unrelated Bulk pairs remain.
+- A failed request keeps the pair for retry.
+
+F. BULK SCHEDULE
+Schedule one Bulk draft.
+
+Look for:
+- One canonical Match with SCHEDULED status.
+- Only the successful draft is removed.
+- Unrelated drafts remain.
+- Retrying does not duplicate the Match.
+
+G. RETRY / DOUBLE CLICK
+If practical, simulate a retry or double submit.
+
+Look for:
+- One canonical Challenge and one canonical Match.
+- The same IDs are returned for the same logical request.
+- No duplicate Play rows.
+
+H. PLAY — NORMAL PLAYER
+Sign in as a participating player.
+
+Look for:
+- Scheduled, ready, and live matches appear.
+- Unrelated Ladder matches do not appear.
+- There is no three-match cap.
+
+I. PLAY — CLUB ADMIN / CO-ADMIN
+Sign in as a Club manager.
+
+Look for:
+- Active Club Ladder matches appear even when the manager is not a participant.
+- Explicit records from another Club do not appear.
+
+J. SCHEDULED MATCH ACTIONS
+Participant: View match.
+Manager: View match, Reschedule, Cancel.
+
+Look for:
+- Start match is not shown while the match is merely scheduled.
+
+K. READY MATCH ACTIONS
+Participant: Start match, View match.
+Unrelated manager: View match, Reschedule, Cancel.
+
+Look for:
+- An unrelated manager cannot Start Match merely because they manage the Club.
+
+L. START READY MATCH
+As a participant, click Start match.
+
+Look for:
+- Status changes READY to LIVE only after the click.
+- The Match ID stays the same.
+- No second Match appears.
+- LiveMatch opens.
+
+M. LIVE SCORER
+As the current scorer, look for Resume scoring and open it.
+
+Look for:
+- Score state is preserved.
+- The same Match ID is used.
+- There is no restart or reset.
+
+N. LIVE PARTICIPANT — NOT SCORER
+Look for View live score and open it.
+
+Look for:
+- A read-only scoreboard.
+- No scoring authority is granted merely by viewing.
+
+O. LIVE CLUB MANAGER
+With live-control permission, look for View live score and Open match control. Open control.
+
+Look for:
+- Opening control does not silently replace the scorer.
+- The same canonical Match remains.
+
+P. RESCHEDULE
+Manager reschedules an eligible match.
+
+Look for:
+- The same Match ID.
+- Updated future time and court when changed.
+- The Play list updates without a full browser reload.
+- No duplicate row.
+
+Q. CANCEL
+Manager cancels a match.
+
+Look for:
+- Confirmation.
+- The canonical record becomes cancelled.
+- It disappears from the active Play list.
+- No replacement Match is created.
+
+R. ACTIVE CLUB ISOLATION
+Switch the active Club.
+
+Look for:
+- The Play list changes to that Club.
+- Explicit other-Club Ladder matches never leak across.
+
+S. NETWORK / PERFORMANCE
+During mode switching, search, drag, and local draft selection, inspect Network.
+
+Look for:
+- No unnecessary backend writes.
+- Backend calls only for real operations such as create, schedule, reschedule, cancel, and explicit start.
+- No obvious request loop.
+- No repeated duplicate requests caused by rendering.

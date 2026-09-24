@@ -112,6 +112,7 @@ const scheduleDraftId = ref('')
 const scheduleChallengeId = ref('')
 const scheduleDate = ref('')
 const scheduleTime = ref('18:00')
+const scheduleTiming = ref('scheduled')
 const scheduleCourtId = ref('')
 const scheduleBusy = ref(false)
 
@@ -747,6 +748,7 @@ function selectPlayerForPair(player) {
     opponentId: player.id,
     createdAt: new Date().toISOString(),
   }
+    addPendingPairToQueue()
 }
 
 function resetPlayerDrag() {
@@ -940,6 +942,7 @@ function endPlayerDrag(event) {
       createdAt:
         new Date().toISOString(),
     }
+    addPendingPairToQueue()
 
     dragGhost.value = null
     pendingPlayerDrag = null
@@ -1002,6 +1005,7 @@ function addPendingPairToQueue() {
   bulkWorkspaceMinimized.value = false
   bulkWorkspaceOpen.value = true
   queue.value = [...queue.value, draft]
+  void nextTick().then(redrawConnectors)
   queuePulseId.value = draft.id
   pendingPair.value = null
   selectedPlayerId.value = ''
@@ -1378,6 +1382,8 @@ function openScheduleDraft(
       scheduleDate.value,
     )
 
+  scheduleTiming.value = scheduleDate.value === minimumDate.value ? 'now' : 'scheduled'
+
   scheduleCourtId.value = ''
   scheduleOpen.value = true
 }
@@ -1483,6 +1489,23 @@ function nextSafeTime(key) {
   return `${String(rounded.getHours()).padStart(2, '0')}:${String(rounded.getMinutes()).padStart(2, '0')}`
 }
 
+function handleScheduleDateChange() {
+  if (scheduleChallengeId.value) return
+
+  scheduleTiming.value = scheduleDate.value === minimumDate.value ? 'now' : 'scheduled'
+
+  if (scheduleTiming.value === 'scheduled') {
+    scheduleTime.value = nextSafeTime(scheduleDate.value)
+  }
+}
+
+function changeScheduleTime() {
+  scheduleTiming.value = 'scheduled'
+  scheduleTime.value = nextSafeTime(scheduleDate.value)
+}
+function setScheduleNow() {
+  scheduleTiming.value = 'now'
+}
 const scheduledDateTime = computed(
   () =>
     combineLocalDateTime(
@@ -1493,21 +1516,20 @@ const scheduledDateTime = computed(
 
 const scheduleIsValid = computed(
   () => {
-    const value =
-      scheduledDateTime.value
+    if (scheduleTiming.value === 'now') {
+      return scheduleDate.value === minimumDate.value
+    }
+
+    const value = scheduledDateTime.value
 
     return Boolean(
       value &&
-      value.getTime() >
-        Date.now() &&
-      scheduleDate.value >=
-        minimumDate.value &&
-      scheduleDate.value <=
-        maximumDate.value,
+      value.getTime() > Date.now() &&
+      scheduleDate.value >= minimumDate.value &&
+      scheduleDate.value <= maximumDate.value,
     )
   },
 )
-
 const schedulingDraft = computed(
   () =>
     queue.value.find(
@@ -1578,7 +1600,7 @@ async function saveSchedule() {
         clubId: workspaceClubId.value,
         ladderId: workspaceLadderId.value,
       }
-      const scheduledAt = scheduledDateTime.value.toISOString()
+      const scheduledAt = scheduleTiming.value === 'now' ? null : scheduledDateTime.value.toISOString()
       const courtId = scheduleCourtId.value || null
       const challenger = playerFor(draft.challengerId)
       const opponent = playerFor(draft.opponentId)
@@ -1605,7 +1627,7 @@ async function saveSchedule() {
         challengerPlayerId: draft.challengerId,
         opponentPlayerId: draft.opponentId,
         actorId: props.currentPlayerId || '',
-        timing: 'scheduled',
+        timing: scheduleTiming.value,
         scheduledAt,
         courtId,
         matchRuleSource: 'ladder_default',
@@ -2724,7 +2746,7 @@ onBeforeUnmount(() => {
             {{ cancellation.kind === 'challenge' && cancellation.challenge?.scheduledAt ? 'Scheduled match' : 'Match awaiting schedule' }}
           </div>
           <h2>Cancel this match?</h2>
-          <p class="bulk-cancel-dialog__pair">{{ cancellationTitle() }}</p>
+          <div class="bulk-cancel-dialog__pair"><strong>{{ cancellationTitle().split(' vs ')[0] }}</strong><span>vs</span><strong>{{ cancellationTitle().split(' vs ')[1] }}</strong></div>
           <p class="bulk-cancel-dialog__message">{{ cancellationMessage() }}</p>
           <p class="bulk-cancel-dialog__impact">Both players will become available again.</p>
           <div class="bulk-modal__actions bulk-cancel-dialog__actions">
@@ -2793,7 +2815,7 @@ onBeforeUnmount(() => {
           <h2>{{ scheduleTitle() }}</h2>
 
           <p>
-            Choose a future date, time and court.
+            {{ scheduleTiming === 'now' ? 'This match will start now. You can change the time if needed.' : 'Choose a future date, time and court.' }}
           </p>
 
           <div class="bulk-schedule-form">
@@ -2802,19 +2824,34 @@ onBeforeUnmount(() => {
               <input
                 v-model="scheduleDate"
                 type="date"
+                @change="handleScheduleDateChange"
                 :min="minimumDate"
                 :max="maximumDate"
               />
             </label>
 
-            <label>
-              <span>Time</span>
+            <label v-if="scheduleTiming === 'scheduled'">
+              <span class="bulk-schedule-time-label">
+                Time
+                <button
+                  v-if="!scheduleChallengeId && scheduleDate === minimumDate"
+                  type="button"
+                  @click="setScheduleNow"
+                >Set back to NOW</button>
+              </span>
               <input
                 v-model="scheduleTime"
                 type="time"
               />
             </label>
 
+            <div v-else class="bulk-schedule-now">
+              <span>Time</span>
+              <div>
+                <strong>Now</strong>
+                <button type="button" @click="changeScheduleTime">Change time</button>
+              </div>
+            </div>
             <label>
               <span>Court</span>
               <select
@@ -2834,17 +2871,6 @@ onBeforeUnmount(() => {
               </select>
             </label>
           </div>
-
-          <p
-            v-if="
-              scheduleDate &&
-              scheduleTime &&
-              !scheduleIsValid
-            "
-            class="bulk-schedule-warning"
-          >
-            Choose a future time inside this calendar range.
-          </p>
 
           <div class="bulk-modal__actions">
             <button
@@ -2914,10 +2940,10 @@ onBeforeUnmount(() => {
 
     <Teleport to="body">
       <div v-if="cancelBulkSetupOpen" class="bulk-modal" @click.self="closeCancelBulkSetup">
-        <section class="bulk-modal__card bulk-cancel-dialog">
+        <section class="bulk-modal__card bulk-cancel-dialog bulk-cancel-dialog--setup">
           <button type="button" class="bulk-modal__close" aria-label="Close" @click="closeCancelBulkSetup">&times;</button>
-          <div class="bulk-cancel-dialog__status"><small>Bulk setup</small><strong>Cancel all queued pairings?</strong></div>
-          <p class="bulk-cancel-dialog__message">This clears {{ queue.length }} unscheduled {{ queue.length === 1 ? 'pairing' : 'pairings' }} and cannot be undone. Scheduled matches will remain unchanged.</p>
+          <div class="bulk-cancel-dialog__status"><strong>Cancel setup?</strong></div>
+          <p class="bulk-cancel-dialog__message">Remove {{ queue.length }} unscheduled {{ queue.length === 1 ? 'pairing' : 'pairings' }}? Scheduled matches will stay unchanged.</p>
           <div class="bulk-modal__actions bulk-cancel-dialog__actions">
             <button type="button" @click="closeCancelBulkSetup">Keep setup</button>
             <button type="button" class="bulk-cancel-match" @click="confirmCancelBulkSetup">Cancel setup</button>
@@ -4274,6 +4300,53 @@ onBeforeUnmount(() => {
   text-align: left;
 }
 
+.bulk-schedule-time-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bulk-schedule-time-label button {
+  border: 0;
+  background: transparent;
+  color: var(--color-primary-strong);
+  font: inherit;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+}
+.bulk-schedule-now {
+  display: grid;
+  gap: 5px;
+}
+
+.bulk-schedule-now > span {
+  color: var(--color-text-soft);
+  font-size: 9.5px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.bulk-schedule-now > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--app-control-radius, 9px);
+}
+
+.bulk-schedule-now strong {
+  font-size: 11px;
+}
+
+.bulk-schedule-now button {
+  border: 0;
+  background: transparent;
+  color: var(--color-primary-strong);
+  font: inherit;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+}
 .bulk-schedule-form label {
   display: grid;
   gap: 5px;
@@ -5979,5 +6052,178 @@ onBeforeUnmount(() => {
 
 .bulk-player-row--selected .bulk-player-row__chevron {
   color: var(--color-primary-strong);
+}
+
+/* Calm destructive confirmations: one quiet exit, one clearly dangerous choice. */
+.bulk-cancel-dialog {
+  width: min(400px, calc(100vw - 32px));
+  padding: 30px 30px 26px;
+  border: 1px solid color-mix(in srgb, #9b514a 18%, var(--color-border));
+  border-radius: 16px;
+  box-shadow: 0 22px 56px rgba(20, 31, 24, .18);
+  text-align: left;
+}
+.bulk-cancel-dialog__status {
+  color: #85544d;
+  letter-spacing: .045em;
+}
+.bulk-cancel-dialog h2 {
+  margin-top: 12px;
+  font-size: 21px;
+  line-height: 1.2;
+}
+.bulk-cancel-dialog__pair {
+  margin-top: 8px !important;
+  font-size: 13px !important;
+}
+.bulk-cancel-dialog__message {
+  max-width: 34ch;
+  margin-top: 14px !important;
+  font-size: 12px !important;
+  line-height: 1.55;
+}
+.bulk-cancel-dialog__impact {
+  margin-top: 8px !important;
+  font-size: 11px !important;
+}
+.bulk-cancel-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+.bulk-cancel-dialog__actions > button {
+  min-width: 112px;
+}
+.bulk-cancel-dialog__actions > button:first-child {
+  border-color: var(--color-border) !important;
+  background: transparent !important;
+  color: var(--color-text) !important;
+}
+.bulk-cancel-dialog__actions > button:first-child:hover {
+  border-color: var(--color-border-strong) !important;
+  background: var(--color-surface-soft) !important;
+}
+.bulk-cancel-dialog__actions .bulk-cancel-match {
+  border-color: #a95c53 !important;
+  background: #a95c53 !important;
+  color: #fff !important;
+}
+.bulk-cancel-dialog__actions .bulk-cancel-match:hover {
+  border-color: #914940 !important;
+  background: #914940 !important;
+}
+@media (max-width: 480px) {
+  .bulk-cancel-dialog { padding: 26px 22px 22px; }
+  .bulk-cancel-dialog__actions { flex-direction: column-reverse; }
+  .bulk-cancel-dialog__actions > button { width: 100%; }
+}
+
+/* Confirmation hierarchy: preserve is the only primary action. */
+.bulk-cancel-dialog__actions > button:first-child {
+  border-color: var(--color-primary) !important;
+  background: var(--color-primary) !important;
+  color: #fff !important;
+}
+.bulk-cancel-dialog__actions > button:first-child:hover {
+  border-color: var(--color-primary-strong) !important;
+  background: var(--color-primary-strong) !important;
+}
+.bulk-cancel-dialog__actions .bulk-cancel-match {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #8d453e !important;
+}
+.bulk-cancel-dialog__actions .bulk-cancel-match:hover {
+  border-color: rgba(141, 69, 62, .22) !important;
+  background: rgba(141, 69, 62, .06) !important;
+  color: #783b35 !important;
+}
+
+/* Match-cancel confirmation: retain the shared compact modal scale. */
+.bulk-cancel-dialog {
+  width: min(360px, 100%);
+  padding: 42px 20px 20px;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .2);
+  text-align: center;
+}
+.bulk-cancel-dialog--setup .bulk-cancel-dialog__status {
+  display: block;
+  color: var(--color-text);
+}
+.bulk-cancel-dialog--setup .bulk-cancel-dialog__status strong {
+  display: block;
+  font-size: 20px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -.02em;
+  line-height: 1.25;
+}.bulk-cancel-dialog__status,
+.bulk-cancel-dialog__impact { display: none; }
+.bulk-cancel-dialog h2 {
+  margin-top: 7px;
+  color: var(--color-text);
+  font-size: 20px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -.02em;
+  line-height: 1.25;
+}
+.bulk-cancel-dialog__message {
+  max-width: none;
+  margin-top: 7px !important;
+  color: var(--color-muted) !important;
+  font-size: 10px !important;
+  line-height: 1.5;
+}
+.bulk-cancel-dialog__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px !important;
+  padding: 14px 12px;
+  border-radius: 10px;
+  background: var(--color-surface-soft);
+  color: var(--color-text);
+  font-size: 13px !important;
+  font-weight: var(--font-weight-semibold);
+}
+.bulk-cancel-dialog__pair strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bulk-cancel-dialog__pair strong:last-child { text-align: right; }
+.bulk-cancel-dialog__pair span { color: var(--color-muted); font-size: 11px; }
+.bulk-cancel-dialog__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 20px;
+}
+.bulk-cancel-dialog__actions > button {
+  min-width: 0;
+  min-height: 40px;
+}
+.bulk-cancel-dialog__actions > button:first-child {
+  border-color: var(--color-primary) !important;
+  background: var(--color-primary) !important;
+  color: #fff !important;
+  padding-inline: 0;
+}
+.bulk-cancel-dialog__actions > button:first-child:hover {
+  border-color: var(--color-primary-strong) !important;
+  background: var(--color-primary-strong) !important;
+  color: #fff !important;
+  text-decoration: none;
+}
+.bulk-cancel-dialog__actions .bulk-cancel-match {
+  min-width: 0;
+  border-color: var(--color-border) !important;
+  background: #fff !important;
+  color: var(--color-text) !important;
+  box-shadow: none;
+}
+.bulk-cancel-dialog__actions .bulk-cancel-match:hover {
+  border-color: var(--color-border-strong) !important;
+  background: var(--color-surface-soft) !important;
+  color: var(--color-text) !important;
 }
 </style>

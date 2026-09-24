@@ -658,8 +658,8 @@ const routes = [
     props: true,
     meta: {
       title: 'Match Details',
-      subtitle: 'Confirm the final score, verify the winner, and move the ladder forward.',
-      primarySection: 'ladder',
+      subtitle: 'Players, schedule, status, score, and match actions.',
+      primarySection: 'play',
     },
   },
   {

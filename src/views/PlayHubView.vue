@@ -8,7 +8,15 @@ import { useAdminStore } from '../stores/admin'
 import { useNotificationStore } from '../stores/notification'
 import { startOrResumeLadderMatch } from '../services/LadderLiveMatchService.js'
 import { startOrResumeMatch } from '../services/LiveMatchService.js'
+import {
+  PLAY_MATCH_ACTIONS,
+  compareOperationalPlayMatches,
+  getPlayMatchActions,
+  isOperationalPlayMatch,
+} from '../domain/playMatchActions.js'
 import EmptyState from '../components/EmptyState.vue'
+import PlayMatchRow from '../components/play/PlayMatchRow.vue'
+import LadderMatchManageDialog from '../components/play/LadderMatchManageDialog.vue'
 
 const router = useRouter()
 const friendlyMatchStore = useFriendlyMatchStore()
@@ -17,21 +25,60 @@ const playerStore = usePlayerStore()
 const adminStore = useAdminStore()
 const notificationStore = useNotificationStore()
 const hasLoaded = ref(false)
+const managedMatch = ref(null)
+const manageMode = ref('')
 
 const currentPlayerId = computed(() => playerStore.currentPlayerId)
-const readyMatches = computed(() =>
+const courts = computed(() => adminStore.activeClub?.setup?.workspace?.courts || [])
+const canManageClub = computed(() => adminStore.hasActiveClubPermission('club.manage'))
+const canControlLive = computed(() => adminStore.hasActiveClubPermission('matches.live_score'))
+
+const ladderOperationalMatches = computed(() =>
   matchStore.matches
-    .filter(
-      (match) =>
-        (match.type === 'ladder'
-          ? ['accepted', 'scheduled', 'ready', 'live'].includes(match.status)
-          : ['pending', 'scheduled', 'live'].includes(match.status)) &&
-        [match.player1Id, match.player2Id, match.challengerId, match.defenderId].includes(
-          currentPlayerId.value,
-        ),
+    .filter((match) =>
+      isOperationalPlayMatch(match, {
+        actorId: currentPlayerId.value,
+        activeClubId: adminStore.activeClubId || '',
+        canManage: canManageClub.value,
+      }),
     )
-    .slice(0, 3),
+    .sort(compareOperationalPlayMatches),
 )
+
+const otherOperationalMatches = computed(() =>
+  matchStore.matches.filter(
+    (match) =>
+      match.type !== 'ladder' &&
+      ['pending', 'scheduled', 'live'].includes(match.status) &&
+      [match.player1Id, match.player2Id, match.challengerId, match.defenderId].includes(
+        currentPlayerId.value,
+      ),
+  ),
+)
+
+const operationalMatches = computed(() =>
+  [...ladderOperationalMatches.value, ...otherOperationalMatches.value].sort(
+    compareOperationalPlayMatches,
+  ),
+)
+
+function actionsForMatch(match) {
+  if (match.type === 'ladder') {
+    return getPlayMatchActions(match, {
+      actorId: currentPlayerId.value,
+      canManage: canManageClub.value,
+      canLiveControl: canControlLive.value,
+    })
+  }
+
+  return [
+    {
+      id: 'continue_non_ladder',
+      label: 'Continue',
+      tone: 'primary',
+    },
+  ]
+}
 
 function startMatch(mode) {
   friendlyMatchStore.beginMatch()
@@ -46,24 +93,7 @@ function startMatch(mode) {
   router.push({ name: 'FriendlyMatchScoring' })
 }
 
-async function continueMatch(match) {
-  if (match.type === 'ladder') {
-    const result = await startOrResumeLadderMatch({
-      match,
-      actorId: currentPlayerId.value,
-      clubId: adminStore.activeClubId || '',
-      explicitStart: true,
-    })
-    if (!result.ok) {
-      notificationStore.addToast({
-        message: result.message || 'This Ladder Match cannot be continued yet.',
-        type: 'warning',
-      })
-      return
-    }
-    router.push({ name: 'LiveMatch', params: { matchId: result.match.id } })
-    return
-  }
+async function continueNonLadderMatch(match) {
   if (match.type === 'tournament') {
     const result = await startOrResumeMatch({
       match,
@@ -72,6 +102,7 @@ async function continueMatch(match) {
       authorized: adminStore.hasActiveClubPermission('tournaments.score.update'),
       explicitStart: true,
     })
+
     if (!result.ok) {
       notificationStore.addToast({
         message: result.message || 'This Tournament Match cannot be continued yet.',
@@ -79,22 +110,155 @@ async function continueMatch(match) {
       })
       return
     }
-    router.push({ name: 'LiveMatch', params: { matchId: result.match.id } })
+
+    router.push({
+      name: 'LiveMatch',
+      params: {
+        matchId: result.match.id,
+      },
+    })
+
     return
   }
-  router.push({ name: 'MatchDetails', params: { matchId: match.id } })
+
+  router.push({
+    name: 'MatchDetails',
+    params: {
+      matchId: match.id,
+    },
+  })
 }
 
-function matchName(match) {
-  return `${match.player1Name || match.challengerName || 'Player 1'} vs ${
-    match.player2Name || match.defenderName || 'Player 2'
-  }`
+function ladderActionStillAllowed(match, actionId) {
+  return getPlayMatchActions(match, {
+    actorId: currentPlayerId.value,
+    canManage: canManageClub.value,
+    canLiveControl: canControlLive.value,
+  }).some((action) => action.id === actionId)
 }
 
-function matchTypeLabel(match) {
-  if (match.type === 'tournament') return 'Tournament match'
-  if (match.type === 'ladder') return 'Ladder match'
-  return 'Match'
+async function startLadderMatch(match) {
+  if (!ladderActionStillAllowed(match, PLAY_MATCH_ACTIONS.START_MATCH)) {
+    notificationStore.addToast({
+      message: 'This match is no longer ready to start.',
+      type: 'warning',
+    })
+    return
+  }
+
+  const result = await startOrResumeLadderMatch({
+    match,
+    actorId: currentPlayerId.value,
+    clubId: adminStore.activeClubId || '',
+    explicitStart: true,
+  })
+
+  if (!result.ok) {
+    notificationStore.addToast({
+      message: result.message || 'This Ladder Match cannot be started yet.',
+      type: 'warning',
+    })
+    return
+  }
+
+  router.push({
+    name: 'LiveMatch',
+    params: {
+      matchId: result.match.id,
+    },
+  })
+}
+
+function openManageDialog(match, mode) {
+  managedMatch.value = match
+  manageMode.value = mode
+}
+
+function closeManageDialog() {
+  managedMatch.value = null
+  manageMode.value = ''
+}
+
+function handleManagedResult() {
+  closeManageDialog()
+}
+
+async function handleMatchAction({ action, match }) {
+  const actionId =
+    typeof action === 'string' ? action : action?.id || action?.key || action?.type || ''
+
+  if (!match || !actionId) {
+    return
+  }
+
+  if (match.type !== 'ladder') {
+    if (actionId === 'continue_non_ladder') {
+      await continueNonLadderMatch(match)
+    }
+
+    return
+  }
+
+  if (!ladderActionStillAllowed(match, actionId)) {
+    notificationStore.addToast({
+      message: 'That action is no longer available for this match.',
+      type: 'warning',
+    })
+    return
+  }
+
+  switch (actionId) {
+    case PLAY_MATCH_ACTIONS.VIEW_MATCH:
+      router.push({
+        name: 'MatchDetails',
+        params: {
+          matchId: match.id,
+        },
+      })
+      return
+
+    case PLAY_MATCH_ACTIONS.START_MATCH:
+      await startLadderMatch(match)
+      return
+
+    case PLAY_MATCH_ACTIONS.RESUME_SCORING:
+      router.push({
+        name: 'LiveMatch',
+        params: {
+          matchId: match.id,
+        },
+      })
+      return
+
+    case PLAY_MATCH_ACTIONS.VIEW_LIVE_SCORE:
+      router.push({
+        name: 'LiveScoreboard',
+        params: {
+          matchId: match.id,
+        },
+      })
+      return
+
+    case PLAY_MATCH_ACTIONS.OPEN_MATCH_CONTROL:
+      router.push({
+        name: 'LiveOperationDetail',
+        params: {
+          matchId: match.id,
+        },
+      })
+      return
+
+    case PLAY_MATCH_ACTIONS.RESCHEDULE:
+      openManageDialog(match, 'reschedule')
+      return
+
+    case PLAY_MATCH_ACTIONS.CANCEL:
+      openManageDialog(match, 'cancel')
+      return
+
+    default:
+      return
+  }
 }
 
 onMounted(async () => {
@@ -141,32 +305,23 @@ onMounted(async () => {
       <header class="section-heading section-heading--split">
         <div>
           <h2 id="your-matches-title">Your matches</h2>
-          <p>Matches ready for your next action.</p>
+          <p>Active matches and the actions available to you.</p>
         </div>
-        <span v-if="readyMatches.length" class="match-count">{{ readyMatches.length }}</span>
+        <span v-if="operationalMatches.length" class="match-count">{{ operationalMatches.length }}</span>
       </header>
 
       <div v-if="matchStore.isLoading && !hasLoaded" class="match-loading" aria-label="Loading your matches">
         <span v-for="row in 3" :key="row" class="match-loading__row"></span>
       </div>
 
-      <div v-else-if="readyMatches.length" class="match-list">
-        <article v-for="match in readyMatches" :key="match.id" class="match-row">
-          <span class="feature-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="8.5" />
-              <path d="M5.7 6.4c2.8 1.9 4.1 4.4 4.5 7.4M18.3 17.6c-2.8-1.9-4.1-4.4-4.5-7.4" />
-            </svg>
-          </span>
-          <div class="match-row__copy">
-            <span>{{ match.statusLabel || match.status }}</span>
-            <strong>{{ matchName(match) }}</strong>
-            <small>{{ matchTypeLabel(match) }}</small>
-          </div>
-          <button type="button" class="match-row__action" @click="continueMatch(match)">
-            Continue
-          </button>
-        </article>
+      <div v-else-if="operationalMatches.length" class="match-list">
+        <PlayMatchRow
+          v-for="match in operationalMatches"
+          :key="match.id"
+          :match="match"
+          :actions="actionsForMatch(match)"
+          @action="handleMatchAction"
+        />
       </div>
 
       <EmptyState
@@ -174,10 +329,20 @@ onMounted(async () => {
         compact
         variant="quiet"
         illustration="matches"
-        title="No matches yet"
-        description="Matches involving you will appear here."
+        title="No active matches"
+        description="Scheduled, ready, and live matches will appear here when there is something to do or follow."
       />
     </section>
+
+    <LadderMatchManageDialog
+      :open="Boolean(managedMatch)"
+      :match="managedMatch"
+      :mode="manageMode"
+      :courts="courts"
+      @close="closeManageDialog"
+      @saved="handleManagedResult"
+      @cancelled="handleManagedResult"
+    />
   </section>
 </template>
 
@@ -276,26 +441,20 @@ onMounted(async () => {
   stroke-linejoin: round;
 }
 
-.play-option__copy,
-.match-row__copy {
+.play-option__copy {
   display: grid;
   min-width: 0;
-}
-
-.play-option__copy {
   gap: 4px;
 }
 
-.play-option__copy strong,
-.match-row__copy strong {
+.play-option__copy strong {
   color: var(--color-text);
   font-size: 14px;
   font-weight: var(--font-weight-semibold);
   line-height: 1.35;
 }
 
-.play-option__copy small,
-.match-row__copy small {
+.play-option__copy small {
   color: var(--color-muted);
   font-size: 12px;
   font-weight: var(--font-weight-regular);
@@ -320,49 +479,6 @@ onMounted(async () => {
   border: 1px solid var(--color-border);
   border-radius: 12px;
   background: var(--color-surface);
-}
-
-.match-row {
-  display: grid;
-  min-height: 86px;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  padding: 16px 20px;
-  border-top: 1px solid var(--color-border);
-}
-
-.match-row:first-child {
-  border-top: 0;
-}
-
-.match-row__copy {
-  gap: 2px;
-}
-
-.match-row__copy > span {
-  color: var(--color-primary-strong);
-  font-size: 10px;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.06em;
-  line-height: 1.4;
-  text-transform: uppercase;
-}
-
-.match-row__action {
-  min-height: 42px;
-  padding: 0 15px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 9px;
-  background: var(--color-surface);
-  color: var(--color-primary-strong);
-  font-size: 12px;
-  font-weight: var(--font-weight-semibold);
-}
-
-.match-row__action:hover {
-  border-color: color-mix(in srgb, var(--color-primary) 32%, var(--color-border));
-  background: var(--color-surface-softest);
 }
 
 .match-loading {
@@ -403,21 +519,10 @@ onMounted(async () => {
     min-height: 104px;
     padding: 18px;
   }
-
-  .match-row {
-    grid-template-columns: 38px minmax(0, 1fr);
-    padding: 16px;
-  }
-
-  .match-row__action {
-    grid-column: 2;
-    justify-self: start;
-  }
 }
 
 @media (max-width: 360px) {
-  .play-option,
-  .match-row {
+  .play-option {
     gap: 11px;
     padding-inline: 14px;
   }
@@ -430,6 +535,7 @@ onMounted(async () => {
     transition: none;
   }
 }
+
 .play-option--ladder {
   border-color: #163d2b;
   background: #163d2b;

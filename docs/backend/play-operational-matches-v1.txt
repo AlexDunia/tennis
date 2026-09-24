@@ -1,0 +1,56 @@
+﻿GORRA PLAY OPERATIONAL MATCHES — BACKEND CONTRACT V1
+
+Endpoint
+GET /api/v1/clubs/{club}/matches/operational
+
+Server rules
+1. Authenticate server-side.
+2. Resolve the active Club from the route binding.
+3. Require active Club membership.
+4. Never trust browser role flags.
+5. Never trust isAdmin, canManage, or participant flags from the client.
+6. Return canonical Match records only.
+7. An ordinary player receives active operational matches they participate in.
+8. A Club admin/co-admin may receive active Club operational matches according to server permissions.
+9. Explicit records from another Club must never be returned.
+10. Terminal completed/cancelled matches are not part of the active operational list.
+
+Operational Ladder statuses
+accepted
+scheduled
+ready
+live
+pending_review
+
+Canonical response fields
+id
+challenge_id
+club_id
+ladder_id
+type
+status
+challenger_id
+defender_id
+scorer_id
+scheduled_at
+started_at
+court
+score
+
+Actions
+VIEW: Read-only canonical match retrieval. It must never start a match.
+
+START: A separate, explicit authorized operation. Revalidate current state server-side. READY may change to LIVE only after a valid explicit start.
+
+RESCHEDULE: An authorized Club-management operation that updates the same canonical Challenge and Match.
+
+CANCEL: An authorized Club-management operation that soft-cancels the same canonical records.
+
+LIVE SCORE VIEW: Read-only. It must never grant scorer authority.
+
+LIVE CONTROL: Requires a server-side matches.live_score equivalent permission.
+
+Scoring authority
+Opening a route never assigns or transfers scorer authority.
+
+Frontend action-policy helpers are UX only. Laravel remains authoritative.
