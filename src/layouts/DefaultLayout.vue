@@ -111,7 +111,9 @@
             :title="item.label"
             @click="handleNavigationClick(item.to, $event)"
           >
-            <span class="icon" v-html="item.icon"></span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path :d="iconPath(item.icon)" />
+            </svg>
             <span class="label">{{ item.label }}</span>
           </a>
         </template>
@@ -216,7 +218,7 @@
               title="Notifications"
               @click="handleNavigationClick({ name: 'Notifications' }, $event)"
             >
-              <span class="icon" v-html="bellIcon"></span>
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="iconPath('bell')" /></svg>
               <span v-if="unreadCount" class="notification-dot" aria-hidden="true"></span>
             </a>
 
@@ -254,12 +256,14 @@
                     role="menuitem"
                     @click="handleNavigationClick(item.to, $event)"
                   >
-                    <span class="icon" v-html="item.icon"></span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path :d="iconPath(item.icon)" />
+            </svg>
                     <span>{{ item.label }}</span>
                   </a>
 
                   <button type="button" role="menuitem" @click="signOut">
-                    <span class="icon" v-html="logoutIcon"></span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="iconPath('logout')" /></svg>
                     <span>Sign out</span>
                   </button>
                 </div>
@@ -304,7 +308,7 @@
             :aria-current="isContextItemActive(item) ? 'page' : undefined"
             @click="handleNavigationClick(item.to, $event)"
           >
-            <span class="context-nav__icon" aria-hidden="true" v-html="item.icon"></span>
+            <svg class="context-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="iconPath(item.icon)" /></svg>
             <span>{{ item.label }}</span>
           </a>
         </nav>
@@ -377,7 +381,9 @@
         :aria-current="isNavigationActive(item.section) ? 'page' : undefined"
         @click="handleNavigationClick(item.to, $event)"
       >
-        <span class="icon" v-html="item.icon"></span>
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path :d="iconPath(item.icon)" />
+            </svg>
         <span class="label">{{ item.label }}</span>
       </a>
     </nav>
@@ -434,51 +440,43 @@ const contextMotion = ref({ active: false, from: 0, to: 0, revision: 0 })
 let primaryMotionTimer = null
 let contextMotionTimer = null
 
-const homeIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><path d="m3 11 9-7 9 7v9H6v-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 20v-6h5v6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>'
-const playIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="m10 8.5 5 3.5-5 3.5v-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>'
-const competeIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><path d="M8 4h8v3a4 4 0 0 1-8 0V4Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 5H4v2a4 4 0 0 0 4 4M16 5h4v2a4 4 0 0 1-4 4M12 11v5M8.5 20h7M9 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-const clubIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><path d="M4 20V9l8-5 8 5v11H4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 20v-6h6v6M8 10h.01M12 10h.01M16 10h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
-const overviewIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="4" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="14" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="14" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.7"/></svg>'
-const membersIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="9" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 20c.5-3.4 2.3-5 5.5-5s5 1.6 5.5 5M15.5 6.5a3 3 0 0 1 0 5.8M16 15c2.7.2 4.1 1.8 4.5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>'
-const rulesIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><path d="M4 7h5M15 7h5M4 17h9M17 17h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="7" r="3" stroke="currentColor" stroke-width="1.7"/><circle cx="15" cy="17" r="2" stroke="currentColor" stroke-width="1.7"/></svg>'
-const profileIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M4 20c1.5-3.5 5-5 8-5s6.5 1.5 8 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>'
-const historyIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M4 4v4.6h4.6M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-const settingsIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M12 3v2M12 19v2M21 12h-2M5 12H3M18.4 5.6 17 7M7 17l-1.4 1.4M18.4 18.4 17 17M7 7 5.6 5.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>'
-const bellIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><path d="M12 4.5A4.5 4.5 0 0 1 16.5 9v3.5l1.7 2v.7H5.8v-.7l1.7-2V9A4.5 4.5 0 0 1 12 4.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 18a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>'
-const logoutIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-const tournamentIcon =
-  '<svg viewBox="0 0 24 24" fill="none"><path d="M8 4h8v3a4 4 0 0 1-8 0V4Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 5H4v2a4 4 0 0 0 4 4M16 5h4v2a4 4 0 0 1-4 4M12 11v5M8.5 20h7M9 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+const ICON_PATHS = Object.freeze({
+  home: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3v-10.5Z',
+  play: 'M12 3v18M5 7h14M5 17h14M7 5l10 14M17 5 7 19',
+  compete: 'M5 4h12l-2 5 2 5H5V4Zm0 10v6',
+  club: 'M4 21V8l8-5 8 5v13M8 21v-6h8v6M9 10h.01M15 10h.01',
+  overview: 'M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z',
+  members: 'M9 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.5 8c.5-3.4 2.3-5 5.5-5s5 1.6 5.5 5M16 12a3 3 0 0 0 0-6M16 15c2.7.2 4.1 1.8 4.5 5',
+  rules: 'M4 7h5M15 7h5M4 17h9M17 17h3M12 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm3 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
+  profile: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20c1.5-3.5 5-5 8-5s6.5 1.5 8 5',
+  history: 'M4 12a8 8 0 1 0 2.3-5.7L4 8.6M4 4v4.6h4.6M12 7.5V12l3 2',
+  settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12 3v2M12 19v2M21 12h-2M5 12H3M18.4 5.6 17 7M7 17l-1.4 1.4M18.4 18.4 17 17M7 7 5.6 5.6',
+  bell: 'M12 4.5A4.5 4.5 0 0 1 16.5 9v3.5l1.7 2v.7H5.8v-.7l1.7-2V9A4.5 4.5 0 0 1 12 4.5ZM10 18a2 2 0 0 0 4 0',
+  logout: 'M10 5H5v14h5M14 8l4 4-4 4M8 12h10',
+  tournament: 'M8 4h8v3a4 4 0 0 1-8 0V4ZM8 5H4v2a4 4 0 0 0 4 4M16 5h4v2a4 4 0 0 1-4 4M12 11v5M8.5 20h7M9 16h6',
+})
 
+function iconPath(icon) {
+  return ICON_PATHS[icon] || ICON_PATHS.home
+}
 const navigationItems = Object.freeze([
-  { to: { name: 'Dashboard' }, section: 'home', label: 'Home', icon: homeIcon },
-  { to: { name: 'Play' }, section: 'play', label: 'Play', icon: playIcon },
-  { to: { name: 'Rankings' }, section: 'ladder', label: 'Ladder', icon: competeIcon },
+  { to: { name: 'Dashboard' }, section: 'home', label: 'Home', icon: 'home' },
+  { to: { name: 'Play' }, section: 'play', label: 'Play', icon: 'play' },
+  { to: { name: 'Rankings' }, section: 'ladder', label: 'Ladder', icon: 'compete' },
   {
     to: { name: 'Tournaments' },
     section: 'tournament',
     label: 'Tournament',
-    icon: tournamentIcon,
+    icon: 'tournament',
   },
-  { to: { name: 'Club' }, section: 'club', label: 'Club', icon: clubIcon },
+  { to: { name: 'Clubs' }, section: 'club', label: 'Club', icon: 'club' },
 ])
 
 const accountItems = computed(() => {
   return [
-    { to: { name: 'Profile' }, label: 'View profile', icon: profileIcon },
-    { to: { name: 'History' }, label: 'Match history', icon: historyIcon },
-    { to: { name: 'AccountSettings' }, label: 'Account settings', icon: settingsIcon },
+    { to: { name: 'Profile' }, label: 'View profile', icon: 'profile' },
+    { to: { name: 'History' }, label: 'Match history', icon: 'history' },
+    { to: { name: 'AccountSettings' }, label: 'Account settings', icon: 'settings' },
   ]
 })
 
@@ -625,22 +623,22 @@ const activePrimaryLabel = computed(
 const contextualItems = computed(() => {
   if (activePrimarySection.value === 'club') {
     const items = [
-      { label: 'Overview', to: { name: 'Club' }, key: 'overview', icon: overviewIcon },
+      { label: 'Overview', to: { name: 'Club' }, key: 'overview', icon: 'overview' },
       {
         label: 'Members',
         to: { name: 'Club', query: { section: 'members' } },
         key: 'members',
-        icon: membersIcon,
+        icon: 'members',
       },
       {
         label: 'Rules',
         to: { name: 'Club', query: { section: 'rules' } },
         key: 'rules',
-        icon: rulesIcon,
+        icon: 'rules',
       },
     ]
     if (adminStore.hasActiveClubPermission('club.manage')) {
-      items.push({ label: 'Manage', to: { name: 'Settings' }, key: 'manage', icon: settingsIcon })
+      items.push({ label: 'Manage', to: { name: 'Settings' }, key: 'manage', icon: 'settings' })
     }
     return items
   }
@@ -1539,6 +1537,7 @@ onUnmounted(() => {
   place-items: center;
 }
 
+.icon,
 .icon :deep(svg) {
   width: 21px;
   height: 21px;
@@ -2148,6 +2147,7 @@ onUnmounted(() => {
   place-items: center;
 }
 
+.context-nav__icon,
 .context-nav__icon :deep(svg) {
   width: 18px;
   height: 18px;

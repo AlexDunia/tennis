@@ -30,26 +30,15 @@ test('desktop import keeps the real table while mobile gets a focused field edit
   )
 })
 
-test('the mobile import editor reuses the same mapping and cell mutation functions', () => {
-  assert.match(
-    importView,
-    /mapTarget\(\s*mobileColumn\.field\.key/,
-  )
-
-  assert.match(
-    importView,
-    /mapExtra\(\s*mobileColumn\.extra\.index/,
-  )
-
-  assert.match(
-    importView,
-    /changeCell\(\s*mobileColumn,\s*index/,
-  )
-
-  assert.match(
-    importView,
-    /cellState\(mobileColumn,\s*index\)/,
-  )
+test('the mobile import editor reuses the shared mapping and cell mutation functions', () => {
+  assert.match(importView, /function mapTarget\([\s\S]*remapImportTarget/)
+  assert.match(importView, /function mapExtra\([\s\S]*remapImportTarget/)
+  assert.match(importView, /function changeCell\([\s\S]*workspace\.rows\[rowIndex\]\[sourceIndex\] = value/)
+  assert.match(importView, /function cellState\([\s\S]*importCellIssue/)
+  assert.match(importView, /mapTarget\([\s\S]*mobileColumn\.field\.key/)
+  assert.match(importView, /mapExtra\([\s\S]*mobileColumn\.extra\.index/)
+  assert.match(importView, /changeCell\([\s\S]*mobileColumn,[\s\S]*index/)
+  assert.match(importView, /cellState\([\s\S]*mobileColumn,[\s\S]*index/)
 })
 
 test('repeated imports route through a reconciliation preview before apply', () => {

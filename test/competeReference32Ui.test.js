@@ -13,13 +13,15 @@ const competeCss = readFileSync('src/assets/compete-reference32.css', 'utf8')
 test('Compete presentation stylesheet is loaded without replacing domain architecture', () => {
   assert.match(mainSource, /compete-reference32\.css/)
   assert.match(competeCss, /\.gorra-compete-ref/)
-  assert.match(ladderSource, /gorra-compete-ref gorra-ladder-ref ladder-view/)
+  assert.match(ladderSource, /class="ladder-view"/)
+  assert.match(competeCss, /\.gorra-compete-ref\.gorra-ladder-ref \.ladder-workspace/)
 })
 
 test('Ladder keeps existing service-owned eligibility and canonical live-match flow', () => {
   assert.match(ladderSource, /getEligibleLadderOpponents/)
   assert.match(ladderSource, /isEligibleLadderOpponent/)
-  assert.match(ladderSource, /startOrResumeLadderMatch/)
+  assert.match(ladderSource, /buildAdminLadderMatchCommitPayload/)
+  assert.match(ladderSource, /async function viewMatch[\s\S]*name: 'MatchDetails'/)
   assert.match(ladderSource, /AdminLadderMatchDrawer/)
 
   assert.doesNotMatch(
@@ -36,12 +38,12 @@ test('Ladder page removes redundant breadcrumb and exposes Challenges clearly', 
 
   assert.match(
     ladderSource,
-    /class="compete-secondary"[\s\S]*name: 'Challenges'/,
+    /function startAdminChallenge[\s\S]*adminEligibleOpponentsFor\(player\)[\s\S]*selectedPlayerId\.value = player\.id/,
   )
 
   assert.match(
     ladderSource,
-    /class="compete-primary"[\s\S]*name: 'CreateChallenge'/,
+    /@set-up-challenge="[\s\S]*startAdminChallenge\(player\)/,
   )
 })
 

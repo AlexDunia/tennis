@@ -39,21 +39,18 @@ test('club directory stays stacked while join and create remain side by side', (
   )
 })
 
-test('club directory uses filled surfaces instead of card strokes', () => {
+test('club directory uses calm filled surfaces with a distinct active club', () => {
   assert.match(
     clubs,
-    /\.ref-club-directory-row[\s\S]*border:\s*0;[\s\S]*background:\s*#f7f9f7/,
+    /\.club-directory-section \.ref-club-directory-row[\s\S]*background:\s*#f7f9f7[\s\S]*box-shadow:\s*none/,
   )
 
   assert.match(
     clubs,
-    /\.ref-club-directory-row\.active[\s\S]*background:\s*#edf7ef/,
+    /\.club-directory-section \.ref-club-directory-row\.active[\s\S]*background:\s*#163d2b/,
   )
 
-  assert.doesNotMatch(
-    clubs,
-    /box-shadow:\s*inset\s+3px\s+0\s+0/,
-  )
+  assert.doesNotMatch(clubs, /box-shadow:\s*inset\s+3px\s+0\s+0/)
 })
 
 test('club directory differentiates the primary create action', () => {

@@ -29,9 +29,9 @@ test('Members shows Club, Members and current club identity beneath Back to club
   assert.doesNotMatch(members, /class="ref-back"/)
 })
 
-test('the active Club surface returns to the club directory from the shell header', () => {
-  assert.match(club, /label: 'Back to clubs'/)
-  assert.match(club, /back: \(\) => router\.push\(\{ name: 'Clubs' \}\)/)
+test('active Club surface owns its shell header label and preserves navigation history', () => {
+  assert.match(club, /label: club\.value\?\.name \|\| 'Club'/)
+  assert.match(club, /back: \(\) => router\.back\(\)/)
 })
 
 test('member import header follows the current import stage', () => {

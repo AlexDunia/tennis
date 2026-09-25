@@ -7,8 +7,8 @@ const creation = readFileSync('src/views/TournamentCreate.vue', 'utf8')
 const tournaments = readFileSync('src/views/compete/TournamentsListView.vue', 'utf8')
 
 test('shell pages use one shared header and body width while focused flows keep their override', () => {
-  assert.match(layout, /--app-shell-content-width:\s*min\(92%, 1280px\)/)
-  assert.match(layout, /\.header-content\s*{[^}]*width:\s*var\(--app-shell-content-width\)/s)
+  assert.match(layout, /--app-shell-content-width:\s*min\(calc\(100% - 64px\), 1200px\)/)
+  assert.match(layout, /\.header-content\s*{[^}]*width:\s*var\(--app-header-content-width\)/s)
   assert.match(layout, /\.content\s*{[^}]*width:\s*var\(--app-shell-content-width\)/s)
   assert.match(layout, /\.content--fullscreen,[^{]*\.content--public\s*{[^}]*width:\s*100%/s)
 })

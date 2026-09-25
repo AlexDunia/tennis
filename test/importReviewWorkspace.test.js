@@ -152,9 +152,8 @@ test(
 
     assert.match(
       ladderView,
-      /data-dev-only="clear-test-data"/,
+      /async function clearTestData\(\)[\s\S]*!showDevTestControls/,
     )
-
     assert.match(
       ladderView,
       /clearActiveClubTestData/,

@@ -72,7 +72,7 @@ test('club cover output is a fixed wide crop and the profile hero constrains ban
 
   assert.match(
     heroSource,
-    /height:\s*clamp\(90px,\s*9vw,\s*118px\)/,
+    /height:\s*clamp\(112px,\s*10vw,\s*152px\)/,
   )
 
   assert.match(

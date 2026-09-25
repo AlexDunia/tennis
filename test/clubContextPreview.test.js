@@ -106,7 +106,7 @@ test('non-active club preview uses the full-width shell context strip and accord
 
   assert.match(
     source,
-    /You’re viewing \{\{ club\.name \}\}\./,
+    /You.*viewing \{\{ club\.name \}\}\./,
   )
 
   assert.match(
@@ -202,7 +202,7 @@ test('club directory and active-club surfaces use living borderless hierarchy', 
 
   assert.match(
     clubsView,
-    /\.ref-club-directory-row[\s\S]*border:\s*0[\s\S]*background:\s*#f7f9f7/,
+    /\.club-directory-section \.ref-club-directory-row[\s\S]*border:\s*1px solid var\(--color-border\)[\s\S]*background:\s*#f7f9f7[\s\S]*box-shadow:\s*none/,
   )
 
   assert.match(

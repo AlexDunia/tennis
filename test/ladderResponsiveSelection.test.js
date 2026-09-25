@@ -17,18 +17,18 @@ const playerOptions = readFileSync(
   'utf8',
 )
 
-test('mobile Ladder does not shrink inside the already-80-percent shell', () => {
+test('mobile Ladder uses the shared bounded content gutter without a second width reduction', () => {
   assert.match(
-    ladder,
-    /@media \(max-width: 767px\)[\s\S]*\.ladder-workspace[\s\S]*width:\s*100%/,
+    layout,
+    /--app-shell-content-width:\s*min\(calc\(100% - 32px\), 720px\)/,
   )
 
-  assert.doesNotMatch(
-    ladder,
-    /@media \(max-width: 767px\)[\s\S]*\.ladder-workspace[\s\S]*width:\s*85%/,
+  assert.match(
+    layout,
+    /\.content--ladder:not\(.content--fullscreen\):not\(.content--public\)[\s\S]*width:\s*var\(--app-shell-content-width\)/,
   )
 
-  assert.match(layout, /--app-shell-content-width:\s*80%/)
+  assert.doesNotMatch(ladder, /width:\s*85%/)
 })
 
 test('admin challenge selection preserves selected, eligible and paused states', () => {
@@ -42,7 +42,7 @@ test('admin challenge selection preserves selected, eligible and paused states',
 test('the normal dynamic application header is allowed on the Ladder route', () => {
   assert.match(
     layout,
-    /const showRoutePageContext = computed\(\(\) =>\s*!clubOwnsPageHeading\.value\s*&&\s*!competeOwnsPageHeading\.value/,
+    /const showRoutePageContext = computed\([\s\S]*?!clubOwnsPageHeading\.value[\s\S]*?!competeOwnsPageHeading\.value/,
   )
 })
 
@@ -64,7 +64,7 @@ test('challenge focus uses toaster green and click-away backdrop', () => {
 test('challenge focus physically reflows the real cards instead of leaving blank ranked gaps', () => {
   assert.match(
     ladder,
-    /const displayPlayers = computed\(\(\) =>[\s\S]*challengeSelectionActive\.value[\s\S]*challengeFocusPlayers\.value[\s\S]*players\.value/,
+    /const displayPlayers = computed\(\(\) =>[\s\S]*challengeFocusActive\.value[\s\S]*challengeFocusPlayers\.value[\s\S]*players\.value/,
   )
 
   assert.match(

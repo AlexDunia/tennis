@@ -12,6 +12,12 @@ const settingsViewSource = readFileSync(
   'utf8',
 )
 
+function selectedInviteSource() {
+  const start = settingsViewSource.indexOf('const selectedInvite = computed')
+  const end = settingsViewSource.indexOf('const inviteLink = computed', start)
+  return settingsViewSource.slice(start, end)
+}
+
 test('AdminStore exposes the existing member-record invitation service through one small wrapper', () => {
   assert.match(
     adminStoreSource,
@@ -39,20 +45,21 @@ test('AdminStore exposes the existing member-record invitation service through o
   )
 })
 
-test('generic Club invite UI can never select a member-record invitation by role', () => {
+test('generic Club invite UI selects only generic role invitations', () => {
+  const selectedInvite = selectedInviteSource()
+
   assert.match(
-    settingsViewSource,
+    selectedInvite,
     /invite\.kind === CLUB_INVITE_KINDS\.GENERIC/,
   )
 
   assert.match(
-    settingsViewSource,
-    /invite\.role === role/,
+    selectedInvite, /invite\.role === role/,
   )
 
-  assert.match(
-    settingsViewSource,
-    /invite\.kind === CLUB_INVITE_KINDS\.MEMBER_RECORD/,
+  assert.doesNotMatch(
+    selectedInvite,
+    /CLUB_INVITE_KINDS\.MEMBER_RECORD/,
   )
 })
 

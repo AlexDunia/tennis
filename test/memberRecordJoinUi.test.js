@@ -119,10 +119,15 @@ test('generic invitation presentation and action remain separate from member-rec
   )
 })
 
-test('successful member-record claims enter the canonical Club while generic joins keep the Clubs destination', () => {
+test('successful member-record claims and generic directory joins enter the canonical active Club', () => {
   assert.match(
     clubsView,
-    /memberRecordClaim[\s\S]*\? \{ name: 'Club' \}[\s\S]*: \{ name: 'Clubs' \}/,
+    /memberRecordClaim[\s\S]*message:[\s\S]*Your account is connected/,
+  )
+
+  assert.match(
+    clubsView,
+    /await router\.push\(\{ name: 'Club' \}\)/,
   )
 
   assert.match(

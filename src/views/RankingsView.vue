@@ -141,17 +141,8 @@ const downloadShareCard = async () => {
     link.href = canvas.toDataURL('image/png')
     link.click()
   } catch {
-    const el = document.getElementById('shareable-card')
-    if (el) {
-      const win = window.open('', '_blank')
-      if (win) {
-        win.document.write(
-          `<!DOCTYPE html><html><body style="margin:0;background:#0a1018">${el.outerHTML}</body></html>`,
-        )
-        win.document.close()
-      }
-    }
-  } finally {
+    await navigator.clipboard?.writeText(window.location.href).catch(() => {})
+    alert('Could not create the image. The leaderboard link has been copied instead.')  } finally {
     isGeneratingImage.value = false
   }
 }
@@ -290,7 +281,7 @@ const shareLinks = [
                 <p class="share-dropdown-label">Share leaderboard</p>
                 <ul class="share-options">
                   <li v-for="s in shareLinks" :key="s.id" class="share-option" @click="s.action()">
-                    <span class="share-platform-icon" :style="{ color: s.color }" v-html="s.icon" />
+                    <span class="share-platform-icon" :style="{ color: s.color }" aria-hidden="true">{{ s.label.slice(0, 1) }}</span>
                     <span>{{ s.label }}</span>
                   </li>
                   <li class="share-option share-option--save" @click="openShareCard">

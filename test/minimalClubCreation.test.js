@@ -18,6 +18,10 @@ const clubCreateSource = readFileSync(
   'src/components/club/ClubCreatePanel.vue',
   'utf8',
 )
+const clubMediaEditorSource = readFileSync(
+  'src/components/club/ClubMediaEditor.vue',
+  'utf8',
+)
 const clubViewSource = readFileSync('src/views/ClubView.vue', 'utf8')
 const settingsViewSource = readFileSync('src/views/SettingsView.vue', 'utf8')
 
@@ -236,11 +240,11 @@ test('Create Club uses the prepared minimal ClubCreatePanel and real club handof
 
   assert.match(clubCreateSource, />Club basics<\/h2>/)
   assert.match(clubCreateSource, />Your club<\/h2>/)
-  assert.match(clubCreateSource, />You · Admin<\/small>/)
-  assert.match(clubCreateSource, /<strong>0<\/strong> members/)
-  assert.match(clubCreateSource, /<strong>0<\/strong> ladders/)
+  assert.match(clubCreateSource, /role-label="You .+ Admin"/)
+  assert.match(clubCreateSource, /:member-count="0"/)
+  assert.match(clubCreateSource, /:ladder-count="0"/)
 
-  assert.match(clubCreateSource, /type="file"/)
+  assert.match(clubMediaEditorSource, /type="file"/)
 
   assert.match(clubCreateSource, /logoUrl: form\.logoUrl/)
   assert.match(clubCreateSource, /coverUrl: form\.coverUrl/)

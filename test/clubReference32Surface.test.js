@@ -5,6 +5,7 @@ import test from 'node:test'
 const clubView = readFileSync('src/views/ClubView.vue', 'utf8')
 const membersView = readFileSync('src/views/ClubMembersView.vue', 'utf8')
 const importView = readFileSync('src/views/ClubMemberImportView.vue', 'utf8')
+const importScenarioSource = readFileSync('src/utils/onboarding/memberImport.js', 'utf8')
 const layout = readFileSync('src/layouts/DefaultLayout.vue', 'utf8')
 const clubsView = readFileSync('src/views/ClubsView.vue', 'utf8')
 
@@ -31,9 +32,10 @@ test('member directory uses one searchable list, a quiet zero state, and progres
 test('import flow carries exact Reference 32 scenario and work-page copy', () => {
   assert.match(importView, /What are you bringing in\?/)
   assert.match(importView, /Choose what is already in your file\./)
-  assert.match(importView, /Members only/)
-  assert.match(importView, /Members \+ one ladder/)
-  assert.match(importView, /Members \+ multiple ladders/)
+  assert.match(importView, /MEMBER_IMPORT_SCENARIOS/)
+  assert.match(importScenarioSource, /title: 'Members only'/)
+  assert.match(importScenarioSource, /title: 'Members \+ one ladder'/)
+  assert.match(importScenarioSource, /title: 'Members \+ multiple ladders'/)
   assert.match(importView, /Import your member list/)
   assert.match(importView, /Optional fields:/)
   assert.match(importView, /Download template/)
