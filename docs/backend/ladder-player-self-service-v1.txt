@@ -1,0 +1,48 @@
+GORRA Ladder player self-service v1 — backend contract
+
+Purpose
+The player-access QR/link is an opaque, reusable locator for one Club + Ladder scope. It helps a signed-in player reach their own Ladder activity. It is not an invitation, an authorization token, a role grant, a Club-join mechanism, or scoring authority.
+
+Route
+GET /ladder/access/:token is a client route today. It remains behind the normal application authentication guard. An unauthenticated scan must redirect to sign-in with the original full access route as the redirect target.
+
+Local prototype registry
+Browser key: gorra.ladder.playerAccess.v1
+A record contains only:
+- token
+- clubId
+- ladderId
+- createdAt
+- rotatedAt
+
+Tokens are URL-safe random values prefixed gpa_. They must be opaque: do not encode a player, email, Club/Ladder identifier, role, permission, or capability in the token or URL. The registry retains at most 100 records. One record is reused for the same Club + Ladder until rotation. Rotation removes the previous record, so the old QR/link no longer resolves.
+
+Production resolution contract
+A production resolver should accept the opaque token and return only the bound scope after validating that the record remains active:
+
+GET /api/ladder/player-access/:token
+200 { "token": "gpa_…", "clubId": "…", "ladderId": "…", "createdAt": "…", "rotatedAt": "…" }
+404 for unknown, revoked, expired, malformed, archived, disabled, or otherwise unavailable access records.
+
+The resolver must not return a player identity, email, membership, role, permission, challenge, match, scorer, or signed action capability. It must not infer a Club membership or join a Club.
+
+Authorization after resolution
+After resolving the scope, the application/backend must independently:
+1. require an authenticated session;
+2. verify the user has an active membership in clubId;
+3. verify the Ladder exists, is enabled, and is not archived;
+4. resolve the user to an existing Ladder roster record using stable identity fields only (playerId, userId, id, then normalized email); and
+5. apply existing per-action authorization on every destination and mutation.
+
+A Club member who is not on the Ladder is shown a no-membership-on-Ladder state. No automatic Club join, Ladder join, player creation, challenge creation, match start, scorer takeover, or role change is permitted by this flow.
+
+Assignment and destination contract
+Only active exact-scope Ladder challenge records may be surfaced: awaiting, accepted, scheduled, ready, live, pending_review. Match selection is canonical by challengeId and must not cross Club/Ladder scope.
+- Live: the assigned scorer may open live scoring; another participant may only open the live scoreboard.
+- Ready/scheduled: open Match Details; never start the match.
+- Pending review, awaiting, or accepted without a canonical match: open Challenge Details.
+
+Creating a challenge remains a normal, separately-authorized CreateChallenge flow. The self-service page merely pre-fills ladder and opponent route query values after local eligibility checks. Existing Challenge, Match Details, Live Match, and server-side authorization remain the authority of record.
+
+Operational notes
+Store rotation/revocation server-side in production, audit every resolution and rotation, rate-limit token resolution, and use short opaque random tokens with secure randomness. The local registry is prototype-only and is not a substitute for server authorization.

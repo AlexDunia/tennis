@@ -14,6 +14,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import RankingsView from '../views/compete/LadderView.vue'
 import LadderSettingsView from '../views/LadderSettingsView.vue'
+import LadderPlayerAccessView from '../views/LadderPlayerAccessView.vue'
 import TournamentSettingsView from '../views/TournamentSettingsView.vue'
 import ChallengesView from '../views/compete/ChallengesQueueView.vue'
 import ChallengeDetailsView from '../views/ChallengeDetailsView.vue'
@@ -823,6 +824,17 @@ const routes = [
       subtitle: 'Choose an eligible opponent using your club’s fixed Ladder rules.',
       permission: 'challenges.create',
       activeClubPermission: true,
+      primarySection: 'ladder',
+    },
+  },
+  {
+    path: '/ladder/access/:token',
+    name: 'LadderPlayerAccess',
+    component: LadderPlayerAccessView,
+    props: true,
+    meta: {
+      title: 'Ladder player access',
+      subtitle: 'Open your Ladder activity and eligible opponents.',
       primarySection: 'ladder',
     },
   },

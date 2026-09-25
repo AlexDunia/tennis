@@ -22,6 +22,7 @@ import LadderPlayerOptions from '../../components/ladder/LadderPlayerOptions.vue
 import MoveLadderPlayerDialog from '../../components/ladder/MoveLadderPlayerDialog.vue'
 import RecordMissingMatchDialog from '../../components/ladder/RecordMissingMatchDialog.vue'
 import RemoveLadderPlayerDialog from '../../components/ladder/RemoveLadderPlayerDialog.vue'
+import LadderPlayerAccessDialog from '../../components/ladder/LadderPlayerAccessDialog.vue'
 import { useAdminStore } from '../../stores/admin'
 import { useChallengeStore } from '../../stores/challenge'
 import { useNotificationStore } from '../../stores/notification'
@@ -63,6 +64,7 @@ const shell = inject('gorraShell', null)
 const activeLadderId = ref('')
 const ladderSwitching = ref(false)
 const matchSetupMenuOpen = ref(false)
+const playerAccessOpen = ref(false)
 
 const individualSearchOpen = ref(false)
 const individualSearchQuery = ref('')
@@ -1860,6 +1862,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
             </div>
             <div v-if="canManageLadder" class="ladder-heading__match-setup">
               <div class="ladder-header-tools">
+                <button type="button" class="ladder-header-player-access" @click="playerAccessOpen = true">Player access</button>
                 <label class="ladder-player-search" :class="{ 'is-open': individualSearchOpen }" @click="window.innerWidth <= 640 && (individualSearchOpen = true)">
                   <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
                   <input v-model="individualSearchQuery" type="search" placeholder="Search player" aria-label="Search player in this ladder" />
@@ -2187,6 +2190,14 @@ function continueLadderSetup(ladder = activeLadder.value) {
       :players="players.filter((player) => pendingRemovalIds.includes(player.id))"
       @close="removeDialogOpen = false"
       @confirm="confirmRemove"
+    />
+
+    <LadderPlayerAccessDialog
+      :open="playerAccessOpen"
+      :club-id="adminStore.activeClubId || ''"
+      :club-name="activeClub?.name || 'Club'"
+      :ladder="activeLadder"
+      @close="playerAccessOpen = false"
     />
   </section>
 </template>
@@ -4001,4 +4012,9 @@ function continueLadderSetup(ladder = activeLadder.value) {
   flex: 0 0 16px;
   stroke-width: 1.6;
 }
+</style>
+
+<style scoped>
+.ladder-header-player-access { min-height: 30px; padding: 0 9px; border: 1px solid var(--color-border); border-radius: var(--app-control-radius, 7px); background: var(--color-surface); color: var(--color-text); font-size: 10px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.ladder-header-player-access:hover, .ladder-header-player-access:focus-visible { border-color: var(--color-border-strong); background: var(--color-surface-soft); outline: none; }
 </style>

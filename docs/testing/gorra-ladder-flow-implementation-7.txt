@@ -1,0 +1,47 @@
+GORRA Ladder player self-service v1 — test and verification guide
+
+Automated coverage
+Run:
+  node --test test/ladderPlayerSelfService.test.js
+
+The focused suite covers:
+- opaque gpa_ locator reuse per Club + Ladder;
+- token rotation invalidating the old locator;
+- local registry corruption, 100-record cap, and Club-scoped cleanup;
+- active Ladder assignment filtering, canonical match association, exact Club/Ladder scope, and required priority ordering;
+- scorer-only live scoring versus participant live-score viewing;
+- ready/scheduled Match Details routing, challenge routing, exact action labels, and no direct create/start calls;
+- protected route, QR dependency, eligibility access check, and CreateChallenge-only navigation source checks.
+
+Manual manager flow
+1. Sign in as a Club manager and open Rankings with an active Ladder.
+2. Use the restrained Player access header control. Confirm that a white-quiet QR appears with the Ladder name, Club name, Copy link, New code, and Close controls.
+3. Close and reopen it. The link must be unchanged for the same Club + Ladder.
+4. Copy the link, then choose New code and confirm. The old link must show “This player access code is no longer available.” The new link must resolve.
+5. Confirm the QR URL contains only /ladder/access/gpa_… and does not expose a player ID, email, Club/Ladder ID, role, or permission.
+
+Manual player flow
+1. Sign out and scan/open a valid QR URL. The standard sign-in route must keep that exact QR route as its redirect target. After sign-in, return to the QR route.
+2. With no active membership for the token Club, confirm the page says the code belongs to the Club and that active membership is needed. Club and View clubs are the only recovery actions; no Club or Ladder membership is created.
+3. With active Club membership but no roster record, confirm “You’re not on {Ladder} yet.” and only Open Ladder appears.
+4. With one live assignment, confirm the scorer routes to LiveMatch and the other participant routes to LiveScoreboard. No QR user gains scorer takeover authority.
+5. With one ready or scheduled assignment, confirm the route is Match Details and no match is started.
+6. With multiple assignments, confirm only that player’s active exact-scope Ladder work is shown in this order: live, ready, scheduled by earliest time, accepted, awaiting, pending review.
+7. With no active assignment, confirm rank, win/loss/match totals, Ladder rule note, eligible-opponent list, and Refresh. Challenge must go only to CreateChallenge with ladder and opponent query values.
+8. Confirm Friendly Match UI and behaviors are absent from every player-access state.
+
+Regression commands
+Run the focused Implementation 7 test first, then the existing ladder and live-match regressions:
+  node --test test/ladderPlayerSelfService.test.js
+  node --test test/ladderAutomaticCompletion.test.js
+  node --test test/ladderAvailability.test.js
+  node --test test/playOperationalMatches.test.js
+  node --test test/matchDetailsLiveExperience.test.js
+  node --test test/canonicalLadderLive.test.js
+  node --test test/securityBaseline.test.js
+  git diff --check
+  npm test
+  npm run build
+
+Expected invariant
+The QR is a locator only. Existing authentication, Club membership, roster identity, CreateChallenge checks, scorer authority, match lifecycle controls, and backend authorization are never bypassed by this flow.
