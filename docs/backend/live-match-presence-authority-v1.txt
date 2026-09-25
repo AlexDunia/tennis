@@ -1,0 +1,21 @@
+Gorra live match presence and authority v1
+
+Authority is canonical, persistent match state. LiveMatchSession holds scorerAuthority.scorerId,
+authorityRevision, scoreRevision, and the scoring engine. Only an authorised assign_scorer command
+may change scorerAuthority; it increments authorityRevision but never changes the score or
+scoreRevision. A club administrator's “Take Match Control” remains an explicit, confirmed action.
+Presence, a route visit, and a scoreboard subscription never grant authority.
+
+Presence is ephemeral transport state only. Clients may use BroadcastChannel
+gorra.liveMatchPresence.v1 with join, heartbeat, update, leave, sync_request, and sync_response
+messages. Entries include a bounded match id, actor id, display name, role, and lastSeenAt. Use a
+5-second heartbeat; expire entries after 18 seconds. Roles (scorer, participant, club_control,
+viewer) are display-only. Deduplicate visible entries by actor, retaining the freshest entry and,
+on ties, the strongest role.
+
+Suggested backend transport: POST /live-matches/{matchId}/presence, PATCH the returned presence
+id, DELETE it on leave, and GET or subscribe to the match presence feed. Authenticate actor and
+club membership server-side; do not trust client roles. Do not persist viewer history, presence
+names, or raw presence feeds beyond the short expiry window. Score commands and assign_scorer use
+the canonical live-session endpoint with expected score/authority revisions and separate
+authorisation checks.

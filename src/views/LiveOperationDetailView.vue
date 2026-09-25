@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '../stores/admin'
 import { useAuthStore } from '../stores/auth'
 import { useFriendlyMatchStore } from '../stores/friendlyMatch'
+import LivePresenceStrip from '../components/match/LivePresenceStrip.vue'
 import { usePlayerStore } from '../stores/player'
 import {
   dismissAbandonedLiveOperation,
@@ -83,6 +84,14 @@ const currentActorId = computed(
 const currentActorName = computed(
   () => playerStore.currentPlayer?.name || authStore.user?.name || 'Club admin',
 )
+
+const activeScorerName = computed(() => {
+  const current = operation.value
+  const snapshotName = current?.scorerName
+  return snapshotName && snapshotName !== 'Assigned scorer'
+    ? snapshotName
+    : current?.scorer?.name || current?.scorerId || 'Not assigned'
+})
 
 const isOwner = computed(() =>
   Boolean(operation.value?.ownerId && operation.value.ownerId === currentActorId.value),
@@ -1093,6 +1102,15 @@ onUnmounted(() => {
         </span>
       </header>
 
+      <LivePresenceStrip
+        :match-id="matchId"
+        :actor-id="currentActorId"
+        :actor-name="currentActorName"
+        role="club_control"
+        :announce="Boolean(currentActorId)"
+        compact
+      />
+
       <p v-if="message" class="operation-detail__notice" role="status">
         {{ message }}
       </p>
@@ -1165,10 +1183,10 @@ onUnmounted(() => {
 
       <section class="operation-detail__information">
         <div>
-          <span> Current scorer </span>
+          <span> Match scorer </span>
 
           <strong>
-            {{ operation.scorerName || 'Assigned scorer' }}
+            {{ activeScorerName }}
           </strong>
         </div>
 

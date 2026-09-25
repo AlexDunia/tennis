@@ -1,7 +1,10 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import LiveScoreboard from '../components/match/LiveScoreboard.vue'
+import LivePresenceStrip from '../components/match/LivePresenceStrip.vue'
+import { useAuthStore } from '../stores/auth'
+import { usePlayerStore } from '../stores/player'
 
 import {
   isLiveMatchSnapshotNewer,
@@ -16,6 +19,15 @@ const props = defineProps({
     default: '',
   },
 })
+
+const authStore = useAuthStore()
+const playerStore = usePlayerStore()
+const presenceActorId = computed(() =>
+  authStore.user?.playerId || playerStore.currentPlayer?.id || authStore.user?.id || '',
+)
+const presenceActorName = computed(() =>
+  playerStore.currentPlayer?.name || authStore.user?.name || 'Someone',
+)
 
 const snapshot = ref(null)
 
@@ -600,6 +612,15 @@ onBeforeUnmount(() => {
         </span>
       </button>
     </nav>
+
+    <LivePresenceStrip
+      :match-id="normalizeMatchId(props.matchId)"
+      :actor-id="presenceActorId"
+      :actor-name="presenceActorName"
+      role="viewer"
+      :announce="Boolean(presenceActorId)"
+      compact
+    />
 
     <Transition name="display-notice">
       <p v-if="displayNotice" class="scoreboard-display-notice" role="status" aria-live="polite">
