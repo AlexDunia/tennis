@@ -1,0 +1,11 @@
+GORRA Ladder automatic completion — browser checklist
+
+1. Start a READY Ladder Match and score until the tennis engine declares a winner.
+2. Finish the match. Confirm the same Match ID shows Completed with its final score, no Pending Review,
+   no opponent-confirmation message, and no optional Ladder-update prompt.
+3. Open Ladder. Confirm W/L and matches played update; configured position-swap or leapfrog movement is
+   visible immediately; completed players are available again; and eligible opponents use the new ranks.
+4. Open Play. The completed Match is absent from active operational matches.
+5. Open Match Details. Confirm Completed, final score, court, format, and the Ladder updated note.
+6. Retry the completion if practical. Confirm no duplicate movement, activity, wins, losses, or matches.
+7. Open a seeded legacy pending_review record. Confirm its existing review/confirmation flow still works.

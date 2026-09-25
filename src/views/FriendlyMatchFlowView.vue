@@ -3350,8 +3350,7 @@ async function finishMatch() {
   /*
    * LADDER
    *
-   * Preserve the current Ladder confirmation
-   * lifecycle for now.
+   * Canonical GORRA Ladder scoring completes the physical result directly.
    */
   if (isLadder.value) {
     const physicalCompletion = liveSessionApi.finishPhysicalMatch()
@@ -3373,18 +3372,12 @@ async function finishMatch() {
 
     const submitted = await matchStore.submitResult(matchId, {
       score: friendlyMatchStore.scoreSummary,
-
       winnerId,
-
       submittedBy: currentIdentity.value.id,
-
       resultId: physicalCompletion.session?.resultId,
-
-      sets: friendlyMatchStore.draft.setScores.map((set) => ({
-        ...set,
-      })),
+      resultSource: 'gorra_live',
+      sets: friendlyMatchStore.draft.setScores.map((set) => ({ ...set })),
     })
-
     if (!submitted) {
       notificationStore.addToast({
         message: matchStore.error || 'The Ladder result could not be submitted.',
@@ -3395,25 +3388,33 @@ async function finishMatch() {
       return
     }
 
-    const completedResult = friendlyMatchStore.endMatch(currentIdentity.value.id)
+    /* Publish terminal operations before the local draft is released. */
+    publishCurrentLiveOperations({ type: 'complete' })
+    publishCurrentLiveScoreboard({ type: 'complete' })
 
+    const completedResult = friendlyMatchStore.endMatch(currentIdentity.value.id)
     if (!completedResult) {
       friendlyMatchStore.releaseCanonicalLiveMatch(matchId)
     }
 
-    notificationStore.addToast({
-      message: 'Result submitted. Your opponent must confirm it before rankings move.',
+    stopScoreboardHeartbeat()
+    stopScoreboardHeartbeat = () => {}
+    await challengeStore.loadChallenges()
 
+    notificationStore.addToast({
+      message: submitted.ladderUpdate?.moved
+        ? 'Match complete. The Ladder positions have been updated.'
+        : 'Match complete. The result and player records have been updated.',
       type: 'success',
     })
 
-    router.push({
-      name: 'Challenges',
+    await router.replace({
+      name: 'MatchDetails',
+      params: { matchId },
     })
 
     return
   }
-
   /*
    * Safety fallback for an old Friendly live
    * state created before this lifecycle change.

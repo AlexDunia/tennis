@@ -1,9 +1,42 @@
 const STORAGE_KEY = 'gorra.ladder.adminState.v1'
 const MAX_ACTIVITY = 120
 const MAX_MISSING_MATCHES = 120
+const MAX_APPLIED_RESULT_IDS = 240
 
 function canUseStorage() {
   return typeof window !== 'undefined' && Boolean(window.localStorage)
+}
+
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
+function numberOrZero(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : 0
+}
+
+function normalizeStatDeltas(value) {
+  if (!isPlainObject(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([id, delta]) => {
+      const playerIdValue = cleanText(id, 100)
+      if (!playerIdValue || !isPlainObject(delta)) return []
+      return [[playerIdValue, {
+        wins: numberOrZero(delta.wins),
+        losses: numberOrZero(delta.losses),
+        matchesPlayed: numberOrZero(delta.matchesPlayed),
+      }]]
+    }),
+  )
+}
+
+function normalizeAppliedResultIds(value) {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.map((id) => cleanText(id, 160)).filter(Boolean))]
+    .slice(0, MAX_APPLIED_RESULT_IDS)
 }
 
 function cleanText(value, max = 160) {
@@ -49,44 +82,32 @@ function emptyLadderState() {
     removedPlayerIds: [],
     activity: [],
     missingMatches: [],
+    statDeltasByPlayerId: {},
+    appliedResultIds: [],
   }
 }
 
 function stateFor(scope) {
   const state = loadState()
   const key = scopeKey(scope)
+  const stored = isPlainObject(state.ladders[key]) ? state.ladders[key] : {}
 
   return {
     root: state,
     key,
     ladder: {
       ...emptyLadderState(),
-      ...(state.ladders[key] || {}),
-      order: Array.isArray(state.ladders[key]?.order)
-        ? state.ladders[key].order
-        : [],
-      pausedPlayerIds: Array.isArray(
-        state.ladders[key]?.pausedPlayerIds,
-      )
-        ? state.ladders[key].pausedPlayerIds
-        : [],
-      removedPlayerIds: Array.isArray(
-        state.ladders[key]?.removedPlayerIds,
-      )
-        ? state.ladders[key].removedPlayerIds
-        : [],
-      activity: Array.isArray(state.ladders[key]?.activity)
-        ? state.ladders[key].activity
-        : [],
-      missingMatches: Array.isArray(
-        state.ladders[key]?.missingMatches,
-      )
-        ? state.ladders[key].missingMatches
-        : [],
+      ...stored,
+      order: Array.isArray(stored.order) ? stored.order : [],
+      pausedPlayerIds: Array.isArray(stored.pausedPlayerIds) ? stored.pausedPlayerIds : [],
+      removedPlayerIds: Array.isArray(stored.removedPlayerIds) ? stored.removedPlayerIds : [],
+      activity: Array.isArray(stored.activity) ? stored.activity : [],
+      missingMatches: Array.isArray(stored.missingMatches) ? stored.missingMatches : [],
+      statDeltasByPlayerId: normalizeStatDeltas(stored.statDeltasByPlayerId),
+      appliedResultIds: normalizeAppliedResultIds(stored.appliedResultIds),
     },
   }
 }
-
 function persist(scope, nextLadderState) {
   const current = stateFor(scope)
 
@@ -215,16 +236,25 @@ export function clearLadderAdminTestState({
 export function effectiveLadderRoster(scope, roster = []) {
   const ladderState = getLadderAdminState(scope)
   const paused = new Set(ladderState.pausedPlayerIds)
-
+  const statDeltas = ladderState.statDeltasByPlayerId
   const available = baseRoster(roster, ladderState.removedPlayerIds)
   const arranged = orderedRoster(ladderState.order, available)
 
-  return arranged.map((player, index) => ({
-    ...player,
-    rank: index + 1,
-    ladderRank: index + 1,
-    challengePaused: paused.has(playerId(player)),
-  }))
+  return arranged.map((player, index) => {
+    const delta = statDeltas[playerId(player)] || {}
+    const matchesPlayed = Math.max(0, numberOrZero(player.matchesPlayed) + numberOrZero(delta.matchesPlayed))
+    const effective = {
+      ...player,
+      wins: Math.max(0, numberOrZero(player.wins) + numberOrZero(delta.wins)),
+      losses: Math.max(0, numberOrZero(player.losses) + numberOrZero(delta.losses)),
+      matchesPlayed,
+      rank: index + 1,
+      ladderRank: index + 1,
+      challengePaused: paused.has(playerId(player)),
+    }
+    if (Object.prototype.hasOwnProperty.call(player, 'matches')) effective.matches = matchesPlayed
+    return effective
+  })
 }
 
 function currentIds(scope, roster) {
@@ -847,7 +877,26 @@ export function recordMissingLadderMatch({
   }
 }
 
-export function applyCompletedLadderResult({ scope, roster, challengerId, defenderId, winnerId, movementSystem = 'position-swap', actorName = '' } = {}) {
+export function applyCompletedLadderResult({
+  scope,
+  roster,
+  matchId = '',
+  resultId = '',
+  challengerId,
+  defenderId,
+  winnerId,
+  movementSystem = 'position-swap',
+  score = '',
+  completedAt = '',
+  actorName = '',
+} = {}) {
+  const clubId = cleanText(scope?.clubId, 80)
+  const ladderId = cleanText(scope?.ladderId, 80)
+  if (!clubId || !ladderId) throw new Error('A valid Club and Ladder scope is required.')
+
+  const completionId = cleanText(resultId, 160) || cleanText(matchId, 160)
+  if (!completionId) throw new Error('A completed Ladder result requires a result or Match ID.')
+
   const current = effectiveLadderRoster(scope, roster)
   const ids = current.map(playerId)
   const challenger = cleanText(challengerId, 100)
@@ -855,13 +904,92 @@ export function applyCompletedLadderResult({ scope, roster, challengerId, defend
   const winnerIdClean = cleanText(winnerId, 100)
   if (!ids.includes(challenger) || !ids.includes(defender)) throw new Error('Both players must belong to this Ladder.')
   if (![challenger, defender].includes(winnerIdClean)) throw new Error('The winner must be one of the Ladder Match players.')
+
   const loserId = winnerIdClean === challenger ? defender : challenger
-  const movement = moveForMatchResult({ ids, winnerId: winnerIdClean, loserId, movementSystem: movementSystem === 'leapfrog' ? 'bump-rank' : movementSystem })
   const winner = current.find((player) => playerId(player) === winnerIdClean)
   const loser = current.find((player) => playerId(player) === loserId)
-  const nextState = appendActivity({ ...getLadderAdminState(scope), order: movement.ids }, { type: 'ladder-match-completed', playerIds: [challenger, defender], winnerId: winnerIdClean, loserId, movementSystem, winnerFrom: movement.winnerFrom, winnerTo: movement.winnerTo, actorName: cleanText(actorName, 100), message: movement.moved ? `${cleanText(winner?.name, 100)} moved from #${movement.winnerFrom} to #${movement.winnerTo}.` : `${cleanText(winner?.name, 100)} beat ${cleanText(loser?.name, 100)}. The Ladder order did not change.` })
+  const existing = getLadderAdminState(scope)
+
+  if (existing.appliedResultIds.includes(completionId)) {
+    return {
+      duplicate: true,
+      moved: false,
+      winner,
+      loser,
+      winnerFrom: Number(winner?.rank) || null,
+      winnerTo: Number(winner?.rank) || null,
+      winnerRankAfter: Number(winner?.rank) || null,
+      loserRankAfter: Number(loser?.rank) || null,
+      players: current,
+    }
+  }
+
+  const movement = moveForMatchResult({
+    ids,
+    winnerId: winnerIdClean,
+    loserId,
+    movementSystem: movementSystem === 'leapfrog' ? 'bump-rank' : movementSystem,
+  })
+  const previousDeltas = normalizeStatDeltas(existing.statDeltasByPlayerId)
+  const winnerDelta = previousDeltas[winnerIdClean] || {}
+  const loserDelta = previousDeltas[loserId] || {}
+  const nextStatDeltas = {
+    ...previousDeltas,
+    [winnerIdClean]: {
+      wins: numberOrZero(winnerDelta.wins) + 1,
+      losses: numberOrZero(winnerDelta.losses),
+      matchesPlayed: numberOrZero(winnerDelta.matchesPlayed) + 1,
+    },
+    [loserId]: {
+      wins: numberOrZero(loserDelta.wins),
+      losses: numberOrZero(loserDelta.losses) + 1,
+      matchesPlayed: numberOrZero(loserDelta.matchesPlayed) + 1,
+    },
+  }
+  const resultScore = cleanText(score, 160)
+  const completedAtValue = cleanText(completedAt, 80) || new Date().toISOString()
+  const movementMessage = movement.moved
+    ? `${cleanText(winner?.name, 100) || 'Winner'} moved from #${movement.winnerFrom} to #${movement.winnerTo} after beating ${cleanText(loser?.name, 100) || 'opponent'}${resultScore ? ` ${resultScore}` : ''}.`
+    : `${cleanText(winner?.name, 100) || 'Winner'} beat ${cleanText(loser?.name, 100) || 'opponent'}${resultScore ? ` ${resultScore}` : ''}. The Ladder order did not change.`
+  const nextState = appendActivity(
+    {
+      ...existing,
+      order: movement.ids,
+      statDeltasByPlayerId: nextStatDeltas,
+      appliedResultIds: [completionId, ...existing.appliedResultIds].slice(0, MAX_APPLIED_RESULT_IDS),
+    },
+    {
+      type: 'ladder-match-completed',
+      matchId: cleanText(matchId, 160),
+      resultId: cleanText(resultId, 160),
+      playerIds: [challenger, defender],
+      winnerId: winnerIdClean,
+      loserId,
+      score: resultScore,
+      movementSystem: cleanText(movementSystem, 40) || 'position-swap',
+      winnerFrom: movement.winnerFrom,
+      winnerTo: movement.winnerTo,
+      completedAt: completedAtValue,
+      actorName: cleanText(actorName, 100),
+      message: movementMessage,
+    },
+  )
   persist(scope, nextState)
-  return { moved: movement.moved, winner, loser, winnerFrom: movement.winnerFrom, winnerTo: movement.winnerTo, players: effectiveLadderRoster(scope, roster) }
+
+  const players = effectiveLadderRoster(scope, roster)
+  const finalWinner = players.find((player) => playerId(player) === winnerIdClean)
+  const finalLoser = players.find((player) => playerId(player) === loserId)
+  return {
+    duplicate: false,
+    moved: movement.moved,
+    winner: finalWinner,
+    loser: finalLoser,
+    winnerFrom: movement.winnerFrom,
+    winnerTo: movement.winnerTo,
+    winnerRankAfter: Number(finalWinner?.rank) || null,
+    loserRankAfter: Number(finalLoser?.rank) || null,
+    players,
+  }
 }
 export function ladderAdminActivity(scope) {
   return getLadderAdminState(scope).activity

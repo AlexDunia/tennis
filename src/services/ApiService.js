@@ -3902,58 +3902,183 @@ const mockAdapter = async (config) => {
 
     /*
      * Ladder result.
+     *
+     * Legacy submissions remain review-based. Only a result produced by the
+     * canonical GORRA live scorer is trusted to complete automatically.
      */
+    const resultSource = sanitizePlainText(body?.resultSource, 40)
+    const isGorraLiveResult = resultSource === 'gorra_live'
+    const submittedBy = sanitizePlainText(body?.submittedBy, 160)
+    const requestedResultId = sanitizePlainText(body?.resultId, 160)
 
     if (
       ![match.challengerId, match.defenderId, match.scorerId]
         .filter(Boolean)
-        .includes(body?.submittedBy)
+        .includes(submittedBy)
     ) {
       return {
-        data: {
-          success: false,
-
-          data: null,
-
-          message: 'Only a match player or the assigned scorer can submit this result.',
-        },
-
+        data: { success: false, data: null, message: 'Only a match player or the assigned scorer can submit this result.' },
         status: 403,
-
         statusText: 'Forbidden',
-
         headers: {},
-
         config,
-
         request: {},
       }
     }
 
     if (![match.challengerId, match.defenderId].includes(body?.winnerId)) {
       return {
-        data: {
-          success: false,
-
-          data: null,
-
-          message: 'The winner must be one of the challenge players.',
-        },
-
+        data: { success: false, data: null, message: 'The winner must be one of the challenge players.' },
         status: 422,
-
         statusText: 'Unprocessable Entity',
-
         headers: {},
-
         config,
-
         request: {},
       }
     }
 
-    const resultId = sanitizePlainText(body?.resultId, 160) || `result-${match.id}`
+    if (isGorraLiveResult) {
+      if (match.type !== 'ladder') {
+        return {
+          data: { success: false, data: null, message: 'Automatic live completion is available only for Ladder Matches.' },
+          status: 422,
+          statusText: 'Unprocessable Entity',
+          headers: {},
+          config,
+          request: {},
+        }
+      }
+      if (!requestedResultId) {
+        return {
+          data: { success: false, data: null, message: 'A canonical live result ID is required.' },
+          status: 422,
+          statusText: 'Unprocessable Entity',
+          headers: {},
+          config,
+          request: {},
+        }
+      }
+      if (match.resultId) {
+        if (match.resultId === requestedResultId && match.status === 'completed') {
+          return {
+            data: buildResponse(buildMatchResponse(match)),
+            status: 200,
+            statusText: 'OK',
+            headers: {},
+            config,
+            request: {},
+          }
+        }
+        return {
+          data: { success: false, data: null, message: 'A different physical result has already been recorded for this Match.' },
+          status: 409,
+          statusText: 'Conflict',
+          headers: {},
+          config,
+          request: {},
+        }
+      }
+      if (match.status !== 'live') {
+        return {
+          data: { success: false, data: null, message: 'Only a live Ladder Match can receive a canonical completion.' },
+          status: 409,
+          statusText: 'Conflict',
+          headers: {},
+          config,
+          request: {},
+        }
+      }
 
+      const challenge = mockDatabase.challenges.find((item) => item.id === match.challengeId)
+      if (!challenge) {
+        return {
+          data: { success: false, data: null, message: 'The canonical Ladder challenge was not found.' },
+          status: 409,
+          statusText: 'Conflict',
+          headers: {},
+          config,
+          request: {},
+        }
+      }
+
+      const completedAt = new Date().toISOString()
+      const score = sanitizePlainText(body?.score, 160) || 'Result recorded'
+      const movementSystem = sanitizePlainText(match.ladderConfigSnapshot?.movementSystem, 40) || 'position-swap'
+      const storedScope = match.clubId && match.ladderId
+        ? storedLadderScope(match.clubId, match.ladderId)
+        : { club: null, ladder: null, rawRoster: [] }
+      let ladderUpdate = null
+
+      if (storedScope.club && storedScope.ladder) {
+        try {
+          const actor = scopedLadderPlayer(match, submittedBy) || getPlayerById(submittedBy)
+          const applied = applyCompletedLadderResult({
+            scope: { clubId: match.clubId, ladderId: match.ladderId },
+            roster: storedScope.rawRoster,
+            matchId: match.id,
+            resultId: requestedResultId,
+            challengerId: match.challengerId,
+            defenderId: match.defenderId,
+            winnerId: body?.winnerId,
+            movementSystem,
+            score,
+            completedAt,
+            actorName: actor?.name || 'Match scorer',
+          })
+          ladderUpdate = {
+            moved: Boolean(applied.moved),
+            movementSystem,
+            winnerFrom: Number(applied.winnerFrom) || null,
+            winnerTo: Number(applied.winnerTo) || null,
+            winnerRankAfter: Number(applied.winnerRankAfter) || null,
+            loserRankAfter: Number(applied.loserRankAfter) || null,
+          }
+        } catch (error) {
+          return {
+            data: { success: false, data: null, message: error?.message || 'The Ladder result could not be applied.' },
+            status: 422,
+            statusText: 'Unprocessable Entity',
+            headers: {},
+            config,
+            request: {},
+          }
+        }
+      }
+
+      match.score = score
+      match.sets = Array.isArray(body?.sets) ? body.sets : []
+      match.winnerId = body?.winnerId
+      match.resultId = requestedResultId
+      match.resultSource = 'gorra_live'
+      match.resultSubmittedBy = submittedBy
+      match.resultSubmittedAt = completedAt
+      match.completedAt = completedAt
+      match.status = 'completed'
+      if (ladderUpdate) match.ladderUpdate = ladderUpdate
+
+      challenge.status = 'completed'
+      challenge.resultId = requestedResultId
+      challenge.resultSubmittedBy = submittedBy
+      challenge.resultSubmittedAt = completedAt
+      challenge.completedAt = completedAt
+
+      if (!storedScope.club || !storedScope.ladder) {
+        updateRankingsForResult(match)
+      }
+
+      saveLadderState()
+      return {
+        data: buildResponse(buildMatchResponse(match)),
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    /* Legacy/manual Ladder results retain the existing confirmation workflow. */
+    const resultId = requestedResultId || `result-${match.id}`
     if (match.resultId) {
       if (match.resultId === resultId && ['pending_review', 'completed'].includes(match.status)) {
         return {
@@ -3966,11 +4091,7 @@ const mockAdapter = async (config) => {
         }
       }
       return {
-        data: {
-          success: false,
-          data: null,
-          message: 'A different physical result has already been recorded for this Match.',
-        },
+        data: { success: false, data: null, message: 'A different physical result has already been recorded for this Match.' },
         status: 409,
         statusText: 'Conflict',
         headers: {},
@@ -3980,44 +4101,28 @@ const mockAdapter = async (config) => {
     }
 
     match.score = body?.score || '6-4, 6-4'
-
     match.sets = Array.isArray(body?.sets) ? body.sets : []
-
     match.winnerId = body?.winnerId
-
     match.resultId = resultId
-
-    match.resultSubmittedBy = body?.submittedBy || match.challengerId
-
+    match.resultSubmittedBy = submittedBy || match.challengerId
     match.resultSubmittedAt = new Date().toISOString()
-
     match.status = 'pending_review'
 
     const challenge = mockDatabase.challenges.find((item) => item.id === match.challengeId)
-
     if (challenge) {
       challenge.status = 'pending_review'
-
       challenge.resultSubmittedBy = match.resultSubmittedBy
-
       challenge.resultSubmittedAt = match.resultSubmittedAt
-
       challenge.resultId = resultId
     }
 
     saveLadderState()
-
     return {
       data: buildResponse(buildMatchResponse(match)),
-
       status: 200,
-
       statusText: 'OK',
-
       headers: {},
-
       config,
-
       request: {},
     }
   }

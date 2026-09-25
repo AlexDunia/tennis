@@ -143,6 +143,11 @@ onMounted(() => { loadMatchDetails() })
         <div><span>Match format</span><strong>{{ match.type === 'ladder' ? formatSummary.match : 'Match format unavailable' }}</strong></div>
         <div><span>Score</span><strong>{{ scoreLabel }}</strong></div>
       </section>
+      <section v-if="match.type === 'ladder' && match.status === 'completed' && match.ladderUpdate" class="match-details__completion section-card" aria-label="Ladder completion">
+        <strong>Ladder updated</strong>
+        <p v-if="match.ladderUpdate.moved">Winner moved from #{{ match.ladderUpdate.winnerFrom }} to #{{ match.ladderUpdate.winnerTo }}.</p>
+        <p v-else>The result is recorded. Positions did not change.</p>
+      </section>
       <section v-if="match.type === 'ladder'" class="match-details__actions section-card">
         <h2>Ladder match</h2>
         <p>{{ match.status === 'pending_review' ? 'The result is awaiting the existing Ladder review flow.' : 'Actions follow the current match policy.' }}</p>
@@ -174,7 +179,7 @@ onMounted(() => { loadMatchDetails() })
 .match-details__header h1 { margin: 0; }.match-details__header h1 span { color: var(--color-muted); font-weight: 400; }
 .match-details__status { margin: 0 0 .4rem; color: var(--color-accent-support); font-size: .78rem; font-weight: 700; text-transform: uppercase; }
 .match-details__facts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .75rem; }.match-details__facts span,.match-details__facts strong{display:block}.match-details__facts span{color:var(--color-muted);font-size:.72rem}.match-details__facts strong{margin-top:.25rem;font-size:.86rem}
-.match-details__actions h2,.match-details__actions p { margin: 0; }.match-details__actions p { margin-top: .5rem; color: var(--color-muted); }.match-details__buttons { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1rem; }
+.match-details__actions h2,.match-details__actions p,.match-details__completion p { margin: 0; }.match-details__actions p,.match-details__completion p { margin-top: .5rem; color: var(--color-muted); }.match-details__completion strong { color: var(--color-primary-strong); font-size: .86rem; }.match-details__buttons { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1rem; }
 .match-back-link{display:inline-block;margin-bottom:.8rem;color:var(--color-primary-strong);font-size:.82rem;text-decoration:none}.submit-button{min-height:38px;padding:0 14px;border:0;border-radius:.5rem;background:var(--color-accent-bright);color:#fff;font:inherit;font-weight:700}.submit-button--quiet{border:1px solid var(--color-border);background:transparent;color:var(--color-text)}.submit-button--danger{border-color:#dfb0aa;color:#9b463d;background:#fffafa}
 @media (max-width: 800px) { .match-details__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (max-width: 460px) { .match-details__facts { grid-template-columns: 1fr; }.submit-button{width:100%} }
 </style>

@@ -1,0 +1,15 @@
+GORRA LADDER AUTOMATIC COMPLETION — V1
+
+Production endpoint: POST /api/v1/matches/{match}/result
+Canonical GORRA live scoring sends result_source = gorra_live.
+
+The server transaction must authenticate the actor; route-bind the Match through its Club and Ladder;
+authorize a participant or assigned scorer; lock the Match, Challenge, and affected Ladder entries;
+load the canonical LiveMatchSession; require its winner; require its completed result ID; derive the
+winner and final score server-side; enforce idempotency; mark Match and Challenge completed; store
+the final result; update both player records; apply configured Ladder movement; write movement
+history; release availability constraints; commit; and broadcast Match, Ladder, and availability updates.
+
+There is no normal pending_review state for result_source = gorra_live. Legacy, manual, and disputed
+results may continue through review states. The browser is not authoritative for the winner, rank
+positions, scorer permission, or completion state.
