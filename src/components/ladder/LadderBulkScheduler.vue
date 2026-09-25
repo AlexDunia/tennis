@@ -8,6 +8,10 @@ import {
   watch,
 } from 'vue'
 import PersonAvatar from '../PersonAvatar.vue'
+import MatchFormatEditor from '../match/MatchFormatEditor.vue'
+import { createStandardMatchRulesSnapshot } from '../../domain/matchRules.js'
+import { ladderRulesToMatchRulesSnapshot } from '../../domain/ruleAdapters/ladderMatchRules.js'
+import { formatMatchRulesSummary } from '../../utils/matchRulesSummary.js'
 import {
   ACTIVE_LADDER_CHALLENGE_STATUSES,
 } from '../../config/ladder.js'
@@ -93,6 +97,47 @@ const bulkWorkspaceReservations = computed(() => ({
   individualSelectedPlayerId:
     individualWorkspaceDraft.value.selectedPlayerId,
 }))
+const bulkLadderRuleResult = computed(() =>
+  ladderRulesToMatchRulesSnapshot({
+    rulesSnapshot: props.config?.rulesSnapshot,
+    ladderConfigSnapshot: props.config,
+    matchConfig: props.config,
+  }),
+)
+const bulkLadderRulesSnapshot = computed(() =>
+  bulkLadderRuleResult.value.ok
+    ? bulkLadderRuleResult.value.snapshot
+    : createStandardMatchRulesSnapshot(),
+)
+const scheduleRulesSnapshot = computed(() =>
+  scheduleMatchRuleSource.value === 'admin_override'
+    ? scheduleOverrideRulesSnapshot.value
+    : bulkLadderRulesSnapshot.value,
+)
+const scheduleRulesSummary = computed(() => formatMatchRulesSummary(scheduleRulesSnapshot.value))
+
+function resetScheduleRules() {
+  scheduleRulesOpen.value = false
+  scheduleMatchRuleSource.value = 'ladder_default'
+  scheduleOverrideRulesSnapshot.value = bulkLadderRulesSnapshot.value
+}
+
+function openScheduleRules() {
+  scheduleOverrideRulesSnapshot.value = scheduleRulesSnapshot.value
+  scheduleRulesOpen.value = true
+}
+
+function saveScheduleRules(snapshot) {
+  scheduleOverrideRulesSnapshot.value = snapshot
+  scheduleMatchRuleSource.value = 'admin_override'
+  scheduleRulesOpen.value = false
+}
+
+function useScheduleLadderRules() {
+  scheduleMatchRuleSource.value = 'ladder_default'
+  scheduleOverrideRulesSnapshot.value = bulkLadderRulesSnapshot.value
+  scheduleRulesOpen.value = false
+}
 const queueDragId = ref('')
 const queuePulseId = ref('')
 const bulkWorkspaceOpen = ref(false)
@@ -115,6 +160,9 @@ const scheduleTime = ref('18:00')
 const scheduleTiming = ref('scheduled')
 const scheduleCourtId = ref('')
 const scheduleBusy = ref(false)
+const scheduleRulesOpen = ref(false)
+const scheduleMatchRuleSource = ref('ladder_default')
+const scheduleOverrideRulesSnapshot = ref(createStandardMatchRulesSnapshot())
 
 const conflict = ref(null)
 const cancellation = ref(null)
@@ -1384,6 +1432,7 @@ function openScheduleDraft(
 
   scheduleTiming.value = scheduleDate.value === minimumDate.value ? 'now' : 'scheduled'
 
+  resetScheduleRules()
   scheduleCourtId.value = ''
   scheduleOpen.value = true
 }
@@ -1630,7 +1679,8 @@ async function saveSchedule() {
         timing: scheduleTiming.value,
         scheduledAt,
         courtId,
-        matchRuleSource: 'ladder_default',
+        matchRuleSource: scheduleMatchRuleSource.value,
+        rulesSnapshot: scheduleRulesSnapshot.value,
         creationMode: 'bulk',
         clientRequestId: createLadderMatchCommitRequestId({
           creationMode: 'bulk',
@@ -2444,7 +2494,7 @@ onBeforeUnmount(() => {
                   )
                 }}
               </span>
-            
+
               <div class="bulk-match-preview" role="tooltip">
                 <span class="bulk-match-preview__eyebrow">Ladder challenge</span>
                 <strong>{{ pairFromDraft(draft).challenger.name }}</strong>
@@ -2870,6 +2920,31 @@ onBeforeUnmount(() => {
                 </option>
               </select>
             </label>
+          <section class="bulk-schedule-rules">
+            <div class="bulk-schedule-rules__label">
+              <strong>Scoring rules</strong>
+              <span>{{ scheduleMatchRuleSource === 'admin_override' ? 'This match only' : 'Ladder default' }}</span>
+            </div>
+            <div class="bulk-schedule-rules__summary">
+              <strong>{{ scheduleRulesSummary.match }}</strong>
+              <dl>
+                <div v-for="row in scheduleRulesSummary.rows" :key="row.key">
+                  <dt>{{ row.label }}</dt>
+                  <dd>{{ row.value }}</dd>
+                </div>
+              </dl>
+              <button v-if="!scheduleRulesOpen" type="button" @click="openScheduleRules">Customize</button>
+            </div>
+            <div v-if="scheduleRulesOpen" class="bulk-schedule-rules__editor">
+              <MatchFormatEditor
+                :model-value="scheduleOverrideRulesSnapshot"
+                :allow-standalone-tiebreak="false"
+                save-label="Apply to this match"
+                @save="saveScheduleRules"
+              />
+              <button type="button" class="bulk-schedule-rules__default" @click="useScheduleLadderRules">Use Ladder default</button>
+            </div>
+          </section>
           </div>
 
           <div class="bulk-modal__actions">
@@ -2887,7 +2962,9 @@ onBeforeUnmount(() => {
                   ? 'Saving...'
                   : scheduleChallengeId
                     ? 'Save changes'
-                    : 'Schedule match'
+                    : scheduleTiming === 'now'
+                      ? 'Play match'
+                      : 'Schedule match'
               }}
             </button>
           </div>
@@ -2926,6 +3003,7 @@ onBeforeUnmount(() => {
                 max="6"
               />
             </label>
+
           </div>
 
           <div class="bulk-modal__actions">
@@ -4289,8 +4367,112 @@ onBeforeUnmount(() => {
   color: #fff;
 }
 
+.bulk-schedule-rules {
+  margin-top: 18px;
+  text-align: left;
+}
+
+.bulk-schedule-rules__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.bulk-schedule-rules__label strong { font-size: 11px; }
+.bulk-schedule-rules__label span { color: var(--color-muted); font-size: 9px; }
+
+.bulk-schedule-rules__summary {
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.bulk-schedule-rules__summary > strong { display: block; font-size: 11px; }
+.bulk-schedule-rules__summary dl { margin: 8px 0; }
+.bulk-schedule-rules__summary dl > div { display: grid; grid-template-columns: 72px 1fr; gap: 8px; padding: 4px 0; border-top: 1px solid var(--color-border); font-size: 9px; }
+.bulk-schedule-rules__summary dt { color: var(--color-muted); }
+.bulk-schedule-rules__summary dd { margin: 0; color: var(--color-text); }
+.bulk-schedule-rules__summary button,
+.bulk-schedule-rules__default { border: 0; background: transparent; color: var(--color-primary-strong); font: inherit; font-size: 10px; font-weight: var(--font-weight-semibold); padding: 0; }
+.bulk-schedule-rules__editor { margin-top: 12px; }
+
+/* Keep the reused match-format editor visually native to this compact dialog. */
+.bulk-schedule-rules__editor :deep(.match-format-editor) {
+  gap: 10px;
+  width: 100%;
+}
+
+.bulk-schedule-rules__editor :deep(.editor-intro) {
+  padding: 0 0 2px;
+}
+
+.bulk-schedule-rules__editor :deep(.editor-eyebrow) {
+  margin-bottom: 5px;
+  font-size: 9px;
+}
+
+.bulk-schedule-rules__editor :deep(.editor-intro h2),
+.bulk-schedule-rules__editor :deep(.final-summary h3) {
+  font-size: 16px;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.bulk-schedule-rules__editor :deep(.editor-intro > p:not(.editor-eyebrow)) {
+  margin-top: 5px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.bulk-schedule-rules__editor :deep(.rule-card),
+.bulk-schedule-rules__editor :deep(.final-summary) {
+  border-radius: var(--app-control-radius, 9px);
+}
+
+.bulk-schedule-rules__editor :deep(.rule-card summary) {
+  min-height: 48px;
+  padding: 10px 12px;
+}
+
+.bulk-schedule-rules__editor :deep(.summary-left strong),
+.bulk-schedule-rules__editor :deep(.rule-result) {
+  font-size: 11px;
+}
+
+.bulk-schedule-rules__editor :deep(.rule-body) {
+  padding: 0 12px 12px;
+}
+
+.bulk-schedule-rules__editor :deep(.question),
+.bulk-schedule-rules__editor :deep(.help) {
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.bulk-schedule-rules__editor :deep(.option) {
+  min-height: 52px;
+  padding: 9px;
+  border-radius: var(--app-control-radius, 9px);
+}
+
+.bulk-schedule-rules__editor :deep(.option strong),
+.bulk-schedule-rules__editor :deep(.option small) {
+  font-size: 10px;
+}
+
+.bulk-schedule-rules__editor :deep(.editor-save) {
+  min-height: 40px;
+  border-radius: var(--app-control-radius, 9px);
+  font-size: 11px;
+}
+
+.bulk-schedule-rules__editor .match-format-editor { border: 1px solid var(--color-border); border-radius: 10px; }
+.bulk-schedule-rules__default { margin-top: 8px; }
+.bulk-schedule-card { max-height: calc(100vh - 40px); overflow-y: auto; }
 .bulk-schedule-card {
-  width: min(390px, 100%);
+  width: min(560px, 100%);
 }
 
 .bulk-schedule-form {
