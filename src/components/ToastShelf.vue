@@ -37,6 +37,7 @@
         <div class="toast__content">
           <strong v-if="toast.title">{{ toast.title }}</strong>
           <p>{{ toast.message }}</p>
+          <button v-if="toast.actionLabel" class="toast__action" type="button" @click="runAction(toast)">{{ toast.actionLabel }}</button>
         </div>
 
         <button
@@ -63,6 +64,10 @@ const notificationStore = useNotificationStore()
 const toasts = computed(() => notificationStore.toasts)
 const visibleToasts = computed(() => toasts.value.slice(0, 4))
 const dismiss = (id) => notificationStore.dismissToast(id)
+const runAction = async (toast) => {
+  await toast.onAction?.()
+  dismiss(toast.id)
+}
 </script>
 
 <style scoped>
@@ -154,6 +159,23 @@ const dismiss = (id) => notificationStore.dismissToast(id)
   font-weight: 500;
   line-height: 1.4;
 }
+
+.toast__action {
+  justify-self: start;
+  margin-top: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #d8ff47;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.toast__action:hover { color: #fff; }
+.toast__action:focus-visible { outline: 1px solid #d8ff47; outline-offset: 3px; border-radius: 2px; }
 
 .toast__close {
   display: grid;

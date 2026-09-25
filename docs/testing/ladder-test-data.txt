@@ -1,0 +1,24 @@
+GORRA LADDER TEST DATA
+======================
+
+1. Run `npm run dev`.
+2. Sign in as a Club admin or co-admin.
+3. Open `/rankings`.
+4. Click **Populate test players**.
+5. Confirm **Populate**. The control is available only in development.
+6. Open each active Ladder. Expect 10 generated GORRA test players ranked #1 through #10.
+7. Open **Club -> Members**.
+8. Open any generated member.
+9. Confirm their name, DOB, Bio, UTR, member number, year joined, Ladder membership, and Ladder position.
+10. Return to the Ladder and create Matches normally.
+
+What the action changes
+-----------------------
+
+- It replaces only previously generated members whose IDs begin with `gorra-test-member-`.
+- It keeps the active Club, Club identity, invitations, courts, settings, admins, and Ladder definitions.
+- It retains real Club member records.
+- It creates no Challenges, Matches, live sessions, or results.
+- It assigns UTR only; it does not seed NTRP or WTN.
+
+Do not edit browser local storage manually.

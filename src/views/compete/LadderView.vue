@@ -25,6 +25,7 @@ import RemoveLadderPlayerDialog from '../../components/ladder/RemoveLadderPlayer
 import LadderPlayerAccessDialog from '../../components/ladder/LadderPlayerAccessDialog.vue'
 import { useAdminStore } from '../../stores/admin'
 import { useChallengeStore } from '../../stores/challenge'
+import { useMatchStore } from '../../stores/match'
 import { useNotificationStore } from '../../stores/notification'
 import { usePlayerStore } from '../../stores/player'
 import { useLadderMatchWorkspaceStore } from '../../stores/ladderMatchWorkspace.js'
@@ -36,6 +37,7 @@ import {
 } from '../../config/ladder'
 import {
   evaluateLadderMatchup,
+  getActiveLadderChallengesForPlayer,
   getEligibleLadderOpponents,
   getLadderPlayerAvailability,
 } from '../../services/LadderAccessService'
@@ -56,6 +58,7 @@ const router = useRouter()
 const route = useRoute()
 const adminStore = useAdminStore()
 const challengeStore = useChallengeStore()
+const matchStore = useMatchStore()
 const notificationStore = useNotificationStore()
 const playerStore = usePlayerStore()
 const ladderMatchWorkspaceStore = useLadderMatchWorkspaceStore()
@@ -108,6 +111,8 @@ const dragActionOpen = ref(false)
 let pendingDrag = null
 const ladderActionBusy = ref(false)
 const clearTestBusy = ref(false)
+const populateTestBusy = ref(false)
+const populateTestConfirmOpen = ref(false)
 const showDevTestControls =
   Boolean(import.meta.env?.DEV)
 const ladderRevision = ref(0)
@@ -321,6 +326,13 @@ const canAdminSetUpMatch = computed(
     ),
 )
 
+const canManageLiveMatch = computed(
+  () =>
+    canManageLadder.value &&
+    adminStore.hasActiveClubPermission(
+      'matches.live_score',
+    ),
+)
 function matchWorkspaceScope(ladderId = activeLadderId.value) { return { clubId: String(adminStore.activeClubId || '').trim(), ladderId: String(ladderId || '').trim() } }
 function rememberIndividualSelection(playerId) { const scope = matchWorkspaceScope(); if (scope.clubId && scope.ladderId) ladderMatchWorkspaceStore.setIndividualSelectedPlayer({ ...scope, playerId }) }
 function clearRememberedIndividualSelection() { const scope = matchWorkspaceScope(); if (scope.clubId && scope.ladderId) ladderMatchWorkspaceStore.clearIndividualDraft(scope.clubId, scope.ladderId) }
@@ -854,7 +866,7 @@ function requestIndividualDeletion() {
   exitIndividualDeletion()
 }
 function handlePlayerRow(player) {
-  if (!canManageLadder.value) return
+  if (!canManageLadder.value || isPlayingLive(player)) return
 
   if (individualDeleteSelectionMode.value) {
     toggleIndividualDeletePlayer(player.id)
@@ -1007,6 +1019,61 @@ function resetAllPlayerActions({ preserveWorkspaceDraft = false } = {}) {
   resetChallengeSelection({ preserveWorkspaceDraft })
 }
 
+function requestPopulateTestPlayers() {
+  if (
+    !showDevTestControls ||
+    !canManageLadder.value ||
+    populateTestBusy.value
+  ) {
+    return
+  }
+
+  populateTestConfirmOpen.value = true
+}
+
+async function populateTestPlayers() {
+  if (
+    !showDevTestControls ||
+    !canManageLadder.value ||
+    populateTestBusy.value
+  ) {
+    return
+  }
+
+  populateTestBusy.value = true
+
+  try {
+    resetAllPlayerActions()
+    clearLadderAdminTestState({ clubId: adminStore.activeClubId })
+
+    const result = await adminStore.populateTestPlayers()
+    const firstPopulatedLadderId = result?.ladders?.[0]?.id || ''
+
+    if (firstPopulatedLadderId) {
+      activeLadderId.value = firstPopulatedLadderId
+    }
+
+    ladderRevision.value += 1
+    populateTestConfirmOpen.value = false
+
+    notificationStore.addToast({
+      title: 'Test players added',
+      message: '10 players are ready on each active Ladder.',
+      type: 'success',
+    })
+  } catch (populateError) {
+    notificationStore.addToast({
+      title:
+        populateError?.code === 'NO_ACTIVE_LADDER'
+          ? 'No active Ladder to populate.'
+          : 'Could not populate test players',
+      message: populateError?.message || 'Try again.',
+      type: 'warning',
+    })
+  } finally {
+    populateTestBusy.value = false
+  }
+}
 async function clearTestData() {
   if (
     !showDevTestControls ||
@@ -1493,6 +1560,53 @@ async function viewMatch(result) {
   if (!matchId) return
   router.push({ name: 'MatchDetails', params: { matchId } })
 }
+function liveChallengeFor(player) {
+  return getActiveLadderChallengesForPlayer({
+    playerId: player?.id,
+    challenges: challengeStore.challenges,
+    clubId: ladderScope.value.clubId,
+    ladderId: ladderScope.value.ladderId,
+  }).find((challenge) => challenge.status === 'live') || null
+}
+
+function isPlayingLive(player) {
+  return availabilityFor(player).reason === 'live'
+}
+
+function liveMatchFor(player) {
+  const challenge = liveChallengeFor(player)
+
+  if (!challenge?.id) return null
+
+  return matchStore.matches.find(
+    (match) => String(match?.challengeId || '') === String(challenge.id),
+  ) || null
+}
+
+async function openLiveMatchControl(player) {
+  if (!canManageLiveMatch.value) return
+
+  let match = liveMatchFor(player)
+
+  if (!match && !matchStore.isLoading) {
+    await matchStore.loadMatches()
+    match = liveMatchFor(player)
+  }
+
+  if (!match?.id) {
+    notificationStore.addToast({
+      title: 'Live match unavailable',
+      message: 'The live match could not be opened. Try again.',
+      type: 'warning',
+    })
+    return
+  }
+
+  router.push({
+    name: 'LiveOperationDetail',
+    params: { matchId: match.id },
+  })
+}
 
 watch(
   [ladders, () => route.query.ladder],
@@ -1863,6 +1977,15 @@ function continueLadderSetup(ladder = activeLadder.value) {
             <div v-if="canManageLadder" class="ladder-heading__match-setup">
               <div class="ladder-header-tools">
                 <button type="button" class="ladder-header-player-access" @click="playerAccessOpen = true">Player access</button>
+                <button
+                  v-if="showDevTestControls && canManageLadder"
+                  type="button"
+                  class="ladder-header-player-access"
+                  :disabled="populateTestBusy"
+                  @click="requestPopulateTestPlayers"
+                >
+                  Populate test players
+                </button>
                 <label class="ladder-player-search" :class="{ 'is-open': individualSearchOpen }" @click="window.innerWidth <= 640 && (individualSearchOpen = true)">
                   <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
                   <input v-model="individualSearchQuery" type="search" placeholder="Search player" aria-label="Search player in this ladder" />
@@ -1937,16 +2060,18 @@ function continueLadderSetup(ladder = activeLadder.value) {
                   playerRowState(player).quiet,
                 'ladder-row--paused':
                   Boolean(player.challengePaused),
+                'ladder-row--live':
+                  isPlayingLive(player),
                 'ladder-row--interactive':
-                  canManageLadder,
+                  canManageLadder && !isPlayingLive(player),
               }"
               :role="
-                canManageLadder
+                canManageLadder && !isPlayingLive(player)
                   ? 'button'
                   : undefined
               "
               :tabindex="
-                canManageLadder ? 0 : undefined
+                canManageLadder && !isPlayingLive(player) ? 0 : undefined
               "
 :draggable="challengeSelectionActive && player.id === dragChallengePlayerId"
               :data-ladder-player-id="player.id"
@@ -2005,7 +2130,25 @@ function continueLadderSetup(ladder = activeLadder.value) {
                 class="ladder-row__status"
               >
                 <span
-                  v-if="playerRowState(player).selected"
+                  v-if="isPlayingLive(player)"
+                  class="ladder-row__live-state"
+                >
+                  <small class="ladder-row__state ladder-row__state--live">
+                    Playing now
+                  </small>
+
+                  <button
+                    v-if="canManageLiveMatch"
+                    class="ladder-row__live-control"
+                    type="button"
+                    @click.stop="openLiveMatchControl(player)"
+                  >
+                    Match control
+                  </button>
+                </span>
+
+                <span
+                  v-else-if="playerRowState(player).selected"
                   class="ladder-row__selected-controls"
                 >
                   <small
@@ -2131,6 +2274,42 @@ function continueLadderSetup(ladder = activeLadder.value) {
     </main>
 
     <teleport to="body">
+      <div
+        v-if="populateTestConfirmOpen"
+        class="ladder-test-populate-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ladder-test-populate-title"
+        @click.self="!populateTestBusy && (populateTestConfirmOpen = false)"
+      >
+        <section class="ladder-test-populate-dialog__panel">
+          <h2 id="ladder-test-populate-title">Populate test players?</h2>
+          <p>
+            This will replace previously generated GORRA test players on the active
+            Ladders. Your Club and Ladder settings will stay in place.
+          </p>
+          <div class="ladder-test-populate-dialog__actions">
+            <button
+              type="button"
+              class="button-secondary"
+              :disabled="populateTestBusy"
+              @click="populateTestConfirmOpen = false"
+            >
+              {{ 'Cancel' }}
+            </button>
+            <button
+              type="button"
+              class="button-primary"
+              :disabled="populateTestBusy"
+              @click="populateTestPlayers"
+            >
+              {{ populateTestBusy ? 'Populating…' : 'Populate' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </teleport>
+    <teleport to="body">
       <article v-if="dragGhost" class="ladder-drag-ghost" :style="{ left: `${dragGhost.x}px`, top: `${dragGhost.y}px`, width: `${dragGhost.width}px` }"><strong>#{{ dragGhost.player.rank }}</strong><PersonAvatar :name="dragGhost.player.name" :image="dragGhost.player.imageUrl" :size="40" /><span>{{ dragGhost.player.name }}</span></article>
     </teleport>
     <teleport to="body">
@@ -2203,6 +2382,42 @@ function continueLadderSetup(ladder = activeLadder.value) {
 </template>
 
 <style scoped>
+.ladder-test-populate-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(8, 13, 10, 0.5);
+}
+
+.ladder-test-populate-dialog__panel {
+  width: min(100%, 440px);
+  padding: 24px;
+  border-radius: 14px;
+  background: var(--color-surface, #fff);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+.ladder-test-populate-dialog__panel h2,
+.ladder-test-populate-dialog__panel p {
+  margin: 0;
+}
+
+.ladder-test-populate-dialog__panel p {
+  margin-top: 10px;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.ladder-test-populate-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
 .ladder-view {
   display: grid;
   min-width: 0;
@@ -2494,6 +2709,11 @@ function continueLadderSetup(ladder = activeLadder.value) {
   border-color: var(--color-border-strong);
 }
 
+.ladder-row--live:not(.ladder-row--selected) {
+  border-color: rgba(38, 113, 72, 0.26);
+  background: #f3faf4;
+}
+
 .ladder-row--managed {
   border-color:
     color-mix(
@@ -2730,6 +2950,35 @@ function continueLadderSetup(ladder = activeLadder.value) {
 .ladder-row__state--quiet {
   background: var(--color-surface-soft);
   color: var(--color-muted);
+}
+.ladder-row__live-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.ladder-row__state--live {
+  background: #dff1e2;
+  color: #236841;
+}
+
+.ladder-row__live-control {
+  min-height: 29px;
+  padding: 0 8px;
+  border: 1px solid rgba(35, 104, 65, 0.28);
+  border-radius: var(--app-inner-radius);
+  background: #fff;
+  color: #236841;
+  font-size: 9px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.ladder-row__live-control:hover,
+.ladder-row__live-control:focus-visible {
+  border-color: #236841;
+  background: #edf8ef;
+  outline: none;
 }
 
 .ladder-row__manage-state {

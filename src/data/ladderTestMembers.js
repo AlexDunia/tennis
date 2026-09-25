@@ -1,0 +1,75 @@
+const TEST_MEMBER_PREFIX = 'gorra-test-member-'
+
+function member({
+  id,
+  name,
+  email,
+  phone,
+  gender,
+  dob,
+  bio,
+  utr,
+  memberNumber,
+  yearOfEntry,
+}) {
+  return Object.freeze({
+    id: `${TEST_MEMBER_PREFIX}${id}`,
+    userId: '',
+    name,
+    email,
+    phone,
+    gender,
+    dob,
+    bio,
+    ratings: {
+      utr: {
+        value: utr,
+        source: 'system',
+        verified: false,
+        updatedAt: '',
+      },
+    },
+    memberNumber,
+    yearOfEntry: String(yearOfEntry),
+    role: 'player',
+    source: 'manual',
+    status: 'active',
+    photoUrl: '',
+    ladderMemberships: [],
+  })
+}
+
+export { TEST_MEMBER_PREFIX }
+
+export const LADDER_TEST_MEMBER_POOL = Object.freeze([
+  member({ id: '01', name: 'Chidi Okafor', email: 'chidi.okafor@gorra.example', phone: '+234 801 555 0101', gender: 'male', dob: '1997-04-13', utr: 9.8, memberNumber: 'GT-001', yearOfEntry: 2021, bio: 'Aggressive baseliner who takes the ball early and controls points with his forehand.' }),
+  member({ id: '02', name: 'Tobi Akinwale', email: 'tobi.akinwale@gorra.example', phone: '+234 801 555 0102', gender: 'male', dob: '1992-08-22', utr: 9.35, memberNumber: 'GT-002', yearOfEntry: 2019, bio: 'All-court player with a reliable first serve and a preference for moving forward on short balls.' }),
+  member({ id: '03', name: 'Femi Balogun', email: 'femi.balogun@gorra.example', phone: '+234 801 555 0103', gender: 'male', dob: '1994-02-17', utr: 9.05, memberNumber: 'GT-003', yearOfEntry: 2020, bio: 'Counterpuncher who absorbs pace well and changes direction with a compact backhand.' }),
+  member({ id: '04', name: 'Obinna Ezeani', email: 'obinna.ezeani@gorra.example', phone: '+234 801 555 0104', gender: 'male', dob: '1990-11-09', utr: 8.9, memberNumber: 'GT-004', yearOfEntry: 2018, bio: 'Big-serving competitor who looks for a short forehand after the return.' }),
+  member({ id: '05', name: 'Ebuka Nwosu', email: 'ebuka.nwosu@gorra.example', phone: '+234 801 555 0105', gender: 'male', dob: '1995-07-26', utr: 8.7, memberNumber: 'GT-005', yearOfEntry: 2022, bio: 'Patient rally player with heavy topspin and a disciplined approach to long exchanges.' }),
+  member({ id: '06', name: 'Ikenna Umeh', email: 'ikenna.umeh@gorra.example', phone: '+234 801 555 0106', gender: 'male', dob: '1993-05-18', utr: 8.5, memberNumber: 'GT-006', yearOfEntry: 2017, bio: 'Athletic defender who turns neutral balls into attacking chances from either wing.' }),
+  member({ id: '07', name: 'Victor Akpan', email: 'victor.akpan@gorra.example', phone: '+234 801 555 0107', gender: 'male', dob: '1991-09-03', utr: 8.3, memberNumber: 'GT-007', yearOfEntry: 2016, bio: 'Direct shotmaker who uses a sharp slice to create space for his next ball.' }),
+  member({ id: '08', name: 'Sadiq Musa', email: 'sadiq.musa@gorra.example', phone: '+234 801 555 0108', gender: 'male', dob: '1996-01-30', utr: 8.1, memberNumber: 'GT-008', yearOfEntry: 2023, bio: 'Quick-footed returner who enjoys taking the initiative in fast hard-court rallies.' }),
+  member({ id: '09', name: 'Tamuno Briggs', email: 'tamuno.briggs@gorra.example', phone: '+234 801 555 0109', gender: 'male', dob: '1989-06-14', utr: 7.9, memberNumber: 'GT-009', yearOfEntry: 2015, bio: 'Calm doubles specialist with soft hands at net and accurate service placement.' }),
+  member({ id: '10', name: 'Emeka Udo', email: 'emeka.udo@gorra.example', phone: '+234 801 555 0110', gender: 'male', dob: '1998-03-08', utr: 7.7, memberNumber: 'GT-010', yearOfEntry: 2024, bio: 'Energetic competitor who builds points patiently before stepping inside the baseline.' }),
+  member({ id: '11', name: 'Amara Okoye', email: 'amara.okoye@gorra.example', phone: '+234 802 555 0111', gender: 'female', dob: '1996-06-03', utr: 9.15, memberNumber: 'GT-011', yearOfEntry: 2021, bio: 'Strong returner with compact groundstrokes and patient point construction.' }),
+  member({ id: '12', name: 'Zainab Lawal', email: 'zainab.lawal@gorra.example', phone: '+234 802 555 0112', gender: 'female', dob: '1993-12-19', utr: 8.95, memberNumber: 'GT-012', yearOfEntry: 2018, bio: 'Creative all-court player who mixes height, spin, and well-timed drop shots.' }),
+  member({ id: '13', name: 'Temi Adekunle', email: 'temi.adekunle@gorra.example', phone: '+234 802 555 0113', gender: 'female', dob: '1995-10-05', utr: 8.75, memberNumber: 'GT-013', yearOfEntry: 2019, bio: 'Explosive mover who uses her forehand to open the court and finish at net.' }),
+  member({ id: '14', name: 'Adaeze Nwosu', email: 'adaeze.nwosu@gorra.example', phone: '+234 802 555 0114', gender: 'female', dob: '1991-04-27', utr: 8.55, memberNumber: 'GT-014', yearOfEntry: 2016, bio: 'Dependable competitor with a deep backhand and a measured transition game.' }),
+  member({ id: '15', name: 'Halima Garba', email: 'halima.garba@gorra.example', phone: '+234 802 555 0115', gender: 'female', dob: '1994-07-11', utr: 8.35, memberNumber: 'GT-015', yearOfEntry: 2020, bio: 'Powerful striker who enjoys redirecting pace and serving wide on big points.' }),
+  member({ id: '16', name: 'Ifunanya Eze', email: 'ifunanya.eze@gorra.example', phone: '+234 802 555 0116', gender: 'female', dob: '1997-01-24', utr: 8.15, memberNumber: 'GT-016', yearOfEntry: 2022, bio: 'Focused baseliner with a high-margin crosscourt game and excellent court coverage.' }),
+  member({ id: '17', name: 'Morenike Adebayo', email: 'morenike.adebayo@gorra.example', phone: '+234 802 555 0117', gender: 'female', dob: '1990-08-16', utr: 7.95, memberNumber: 'GT-017', yearOfEntry: 2017, bio: 'Tactically aware player who changes serve rhythm and attacks short second serves.' }),
+  member({ id: '18', name: 'Chioma Umeh', email: 'chioma.umeh@gorra.example', phone: '+234 802 555 0118', gender: 'female', dob: '1992-02-06', utr: 7.75, memberNumber: 'GT-018', yearOfEntry: 2015, bio: 'Natural competitor with precise passing shots and a steady two-handed backhand.' }),
+  member({ id: '19', name: 'Eniola Ogunleye', email: 'eniola.ogunleye@gorra.example', phone: '+234 802 555 0119', gender: 'female', dob: '1998-09-29', utr: 7.55, memberNumber: 'GT-019', yearOfEntry: 2024, bio: 'Positive point builder who uses a high first-serve percentage to dictate play.' }),
+  member({ id: '20', name: 'Nafisa Bello', email: 'nafisa.bello@gorra.example', phone: '+234 802 555 0120', gender: 'female', dob: '1989-05-12', utr: 7.35, memberNumber: 'GT-020', yearOfEntry: 2014, bio: 'Versatile doubles player with quick reactions and a confident overhead.' }),
+  member({ id: '21', name: 'Adewale Balogun', email: 'adewale.balogun@gorra.example', phone: '+234 803 555 0121', gender: 'male', dob: '1968-02-15', utr: 8.05, memberNumber: 'GT-021', yearOfEntry: 2008, bio: 'Experienced all-court player whose sliced backhand keeps opponents off balance.' }),
+  member({ id: '22', name: 'Kunle Akinyemi', email: 'kunle.akinyemi@gorra.example', phone: '+234 803 555 0122', gender: 'male', dob: '1965-07-08', utr: 7.8, memberNumber: 'GT-022', yearOfEntry: 2010, bio: 'Seasoned server-volleyer who reads returning patterns exceptionally well.' }),
+  member({ id: '23', name: 'Hassan Bello', email: 'hassan.bello@gorra.example', phone: '+234 803 555 0123', gender: 'male', dob: '1970-10-21', utr: 7.55, memberNumber: 'GT-023', yearOfEntry: 2012, bio: 'Consistent competitor who wins points through depth, patience, and smart court positioning.' }),
+  member({ id: '24', name: 'Boma George', email: 'boma.george@gorra.example', phone: '+234 803 555 0124', gender: 'male', dob: '1967-04-04', utr: 7.3, memberNumber: 'GT-024', yearOfEntry: 2009, bio: 'Crafty player with a varied return game and a calm approach under pressure.' }),
+  member({ id: '25', name: 'Segun Alade', email: 'segun.alade@gorra.example', phone: '+234 803 555 0125', gender: 'male', dob: '1971-12-01', utr: 7.05, memberNumber: 'GT-025', yearOfEntry: 2011, bio: 'Durable rallyer who uses disciplined footwork to create consistent contact.' }),
+  member({ id: '26', name: 'Nkiru Eze', email: 'nkiru.eze@gorra.example', phone: '+234 804 555 0126', gender: 'female', dob: '1969-03-18', utr: 7.9, memberNumber: 'GT-026', yearOfEntry: 2007, bio: 'Veteran competitor with a dependable serve and a finely judged approach volley.' }),
+  member({ id: '27', name: 'Aisha Danjuma', email: 'aisha.danjuma@gorra.example', phone: '+234 804 555 0127', gender: 'female', dob: '1966-08-25', utr: 7.65, memberNumber: 'GT-027', yearOfEntry: 2006, bio: 'Patient strategist who uses height and length to control the centre of the court.' }),
+  member({ id: '28', name: 'Ijeoma Okafor', email: 'ijeoma.okafor@gorra.example', phone: '+234 804 555 0128', gender: 'female', dob: '1970-01-07', utr: 7.4, memberNumber: 'GT-028', yearOfEntry: 2010, bio: 'Steady baseline player with excellent anticipation and reliable defensive lobs.' }),
+  member({ id: '29', name: 'Oreoluwa Akin', email: 'oreoluwa.akin@gorra.example', phone: '+234 804 555 0129', gender: 'female', dob: '1964-06-22', utr: 7.15, memberNumber: 'GT-029', yearOfEntry: 2005, bio: 'Attacking doubles player who enjoys intercepting at net and finishing volleys early.' }),
+  member({ id: '30', name: 'Yewande Peters', email: 'yewande.peters@gorra.example', phone: '+234 804 555 0130', gender: 'female', dob: '1972-11-13', utr: 6.9, memberNumber: 'GT-030', yearOfEntry: 2013, bio: 'Thoughtful competitor who combines a dependable return with a well-disguised slice.' }),
+])

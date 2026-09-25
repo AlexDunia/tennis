@@ -175,6 +175,12 @@ function normalizeMemberLadderMemberships(values = []) {
     .filter(Boolean)
 }
 
+function normalizeMemberBio(value) {
+  return sanitizePlainText(value, 500)
+    .replace(/<[^>]*>/g, '')
+    .trim()
+}
+
 function normalizeMemberYear(value) {
   const year = Number.parseInt(String(value || ''), 10)
   const maximum = new Date().getFullYear() + 1
@@ -198,6 +204,7 @@ function normalizeMemberRecord(input, index, sourceFallback) {
     phone,
     gender: sanitizePlainText(value.gender, 30),
     dob: sanitizeDate(value.dob),
+    bio: normalizeMemberBio(value.bio),
     level: sanitizePlainText(value.level || value.playingLevel, 50),
     clubLevelId: sanitizeDirectoryId(
       value.clubLevelId ||

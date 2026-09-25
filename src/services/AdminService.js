@@ -1,8 +1,10 @@
 import {
+  ageOnDate,
   digestLadderInviteToken,
   evaluateLadderEligibility,
   ladderEligibilityMissingFields,
   LADDER_ENTRY_STATUSES,
+  normalizeLadderEligibility,
   normalizeLadderEntries,
   sanitizeLadderJoinProfile,
   validLadderInviteToken,
@@ -50,9 +52,14 @@ import {
   mergeMemberImportIntoSetup,
   previewMemberImportIntoSetup,
   syncClubMemberLadderOrder,
+  sanitizeMemberBio,
 } from '../utils/club/memberData.js'
 import { isSafeImageSource, sanitizePlainText } from '../utils/formSafety.js'
 import { normalizeMemberRatings } from '../domain/playerRatings.js'
+import {
+  LADDER_TEST_MEMBER_POOL,
+  TEST_MEMBER_PREFIX,
+} from '../data/ladderTestMembers.js'
 
 const LEGACY_SETUP_SCHEMA_VERSION = 1
 const MANAGER_ROLES = new Set(['admin', 'co-admin'])
@@ -1563,6 +1570,9 @@ export async function updateClubMemberRecord(memberIdInput, input = {}, actor) {
         input.dob === undefined ? current.dob : input.dob,
         10,
       ),
+      bio: sanitizeMemberBio(
+        input.bio === undefined ? current.bio : input.bio,
+      ),
       level: canManage
         ? sanitizePlainText(
             input.level === undefined ? current.level : input.level,
@@ -1732,6 +1742,338 @@ export async function discardClubSetupDraft(actor) {
 }
 
 
+function isGeneratedTestMemberId(memberId) {
+  return String(memberId || '').startsWith(TEST_MEMBER_PREFIX)
+}
+
+function activeClubLevelMap(setup) {
+  return new Map(
+    (Array.isArray(setup?.playerLevels?.levels) ? setup.playerLevels.levels : [])
+      .filter((level) => level?.active !== false)
+      .map((level) => [sanitizeDirectoryId(level?.id), String(level?.label || '').trim()])
+      .filter(([id]) => Boolean(id)),
+  )
+}
+
+function seededUtr(member) {
+  return Number(member?.ratings?.utr?.value)
+}
+
+function seededMemberMatchesBaseEligibility(member, eligibility, now) {
+  if (eligibility.gender === 'men' && member.gender !== 'male') return false
+  if (eligibility.gender === 'women' && member.gender !== 'female') return false
+
+  if (eligibility.age.mode === 'range') {
+    const age = ageOnDate(member.dob, now)
+    if (
+      age === null ||
+      age < eligibility.age.minimum ||
+      age > eligibility.age.maximum
+    ) {
+      return false
+    }
+  }
+
+  if (
+    eligibility.skill.mode === 'rating' &&
+    eligibility.skill.ratingSystem === 'utr'
+  ) {
+    const utr = seededUtr(member)
+    if (
+      !Number.isFinite(utr) ||
+      utr < eligibility.skill.minimum ||
+      utr > eligibility.skill.maximum
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function testUtrRange(selectedMembers) {
+  const values = selectedMembers.map(seededUtr).filter(Number.isFinite)
+  const minimum = Math.max(1, Math.min(...values) - 0.25)
+  const maximum = Math.min(16.5, Math.max(...values) + 0.25)
+
+  return {
+    minimum: Number(minimum.toFixed(2)),
+    maximum: Number(maximum.toFixed(2)),
+  }
+}
+
+function levelForSeed(memberId, eligibility, levelsById, assignments) {
+  if (eligibility.skill.mode !== 'club_level') return ''
+
+  const allowedIds = eligibility.skill.levelIds.filter((id) => levelsById.has(id))
+  if (!allowedIds.length) {
+    throw createServiceError(
+      'This Ladder requires a club level that is not active in this Club.',
+      'INVALID_LADDER_LEVEL',
+    )
+  }
+
+  const existing = assignments.get(memberId)
+  if (existing && !allowedIds.includes(existing)) return null
+
+  return existing || allowedIds[0]
+}
+
+/*
+ * Pure setup transformation used by the DEV-only service and the node test.
+ * It deliberately changes member records/entries only: club identity, invites,
+ * courts, settings, match/challenge data, and active-club relationships are
+ * outside its input/output surface.
+ */
+export function populateActiveClubTestPlayersSetup(input, timestamp = nowIso()) {
+  const current = normalizeClubSetup(input)
+  const activeLadders = current.ladders.filter(
+    (ladder) => ladder.enabled === true && ladder.archived !== true,
+  )
+
+  if (!activeLadders.length) {
+    throw createServiceError('No active Ladder to populate.', 'NO_ACTIVE_LADDER')
+  }
+
+  const levelsById = activeClubLevelMap(current)
+  const generatedIds = new Set(
+    LADDER_TEST_MEMBER_POOL.map((member) => member.id),
+  )
+  const existingMembers = collectClubMembers(current)
+  const existingMemberIds = new Set(
+    existingMembers
+      .filter((member) => !isGeneratedTestMemberId(member.id))
+      .map((member) => member.id),
+  )
+
+  let ladders = current.ladders.map((ladder) => ({
+    ...ladder,
+    entries: normalizeLadderEntries(ladder.entries).filter(
+      (entry) => !isGeneratedTestMemberId(entry.memberId),
+    ),
+  }))
+
+  const selectedByLadder = new Map()
+  const clubLevelAssignments = new Map()
+  const allocatedMemberIds = new Set()
+  const now = new Date(timestamp)
+
+  activeLadders.forEach((activeLadder) => {
+    const ladderIndex = ladders.findIndex((ladder) => ladder.id === activeLadder.id)
+    const ladder = ladders[ladderIndex]
+    let eligibility = normalizeLadderEligibility(ladder.eligibility)
+
+    let candidates = LADDER_TEST_MEMBER_POOL.filter((member) =>
+      seededMemberMatchesBaseEligibility(member, eligibility, now),
+    )
+
+    if (eligibility.skill.mode === 'club_level') {
+      candidates = candidates.filter((member) =>
+        levelForSeed(member.id, eligibility, levelsById, clubLevelAssignments) !== null,
+      )
+    }
+
+    const unallocated = candidates.filter(
+      (member) => !allocatedMemberIds.has(member.id),
+    )
+    const selectionPool = unallocated.length >= 10 ? unallocated : candidates
+    const selected = [...selectionPool]
+      .sort((left, right) => seededUtr(right) - seededUtr(left))
+      .slice(0, 10)
+
+    if (selected.length !== 10) {
+      throw createServiceError(
+        `Could not find 10 eligible synthetic players for ${ladder.name || 'this Ladder'}.`,
+        'INSUFFICIENT_TEST_PLAYERS',
+      )
+    }
+
+    selected.forEach((member) => {
+      allocatedMemberIds.add(member.id)
+      const levelId = levelForSeed(
+        member.id,
+        eligibility,
+        levelsById,
+        clubLevelAssignments,
+      )
+      if (levelId) clubLevelAssignments.set(member.id, levelId)
+    })
+
+    if (
+      eligibility.skill.mode === 'rating' &&
+      ['ntrp', 'wtn'].includes(eligibility.skill.ratingSystem)
+    ) {
+      const range = testUtrRange(selected)
+      eligibility = normalizeLadderEligibility({
+        ...eligibility,
+        skill: {
+          mode: 'rating',
+          ratingSystem: 'utr',
+          ...range,
+        },
+      })
+    }
+
+    const orderedExistingIds = normalizeLadderEntries(ladder.entries)
+      .filter((entry) => existingMemberIds.has(entry.memberId))
+      .sort((left, right) =>
+        (left.position ?? left.setupOrder ?? 10000) -
+        (right.position ?? right.setupOrder ?? 10000),
+      )
+      .map((entry) => entry.memberId)
+
+    const orderedMemberIds = [
+      ...selected.map((member) => member.id),
+      ...orderedExistingIds.filter((memberId) => !generatedIds.has(memberId)),
+    ]
+
+    ladders[ladderIndex] = {
+      ...ladder,
+      eligibility,
+      entries: normalizeLadderEntries(
+        orderedMemberIds.map((memberId, index) => ({
+          memberId,
+          status: LADDER_ENTRY_STATUSES.ACTIVE,
+          position: index + 1,
+          setupOrder: index + 1,
+          source: 'admin',
+          joinedAt: timestamp,
+        })),
+      ),
+    }
+
+    selectedByLadder.set(ladder.id, selected)
+  })
+
+  const membership = {
+    ...current.membership,
+    roster: (current.membership.roster || []).filter(
+      (member) => !isGeneratedTestMemberId(member?.id),
+    ),
+    importedMembers: (current.membership.importedMembers || []).filter(
+      (member) => !isGeneratedTestMemberId(member?.id),
+    ),
+    manualMembers: [
+      ...(current.membership.manualMembers || []).filter(
+        (member) => !isGeneratedTestMemberId(member?.id),
+      ),
+      ...LADDER_TEST_MEMBER_POOL.map((seed) => {
+        const clubLevelId = clubLevelAssignments.get(seed.id) || ''
+        return {
+          ...seed,
+          ratings: { utr: { ...seed.ratings.utr } },
+          clubLevelId,
+          level: levelsById.get(clubLevelId) || '',
+          ladderMemberships: [],
+        }
+      }),
+    ],
+  }
+
+  let nextSetup = {
+    ...current,
+    membership,
+    ladders,
+    placement: {
+      ...current.placement,
+      rankingOrder: (current.placement?.rankingOrder || []).filter(
+        (memberId) => !isGeneratedTestMemberId(memberId),
+      ),
+    },
+    updatedAt: timestamp,
+  }
+
+  activeLadders.forEach((activeLadder) => {
+    const ladder = nextSetup.ladders.find((item) => item.id === activeLadder.id)
+    const orderedMemberIds = normalizeLadderEntries(ladder?.entries)
+      .sort((left, right) => left.position - right.position)
+      .map((entry) => entry.memberId)
+
+    nextSetup = {
+      ...nextSetup,
+      membership: syncClubMemberLadderOrder(nextSetup, {
+        ladderId: ladder.id,
+        ladderName: ladder.name,
+        orderedMemberIds,
+      }),
+    }
+  })
+
+  const primarySelection = selectedByLadder.get(nextSetup.primaryLadderId)
+  if (primarySelection) {
+    nextSetup = {
+      ...nextSetup,
+      placement: {
+        ...nextSetup.placement,
+        rankingOrder: primarySelection.map((member) => member.id),
+      },
+    }
+  }
+
+  const setup = normalizeClubSetup(nextSetup)
+  const laddersSummary = activeLadders.map((activeLadder) => {
+    const ladder = setup.ladders.find((item) => item.id === activeLadder.id)
+    const generatedEntries = normalizeLadderEntries(ladder?.entries)
+      .filter((entry) => isGeneratedTestMemberId(entry.memberId))
+      .sort((left, right) => left.position - right.position)
+    const membersById = new Map(collectClubMembers(setup).map((member) => [member.id, member]))
+
+    return {
+      id: ladder.id,
+      name: ladder.name,
+      players: generatedEntries.map((entry) => ({
+        id: entry.memberId,
+        name: membersById.get(entry.memberId)?.name || 'Test player',
+        position: entry.position,
+      })),
+    }
+  })
+
+  return {
+    setup,
+    generatedMemberCount: LADDER_TEST_MEMBER_POOL.length,
+    activeLadderCount: laddersSummary.length,
+    ladders: laddersSummary,
+  }
+}
+
+export async function populateActiveClubTestPlayers(actor) {
+  if (!import.meta.env?.DEV) {
+    throw createServiceError(
+      'Test player population is only available in development.',
+      'DEV_ONLY',
+    )
+  }
+
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+  const timestamp = nowIso()
+  const population = populateActiveClubTestPlayersSetup(context.club.setup, timestamp)
+
+  const nextSetup = normalizeClubSetup({
+    ...population.setup,
+    updatedAt: timestamp,
+  })
+
+  directory.clubs[context.clubIndex] = {
+    ...context.club,
+    name: nextSetup.workspace.name,
+    setup: nextSetup,
+    updatedAt: timestamp,
+  }
+
+  directory = writeDirectory(directory, userId)
+
+  return {
+    club: publicDirectoryForUser(directory, userId).clubs.find(
+      (club) => club.id === context.clubId,
+    ),
+    generatedMemberCount: population.generatedMemberCount,
+    activeLadderCount: population.activeLadderCount,
+    ladders: population.ladders,
+  }
+}
 export async function updateClubMemberLadderPosition(memberIdInput, ladderIdInput, positionInput, actor) {
   const userId = requireUserId(actor)
   let directory = loadDirectory(actor)

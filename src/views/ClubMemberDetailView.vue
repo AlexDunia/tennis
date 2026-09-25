@@ -38,6 +38,7 @@ const form = reactive({
   phone: '',
   gender: '',
   dob: '',
+  bio: '',
   clubLevelId: '',
   ntrp: '',
   utr: '',
@@ -107,6 +108,7 @@ function fillForm() {
     phone: value.phone || '',
     gender: value.gender || '',
     dob: value.dob || '',
+    bio: value.bio || '',
     clubLevelId: sanitizeDirectoryId(value.clubLevelId || value.level),
     ntrp: ratings.ntrp?.value ?? '',
     utr: ratings.utr?.value ?? '',
@@ -151,6 +153,7 @@ async function saveMember() {
       phone: form.phone.trim(),
       gender: form.gender,
       dob: form.dob,
+      bio: form.bio,
       ...(canManage.value
         ? {
             clubLevelId: form.clubLevelId,
@@ -351,6 +354,17 @@ useShellNestedHeader(() => ({
             <label class="ref-form-field">
               <span>Date of birth</span>
               <input v-model="form.dob" type="date" :disabled="!canEditPersonal" />
+            </label>
+
+            <label class="ref-form-field full">
+              <span>Bio</span>
+              <textarea
+                v-model="form.bio"
+                maxlength="500"
+                rows="4"
+                :disabled="!canEditPersonal"
+                placeholder="A short player profile"
+              ></textarea>
             </label>
           </div>
         </section>

@@ -1,0 +1,22 @@
+PROTECTED — DO NOT DELETE DURING REPOSITORY CLEANUP
+
+1. src/views/LandingView.legacy-2026-08.vue
+   Reason:
+   Previous GORRA landing-page direction intentionally retained by Alex
+   for future design/reuse.
+
+2. src/assets/landing.css
+3. src/assets/landing-v2.css
+4. src/components/landing/LandingProductPreview.vue
+5. src/assets/landing/
+   Reason:
+   Landing-page design material. Do not remove merely because a specific
+   asset/component currently has no route/import.
+
+6. Routes:
+   /landing-legacy
+   /old-landing
+   Reason:
+   Intentional access to retained landing direction.
+
+This is a protection list, not an exhaustive list of retained work.

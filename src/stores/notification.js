@@ -158,6 +158,8 @@ export const useNotificationStore = defineStore(
       eventKey = '',
       meta = {},
       sound = 'toast',
+      actionLabel = '',
+      onAction = null,
     }) => {
       if (
         eventKey &&
@@ -202,6 +204,8 @@ export const useNotificationStore = defineStore(
       type = 'success',
       duration = 5000,
       sound = 'toast',
+      actionLabel = '',
+      onAction = null,
     }) => {
       const id = createId()
 
@@ -212,6 +216,8 @@ export const useNotificationStore = defineStore(
         type,
         duration,
         sound,
+        actionLabel,
+        onAction,
       }
 
       // Newest toast appears at the top of the stack,

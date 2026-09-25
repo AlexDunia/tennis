@@ -297,7 +297,7 @@ onUnmounted(() => {
             :disabled="submitting"
             @click="emit('close')"
           >
-            ×
+            Ãƒâ€”
           </button>
         </header>
 
@@ -344,14 +344,17 @@ onUnmounted(() => {
         <section v-if="timing" class="drawer-section">
           <div class="drawer-section__label">
             <strong>Scoring rules</strong>
-            <span>{{
-              matchRuleSource === 'admin_override' ? 'Admin override' : 'Ladder default'
-            }}</span>
+            <div class="drawer-rules-actions">
+              <button type="button" :class="{ 'is-active': matchRuleSource !== 'admin_override' }" @click="useLadderDefault">Ladder default</button>
+              <button v-if="rulesEditable" type="button" :class="{ 'is-active': matchRuleSource === 'admin_override' }" @click="openRulesEditor">Customize</button>
+            </div>
           </div>
           <div class="rules-card rules-card--tennis">
             <div class="rules-card__tennis-summary">
-              <strong>{{ currentRulesSummary.match }}</strong>
+              <h3>Match format</h3>
+              <p class="rules-result-table__format">{{ currentRulesSummary.match }}</p>
 
+                            <div class="rules-result-table__head"><span>Rule</span><span>Match setting</span></div>
               <dl>
                 <div
                   v-for="row in currentRulesSummary.rows"
@@ -362,19 +365,7 @@ onUnmounted(() => {
                 </div>
               </dl>
             </div>
-
-            <button
-              v-if="rulesEditable"
-              type="button"
-              @click="openRulesEditor"
-            >
-              Customize
-            </button>
           </div>
-          <p v-if="matchRuleSource === 'admin_override'" class="override-note">
-            This admin override applies to this match only.
-            <button type="button" @click="useLadderDefault">Use Ladder default</button>
-          </p>
         </section>
         <section v-if="timing === 'scheduled'" class="drawer-section">
           <div class="schedule-fields">
@@ -420,7 +411,7 @@ onUnmounted(() => {
         >
           {{
             submitting
-              ? 'Creating match…'
+              ? 'Creating matchÃ¢â‚¬Â¦'
               : timing === 'now'
                 ? 'Set match ready'
                 : 'Schedule match'
@@ -429,7 +420,7 @@ onUnmounted(() => {
       </template>
 
       <section v-else class="drawer-success" aria-live="polite">
-        <span class="drawer-success__check" aria-hidden="true">✓</span>
+        <span class="drawer-success__check" aria-hidden="true">Ã¢Å“â€œ</span>
         <h2>{{ result.timing === 'scheduled' ? 'Match scheduled' : 'Match ready' }}</h2>
         <p>{{ playerA?.name }} vs {{ playerB?.name }}</p>
         <div>
@@ -466,7 +457,7 @@ onUnmounted(() => {
           aria-label="Close match format"
           @click="overrideOpen = false"
         >
-          ×
+          Ãƒâ€”
         </button>
         <MatchFormatEditor
           :model-value="overrideRulesSnapshot"
@@ -712,6 +703,26 @@ onUnmounted(() => {
   border-top: 1px solid var(--color-border);
 }
 
+.drawer-rules-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.drawer-rules-actions button {
+  border: 0;
+  background: transparent;
+  color: var(--color-primary-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.drawer-rules-actions button.is-active { color: var(--color-text); text-decoration: underline; text-decoration-color: var(--color-primary); text-decoration-thickness: 2px; }
+.drawer-rules-actions button:hover { background: var(--color-surface-soft); color: var(--color-primary-strong); filter: none; }
+.drawer-rules-actions button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; border-radius: 3px; }
 .drawer-section__label {
   display: flex;
   align-items: center;
@@ -769,6 +780,26 @@ onUnmounted(() => {
   align-items: flex-start;
 }
 
+.rules-card__tennis-summary .rules-result-table__head {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  margin-top: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: var(--color-surface-soft);
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+}
+.rules-card__tennis-summary .rules-result-table__head span + span { padding-left: 10px; border-left: 1px solid var(--color-border); }
+.rules-card__tennis-summary dl { margin: 0; border: 1px solid var(--color-border); border-radius: 0 0 8px 8px; overflow: hidden; }
+.rules-card__tennis-summary dl > div { grid-template-columns: 92px minmax(0, 1fr); gap: 0; padding: 0; border-top: 1px solid var(--color-border); }
+.rules-card__tennis-summary dl > div:first-child { border-top: 0; }
+.rules-card__tennis-summary dt, .rules-card__tennis-summary dd { padding: 8px 10px; font-size: 11px; line-height: 1.35; }
+.rules-card__tennis-summary dt { color: var(--color-muted); border-right: 1px solid var(--color-border); }
+.rules-card__tennis-summary dd { margin: 0; color: var(--color-text); }
 .rules-card__tennis-summary {
   display: grid;
   min-width: 0;

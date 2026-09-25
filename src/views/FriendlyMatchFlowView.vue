@@ -268,9 +268,9 @@ const liveSessionView = computed(() => liveSessionApi.view.value)
 function canonicalMatchForCurrentLiveDraft() {
   const draft = friendlyMatchStore.draft
   const matchId = currentLiveMatchId.value
-  const rulesSnapshot = draft.rulesSnapshot || (draft.matchType === 'friendly'
-    ? friendlyRulesToMatchRulesSnapshot(draft).snapshot
-    : null)
+  const rulesSnapshot =
+    draft.rulesSnapshot ||
+    (draft.matchType === 'friendly' ? friendlyRulesToMatchRulesSnapshot(draft).snapshot : null)
 
   if (
     !matchId ||
@@ -3733,8 +3733,10 @@ function configureStep() {
    */
   recoverCurrentMatchState()
 
-  if (step.value === 'live' &&
-      (!requestedLiveMatchId.value || friendlyMatchStore.liveMatchId !== requestedLiveMatchId.value)) {
+  if (
+    step.value === 'live' &&
+    (!requestedLiveMatchId.value || friendlyMatchStore.liveMatchId !== requestedLiveMatchId.value)
+  ) {
     liveEntryError.value = 'This saved match is no longer available.'
     return
   }

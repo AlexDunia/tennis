@@ -1,0 +1,490 @@
+GORRA REPOSITORY CURRENT / PROTECTED / MIGRATE / DELETE AUDIT
+===============================================================
+
+Audit date: 2026-09-25
+Scope: read-only source audit. No application source, route, asset, or test was
+deleted, renamed, or changed. Counts below are counts of primary PATH / SYSTEM
+records; grouped records avoid falsely giving every file in a system the same
+lifecycle classification.
+
+SUMMARY
+-------
+1. CURRENT — KEEP: 8
+2. PROTECTED — DO NOT TOUCH: 6
+3. MIGRATE BEFORE REMOVAL: 14
+4. DELETE CANDIDATES — WAITING FOR ALEX APPROVAL: 2
+5. NEEDS OWNER DECISION: 2
+
+CURRENT — KEEP
+--------------
+
+PATH / SYSTEM: src/main.js, src/App.vue, src/router/index.js, src/layouts/DefaultLayout.vue
+STATUS: CURRENT
+CURRENT CONSUMERS: Every routed application screen and authenticated shell.
+WHY IT EXISTS: Application composition, routing, auth guard, shared navigation, and route-level data loading.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Keep.
+OWNER DECISION NEEDED: No.
+EVIDENCE: router/index.js imports/mounts active screens; DefaultLayout.vue:971 calls playerStore.loadPlayers() for authenticated routes.
+
+PATH / SYSTEM: Routed account, club, member, onboarding, settings, profile, history, notification, and ladder-management views
+STATUS: CURRENT
+CURRENT CONSUMERS: Direct router records and normal authenticated navigation.
+WHY IT EXISTS: Active home, club, member, account, and ladder setup/import/access flows.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Keep.
+OWNER DECISION NEEDED: No.
+EVIDENCE: router records cover /dashboard, /clubs, /club/*, /settings, /profile, /history, /notifications, and /rankings/:ladderId/*.
+
+PATH / SYSTEM: src/views/compete/LadderView.vue, ChallengesQueueView.vue, CompeteChallengeCreateView.vue, TournamentsListView.vue
+STATUS: CURRENT
+CURRENT CONSUMERS: /rankings, /challenges, /create-challenge, and /tournaments.
+WHY IT EXISTS: Canonical compete surfaces. LadderView derives a scoped club roster where a club and ladder exist.
+MODERN REPLACEMENT: None; these replace prior rankings/challenge surfaces.
+SAFE ACTION: Keep.
+OWNER DECISION NEEDED: No.
+EVIDENCE: router/index.js:15,19,45 and route records at 115, 209, 587, 819; LadderView.vue:156 calls ladderRosterFromSetup.
+
+PATH / SYSTEM: PlayHubView, PlayView, MatchDetailsView, LiveMatchView, LiveScoreboardView, LiveOperationsView, LiveOperationDetailView, ChairUmpireInvitationView
+STATUS: CURRENT
+CURRENT CONSUMERS: /play, /play/:matchId, /matches/:matchId*, /operations/live*, /live-scoreboard/*, and umpire routes.
+WHY IT EXISTS: Current match entry, operations, details, scoring, and live presentation flows.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Keep.
+OWNER DECISION NEEDED: No.
+EVIDENCE: Current routes mount these views; PlayHubView.vue:264 and MatchDetailsView.vue:118 load operational data.
+
+PATH / SYSTEM: TournamentCreate, TournamentOverview, TournamentCategory, TournamentSchedule, TournamentGallery, src/components/tournament/
+STATUS: CURRENT
+CURRENT CONSUMERS: /tournaments and nested tournament routes.
+WHY IT EXISTS: Active tournament creation, fixture, score, schedule, and gallery workflows.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Keep.
+OWNER DECISION NEEDED: No.
+EVIDENCE: router/index.js:219-285 defines creation, overview, category, schedule, gallery, and match-detail routes.
+
+PATH / SYSTEM: src/components/club/, compete/, ladder/, match/, play/, shared components
+STATUS: CURRENT
+CURRENT CONSUMERS: Current routed feature views.
+WHY IT EXISTS: Current interaction/presentation units.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Keep; assess individual components only after import, dynamic-reference, and test tracing.
+OWNER DECISION NEEDED: No.
+EVIDENCE: LadderView renders LadderBulkScheduler at :1824; MatchDetails imports LivePresenceStrip and LadderMatchManageDialog.
+
+PATH / SYSTEM: src/domain/, src/config/ladder.js, src/config/branding.js, current src/utils/
+STATUS: CURRENT
+CURRENT CONSUMERS: Current views, stores, services, and tests.
+WHY IT EXISTS: Rules, scope, validation, formatting, onboarding, and authorization adapters.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Keep.
+OWNER DECISION NEEDED: No.
+EVIDENCE: LadderView imports competitionScope; test/competitionScope.test.js directly imports its exports.
+
+PATH / SYSTEM: test/ current contract suite
+STATUS: CURRENT
+CURRENT CONSUMERS: npm test.
+WHY IT EXISTS: Regression protection for club, ladder, live match, tournament, auth, scope, and UI contracts.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Keep; migrate a test alongside an intentional contract change.
+OWNER DECISION NEEDED: No.
+EVIDENCE: package.json runs node --test; tests import current modules and inspect current routes/sources.
+
+PROTECTED — DO NOT TOUCH
+------------------------
+
+PATH / SYSTEM: src/views/LandingView.legacy-2026-08.vue
+STATUS: PROTECTED
+CURRENT CONSUMERS: /landing-legacy and /old-landing.
+WHY IT EXISTS: Previous GORRA landing direction retained intentionally by Alex for design/reuse.
+MODERN REPLACEMENT: LandingView.vue is current /, not a reason to remove the archive.
+SAFE ACTION: Do not delete, rename, or unroute.
+OWNER DECISION NEEDED: No.
+EVIDENCE: router/index.js:50 and :74-78; protection-list item 1.
+
+PATH / SYSTEM: src/assets/landing.css
+STATUS: PROTECTED
+CURRENT CONSUMERS: LandingView.legacy-2026-08.vue.
+WHY IT EXISTS: Retained landing design material.
+MODERN REPLACEMENT: landing-v2.css serves the current direction but does not replace the retained reference.
+SAFE ACTION: Do not delete.
+OWNER DECISION NEEDED: No.
+EVIDENCE: Legacy landing view imports it at :5; protection-list item 2.
+
+PATH / SYSTEM: src/assets/landing-v2.css
+STATUS: PROTECTED
+CURRENT CONSUMERS: LandingView.vue.
+WHY IT EXISTS: Current and intentionally protected landing design material.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Do not delete.
+OWNER DECISION NEEDED: No.
+EVIDENCE: LandingView.vue:6; protection-list item 3.
+
+PATH / SYSTEM: src/components/landing/LandingProductPreview.vue
+STATUS: PROTECTED
+CURRENT CONSUMERS: LandingView.vue.
+WHY IT EXISTS: Landing product-preview design material.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Do not delete, even during a temporary zero-import state.
+OWNER DECISION NEEDED: No.
+EVIDENCE: LandingView.vue:5 imports and renders it; protection-list item 4.
+
+PATH / SYSTEM: src/assets/landing/
+STATUS: PROTECTED
+CURRENT CONSUMERS: Current and retained landing views.
+WHY IT EXISTS: Landing imagery/design material.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Do not remove individual assets based on import count alone.
+OWNER DECISION NEEDED: No.
+EVIDENCE: Both landing views import scan-to-join and play-the-match images; protection-list item 5.
+
+PATH / SYSTEM: /landing-legacy and /old-landing
+STATUS: PROTECTED
+CURRENT CONSUMERS: Direct browser navigation and design-reference access.
+WHY IT EXISTS: Intentional retained landing archive; /old-landing is compatibility access.
+MODERN REPLACEMENT: / is current public landing, not an archive replacement.
+SAFE ACTION: Keep both paths.
+OWNER DECISION NEEDED: No.
+EVIDENCE: router/index.js:74-78; protection-list item 6.
+
+MIGRATE BEFORE REMOVAL
+----------------------
+
+PATH / SYSTEM: ApiService mockDatabase, playerSeeds, createPlayers(), GET /players
+STATUS: MIGRATE
+CURRENT CONSUMERS: PlayerService/store; ApiService-backed challenge, match, and tournament services; Dashboard competition subscription.
+WHY IT EXISTS: In-process mock backend, deterministic roster/IDs, demo fixtures, and stored-demo compatibility.
+MODERN REPLACEMENT: Production repositories/APIs for account, club member, ladder entry, match, challenge, tournament, images, and subscriptions.
+SAFE ACTION: Do not remove playerSeeds, createPlayers(), /players, or related mock branches.
+OWNER DECISION NEEDED: Production backend and stored-data cutoff need owner approval.
+EVIDENCE: ApiService.js:112, :790, :1318/1346, :1853; unscoped paths use global players at :2773 and :3145.
+
+PATH / SYSTEM: PlayerService.js, stores/player.js, config/currentPlayer.js
+STATUS: MIGRATE
+CURRENT CONSUMERS: DefaultLayout and 25+ current views/stores/components through usePlayerStore.
+WHY IT EXISTS: Global demo player store supplies identity, roster, rank, role overlay, opponent lookup, and APP_CURRENT_PLAYER fallback.
+MODERN REPLACEMENT: Authenticated account + active-club member + active-ladder entry through a scoped identity repository.
+SAFE ACTION: Keep until no consumer calls PlayerService.getPlayers and APP_CURRENT_PLAYER is gone.
+OWNER DECISION NEEDED: No.
+EVIDENCE: PlayerService.js:4; player.js:35 and :120; currentPlayer.js; DefaultLayout.vue:971.
+
+PATH / SYSTEM: ChallengeService, MatchService, TournamentService, TournamentImageService and corresponding stores
+STATUS: MIGRATE
+CURRENT CONSUMERS: Current challenge, play, match, tournament, dashboard, and notification flows.
+WHY IT EXISTS: Current client boundaries still delegate to in-process ApiService.
+MODERN REPLACEMENT: Same interfaces backed by production HTTP/repository implementations.
+SAFE ACTION: Migrate endpoint by endpoint; do not remove live consumers or mock handlers first.
+OWNER DECISION NEEDED: No.
+EVIDENCE: Each service imports ApiService; match.js:90 and challenge.js:239/273 reload players after result actions.
+
+PATH / SYSTEM: AdminService.js, stores/admin.js, utils/club/memberData.js
+STATUS: MIGRATE
+CURRENT CONSUMERS: Club creation, member directory, invites/imports, active-club selection, scoped ladder UI.
+WHY IT EXISTS: Current frontend-prototype club/member authority with local persistence and membership checks.
+MODERN REPLACEMENT: Server-side club, membership, member-record, role, invite, and ladder-entry persistence.
+SAFE ACTION: Keep and migrate as one authority; never replace it with the global player array.
+OWNER DECISION NEEDED: No.
+EVIDENCE: AdminService.js:246/257 reads local state and :403 migrates legacy directory; memberData.js:61; admin.js:74/168.
+
+PATH / SYSTEM: dataMode.js and auth data-mode handling
+STATUS: MIGRATE
+CURRENT CONSUMERS: Login, player, booking, notification, ApiService, role-neutral auth tests.
+WHY IT EXISTS: EMPTY/DEMO frontend modes enable first-run and seeded demonstrations.
+MODERN REPLACEMENT: Environment-controlled fixture accounts and backend tenancy/empty-state behavior.
+SAFE ACTION: Keep until production has equivalent test/demo behavior.
+OWNER DECISION NEEDED: No.
+EVIDENCE: dataMode.js; auth.js:74; ApiService.js:1745; test/roleNeutralAuth.test.js.
+
+PATH / SYSTEM: ApiService tournament demo seeds, scenario helpers, and tournament local storage
+STATUS: MIGRATE
+CURRENT CONSUMERS: Tournament screens and demo/test walkthroughs.
+WHY IT EXISTS: RSP tournament fixtures, gallery records, deterministic IDs, and scenario behavior without backend data.
+MODERN REPLACEMENT: Production tournament APIs plus test-owned fixture factories/seeds.
+SAFE ACTION: Keep; extract only after production APIs and equivalent test coverage exist.
+OWNER DECISION NEEDED: No.
+EVIDENCE: ApiService.js:47, :460, :831, :973, :1008.
+
+PATH / SYSTEM: stores/ladderMatchWorkspace.js and services/LadderWorkspaceService.js
+STATUS: MIGRATE
+CURRENT CONSUMERS: LadderView, LadderBulkScheduler, ladder administration, workspace tests.
+WHY IT EXISTS: Per-actor local drafts and local-prototype ladder authority.
+MODERN REPLACEMENT: Server-side scoped ladder-workspace drafts/operations.
+SAFE ACTION: Keep until persistence, authorization, concurrency, and stored-draft migration exist.
+OWNER DECISION NEEDED: No.
+EVIDENCE: LadderWorkspaceService.js:216; ladderMatchWorkspace.js local storage; test/ladderMatchWorkspaceState.test.js.
+
+PATH / SYSTEM: stores/friendlyMatch.js
+STATUS: MIGRATE
+CURRENT CONSUMERS: FriendlyMatchFlowView, /friendly-match/*, and compatibility /ladder-match/*.
+WHY IT EXISTS: Frontend/mock-stage friendly-match lifecycle, drafts, invites, and local persistence.
+MODERN REPLACEMENT: Server-side friendly-match, invitation, and lifecycle APIs.
+SAFE ACTION: Keep until every flow step uses durable backend state.
+OWNER DECISION NEEDED: No.
+EVIDENCE: friendlyMatch.js documents frontend/mock/localStorage behavior; router maps the flow and aliases.
+
+PATH / SYSTEM: LiveMatchSessionRepository, liveMatchRealtime, liveOperationsRegistry, LiveMatchPresenceService, LiveMatchService
+STATUS: MIGRATE
+CURRENT CONSUMERS: LiveMatch, LiveScoreboard, LiveOperations, MatchDetails, live tests.
+WHY IT EXISTS: Browser-local sessions, realtime fallback, operations registry, and ephemeral presence.
+MODERN REPLACEMENT: Authorized server session storage, realtime transport, presence, and audit trail.
+SAFE ACTION: Keep; local persistence is not production authority.
+OWNER DECISION NEEDED: No.
+EVIDENCE: liveMatchRealtime.js:7 calls localStorage a cache/fallback; LiveMatchPresenceService.js:56 denies scoring authority; test/liveMatchPresence.test.js imports it.
+
+PATH / SYSTEM: tvPairingService.js and display pairing routes
+STATUS: MIGRATE
+CURRENT CONSUMERS: /display, /display/live, TvDisplayPairingView, TvDisplayLiveView.
+WHY IT EXISTS: Local QR/code pairing prototype.
+MODERN REPLACEMENT: Backend-issued, short-lived device/session credentials.
+SAFE ACTION: Keep until server expiry, claim, revocation, and authorization exist.
+OWNER DECISION NEEDED: No.
+EVIDENCE: tvPairingService.js:18 says localStorage is not the final security boundary; router:716-736.
+
+PATH / SYSTEM: chairUmpireService.js and umpire invitation/control routes
+STATUS: MIGRATE
+CURRENT CONSUMERS: ChairUmpireInvitationView and umpire routes.
+WHY IT EXISTS: Development implementation using local storage.
+MODERN REPLACEMENT: Server-authorized invitation and score-control credentials.
+SAFE ACTION: Keep until backend controls are deployed/tested.
+OWNER DECISION NEEDED: No.
+EVIDENCE: chairUmpireService.js:4-6; router:751-798.
+
+PATH / SYSTEM: stores/booking.js
+STATUS: MIGRATE
+CURRENT CONSUMERS: Current booking flow and data-mode-specific local storage.
+WHY IT EXISTS: Browser-local bookings for the prototype.
+MODERN REPLACEMENT: Club court-booking API with availability/authorization.
+SAFE ACTION: Keep until backend persistence exists.
+OWNER DECISION NEEDED: No.
+EVIDENCE: booking.js imports APP_DATA_MODES and uses a data-mode-specific localStorage key.
+
+PATH / SYSTEM: DEV-only clear test-data controls in AdminService, admin store, player store
+STATUS: MIGRATE
+CURRENT CONSUMERS: Local development/reset testing only.
+WHY IT EXISTS: Repeatable prototype and club setup testing.
+MODERN REPLACEMENT: Explicitly authorized non-production fixture/reset tooling.
+SAFE ACTION: Keep DEV-only; never expose as production cleanup.
+OWNER DECISION NEEDED: No.
+EVIDENCE: AdminService.js:561-567; admin.js:483-495; player.js:206-211.
+
+PATH / SYSTEM: src/views/ChallengesView.vue
+STATUS: MIGRATE
+CURRENT CONSUMERS: test/ladderAdminFlow.test.js retains source-level workflow expectations; no current route mounts it.
+WHY IT EXISTS: Older challenge screen based on global player/challenge/match stores.
+MODERN REPLACEMENT: compete/ChallengesQueueView.vue and ChallengeDetailsView.vue.
+SAFE ACTION: Retain until old test expectations move to canonical queue/detail behavior, then reassess.
+OWNER DECISION NEEDED: No.
+EVIDENCE: router uses ChallengesQueueView at :19/:587; ChallengesView.vue:160 loads all three stores; ladderAdminFlow.test.js:110 reads this source.
+
+PATH / SYSTEM: /ladder-match/* aliases and LegacyLadderLive
+STATUS: MIGRATE
+CURRENT CONSUMERS: Old/shared deep links and bookmarks.
+WHY IT EXISTS: Compatibility migration to FriendlyMatchFlow/live-match architecture.
+MODERN REPLACEMENT: /friendly-match/* and /matches/:matchId/live.
+SAFE ACTION: Preserve, instrument usage, then set an owner-approved retirement date.
+OWNER DECISION NEEDED: Yes, for retirement timing.
+EVIDENCE: router/index.js:295-447 maps seven aliases and LegacyLadderLive.
+
+DELETE CANDIDATES — WAITING FOR ALEX APPROVAL
+----------------------------------------------
+
+PATH / SYSTEM: src/views/RankingsView.vue
+STATUS: DELETE CANDIDATE
+CURRENT CONSUMERS: None found in router, source imports, or tests.
+WHY IT EXISTS: Prior global-player leaderboard/challenge UI.
+MODERN REPLACEMENT: compete/LadderView.vue at /rankings and CompeteChallengeCreateView at /create-challenge.
+SAFE ACTION: Do not delete in this task. Delete only in a dedicated Alex-approved change after retained-reference intent is ruled out.
+OWNER DECISION NEEDED: Alex approval required.
+EVIDENCE: router imports LadderView as RankingsView at :15 and mounts it at :115; old RankingsView loads player store at :57-65; no external reference found.
+
+PATH / SYSTEM: src/views/MatchesView.vue
+STATUS: DELETE CANDIDATE
+CURRENT CONSUMERS: No route/import; canonicalLadderLive test asserts it is not routed but does not import it.
+WHY IT EXISTS: Superseded consolidated matches screen.
+MODERN REPLACEMENT: PlayHubView, PlayView, MatchDetailsView, live-operation views.
+SAFE ACTION: Do not delete in this task. Delete only in a dedicated Alex-approved change while retaining intended negative router coverage.
+OWNER DECISION NEEDED: Alex approval required.
+EVIDENCE: MatchesView expects matchStore.liveMatches/upcomingMatches at :36-37; canonicalLadderLive.test.js:284-288 asserts no MatchesView router import.
+
+NEEDS OWNER DECISION
+--------------------
+
+PATH / SYSTEM: src/views/DashboardView.legacy.vue
+STATUS: NEEDS OWNER DECISION
+CURRENT CONSUMERS: No current route/import found.
+WHY IT EXISTS: Likely prior dashboard direction, but retention intent is not documented.
+MODERN REPLACEMENT: DashboardView.vue at /dashboard.
+SAFE ACTION: Leave untouched; either label as protected reference or approve later deletion review.
+OWNER DECISION NEEDED: Yes.
+EVIDENCE: router imports DashboardView.vue at :14 and maps /dashboard at :87-95; no reference to legacy file found.
+
+PATH / SYSTEM: Unrouted view inventory — BookView.vue, MemberOnboardingView.vue, TournamentHub.vue, TvDisplayPairView.vue
+STATUS: NEEDS OWNER DECISION
+CURRENT CONSUMERS: No route/import reference found.
+WHY IT EXISTS: Zero imports do not establish whether these are prototypes, references, or unfinished future work.
+MODERN REPLACEMENT: Not safely inferable for every file.
+SAFE ACTION: Do not delete/rename. Ask Alex to label each protected, future, or approved-delete-candidate.
+OWNER DECISION NEEDED: Yes.
+EVIDENCE: Router uses TournamentsListView and TvDisplayPairingView, not similarly named files; audit search found no references to these four files.
+
+OLD PLAYER SYSTEM MIGRATION MAP
+-------------------------------
+
+A. Remaining dependencies on the global ApiService demo player array
+
+- Direct: PlayerService GET /players -> player store -> global players/currentPlayer/sortedLadder/opponent lookup/role overlay and APP_CURRENT_PLAYER fallback.
+- Shell: DefaultLayout autoloads the store and displays current-player identity/rank.
+- Direct screen loaders: DashboardView; LadderView; ChallengesQueueView; CompeteChallengeCreateView; ChallengeDetailsView; CreateChallengeView; PlayHubView; PlayView; MatchDetailsView; FriendlyMatchFlowView; ProfileView; LadderPlayerAccessView; ChairUmpireInvitationView; LiveOperationsView; LiveOperationDetailView; TournamentCreate; TournamentOverview; TournamentCategory; TournamentGallery; and legacy-but-test-retained ChallengesView.
+- Indirect consumers: LiveMatchView, LiveScoreboardView, TournamentSchedule, DefaultLayout, LadderMatchManageDialog, match/challenge stores, and tournament notifications use ID, name, avatar, rank, or player lookup.
+- ApiService: Unscoped challenge/ladder-match creation/resolution calls getPlayerById/global mockDatabase.players; stored ladder state is topped up from createPlayers; tournament/gallery seed data uses playerSeeds names/IDs.
+
+B. Screens that break if playerSeeds, createPlayers(), and /players mock response disappear today
+
+In DEMO mode, every direct loader above loses its required player result and will show error/empty UI or lose identity, opponent, participant-name, rank, and action data. DefaultLayout will repeatedly fail its automatic load. The highest impact is /dashboard, /rankings, /challenges, /create-challenge, /play, /play/:matchId, /matches/:matchId, /profile, live-operation routes, and tournament creation/detail routes. Club-scoped LadderView reduces the damage by deriving a roster from club records/entries, but it still loads the global store and uses currentPlayer/currentPlayerId fallback. EMPTY mode intentionally returns [] today; it is not a removal-ready replacement because callers and mock branches still remain.
+
+C. Target ownership of information
+
+- Club member: club-scoped profile (name, photo, contact), membership state, club role/permissions, userId link, provenance, and ladder-membership links.
+- Ladder entry: ladderId, active/withdrawn status, position/rank, ordering, eligibility, and competition-specific facts.
+- Authenticated account: immutable principal/user ID, sign-in email, preferred account name/avatar, session, and global authorization. It claims/selects a linked member; it is not a synthetic player fallback.
+Evidence: memberData normalizes userId/ladderMemberships; AdminService enforces membership; competitionScope.ladderRosterFromSetup maps active entries and positions.
+
+D. Required migration before delete candidacy
+
+1. Establish stable backend account, club-member, and ladder-entry IDs; link accounts to members.
+2. Provide scoped current-actor, active-club, member-directory, and ladder-roster/entry APIs; replace every PlayerService GET /players consumer.
+3. Use auth for actor identity, club member for profile, ladder entry for rank/eligibility; remove APP_CURRENT_PLAYER and global player fallbacks.
+4. Migrate unscoped challenge/match operations, participant lookup, and gallery uploader labels from ApiService.
+5. Move player/tournament fixtures and scenario IDs to test fixtures or an explicit non-production seed pipeline; decide local-browser-data retirement/migration.
+6. Move source-level legacy tests to behavior tests of canonical routes.
+7. Verify EMPTY, DEMO, club-scoped, no-club, challenge, live, and tournament flows. Only then remove playerSeeds, createPlayers, /players, top-up logic, and finally the old player system in an approved change.
+
+Conclusion: old global player data cannot be deleted now.
+
+ROUTE / ALIAS COMPATIBILITY MAP
+-------------------------------
+
+PATH / SYSTEM: /old-landing -> /landing-legacy
+STATUS: PROTECTED
+CURRENT CONSUMERS: Archive/reference access.
+WHY IT EXISTS: Intentional retained landing direction.
+MODERN REPLACEMENT: / is current landing, not archive replacement.
+SAFE ACTION: Keep both paths.
+OWNER DECISION NEEDED: No.
+EVIDENCE: router/index.js:74-78.
+
+PATH / SYSTEM: /home -> Dashboard; /compete -> Rankings; /rankings/import -> Rankings
+STATUS: MIGRATE
+CURRENT CONSUMERS: Historical/simple navigation URLs.
+WHY IT EXISTS: Compatibility redirects; /rankings/import appears to replace a retired picker landing.
+MODERN REPLACEMENT: /dashboard, /rankings, ladder-specific import route.
+SAFE ACTION: Keep until usage evidence, then owner-approved retirement.
+OWNER DECISION NEEDED: Yes.
+EVIDENCE: router/index.js:97-99, :111-113, :137-147.
+
+PATH / SYSTEM: /login -> /signin; /club/settings -> /settings
+STATUS: MIGRATE
+CURRENT CONSUMERS: Existing bookmarks/old navigation links.
+WHY IT EXISTS: Compatibility aliases.
+MODERN REPLACEMENT: /signin and /settings.
+SAFE ACTION: Keep until measured; retire only as approved compatibility change.
+OWNER DECISION NEEDED: Yes.
+EVIDENCE: router/index.js:67-71, :565-577.
+
+PATH / SYSTEM: /onboarding/join-club -> /clubs?view=join
+STATUS: MIGRATE
+CURRENT CONSUMERS: Earlier onboarding links.
+WHY IT EXISTS: Preserves join intent while Clubs owns the UI.
+MODERN REPLACEMENT: /clubs?view=join.
+SAFE ACTION: Keep pending explicit retirement.
+OWNER DECISION NEEDED: Yes.
+EVIDENCE: router/index.js:461-464.
+
+PATH / SYSTEM: /ladder-match/* -> friendly-match/live equivalents
+STATUS: MIGRATE
+CURRENT CONSUMERS: Existing deep links/bookmarks.
+WHY IT EXISTS: Compatibility migration.
+MODERN REPLACEMENT: /friendly-match/* and /matches/:matchId/live.
+SAFE ACTION: Preserve and instrument before retirement.
+OWNER DECISION NEEDED: Yes.
+EVIDENCE: router/index.js:295-447.
+
+PATH / SYSTEM: /:pathMatch(.*)* -> /dashboard
+STATUS: CURRENT
+CURRENT CONSUMERS: Invalid URLs.
+WHY IT EXISTS: Application fallback.
+MODERN REPLACEMENT: None.
+SAFE ACTION: Keep.
+OWNER DECISION NEEDED: No.
+EVIDENCE: router/index.js:851-853.
+
+TEST / DEMO INFRASTRUCTURE MAP
+------------------------------
+
+PATH / SYSTEM: APP_DATA_MODES (EMPTY/DEMO)
+STATUS: MIGRATE
+CURRENT CONSUMERS: auth, player, booking, notification, ApiService, auth tests.
+WHY IT EXISTS: Blank-account and seeded-demo experiences.
+MODERN REPLACEMENT: Environment-owned fixture/account provisioning.
+SAFE ACTION: Keep until backend supports equivalent behavior.
+OWNER DECISION NEEDED: No.
+EVIDENCE: dataMode.js; auth.js:74; test/roleNeutralAuth.test.js.
+
+PATH / SYSTEM: Demo player seeds and old stored ladder state
+STATUS: MIGRATE
+CURRENT CONSUMERS: Global roster, challenge/match fixtures, player store, browser-data compatibility.
+WHY IT EXISTS: Deterministic participants/IDs and state top-up.
+MODERN REPLACEMENT: Test fixtures/non-production backend seeds.
+SAFE ACTION: Keep pending player-system migration.
+OWNER DECISION NEEDED: No.
+EVIDENCE: ApiService.js:43-48, :112, :790, :1318-1346.
+
+PATH / SYSTEM: Tournament seeds/scenario flags
+STATUS: MIGRATE
+CURRENT CONSUMERS: Tournament UI, walkthroughs, scenario-dependent tests.
+WHY IT EXISTS: Runnable fixture data without a backend.
+MODERN REPLACEMENT: Fixture factory and controlled backend data.
+SAFE ACTION: Keep until fixtures leave runtime source.
+OWNER DECISION NEEDED: No.
+EVIDENCE: ApiService.js:460, :831, :973, :1008.
+
+PATH / SYSTEM: DEV-only Clear test data
+STATUS: MIGRATE
+CURRENT CONSUMERS: Local development/testing.
+WHY IT EXISTS: Repeatable setup-reset loop.
+MODERN REPLACEMENT: Authorized non-production reset tooling.
+SAFE ACTION: Keep DEV-only; never treat as production cleanup.
+OWNER DECISION NEEDED: No.
+EVIDENCE: AdminService.js:561-567; admin.js:483-495; player.js:206-211.
+
+PATH / SYSTEM: Ladder workspace test state
+STATUS: MIGRATE
+CURRENT CONSUMERS: Ladder UI and workspace-state tests.
+WHY IT EXISTS: Actor-scoped local drafts/pairing state.
+MODERN REPLACEMENT: Backend workspace persistence.
+SAFE ACTION: Keep pending backend migration.
+OWNER DECISION NEEDED: No.
+EVIDENCE: ladderMatchWorkspace local storage; test/ladderMatchWorkspaceState.test.js.
+
+PATH / SYSTEM: QR local prototype storage
+STATUS: MIGRATE
+CURRENT CONSUMERS: Display pairing and player-access QR links.
+WHY IT EXISTS: Local pairing/invite proof of flow.
+MODERN REPLACEMENT: One-time expiring server credentials.
+SAFE ACTION: Keep until secure backend implementation is live.
+OWNER DECISION NEEDED: No.
+EVIDENCE: tvPairingService.js:18/:654; LadderPlayerAccessDialog local-prototype copy.
+
+PATH / SYSTEM: Local live/presence prototypes
+STATUS: MIGRATE
+CURRENT CONSUMERS: Live screens and presence tests.
+WHY IT EXISTS: Multi-tab local behavior without realtime backend.
+MODERN REPLACEMENT: Realtime server/presence service.
+SAFE ACTION: Keep until authorization, lifecycle, and observability are server-backed.
+OWNER DECISION NEEDED: No.
+EVIDENCE: liveMatchRealtime.js:7; LiveMatchPresenceService.js:56; test/liveMatchPresence.test.js.
+
+FINAL AUDIT POSITION
+--------------------
+
+No application source was deleted or changed. The initial worktree already had a modified src/components/ladder/LadderBulkScheduler.vue; it was preserved untouched. Only this report and protected-legacy-files.txt were created by the audit.

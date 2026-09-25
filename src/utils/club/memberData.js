@@ -4,6 +4,12 @@ import {
   normalizeMemberRatings,
 } from '../../domain/playerRatings.js'
 
+export function sanitizeMemberBio(value) {
+  return sanitizePlainText(value, 500)
+    .replace(/<[^>]*>/g, '')
+    .trim()
+}
+
 export const CLUB_MEMBER_COLLECTIONS = Object.freeze([
   'roster',
   'manualMembers',
@@ -74,6 +80,7 @@ export function collectClubMembers(setup = {}) {
           id,
           collectionKey,
           collectionIndex: index,
+          bio: sanitizeMemberBio(member?.bio),
           ladderMemberships: normalizedLadderMemberships(member?.ladderMemberships),
         })
       },
@@ -99,6 +106,7 @@ export function exactClubMember(setup, memberIdInput) {
           id: memberId,
           collectionKey,
           collectionIndex,
+          bio: sanitizeMemberBio(member?.bio),
           ladderMemberships: normalizedLadderMemberships(member?.ladderMemberships),
         })
       },
@@ -212,6 +220,7 @@ export function makeManualMemberRecord(input = {}, setup = {}) {
     phone,
     gender: sanitizePlainText(input.gender, 30),
     dob: sanitizePlainText(input.dob, 10),
+    bio: sanitizeMemberBio(input.bio),
     level: sanitizePlainText(input.level, 50),
     clubLevelId: sanitizeDirectoryId(
       input.clubLevelId ||
@@ -256,6 +265,7 @@ const IMPORT_MUTABLE_FIELDS = Object.freeze([
   'phone',
   'gender',
   'dob',
+  'bio',
   'level',
   'rating',
   'memberNumber',
@@ -268,6 +278,7 @@ const IMPORT_FIELD_LABELS = Object.freeze({
   phone: 'Phone',
   gender: 'Gender',
   dob: 'Date of birth',
+  bio: 'Bio',
   level: 'Playing level',
   rating: 'Rating',
   memberNumber: 'Member / reference number',
@@ -329,6 +340,7 @@ function sanitizeImportedField(field, value) {
     phone: 30,
     gender: 30,
     dob: 10,
+    bio: 500,
     level: 50,
     rating: 40,
     memberNumber: 80,
@@ -353,6 +365,7 @@ function resolveDraftPerson(personInput = {}, resolutions = {}) {
     phone: sanitizeImportedField('phone', personInput.phone),
     gender: sanitizeImportedField('gender', personInput.gender),
     dob: sanitizeImportedField('dob', personInput.dob),
+    bio: sanitizeMemberBio(personInput.bio),
     level: sanitizeImportedField('level', personInput.level),
     rating: sanitizeImportedField('rating', personInput.rating),
     memberNumber: sanitizeImportedField('memberNumber', personInput.memberNumber),

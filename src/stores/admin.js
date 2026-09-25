@@ -10,6 +10,7 @@ import {
   startClubLadder,
   addClubMemberRecord,
   clearActiveClubTestData as clearActiveClubTestDataRequest,
+  populateActiveClubTestPlayers as populateActiveClubTestPlayersRequest,
   importClubMemberData,
   previewClubMemberImport,
   updateClubMemberRecord,
@@ -480,6 +481,34 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
+  async function populateTestPlayers() {
+    if (!import.meta.env?.DEV) {
+      return null
+    }
+
+    isSaving.value = true
+    error.value = ''
+
+    try {
+      const currentActor = actor()
+      const result = await populateActiveClubTestPlayersRequest(currentActor)
+      const directory = await getClubDirectory(currentActor)
+
+      applyDirectory(directory)
+      setup.value =
+        directory.clubs.find(
+          (item) => item.id === directory.activeClubId,
+        )?.setup || createDefaultClubSetup()
+
+      return result
+    } catch (populateError) {
+      error.value =
+        populateError?.message || 'Unable to populate test players.'
+      throw populateError
+    } finally {
+      isSaving.value = false
+    }
+  }
   async function clearActiveClubTestData() {
     if (!import.meta.env?.DEV) {
       return null
@@ -704,6 +733,7 @@ export const useAdminStore = defineStore('admin', () => {
     saveMemberLadderPosition,
     previewMemberImport,
     importMemberData,
+    populateTestPlayers,
     clearActiveClubTestData,
     discardDraft,
     createLadder,

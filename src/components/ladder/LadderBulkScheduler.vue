@@ -1,4 +1,5 @@
 <script setup>
+import { useRouter } from 'vue-router'
 import {
   computed,
   nextTick,
@@ -59,6 +60,7 @@ const emit = defineEmits([
   'remove-players',
 ])
 
+const router = useRouter()
 const challengeStore = useChallengeStore()
 const notificationStore = useNotificationStore()
 const ladderMatchWorkspaceStore = useLadderMatchWorkspaceStore()
@@ -122,6 +124,10 @@ function resetScheduleRules() {
   scheduleOverrideRulesSnapshot.value = bulkLadderRulesSnapshot.value
 }
 
+function closeScheduleRules() {
+  scheduleRulesOpen.value = false
+}
+
 function openScheduleRules() {
   scheduleOverrideRulesSnapshot.value = scheduleRulesSnapshot.value
   scheduleRulesOpen.value = true
@@ -160,6 +166,7 @@ const scheduleTime = ref('18:00')
 const scheduleTiming = ref('scheduled')
 const scheduleCourtId = ref('')
 const scheduleBusy = ref(false)
+const scheduleScrolled = ref(false)
 const scheduleRulesOpen = ref(false)
 const scheduleMatchRuleSource = ref('ladder_default')
 const scheduleOverrideRulesSnapshot = ref(createStandardMatchRulesSnapshot())
@@ -1434,6 +1441,7 @@ function openScheduleDraft(
 
   resetScheduleRules()
   scheduleCourtId.value = ''
+  scheduleScrolled.value = false
   scheduleOpen.value = true
 }
 
@@ -1483,6 +1491,7 @@ function openScheduleChallenge(
   scheduleCourtId.value =
     challenge.court || ''
 
+  scheduleScrolled.value = false
   scheduleOpen.value = true
 }
 
@@ -1624,6 +1633,7 @@ function closeSchedule() {
   if (scheduleBusy.value) return
 
   scheduleOpen.value = false
+  scheduleScrolled.value = false
   scheduleDraftId.value = ''
   scheduleChallengeId.value = ''
 }
@@ -1637,6 +1647,8 @@ async function saveSchedule() {
   }
 
   scheduleBusy.value = true
+  let createdMatchId = ''
+  let playedNow = false
 
   try {
     if (
@@ -1693,6 +1705,8 @@ async function saveSchedule() {
         throw new Error(challengeStore.error || 'Unable to schedule this Ladder match.')
       }
 
+      createdMatchId = result.match?.id || ''
+      playedNow = scheduleTiming.value === 'now' && Boolean(createdMatchId)
       removeDraft(draft.id, commitScope)
     } else if (
       schedulingChallenge.value
@@ -1728,10 +1742,12 @@ async function saveSchedule() {
     scheduleChallengeId.value = ''
 
     notificationStore.addToast({
-      title: 'Ladder match',
-      message:
-        'Match scheduled.',
+      title: playedNow ? 'Match ready' : 'Ladder match',
+      message: playedNow ? 'The match is ready. Open it when you are ready to control play.' : 'Match scheduled.',
       type: 'success',
+      duration: playedNow ? 9000 : 5000,
+      actionLabel: playedNow ? 'Control match' : '',
+      onAction: playedNow ? () => router.push({ name: 'LiveMatch', params: { matchId: createdMatchId } }) : null,
     })
 
     await nextTick()
@@ -1835,6 +1851,8 @@ async function cancelScheduledChallenge(
   }
 
   scheduleBusy.value = true
+  let createdMatchId = ''
+  let playedNow = false
 
   try {
     const result =
@@ -2845,8 +2863,24 @@ onBeforeUnmount(() => {
         class="bulk-modal"
         @click.self="closeSchedule"
       >
-        <section class="bulk-modal__card bulk-schedule-card">
+        <section
+          class="bulk-modal__card bulk-schedule-card"
+          @scroll="scheduleScrolled = $event.currentTarget.scrollTop > 12"
+        >
+          <div
+            v-if="scheduleScrolled"
+            class="bulk-schedule-card__scroll-header"
+          >
+            <button
+              type="button"
+              aria-label="Close"
+              :disabled="scheduleBusy"
+              @click="closeSchedule"
+            >&times;</button>
+          </div>
+
           <button
+            v-show="!scheduleScrolled"
             type="button"
             class="bulk-modal__close"
             aria-label="Close"
@@ -2923,17 +2957,20 @@ onBeforeUnmount(() => {
           <section class="bulk-schedule-rules">
             <div class="bulk-schedule-rules__label">
               <strong>Scoring rules</strong>
-              <span>{{ scheduleMatchRuleSource === 'admin_override' ? 'This match only' : 'Ladder default' }}</span>
-            </div>
-            <div class="bulk-schedule-rules__summary">
-              <strong>{{ scheduleRulesSummary.match }}</strong>
+              <div class="bulk-schedule-rules__choices">
+                <button type="button" :class="{ 'is-active': !scheduleRulesOpen && scheduleMatchRuleSource !== 'admin_override' }" @click="useScheduleLadderRules">Ladder default</button>
+                <button type="button" :class="{ 'is-active': scheduleRulesOpen || scheduleMatchRuleSource === 'admin_override' }" @click="openScheduleRules">Customize</button>
+              </div>
+            </div>            <div class="bulk-schedule-rules__summary">
+              <h3>Match format</h3>
+              <p class="rules-result-table__format">{{ scheduleRulesSummary.match }}</p>
+              <div class="rules-result-table__head"><span>Rule</span><span>Match setting</span></div>
               <dl>
                 <div v-for="row in scheduleRulesSummary.rows" :key="row.key">
                   <dt>{{ row.label }}</dt>
                   <dd>{{ row.value }}</dd>
                 </div>
               </dl>
-              <button v-if="!scheduleRulesOpen" type="button" @click="openScheduleRules">Customize</button>
             </div>
             <div v-if="scheduleRulesOpen" class="bulk-schedule-rules__editor">
               <MatchFormatEditor
@@ -4472,7 +4509,42 @@ onBeforeUnmount(() => {
 .bulk-schedule-rules__default { margin-top: 8px; }
 .bulk-schedule-card { max-height: calc(100vh - 40px); overflow-y: auto; }
 .bulk-schedule-card {
-  width: min(560px, 100%);
+  width: min(620px, 100%);
+  padding-top: 0;
+}
+
+.bulk-schedule-card > small {
+  display: block;
+  padding-top: 42px;
+}
+
+.bulk-schedule-card__scroll-header {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: flex-end;
+  margin: 0 -20px -52px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 14px 14px 0 0;
+  background: var(--color-surface);
+  box-shadow: 0 5px 14px rgba(15, 34, 24, 0.06);
+}
+
+.bulk-schedule-card__scroll-header button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-surface-soft);
+  color: var(--color-muted);
+  font-size: 18px;
 }
 
 .bulk-schedule-form {
@@ -6407,5 +6479,71 @@ onBeforeUnmount(() => {
   border-color: var(--color-border-strong) !important;
   background: var(--color-surface-soft) !important;
   color: var(--color-text) !important;
+}
+.bulk-schedule-rules__choices { display: flex; align-items: center; gap: 12px; }
+.bulk-schedule-rules__choices button {
+  border: 0;
+  background: transparent;
+  color: var(--color-primary-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.bulk-schedule-rules__choices button.is-active { color: var(--color-text); text-decoration: underline; text-decoration-color: var(--color-primary); text-decoration-thickness: 2px; }
+.bulk-schedule-rules__choices button:hover { background: var(--color-surface-soft); color: var(--color-primary-strong); filter: none; }
+.bulk-schedule-rules__summary h3 { margin: 0; font-size: 11px; font-weight: var(--font-weight-semibold); }
+.bulk-schedule-rules__summary .rules-result-table__format { margin: 4px 0 10px; color: var(--color-text-soft); font-size: 11px; }
+.bulk-schedule-rules__summary .rules-result-table__head { display: grid; grid-template-columns: 92px minmax(0,1fr); padding: 7px 10px; border: 1px solid var(--color-border); border-bottom: 0; border-radius: 8px 8px 0 0; background: var(--color-surface-soft); color: var(--color-muted); font-size: 10px; font-weight: var(--font-weight-semibold); }
+.bulk-schedule-rules__summary .rules-result-table__head span + span { padding-left: 10px; border-left: 1px solid var(--color-border); }
+.bulk-schedule-rules__summary dl { margin: 0; border: 1px solid var(--color-border); border-radius: 0 0 8px 8px; overflow: hidden; }
+.bulk-schedule-rules__summary dl > div { grid-template-columns: 92px minmax(0,1fr); gap: 0; padding: 0; border-top: 1px solid var(--color-border); font-size: 11px; }
+.bulk-schedule-rules__summary dl > div:first-child { border-top: 0; }
+.bulk-schedule-rules__summary dt, .bulk-schedule-rules__summary dd { padding: 8px 10px; font-size: 11px; line-height: 1.35; }
+.bulk-schedule-rules__summary dt { border-right: 1px solid var(--color-border); }
+.bulk-schedule-rules__editor {
+  position: static;
+  display: block;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  background: transparent;
+}
+/* Inline customization: a relaxed form rhythm inside the schedule dialog. */
+.bulk-schedule-rules__editor :deep(.match-format-editor) {
+  gap: 20px;
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+.bulk-schedule-rules__editor :deep(.editor-intro) { padding: 2px 2px 12px; }
+.bulk-schedule-rules__editor :deep(.editor-eyebrow) { margin-bottom: 8px; }
+.bulk-schedule-rules__editor :deep(.editor-intro h2) { font-size: 18px; line-height: 1.3; }
+.bulk-schedule-rules__editor :deep(.editor-intro > p:not(.editor-eyebrow)) { margin-top: 8px; font-size: 11px; line-height: 1.55; }
+.bulk-schedule-rules__editor :deep(.editor-fields) { gap: 16px; }
+.bulk-schedule-rules__editor :deep(.rule-card) { border-radius: 10px; }
+.bulk-schedule-rules__editor :deep(.rule-card summary) { min-height: 58px; padding: 13px 16px; }
+.bulk-schedule-rules__editor :deep(.summary-left strong),
+.bulk-schedule-rules__editor :deep(.rule-result) { font-size: 12px; }
+.bulk-schedule-rules__editor :deep(.rule-body) { padding: 18px 16px 20px; }
+.bulk-schedule-rules__editor :deep(.question),
+.bulk-schedule-rules__editor :deep(.sub-rule-title) { font-size: 12px; }
+.bulk-schedule-rules__editor :deep(.help) { margin: 6px 0 16px; font-size: 11px; line-height: 1.55; }
+.bulk-schedule-rules__editor :deep(.options) { gap: 12px; }
+.bulk-schedule-rules__editor :deep(.option) { min-height: 72px; padding: 12px; border-radius: 9px; }
+.bulk-schedule-rules__editor :deep(.option strong) { font-size: 11px; }
+.bulk-schedule-rules__editor :deep(.option small) { font-size: 10px; }
+.bulk-schedule-rules__editor :deep(.inside-divider) { margin: 20px 0; }
+.bulk-schedule-rules__editor :deep(.sub-rule),
+.bulk-schedule-rules__editor :deep(.plain-note) { margin-top: 16px; padding: 14px; }
+.bulk-schedule-rules__editor :deep(.final-summary) { margin-top: 4px; padding: 18px; }
+.bulk-schedule-rules__editor :deep(.editor-save) { min-height: 44px; margin-top: 2px; }
+@media (max-width: 640px) {
+  .bulk-schedule-rules__editor :deep(.match-format-editor) { padding: 18px; }
+  .bulk-schedule-rules__editor :deep(.options) { grid-template-columns: 1fr; }
 }
 </style>
