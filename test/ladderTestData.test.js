@@ -198,6 +198,39 @@ test('population creates ten valid generated entries per active ladder without c
   assert.equal(Object.hasOwn(result.setup, 'challenges'), false)
 })
 
+test('population enrolls the signed-in canonical member on the active primary Ladder', () => {
+  const initial = fixtureSetup()
+  initial.membership.manualMembers.push({
+    id: 'builder-member',
+    userId: 'account-builder',
+    name: 'Club Builder',
+    email: 'builder@gorra.example',
+    gender: 'male',
+    dob: '1986-03-17',
+    role: 'admin',
+    source: 'manual',
+    status: 'active',
+    ladderMemberships: [],
+  })
+
+  const result = populateActiveClubTestPlayersSetup(initial, TIMESTAMP, {
+    memberId: 'builder-member',
+  })
+  const men = result.setup.ladders.find((ladder) => ladder.id === 'mens')
+  const entry = men.entries.find((item) => item.memberId === 'builder-member')
+  const member = collectClubMembers(result.setup).find(
+    (item) => item.id === 'builder-member',
+  )
+
+  assert.equal(entry.status, 'active')
+  assert.equal(entry.position, men.entries.length)
+  assert.equal(entry.setupOrder, men.entries.length)
+  assert.equal(member.ladderMemberships[0].ladderId, 'mens')
+  assert.equal(member.ladderMemberships[0].position, entry.position)
+  assert.equal(Object.hasOwn(result.setup, 'matches'), false)
+  assert.equal(Object.hasOwn(result.setup, 'challenges'), false)
+})
+
 test('population is deterministic and does not duplicate generated members', () => {
   const first = populateActiveClubTestPlayersSetup(fixtureSetup(), TIMESTAMP)
   const second = populateActiveClubTestPlayersSetup(first.setup, TIMESTAMP)

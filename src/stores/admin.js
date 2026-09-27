@@ -124,18 +124,41 @@ export const useAdminStore = defineStore('admin', () => {
 
     const clubId = sanitizeDirectoryId(directory?.activeClubId)
     const club = (directory?.clubs || []).find((item) => item.id === clubId)
+    const activeLadders = (club?.setup?.ladders || []).filter(
+      (ladder) => ladder.enabled && !ladder.archived && ladder.status === 'active',
+    )
+    const primaryLadder =
+      activeLadders.find((ladder) => ladder.id === club?.setup?.primaryLadderId) ||
+      activeLadders[0]
+    const activeMembership = (directory?.memberships || []).find(
+      (membership) =>
+        membership.userId === currentUserId() &&
+        membership.clubId === clubId &&
+        membership.status === 'active',
+    )
+    const activeMemberId = sanitizeDirectoryId(activeMembership?.memberId)
+    const activeMemberNeedsEnrollment = Boolean(
+      activeMemberId &&
+        primaryLadder &&
+        !(primaryLadder.entries || []).some(
+          (entry) => entry.memberId === activeMemberId,
+        ),
+    )
+
     if (
       !club ||
-      hasBootstrappedTestData(clubId) ||
       !canBootstrapClubTestData(directory, currentActor, clubId)
     ) return directory
 
-    const hasActiveLadder = (club.setup?.ladders || []).some(
-      (ladder) => ladder.enabled && !ladder.archived && ladder.status === 'active',
-    )
-    if (!hasActiveLadder) return directory
+    if (!primaryLadder) return directory
 
-    if (clubHasCanonicalTestPlayers(club)) {
+    const hasCanonicalTestPlayers = clubHasCanonicalTestPlayers(club)
+    if (
+      hasBootstrappedTestData(clubId) &&
+      (!hasCanonicalTestPlayers || !activeMemberNeedsEnrollment)
+    ) return directory
+
+    if (hasCanonicalTestPlayers && !activeMemberNeedsEnrollment) {
       markTestDataBootstrapped(clubId)
       return directory
     }

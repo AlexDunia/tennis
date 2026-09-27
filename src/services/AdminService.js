@@ -2039,7 +2039,11 @@ function levelForSeed(memberId, eligibility, levelsById, assignments) {
  * courts, settings, match/challenge data, and active-club relationships are
  * outside its input/output surface.
  */
-export function populateActiveClubTestPlayersSetup(input, timestamp = nowIso()) {
+export function populateActiveClubTestPlayersSetup(
+  input,
+  timestamp = nowIso(),
+  { memberId: activeMemberIdInput = '' } = {},
+) {
   const current = normalizeClubSetup(input)
   const activeLadders = current.ladders.filter(
     (ladder) => ladder.enabled === true && ladder.archived !== true,
@@ -2213,6 +2217,76 @@ export function populateActiveClubTestPlayersSetup(input, timestamp = nowIso()) 
     }
   })
 
+  /*
+   * Test data stays inside the Club/Ladder model. If the signed-in builder has
+   * a canonical Club member record, put that record on the active primary
+   * Ladder too, so Play can use it without returning to the retired global
+   * player identity path.
+   */
+  const activeMemberId = sanitizeDirectoryId(activeMemberIdInput)
+  const primaryLadderIndex = nextSetup.ladders.findIndex(
+    (ladder) =>
+      ladder.id === nextSetup.primaryLadderId &&
+      ladder.enabled === true &&
+      ladder.archived !== true &&
+      ladder.status === 'active',
+  )
+  const fallbackLadderIndex = nextSetup.ladders.findIndex(
+    (ladder) => ladder.enabled === true && !ladder.archived && ladder.status === 'active',
+  )
+  const enrolledLadderIndex =
+    primaryLadderIndex >= 0 ? primaryLadderIndex : fallbackLadderIndex
+
+  if (activeMemberId && enrolledLadderIndex >= 0) {
+    const membersById = new Map(
+      collectClubMembers(nextSetup).map((member) => [member.id, member]),
+    )
+    const ladder = nextSetup.ladders[enrolledLadderIndex]
+    const entries = normalizeLadderEntries(ladder.entries)
+
+    if (membersById.has(activeMemberId) && !entries.some((entry) => entry.memberId === activeMemberId)) {
+      const orderedEntries = entries
+        .slice()
+        .sort(
+          (left, right) =>
+            (left.position ?? left.setupOrder ?? 10000) -
+            (right.position ?? right.setupOrder ?? 10000),
+        )
+      const existingEntriesById = new Map(
+        entries.map((entry) => [entry.memberId, entry]),
+      )
+      const orderedMemberIds = [
+        ...orderedEntries.map((entry) => entry.memberId),
+        activeMemberId,
+      ]
+      const nextEntries = orderedMemberIds.map((memberId, index) => {
+        const existing = existingEntriesById.get(memberId)
+        return {
+          memberId,
+          status: LADDER_ENTRY_STATUSES.ACTIVE,
+          position: index + 1,
+          setupOrder: index + 1,
+          source: existing?.source || 'admin',
+          joinedAt: existing?.joinedAt || timestamp,
+        }
+      })
+
+      nextSetup = {
+        ...nextSetup,
+        ladders: nextSetup.ladders.map((item, index) =>
+          index === enrolledLadderIndex
+            ? { ...item, entries: normalizeLadderEntries(nextEntries) }
+            : item,
+        ),
+        membership: syncClubMemberLadderOrder(nextSetup, {
+          ladderId: ladder.id,
+          ladderName: ladder.name,
+          orderedMemberIds,
+        }),
+      }
+    }
+  }
+
   const primarySelection = selectedByLadder.get(nextSetup.primaryLadderId)
   if (primarySelection) {
     nextSetup = {
@@ -2263,7 +2337,9 @@ export async function populateActiveClubTestPlayers(actor) {
   let directory = loadDirectory(actor)
   const context = activeClubWriteContext(directory, userId, { manager: true })
   const timestamp = nowIso()
-  const population = populateActiveClubTestPlayersSetup(context.club.setup, timestamp)
+  const population = populateActiveClubTestPlayersSetup(context.club.setup, timestamp, {
+    memberId: context.membership.memberId,
+  })
 
   const nextSetup = normalizeClubSetup({
     ...population.setup,

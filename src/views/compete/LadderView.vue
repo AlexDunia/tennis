@@ -1795,7 +1795,14 @@ function createLadder() {
 
 function importLadder() {
   const ladderId = activeLadder.value?.id
-  if (!ladderId) return
+  if (!ladderId) {
+    notificationStore.addToast({
+      title: 'Create a ladder first',
+      message: 'Set up a club ladder before importing players.',
+      type: 'warning',
+    })
+    return
+  }
 
   router.push({
     name: 'LadderImport',
