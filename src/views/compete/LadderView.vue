@@ -2046,6 +2046,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
             </div>
             <div v-if="canManageLadder" class="ladder-heading__match-setup">
               <div class="ladder-header-tools">
+                <button type="button" class="ladder-header-player-access" @click="openClubMemberPicker">Add members</button>
                 <button type="button" class="ladder-header-player-access" @click="playerAccessOpen = true">Player access</button>
                 <button
                   v-if="showDevTestControls && canManageLadder"

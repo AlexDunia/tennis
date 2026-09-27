@@ -95,6 +95,54 @@ let pendingPlayerDrag = null
 const workspaceClubId = computed(() => String(props.clubId || props.config?.clubId || '').trim())
 const workspaceLadderId = computed(() => String(props.ladder?.id || '').trim())
 const queue = computed({ get: () => ladderMatchWorkspaceStore.getBulkDrafts(workspaceClubId.value, workspaceLadderId.value), set: (drafts) => ladderMatchWorkspaceStore.replaceBulkDrafts({ clubId: workspaceClubId.value, ladderId: workspaceLadderId.value, drafts }) })
+const stagedDateByDraftId = ref({})
+const stagedDrafts = computed(() =>
+  queue.value
+    .map((draft) => ({
+      draft,
+      date: stagedDateByDraftId.value[draft.id] || '',
+    }))
+    .filter((placement) => placement.date),
+)
+const stagedDraftCount = computed(() => stagedDrafts.value.length)
+const unplacedDrafts = computed(() =>
+  queue.value.filter((draft) => !stagedDateByDraftId.value[draft.id]),
+)
+const unplacedDraftCount = computed(() => unplacedDrafts.value.length)
+
+function stagedDateForDraft(draftId) {
+  return stagedDateByDraftId.value[draftId] || ''
+}
+
+function stagedDateLabel(draftId) {
+  const key = stagedDateForDraft(draftId)
+  if (!key) return ''
+  const date = new Date(`${key}T12:00:00`)
+  return Number.isNaN(date.getTime()) ? key : formatDay(date)
+}
+
+function stageDraftOnDate(draft, date) {
+  if (!draft?.id || !date) return
+  stagedDateByDraftId.value = {
+    ...stagedDateByDraftId.value,
+    [draft.id]: date,
+  }
+}
+
+function stagedDraftsForDate(date) {
+  return stagedDrafts.value.filter((placement) => placement.date === date)
+}
+
+function openCalendarDate(date) {
+  openZoom(date)
+}
+
+function reviewStagedDrafts() {
+  if (scheduleBusy.value) return
+  const placement = stagedDrafts.value[0]
+  if (placement) openScheduleDraft(placement.draft, placement.date)
+}
+
 const bulkWorkspaceReservations = computed(() => ({
   // Bulk owns only its own drafts; an unfinished Individual selection must not
   // make a player unavailable in this separate mode.
@@ -668,16 +716,33 @@ function closeCancelBulkSetup() {
   if (!scheduleBusy.value) cancelBulkSetupOpen.value = false
 }
 
-function confirmCancelBulkSetup() {
-  if (scheduleBusy.value) return
-  const cancelledCount = queue.value.length
+function clearBulkSetup() {
+  const clearedCount = queue.value.length
   queue.value = []
+  stagedDateByDraftId.value = {}
   pendingPair.value = null
   selectedPlayerId.value = ''
   resetPlayerDrag()
-  cancelBulkSetupOpen.value = false
   bulkWorkspaceOpen.value = false
   closeZoom()
+  return clearedCount
+}
+
+function deselectAllBulkPairings() {
+  if (scheduleBusy.value || !queue.value.length) return
+  const clearedCount = clearBulkSetup()
+  notificationStore.addToast({
+    title: 'Selections cleared',
+    message: `${clearedCount} unscheduled ${clearedCount === 1 ? 'pairing was' : 'pairings were'} cleared. Scheduled matches remain unchanged.`,
+    type: 'success',
+    duration: 9000,
+  })
+}
+
+function confirmCancelBulkSetup() {
+  if (scheduleBusy.value) return
+  const cancelledCount = clearBulkSetup()
+  cancelBulkSetupOpen.value = false
   notificationStore.addToast({
     title: 'Bulk setup cancelled',
     message: `${cancelledCount} unscheduled ${cancelledCount === 1 ? 'pairing was' : 'pairings were'} cleared. Scheduled matches remain unchanged.`,
@@ -1195,6 +1260,11 @@ function recordMissingFromPair() {
 
 function removeDraft(draftId, scope = { clubId: workspaceClubId.value, ladderId: workspaceLadderId.value }) {
   ladderMatchWorkspaceStore.removeBulkDraft({ ...scope, draftId })
+  if (stagedDateByDraftId.value[draftId]) {
+    const nextStages = { ...stagedDateByDraftId.value }
+    delete nextStages[draftId]
+    stagedDateByDraftId.value = nextStages
+  }
 
   if (
     scheduleDraftId.value ===
@@ -1800,6 +1870,16 @@ function requestCancellation(target) {
   cancellation.value = target || null
 }
 
+function requestCurrentScheduleCancellation() {
+  if (schedulingDraft.value) {
+    requestCancellation({ kind: 'draft', draft: schedulingDraft.value })
+    return
+  }
+  if (schedulingChallenge.value) {
+    requestCancellation({ kind: 'challenge', challenge: schedulingChallenge.value })
+  }
+}
+
 function closeCancellation() {
   if (!scheduleBusy.value) cancellation.value = null
 }
@@ -1852,7 +1932,10 @@ async function confirmCancellation() {
 
   const cancelled = await cancelScheduledChallenge(target.challenge)
 
-  if (cancelled) cancellation.value = null
+  if (cancelled) {
+    cancellation.value = null
+    closeSchedule()
+  }
 }
 async function cancelScheduledChallenge(
   challenge,
@@ -1965,7 +2048,7 @@ function dropQueueOnDate(
   queueDragId.value = ''
 
   if (draft) {
-    openScheduleDraft(
+    stageDraftOnDate(
       draft,
       key,
     )
@@ -2206,14 +2289,48 @@ function compactPair(draft) {
   return `${shortInitials(challenger.name)} vs ${shortInitials(opponent.name)}`
 }
 
-const zoomDayChallenges = computed(
-  () =>
-    zoomSelectedDateKey.value
-      ? scheduledForDate(
-          zoomSelectedDateKey.value,
-        )
-      : [],
-)
+const zoomDayEvents = computed(() => {
+  const date = zoomSelectedDateKey.value
+  if (!date) return []
+
+  const scheduled = scheduledForDate(date).map((challenge) => ({
+    id: `scheduled-${challenge.id}`,
+    kind: 'scheduled',
+    challenge,
+  }))
+  const staged = stagedDraftsForDate(date).map((placement) => ({
+    id: `staged-${placement.draft.id}`,
+    kind: 'staged',
+    draft: placement.draft,
+    date: placement.date,
+  }))
+
+  return [...scheduled, ...staged]
+})
+
+function dayEventPair(event) {
+  return event.kind === 'staged'
+    ? pairFromDraft(event.draft)
+    : challengePlayers(event.challenge)
+}
+
+function dayEventLabel(event) {
+  if (event.kind === 'staged') return 'Placed - set time and court'
+  return `${formatTime(event.challenge.scheduledAt)} - ${courtLabel(event.challenge)}`
+}
+
+function openDayEvent(event) {
+  if (event.kind === 'staged') openScheduleDraft(event.draft, event.date)
+  else openScheduleChallenge(event.challenge)
+}
+
+function requestDayEventCancellation(event) {
+  if (event.kind === 'staged') {
+    requestCancellation({ kind: 'draft', draft: event.draft })
+    return
+  }
+  requestCancellation({ kind: 'challenge', challenge: event.challenge })
+}
 
 function scheduleTitle() {
   const {
@@ -2282,7 +2399,7 @@ onBeforeUnmount(() => {
         <nav class="bulk-match-setup-tabs" aria-label="Ladder scheduling mode">
           <button type="button" @click="emit('mode', 'individual')">Individual</button>
           <button type="button" class="active" aria-pressed="true">Bulk</button>
-          <button v-if="queue.length" type="button" class="bulk-selection-clear" @click="requestCancelBulkSetup">Deselect all</button>
+          <button v-if="queue.length" type="button" class="bulk-selection-clear" @click="deselectAllBulkPairings">Deselect all</button>
         </nav>
       </header>
 
@@ -2483,7 +2600,7 @@ onBeforeUnmount(() => {
           class="bulk-queue"
         >
           <article
-            v-for="draft in queue"
+            v-for="draft in unplacedDrafts"
             :key="draft.id"
             class="bulk-queue-item"
             :class="{
@@ -2537,7 +2654,11 @@ onBeforeUnmount(() => {
                 <strong>{{ pairFromDraft(draft).challenger.name }}</strong>
                 <span class="bulk-match-preview__versus">vs</span>
                 <strong>{{ pairFromDraft(draft).opponent.name }}</strong>
-                <small>Ready to schedule - no date or time yet</small>
+                <small>
+                  {{ stagedDateForDraft(draft.id)
+                    ? `Placed for ${stagedDateLabel(draft.id)} - ready to schedule`
+                    : 'Ready to schedule - no date or time yet' }}
+                </small>
               </div>
             </div>
 
@@ -2548,15 +2669,16 @@ onBeforeUnmount(() => {
               @click="
                 openScheduleDraft(
                   draft,
+                  stagedDateForDraft(draft.id),
                 )
               "
             >
-              Schedule
+              {{ stagedDateForDraft(draft.id) ? 'Review' : 'Schedule' }}
             </button>
           </article>
 
           <p
-            v-if="!queue.length"
+            v-if="!unplacedDrafts.length"
             key="empty"
             class="bulk-queue-empty"
           >
@@ -2669,7 +2791,7 @@ onBeforeUnmount(() => {
                     )
                   "
                   @click="
-                    openZoom(
+                    openCalendarDate(
                       cell.key,
                     )
                   "
@@ -2723,6 +2845,20 @@ onBeforeUnmount(() => {
                     >&times;</button>
                   </span>
 
+                  <span
+                    v-for="placement in stagedDraftsForDate(cell.key).slice(0, 1)"
+                    :key="placement.draft.id"
+                    class="bulk-date-placement"
+                  >
+                    <span>{{ shortInitials(pairFromDraft(placement.draft).challenger.name) }} vs {{ shortInitials(pairFromDraft(placement.draft).opponent.name) }}</span>
+                    <small>Review</small>
+                  </span>
+                  <em
+                    v-if="stagedDraftsForDate(cell.key).length > 1"
+                    class="bulk-date-placement__more"
+                  >
+                    +{{ stagedDraftsForDate(cell.key).length - 1 }} placed
+                  </em>
                   <em
                     v-if="scheduledForDate(cell.key).length > 2"
                   >
@@ -2733,6 +2869,20 @@ onBeforeUnmount(() => {
             </div>
           </section>
         </div>
+
+        <footer
+          v-if="stagedDraftCount"
+          class="bulk-calendar-footer"
+          aria-live="polite"
+        >
+          <div>
+            <strong>{{ stagedDraftCount }} {{ stagedDraftCount === 1 ? 'pairing' : 'pairings' }} placed</strong>
+            <span>{{ unplacedDraftCount ? `Place ${unplacedDraftCount} more or continue when you're ready.` : 'All queued matches have a date. Continue to set times and courts.' }}</span>
+          </div>
+          <button type="button" class="bulk-calendar-footer__continue" :disabled="scheduleBusy" @click="reviewStagedDrafts">
+            Review &amp; schedule
+          </button>
+        </footer>
       </section>
       </aside>
     </Transition>
@@ -3005,6 +3155,15 @@ onBeforeUnmount(() => {
 
           <div class="bulk-modal__actions">
             <button
+              v-if="schedulingDraft || schedulingChallenge"
+              type="button"
+              class="button-secondary"
+              :disabled="scheduleBusy"
+              @click="requestCurrentScheduleCancellation"
+            >
+              Cancel match
+            </button>
+            <button
               type="button"
               class="button-primary"
               :disabled="
@@ -3140,7 +3299,7 @@ onBeforeUnmount(() => {
 
               <div class="bulk-zoom-queue__scroll">
                 <article
-                  v-for="draft in queue"
+                  v-for="draft in unplacedDrafts"
                   :key="draft.id"
                   class="bulk-zoom-queue__item"
                   :class="{
@@ -3199,7 +3358,7 @@ onBeforeUnmount(() => {
                 </article>
 
                 <p
-                  v-if="!queue.length"
+                  v-if="!unplacedDrafts.length"
                   class="bulk-zoom-empty"
                 >
                   No matches are waiting for a date.
@@ -3375,14 +3534,7 @@ onBeforeUnmount(() => {
                   <strong>
                     {{ formatDay(zoomSelectedDateKey) }}
                   </strong>
-                  <small>
-                    {{ zoomDayChallenges.length }}
-                    {{
-                      zoomDayChallenges.length === 1
-                        ? 'match'
-                        : 'matches'
-                    }}
-                  </small>
+                  <small>{{ zoomDayEvents.length }} {{ zoomDayEvents.length === 1 ? 'event' : 'events' }}</small>
                 </div>
 
                 <button
@@ -3396,64 +3548,44 @@ onBeforeUnmount(() => {
 
               <div class="bulk-zoom-detail__scroll">
                 <article
-                  v-for="challenge in zoomDayChallenges"
-                  :key="challenge.id"
+                  v-for="event in zoomDayEvents"
+                  :key="event.id"
                   class="bulk-day-row"
-                  @click="
-                    openScheduleChallenge(
-                      challenge,
-                    )
-                  "
+                  @click="openDayEvent(event)"
                 >
                   <span class="bulk-avatar-stack">
                     <PersonAvatar
-                      :name="challengePlayers(challenge).challenger.name"
-                      :image="challengePlayers(challenge).challenger.imageUrl || challengePlayers(challenge).challenger.photoUrl || ''"
+                      :name="dayEventPair(event).challenger.name"
+                      :image="dayEventPair(event).challenger.imageUrl || dayEventPair(event).challenger.photoUrl || ''"
                       :size="32"
                     />
-
                     <PersonAvatar
-                      :name="challengePlayers(challenge).opponent.name"
-                      :image="challengePlayers(challenge).opponent.imageUrl || challengePlayers(challenge).opponent.photoUrl || ''"
+                      :name="dayEventPair(event).opponent.name"
+                      :image="dayEventPair(event).opponent.imageUrl || dayEventPair(event).opponent.photoUrl || ''"
                       :size="32"
                     />
                   </span>
 
                   <span>
-                    <strong>
-                      {{
-                        pairName(
-                          challengePlayers(challenge).challenger,
-                          challengePlayers(challenge).opponent,
-                        )
-                      }}
-                    </strong>
-
-                    <small>
-                      {{ courtLabel(challenge) }}
-                    </small>
+                    <strong>{{ pairName(dayEventPair(event).challenger, dayEventPair(event).opponent) }}</strong>
+                    <small>{{ dayEventLabel(event) }}</small>
                   </span>
 
-                  <b>
-                    {{ formatTime(challenge.scheduledAt) }}
-                  </b>
+                  <b>{{ event.kind === 'staged' ? 'Placed' : 'Scheduled' }}</b>
 
-                  <button
-                    type="button"
-                    aria-label="Cancel scheduled match"
-                    @click.stop="
-                      cancelScheduledChallenge(
-                        challenge,
-                      )
-                    "
-                  >&times;</button>
+                  <div class="bulk-day-row__actions">
+                    <button type="button" class="bulk-day-row__edit" @click.stop="openDayEvent(event)">
+                      {{ event.kind === 'staged' ? 'Set details' : 'Reschedule' }}
+                    </button>
+                    <button type="button" class="bulk-day-row__cancel" aria-label="Cancel match" @click.stop="requestDayEventCancellation(event)">&times;</button>
+                  </div>
                 </article>
 
                 <p
-                  v-if="!zoomDayChallenges.length"
+                  v-if="!zoomDayEvents.length"
                   class="bulk-zoom-empty"
                 >
-                  No matches are scheduled for this day.
+                  No events on this day.
                 </p>
               </div>
             </section>
@@ -3787,10 +3919,7 @@ onBeforeUnmount(() => {
 }
 .bulk-calendar {
   display: flex;
-  height: calc(
-    100dvh -
-    var(--app-header-height)
-  );
+  height: 100dvh;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
@@ -6651,7 +6780,86 @@ onBeforeUnmount(() => {
 /* Bulk selection reset belongs on the mode-tab row, not in the search toolbar. */
 .bulk-match-setup-tabs { display: flex; align-items: center; }
 .bulk-selection-clear { min-height: 30px; margin-left: auto; padding: 0 2px; border: 0; background: transparent; color: var(--color-primary-strong); font-size: 10px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
-.bulk-selection-clear:hover, .bulk-selection-clear:focus-visible { color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; outline: none; }</style>
+.bulk-selection-clear:hover, .bulk-selection-clear:focus-visible { color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; outline: none; }
+
+.bulk-calendar-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 20px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 -8px 20px rgba(20, 45, 28, .05);
+}
+.bulk-calendar-footer > div { display: grid; gap: 2px; min-width: 0; }
+.bulk-calendar-footer strong { color: var(--color-text); font-size: 12px; }
+.bulk-calendar-footer span { color: var(--color-muted); font-size: 10px; line-height: 1.35; }
+.bulk-calendar-footer__continue {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+}
+.bulk-calendar-footer__continue:hover:not(:disabled),
+.bulk-calendar-footer__continue:focus-visible { background: var(--color-primary-strong); }
+.bulk-calendar-footer__continue:disabled { cursor: not-allowed; opacity: .62; }
+@media (max-width: 767px) {
+  .bulk-calendar-footer { align-items: stretch; flex-direction: column; padding: 12px; }
+  .bulk-calendar-footer__continue { width: 100%; }
+}
+.bulk-date-placement {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+  margin-top: 5px;
+  padding: 4px 5px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--color-primary) 14%, #fff);
+  color: var(--color-primary-strong);
+  font-size: 7px;
+  font-weight: var(--font-weight-bold);
+}
+.bulk-date-placement > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bulk-date-placement small { flex: 0 0 auto; color: var(--color-primary-strong); font-size: 6px; }
+.bulk-date-placement__more { color: var(--color-primary-strong); }
+.bulk-day-row { padding-right: 112px; }
+.bulk-day-row__actions {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.bulk-day-row__actions button {
+  min-height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--color-primary-strong);
+  font-size: 7px;
+  font-weight: var(--font-weight-bold);
+}
+.bulk-day-row__actions .bulk-day-row__cancel {
+  display: grid;
+  width: 24px;
+  place-items: center;
+  padding: 0;
+  color: #925047;
+}
+.bulk-day-row__actions button:hover,
+.bulk-day-row__actions button:focus-visible { border-color: var(--color-border-strong); background: var(--color-surface-soft); }
+</style>
 /* Cancellation confirmation: the destructive decision is explicit; preserving is a quiet exit. */
 .bulk-cancel-dialog__actions .bulk-cancel-match {
   border-color: #a94943 !important;

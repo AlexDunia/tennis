@@ -29,3 +29,26 @@ test('LadderBulkScheduler remains valid, compact UTF-8 source', async () => {
     assert.ok(!source.includes(signature), `scheduler contains mojibake: ${signature}`)
   }
 })
+
+test('Bulk calendar stages drops before scheduling them from its footer', async () => {
+  const source = await readFile(scheduler, 'utf8')
+
+  assert.match(source, /function stageDraftOnDate/)
+  assert.match(source, /function dropQueueOnDate[\s\S]*stageDraftOnDate/)
+  assert.match(source, /function reviewStagedDrafts[\s\S]*openScheduleDraft/)
+  assert.match(source, /class="bulk-calendar-footer"/)
+  assert.match(source, /Review &amp; schedule/)
+  assert.match(source, /stagedDraftCount/)
+  assert.match(source, /const unplacedDrafts = computed/)
+  assert.match(source, /v-for="draft in unplacedDrafts"/)
+  assert.match(source, /class="bulk-date-placement"/)
+  assert.match(source, /function openCalendarDate[\s\S]*openScheduleDraft/)
+  assert.match(source, /function requestCurrentScheduleCancellation/)
+  assert.match(source, /Cancel match/)
+  assert.match(source, /height: 100dvh/)
+  assert.match(source, /const zoomDayEvents = computed/)
+  assert.match(source, /v-for="event in zoomDayEvents"/)
+  assert.match(source, /Set details/)
+  assert.match(source, /Reschedule/)
+  assert.match(source, /function requestDayEventCancellation/)
+})

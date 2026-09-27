@@ -1044,7 +1044,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     return draft.value
   }
 
-  function chooseMatchType(matchType) {
+  function chooseMatchType(matchType, options = {}) {
     if (!['friendly', 'ladder'].includes(matchType)) {
       return false
     }
@@ -1077,7 +1077,7 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     }
 
     if (matchType === 'ladder') {
-      applyLadderRules()
+      applyLadderRules(options.ladderConfig || null)
     }
 
     /*
@@ -1091,8 +1091,11 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     return true
   }
 
-  function applyLadderRules() {
-    const ladderConfig = getActiveLadderConfig()
+  function applyLadderRules(configInput = null) {
+    const ladderConfig =
+      configInput && typeof configInput === 'object'
+        ? configInput
+        : getActiveLadderConfig()
     draft.value.format = ladderConfig.scoring === 'noad' ? 'noad' : 'ad'
     draft.value.matchFormat = 'best-of-3'
     draft.value.customFormat = null
@@ -1107,7 +1110,17 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     return ladderMatchConfig(ladderConfig)
   }
 
-  function chooseTiming(timing, creator) {
+  function bindSetupClub(clubId = '') {
+    if (draft.value.status === 'live') {
+      return false
+    }
+
+    draft.value.clubId = normalizeAuthorityId(clubId)
+    persist(DRAFT_STORAGE_KEY, draft.value)
+    return true
+  }
+
+  function chooseTiming(timing, creator, options = {}) {
     if (!['now', 'later'].includes(timing)) {
       return null
     }
@@ -1139,6 +1152,10 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     if (timing === 'later') {
       draft.value.matchId = ''
       draft.value.joinToken = ''
+      return null
+    }
+
+    if (options.createInvitation === false) {
       return null
     }
 
@@ -1251,6 +1268,75 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
 
     return invitation
   }
+  /*
+   * A Ladder invitation is always targeted and tied to the canonical
+   * Challenge. Unlike the legacy play-now helper it supports scheduled
+   * invitations too, while preserving older callers.
+   */
+  function createLadderInvitation(creator) {
+    if (
+      draft.value.matchType !== 'ladder' ||
+      !['now', 'later'].includes(draft.value.timing)
+    ) {
+      return null
+    }
+
+    const creatorIdentity = normalizeIdentity(creator)
+    const expectedOpponent = normalizeIdentity(draft.value.opponent)
+
+    if (
+      !creatorIdentity.id ||
+      !expectedOpponent.id ||
+      creatorIdentity.id === expectedOpponent.id ||
+      !draft.value.challengeId
+    ) {
+      return null
+    }
+
+    const now = Date.now()
+    const token = createToken()
+    const invitation = {
+      id: `ladder-${now}-${token.slice(0, 6)}`,
+      token,
+      type: 'ladder',
+      timing: draft.value.timing,
+      audience: 'targeted',
+      status: 'waiting_for_opponent',
+      challengeId: draft.value.challengeId,
+      clubId: draft.value.clubId || '',
+      ladderId: draft.value.ladderConfigSnapshot?.id || '',
+      creator: creatorIdentity,
+      expectedOpponent,
+      opponent: null,
+      schedule: draft.value.timing === 'later' ? { ...draft.value.schedule } : null,
+      matchSetup: {
+        scoring: draft.value.format,
+        matchFormat: draft.value.matchFormat,
+        customFormat: draft.value.customFormat ? { ...draft.value.customFormat } : null,
+        rulesSnapshot: draft.value.rulesSnapshot,
+        tieBreak: draft.value.tieBreak,
+      },
+      createdAt: new Date(now).toISOString(),
+      updatedAt: new Date(now).toISOString(),
+      expiresAt: new Date(
+        now + (draft.value.timing === 'now' ? PLAY_NOW_TTL_MS : 48 * 60 * 60 * 1000),
+      ).toISOString(),
+    }
+
+    invitations.value = [
+      invitation,
+      ...invitations.value.filter((item) => item.id !== invitation.id),
+    ]
+    draft.value.invitationAudience = 'targeted'
+    draft.value.matchId = invitation.id
+    draft.value.joinToken = token
+    draft.value.status = invitation.status
+    persist(INVITATION_STORAGE_KEY, invitations.value)
+    persist(DRAFT_STORAGE_KEY, draft.value)
+
+    return invitation
+  }
+
   function chooseOpponent(opponent) {
     draft.value.opponent = opponent ? normalizeIdentity(opponent) : null
   }
@@ -2914,7 +3000,9 @@ export const useFriendlyMatchStore = defineStore('friendlyMatch', () => {
     cancelActiveInvitation,
     chooseMatchType,
     applyLadderRules,
+    bindSetupClub,
     chooseTiming,
+    createLadderInvitation,
     createPlayNowInvitation,
     chooseOpponent,
     setInvitationAudience,

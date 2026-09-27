@@ -211,7 +211,9 @@ const authenticatedIdentity = computed(() => ({
 
   name: playerStore.currentPlayer?.name || authStore.user?.name || 'Club player',
 
-  rank: playerStore.currentPlayer?.rank || null,
+  rank:
+    Number(playerStore.currentPlayer?.rank) ||
+    (isLadder.value ? friendlyMatchStore.currentLadderRank : null),
 
   category: playerStore.currentPlayer?.category || 'Club Member',
 }))
@@ -1009,14 +1011,17 @@ const clubOpponents = computed(() => {
   return loaded.length ? loaded : friendlyMatchStore.opponents
 })
 const availableOpponents = computed(() => {
+  const rankedOpponents = playerStore.availableOpponents.map((player) => ({
+    id: player.id,
+    name: player.name,
+    rank: player.rank || null,
+    division: player.category || player.division || 'Club Member',
+    status: player.status || 'active',
+  }))
   const source = isLadder.value
-    ? playerStore.availableOpponents.map((player) => ({
-        id: player.id,
-        name: player.name,
-        rank: player.rank || null,
-        division: player.category || player.division || 'Club Member',
-        status: player.status || 'active',
-      }))
+    ? rankedOpponents.length
+      ? rankedOpponents
+      : friendlyMatchStore.ladderOpponents
     : clubOpponents.value
   const recentIds = friendlyMatchStore.results.map((result) => result.opponentId).filter(Boolean)
   const ordered = [...source].sort((a, b) => {
@@ -1511,7 +1516,7 @@ async function chooseTiming(timing) {
     ladderAccessChecking.value = true
 
     const access = await verifyLadderCreationAccess({
-      player: playerStore.currentPlayer,
+      player: currentIdentity.value,
       challenges: challengeStore.challenges,
     })
 
@@ -1601,7 +1606,7 @@ async function continueWithClubOpponent() {
     ladderAccessChecking.value = true
 
     const access = await verifyLadderCreationAccess({
-      player: playerStore.currentPlayer,
+      player: currentIdentity.value,
       challenges: challengeStore.challenges,
     })
 
@@ -1725,7 +1730,7 @@ async function completeReview() {
   inlineNote.value = ''
 
   if (isLadder.value) {
-    const challenger = playerStore.currentPlayer
+    const challenger = currentIdentity.value
 
     const defender = friendlyMatchStore.draft.opponent
 
@@ -3570,13 +3575,62 @@ function syncInvitationPolling() {
   }, 1200)
 }
 
-function joinAsCurrentUser() {
+async function joinAsCurrentUser() {
   const result = friendlyMatchStore.joinInvitation(
     String(route.params.token || ''),
     currentIdentity.value,
   )
   joinMessage.value = result.message || ''
   externalInvitation.value = result.invitation || externalInvitation.value
+
+  if (!result.ok) return
+
+  const invitation = result.invitation
+
+  if (invitation?.type !== 'ladder' || !invitation.challengeId) {
+    return
+  }
+
+  await challengeStore.loadChallenges()
+
+  const existing = challengeStore.challenges.find(
+    (challenge) => challenge.id === invitation.challengeId,
+  )
+
+  if (
+    existing &&
+    ['accepted', 'scheduled', 'ready', 'live'].includes(existing.status) &&
+    existing.defenderId === currentIdentity.value.id
+  ) {
+    await matchStore.loadMatches()
+    joinMessage.value =
+      existing.status === 'scheduled'
+        ? 'Challenge accepted. Your Ladder match is scheduled.'
+        : 'Challenge accepted. You are ready to play.'
+    return
+  }
+
+  const scheduledAt =
+    invitation.timing === 'later' && invitation.schedule?.date
+      ? new Date(`${invitation.schedule.date}T${invitation.schedule.time || '12:00'}`).toISOString()
+      : null
+
+  const accepted = await challengeStore.acceptChallenge(
+    invitation.challengeId,
+    scheduledAt,
+    currentIdentity.value.id,
+  )
+
+  if (!accepted?.challenge) {
+    joinMessage.value = challengeStore.error || 'This Ladder challenge could not be accepted.'
+    return
+  }
+
+  await matchStore.loadMatches()
+  joinMessage.value =
+    invitation.timing === 'later'
+      ? 'Challenge accepted. Your Ladder match is scheduled.'
+      : 'Challenge accepted. You are ready to play.'
 }
 
 function handleStorage(event) {

@@ -81,14 +81,12 @@ function actionsForMatch(match) {
 }
 
 function startMatch(mode) {
-  friendlyMatchStore.beginMatch()
-
   if (mode === 'ladder') {
-    friendlyMatchStore.chooseMatchType('ladder')
-    router.push('/ladder-match/opponent')
+    router.push({ name: 'PlayLadderMatch' })
     return
   }
 
+  friendlyMatchStore.beginMatch()
   friendlyMatchStore.chooseMatchType('friendly')
   router.push({ name: 'FriendlyMatchScoring' })
 }

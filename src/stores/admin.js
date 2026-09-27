@@ -27,14 +27,58 @@ import {
   saveClubSetup,
   saveClubSetupDraft,
   switchActiveClub,
+  syncActiveClubMember,
   updateActiveClubSetup,
 } from '../services/AdminService.js'
 import { sanitizeDirectoryId } from '../utils/admin/clubSetup.js'
+import { TEST_MEMBER_PREFIX } from '../data/ladderTestMembers.js'
+import { collectClubMembers } from '../utils/club/memberData.js'
 import {
   buildClubMembershipAccess,
   hasClubMembershipPermission,
 } from '../utils/auth/accessControl.js'
 import { useAuthStore } from './auth.js'
+
+const CLUB_TEST_DATA_BOOTSTRAP_PREFIX = 'gorra.clubTestDataBootstrap.v1'
+
+function testDataBootstrapKey(clubId) {
+  const id = sanitizeDirectoryId(clubId)
+  return id ? `${CLUB_TEST_DATA_BOOTSTRAP_PREFIX}.${id}` : ''
+}
+
+function hasBootstrappedTestData(clubId) {
+  const key = testDataBootstrapKey(clubId)
+  if (!key || typeof window === 'undefined' || !window.localStorage) return false
+  try {
+    return window.localStorage.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
+
+function markTestDataBootstrapped(clubId) {
+  const key = testDataBootstrapKey(clubId)
+  if (!key || typeof window === 'undefined' || !window.localStorage) return
+  try {
+    window.localStorage.setItem(key, '1')
+  } catch {
+    // Storage is optional for the local prototype.
+  }
+}
+
+function clubHasCanonicalTestPlayers(club) {
+  return collectClubMembers(club?.setup || {}).some((member) =>
+    String(member.id || '').startsWith(TEST_MEMBER_PREFIX),
+  )
+}
+
+function canBootstrapClubTestData(directory, currentActor, clubId) {
+  const userId = sanitizeDirectoryId(currentActor?.userId || currentActor?.id)
+  const membership = (directory?.memberships || []).find(
+    (item) => item.userId === userId && item.clubId === clubId && item.status === 'active',
+  )
+  return ['admin', 'co-admin'].includes(membership?.role)
+}
 
 export const useAdminStore = defineStore('admin', () => {
   const authStore = useAuthStore()
@@ -49,11 +93,13 @@ export const useAdminStore = defineStore('admin', () => {
   function actor() {
     const user = authStore.user || {}
     return {
+      ...user,
       ...authStore.accessProfile,
       userId: user.id || user.playerId || user.email || '',
       id: user.id || '',
       playerId: user.playerId || '',
       email: user.email || '',
+      legacyUserIds: Array.isArray(user.legacyUserIds) ? user.legacyUserIds : [],
     }
   }
 
@@ -71,6 +117,36 @@ export const useAdminStore = defineStore('admin', () => {
         }))
       : []
     activeClubId.value = directory?.activeClubId || ''
+  }
+
+  async function ensureActiveClubTestData(directory, currentActor) {
+    if (!import.meta.env?.DEV) return directory
+
+    const clubId = sanitizeDirectoryId(directory?.activeClubId)
+    const club = (directory?.clubs || []).find((item) => item.id === clubId)
+    if (
+      !club ||
+      hasBootstrappedTestData(clubId) ||
+      !canBootstrapClubTestData(directory, currentActor, clubId)
+    ) return directory
+
+    const hasActiveLadder = (club.setup?.ladders || []).some(
+      (ladder) => ladder.enabled && !ladder.archived && ladder.status === 'active',
+    )
+    if (!hasActiveLadder) return directory
+
+    if (clubHasCanonicalTestPlayers(club)) {
+      markTestDataBootstrapped(clubId)
+      return directory
+    }
+
+    try {
+      await populateActiveClubTestPlayersRequest(currentActor)
+      markTestDataBootstrapped(clubId)
+      return await getClubDirectory(currentActor)
+    } catch {
+      return directory
+    }
   }
 
   const activeClub = computed(
@@ -183,7 +259,15 @@ export const useAdminStore = defineStore('admin', () => {
     isLoading.value = true
     error.value = ''
     try {
-      const directory = await getClubDirectory(actor())
+      const currentActor = actor()
+      let directory = await getClubDirectory(currentActor)
+      applyDirectory(directory)
+      if (activeClubId.value) {
+        await syncActiveClubMember(currentActor)
+        directory = await getClubDirectory(currentActor)
+        applyDirectory(directory)
+      }
+      directory = await ensureActiveClubTestData(directory, currentActor)
       applyDirectory(directory)
       return clubs.value
     } catch (loadError) {
@@ -198,9 +282,17 @@ export const useAdminStore = defineStore('admin', () => {
     isLoading.value = true
     error.value = ''
     try {
-      const directory = await getClubDirectory(actor())
+      const currentActor = actor()
+      let directory = await getClubDirectory(currentActor)
       applyDirectory(directory)
-      setup.value = await getClubSetup(actor())
+      if (activeClubId.value) {
+        await syncActiveClubMember(currentActor)
+        directory = await getClubDirectory(currentActor)
+        applyDirectory(directory)
+      }
+      directory = await ensureActiveClubTestData(directory, currentActor)
+      applyDirectory(directory)
+      setup.value = await getClubSetup(currentActor)
       return setup.value
     } catch (loadError) {
       error.value = loadError?.message || 'Unable to load the club setup.'

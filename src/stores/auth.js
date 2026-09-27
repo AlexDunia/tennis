@@ -3,29 +3,59 @@ import { defineStore } from 'pinia'
 import { fakeRequest, createTimestamp } from '../services/api.js'
 import {
   buildAccessProfile,
-  getDefaultRoleForIdentity,
   hasPermission as checkPermission,
 } from '../utils/auth/accessControl.js'
 import { APP_DATA_MODES, setAppDataMode } from '../dataMode.js'
-import { APP_CURRENT_PLAYER } from '../config/currentPlayer.js'
 
 const STORAGE_KEY = 'sheltennis-auth'
+const LEGACY_DEMO_ID = 'player-02'
 
-// Local-prototype compatibility only. Club authority continues to come from
-// the active membership resolved by the admin store.
-export const LOCAL_PROTOTYPE_ACCESS_ROLE = getDefaultRoleForIdentity(APP_CURRENT_PLAYER)
+// A new local account can create its first Club. From then on, the Club
+// membership relationship is the authority for Club access.
+export const LOCAL_ACCOUNT_ACCESS_ROLE = 'club_admin'
 
-function applyCurrentPlayerIdentity(user) {
-  if (!user) return null
+function accountId() {
+  const uuid =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  return `account-${uuid}`
+}
+
+function normalizeAccount(user) {
+  if (!user || typeof user !== 'object') return null
+
+  const legacyIds = [
+    ...(Array.isArray(user.legacyUserIds) ? user.legacyUserIds : []),
+    user.accessCompatibility === 'local-prototype' ? user.id : '',
+    user.accessCompatibility === 'local-prototype' ? user.playerId : '',
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+
+  const isLegacyDemoAccount =
+    user.accessCompatibility === 'local-prototype' ||
+    user.id === LEGACY_DEMO_ID ||
+    user.playerId === LEGACY_DEMO_ID
+
+  const id = !isLegacyDemoAccount && String(user.accountId || user.id || '').trim()
+    ? String(user.accountId || user.id).trim()
+    : accountId()
 
   return {
     ...user,
-    id: APP_CURRENT_PLAYER.id,
-    playerId: APP_CURRENT_PLAYER.id,
-    name: APP_CURRENT_PLAYER.name,
-    avatar: APP_CURRENT_PLAYER.imageUrl,
+    id,
+    accountId: id,
+    playerId: id,
+    name: String(user.name || 'Gorra member').trim() || 'Gorra member',
+    email: String(user.email || '').trim().toLowerCase(),
+    roleKey: isLegacyDemoAccount ? LOCAL_ACCOUNT_ACCESS_ROLE : user.roleKey || LOCAL_ACCOUNT_ACCESS_ROLE,
+    legacyUserIds: [...new Set(legacyIds)].filter((value) => value !== id),
+    accessCompatibility: 'account-based',
   }
 }
+
+
 
 function loadAuthFromStorage() {
   const stored = localStorage.getItem(STORAGE_KEY)
@@ -34,9 +64,22 @@ function loadAuthFromStorage() {
   }
   try {
     const parsed = JSON.parse(stored)
+    const shouldDiscardRetiredGlobalDemoState =
+      Number(parsed.user?.cleanSampleDataVersion || 0) > 0
+    const user = normalizeAccount(parsed.user)
+    if (shouldDiscardRetiredGlobalDemoState && user) {
+      delete user.dataMode
+      delete user.cleanSampleDataVersion
+      setAppDataMode(APP_DATA_MODES.EMPTY)
+      localStorage.removeItem('tennis.mock.ladderState.v2')
+      localStorage.removeItem('tennis.mock.tournamentState.v2')
+    }
+    if (parsed.isLoggedIn === true && JSON.stringify(user) !== JSON.stringify(parsed.user)) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ isLoggedIn: true, user }))
+    }
     return {
       isLoggedIn: parsed.isLoggedIn === true,
-      user: applyCurrentPlayerIdentity(parsed.user),
+      user,
     }
   } catch (_) {
     return { isLoggedIn: false, user: null }
@@ -68,23 +111,23 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(credentials = {}) {
     try {
       isAuthLoading.value = true
-      const roleKey = LOCAL_PROTOTYPE_ACCESS_ROLE
-      const playerId = APP_CURRENT_PLAYER.id
+      const roleKey = LOCAL_ACCOUNT_ACCESS_ROLE
+      const id = accountId()
       const requestedMode =
         credentials.dataMode === APP_DATA_MODES.DEMO ? APP_DATA_MODES.DEMO : APP_DATA_MODES.EMPTY
       setAppDataMode(requestedMode)
       const response = await fakeRequest({
-        id: APP_CURRENT_PLAYER.id,
-        name: APP_CURRENT_PLAYER.name,
-        email: credentials.email || 'account@gorra.demo',
-        playerId,
+        id,
+        accountId: id,
+        name: credentials.name || 'Gorra member',
+        email: credentials.email || '',
+        playerId: id,
         roleKey,
-        accessCompatibility: 'local-prototype',
+        dataMode: requestedMode,
         lastLogin: createTimestamp(),
-        avatar: APP_CURRENT_PLAYER.imageUrl,
       })
       user.value = {
-        ...response,
+        ...normalizeAccount(response),
         ...buildAccessProfile(response, roleKey),
       }
       isLoggedIn.value = true

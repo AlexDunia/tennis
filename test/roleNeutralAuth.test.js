@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 import { APP_DATA_MODES } from '../src/dataMode.js'
 import {
-  LOCAL_PROTOTYPE_ACCESS_ROLE,
+  LOCAL_ACCOUNT_ACCESS_ROLE,
   useAuthStore,
 } from '../src/stores/auth.js'
 import {
@@ -61,7 +61,7 @@ test('signin UI is role-neutral', () => {
   assert.match(loginSource, /Welcome back/)
   assert.match(loginSource, /'Sign in'/)
   assert.doesNotMatch(loginSource, /How would you like to enter|Choose a role/)
-  assert.match(loginSource, /This local prototype uses the configured demo identity/)
+  assert.match(loginSource, /This local prototype creates an account for this browser/)
 })
 
 test('signup authenticates without a user-selected role', async () => {
@@ -72,8 +72,10 @@ test('signup authenticates without a user-selected role', async () => {
     })
 
     assert.equal(authStore.isAuthenticated, true)
-    assert.equal(user.roleKey, LOCAL_PROTOTYPE_ACCESS_ROLE)
-    assert.equal(user.accessCompatibility, 'local-prototype')
+    assert.equal(user.roleKey, LOCAL_ACCOUNT_ACCESS_ROLE)
+    assert.equal(user.accessCompatibility, 'account-based')
+    assert.match(user.id, /^account-/)
+    assert.equal(user.playerId, user.id)
   })
 })
 
@@ -85,7 +87,7 @@ test('signin authenticates without a user-selected role', async () => {
     })
 
     assert.equal(authStore.isAuthenticated, true)
-    assert.equal(authStore.user.roleKey, LOCAL_PROTOTYPE_ACCESS_ROLE)
+    assert.equal(authStore.user.roleKey, LOCAL_ACCOUNT_ACCESS_ROLE)
   })
 })
 
@@ -101,7 +103,8 @@ test('the hidden compatibility profile preserves required prototype permissions'
 
 test('account compatibility access does not determine a club membership role', () => {
   const memberRelationship = {
-    userId: 'player-02',
+    userId: 'account-01',
+    memberId: 'member-01',
     clubId: 'greenview',
     role: 'player',
     status: 'active',

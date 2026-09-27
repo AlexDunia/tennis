@@ -220,3 +220,16 @@ test('population service is DEV guarded', async () => {
     /only available in development/i,
   )
 })
+test('shared player pages project the active Club Ladder instead of global demo players', async () => {
+  const [playerStore, adminStore] = await Promise.all([
+    readFile(new URL('../src/stores/player.js', import.meta.url), 'utf8'),
+    readFile(new URL('../src/stores/admin.js', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(playerStore, /ladderRosterFromSetup/)
+  assert.match(playerStore, /effectiveLadderRoster/)
+  assert.match(playerStore, /await adminStore\.loadClubs\(\)/)
+  assert.doesNotMatch(playerStore, /PlayerService|getPlayers/)
+  assert.match(adminStore, /ensureActiveClubTestData/)
+  assert.match(adminStore, /populateActiveClubTestPlayersRequest/)
+})

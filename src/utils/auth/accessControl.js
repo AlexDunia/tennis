@@ -63,13 +63,7 @@ const CLUB_MANAGER_PERMISSIONS = Object.freeze([
 
 const CLUB_MANAGER_ROLES = new Set(['admin', 'co-admin'])
 
-const LOCAL_ADMIN_PLAYER_IDS = new Set(['player-02'])
-
 export function getDefaultRoleForIdentity(identity = {}) {
-  if (LOCAL_ADMIN_PLAYER_IDS.has(identity.id)) {
-    return ACCESS_ROLES.super_admin.key
-  }
-
   return identity.roleKey || identity.role || ACCESS_ROLES.player.key
 }
 

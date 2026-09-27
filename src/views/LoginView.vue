@@ -149,7 +149,7 @@ onMounted(async () => {
 
         <p v-if="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</p>
         <p class="auth-quick-note">
-          This local prototype uses the configured demo identity. No password is required.
+          This local prototype creates an account for this browser. No password is required.
         </p>
       </div>
     </main>

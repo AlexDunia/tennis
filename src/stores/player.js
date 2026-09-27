@@ -1,20 +1,38 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { getPlayers } from '../services/PlayerService'
 import {
   ACCESS_ROLES,
   buildAccessProfile,
   hasPermission as checkPermission,
 } from '../utils/auth/accessControl'
 import { useAuthStore } from './auth'
+import { useAdminStore } from './admin'
 import { getActiveLadderConfig, isEligibleLadderOpponent } from '../config/ladder'
-import { APP_CURRENT_PLAYER } from '../config/currentPlayer'
+import { ladderRosterFromSetup } from '../domain/competitionScope.js'
+import { effectiveLadderRoster } from '../services/LadderAdminService.js'
 import {
   APP_DATA_MODES,
   setAppDataMode,
 } from '../dataMode'
 
 const ROLE_STORAGE_KEY = 'tennis.local.playerRoles.v1'
+
+function activeClubLadderPlayers(club, clubId) {
+  const setup = club?.setup || {}
+  const activeLadders = (setup.ladders || [])
+    .filter((ladder) => ladder.enabled && !ladder.archived)
+  const ladder =
+    activeLadders.find((item) => item.id === setup.primaryLadderId) ||
+    activeLadders[0] ||
+    null
+  if (!ladder) return []
+
+  const rawRoster = ladderRosterFromSetup({ setup, ladderId: ladder.id }).roster
+  return effectiveLadderRoster(
+    { clubId: String(clubId || ''), ladderId: String(ladder.id) },
+    rawRoster,
+  )
+}
 
 function loadRoleOverrides() {
   try {
@@ -30,9 +48,16 @@ function saveRoleOverrides(roles) {
 
 export const usePlayerStore = defineStore('player', () => {
   const authStore = useAuthStore()
+  const adminStore = useAdminStore()
   // 6. REACTIVE STATE
   const players = ref([])
-  const currentPlayerId = computed(() => authStore.user?.playerId || APP_CURRENT_PLAYER.id)
+  const currentPlayerId = computed(
+    () =>
+      adminStore.activeMembership?.memberId ||
+      authStore.user?.id ||
+      authStore.user?.playerId ||
+      '',
+  )
   const roleOverrides = ref(loadRoleOverrides())
   const isLoading = ref(false)
   const error = ref('')
@@ -121,16 +146,15 @@ export const usePlayerStore = defineStore('player', () => {
 
     playersLoadRequest = (async () => {
       try {
-        const response = await getPlayers()
-
-        if (response.success) {
-          players.value = response.data
-          return response.data
-        }
-
-        error.value = response.message || 'Unable to load players.'
+        await adminStore.loadClubs()
+        const roster = activeClubLadderPlayers(
+          adminStore.activeClub,
+          adminStore.activeClubId,
+        )
+        players.value = roster
+        return roster
       } catch (loadError) {
-        error.value = loadError?.message || 'Unable to load players.'
+        error.value = loadError?.message || 'Unable to load your Club roster.'
       } finally {
         isLoading.value = false
         playersLoadRequest = null

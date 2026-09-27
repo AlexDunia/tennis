@@ -30,6 +30,7 @@ import TvDisplayPairingView from '../views/TvDisplayPairingView.vue'
 import TvDisplayLiveView from '../views/TvDisplayLiveView.vue'
 import ChairUmpireInvitationView from '../views/ChairUmpireInvitationView.vue'
 import PlayHubView from '../views/PlayHubView.vue'
+import PlayLadderMatchView from '../views/PlayLadderMatchView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import HistoryView from '../views/HistoryView.vue'
 import ClubView from '../views/ClubView.vue'
@@ -106,6 +107,16 @@ const routes = [
     meta: {
       title: 'Play',
       subtitle: 'Start or continue a match.',
+      primarySection: 'play',
+    },
+  },
+  {
+    path: '/play/ladder',
+    name: 'PlayLadderMatch',
+    component: PlayLadderMatchView,
+    meta: {
+      title: 'Ladder match',
+      subtitle: 'Challenge someone and get on court.',
       primarySection: 'play',
     },
   },

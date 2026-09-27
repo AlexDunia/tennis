@@ -187,6 +187,7 @@ function normalizeMembershipRecord(input = {}, clubIds) {
   return {
     userId,
     clubId,
+    memberId: sanitizeDirectoryId(input.memberId || input.member_id),
     role: normalizeClubRole(input.role),
     status: normalizeMembershipStatus(input.status),
     joinedAt: normalizeTimestamp(input.joinedAt || input.joined_at),
@@ -476,10 +477,79 @@ function writeDirectory(input, userId) {
   }
   return directory
 }
+function legacyUserIdsFor(actor, userId) {
+  return [...new Set((Array.isArray(actor?.legacyUserIds) ? actor.legacyUserIds : [])
+    .map((value) => sanitizeDirectoryId(value))
+    .filter((value) => value && value !== userId))]
+}
+
+function migrateLegacyAccountIdentity(directory, actor) {
+  const userId = actorUserId(actor)
+  const legacyIds = legacyUserIdsFor(actor, userId)
+  if (!userId || !legacyIds.length) return false
+
+  const legacySet = new Set(legacyIds)
+  let changed = false
+  const legacyMemberships = directory.memberships.filter((item) => legacySet.has(item.userId))
+
+  if (legacyMemberships.length) {
+    directory.memberships = directory.memberships.filter((item) => !legacySet.has(item.userId))
+    legacyMemberships.forEach((membership) => {
+      addMembership(directory, { ...membership, userId })
+    })
+    changed = true
+  }
+
+  const legacyActiveClubId = legacyIds
+    .map((legacyId) => directory.activeClubByUser[legacyId])
+    .find(Boolean)
+
+  if (!directory.activeClubByUser[userId] && legacyActiveClubId) {
+    directory.activeClubByUser[userId] = legacyActiveClubId
+    changed = true
+  }
+
+  legacyIds.forEach((legacyId) => {
+    if (directory.activeClubByUser[legacyId]) {
+      delete directory.activeClubByUser[legacyId]
+      changed = true
+    }
+    if (directory.draftsByUser[legacyId]) {
+      if (!directory.draftsByUser[userId]) directory.draftsByUser[userId] = directory.draftsByUser[legacyId]
+      delete directory.draftsByUser[legacyId]
+      changed = true
+    }
+  })
+
+  directory.clubs = directory.clubs.map((club) => {
+    const currentIds = Array.isArray(club.setup?.workspace?.administratorIds)
+      ? club.setup.workspace.administratorIds
+      : []
+    const nextIds = [...new Set(currentIds.map((id) => legacySet.has(id) ? userId : id))]
+    if (nextIds.length === currentIds.length && nextIds.every((id, index) => id === currentIds[index])) {
+      return club
+    }
+    changed = true
+    return {
+      ...club,
+      setup: normalizeClubSetup({
+        ...club.setup,
+        workspace: { ...club.setup.workspace, administratorIds: nextIds },
+      }),
+    }
+  })
+
+  return changed
+}
+
 
 function loadDirectory(actor, { migrate = true } = {}) {
   const stored = readStoredDirectory()
-  if (stored) return stored
+  if (stored) {
+    return migrateLegacyAccountIdentity(stored, actor)
+      ? writeDirectory(stored, actorUserId(actor))
+      : stored
+  }
   const userId = actorUserId(actor)
   const directory = migrate && userId ? migrateLegacyDirectory(userId) : createEmptyDirectory()
   return canUseStorage() ? writeDirectory(directory, userId) : directory
@@ -659,6 +729,7 @@ function addMembership(directory, membership) {
     const current = directory.memberships[index]
     directory.memberships[index] = {
       ...membership,
+      memberId: sanitizeDirectoryId(membership.memberId || current.memberId),
       role: strongerRole(current.role, membership.role),
       joinedAt: current.joinedAt || membership.joinedAt,
     }
@@ -679,6 +750,7 @@ function addRosterMemberships(directory, setup, clubId) {
     addMembership(directory, {
       userId: member.userId,
       clubId,
+      memberId: member.id,
       role: normalizeClubRole(member.role),
       status: 'active',
       joinedAt,
@@ -748,6 +820,118 @@ export async function getClubDirectory(actor) {
     mirrorLegacySetup(directory, userId)
   }
   return publicDirectoryForUser(directory, userId)
+}
+
+export async function syncActiveClubMember(actor) {
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId)
+  const legacyIds = legacyUserIdsFor(actor, userId)
+  const candidateIds = new Set()
+  const candidates = []
+
+  function addCandidate(location) {
+    const memberId = sanitizeDirectoryId(location?.member?.id)
+    if (!memberId || candidateIds.has(memberId)) return
+    candidateIds.add(memberId)
+    candidates.push(location)
+  }
+
+  const membershipTarget = locateMemberRecord(
+    context.club.setup,
+    context.membership.memberId,
+  )
+  if (membershipTarget.count === 1) addCandidate(membershipTarget.match)
+
+  locateMemberRecordsByUserId(context.club.setup, userId).forEach(addCandidate)
+  legacyIds.forEach((legacyId) => {
+    locateMemberRecordsByUserId(context.club.setup, legacyId).forEach(addCandidate)
+    const legacyMember = locateMemberRecord(context.club.setup, legacyId)
+    if (legacyMember.count === 1) addCandidate(legacyMember.match)
+  })
+
+  const email = String(actor?.email || '').trim().toLowerCase()
+  if (email) {
+    collectClubMembers(context.club.setup)
+      .filter((member) => String(member.email || '').trim().toLowerCase() === email)
+      .forEach((member) => {
+        const match = locateMemberRecord(context.club.setup, member.id)
+        if (match.count === 1) addCandidate(match.match)
+      })
+  }
+
+  if (candidates.length > 1) {
+    throw createServiceError(
+      'This account is connected to more than one member record. Resolve the duplicate member records first.',
+      'ACCOUNT_MEMBER_AMBIGUOUS',
+    )
+  }
+
+  let target = candidates[0] || null
+  let nextSetup = context.club.setup
+
+  if (target) {
+    const linkedUserId = sanitizeDirectoryId(target.member.userId)
+    if (linkedUserId && linkedUserId !== userId && !legacyIds.includes(linkedUserId)) {
+      throw createServiceError(
+        'This member record is already connected to another Gorra account.',
+        'MEMBER_ALREADY_LINKED',
+      )
+    }
+    nextSetup = replaceMemberRecord(nextSetup, target, (member) => ({
+      ...member,
+      userId,
+      status: 'active',
+    }))
+  } else if (MANAGER_ROLES.has(context.membership.role)) {
+    const created = addManualMemberPatch(nextSetup, {
+      name: sanitizePlainText(actor?.name || 'Club admin', 100),
+      email,
+      photoUrl: actor?.avatar || '',
+      role: context.membership.role,
+    })
+    nextSetup = {
+      ...nextSetup,
+      membership: created.membership,
+    }
+    const createdTarget = locateMemberRecord(nextSetup, created.record.id)
+    target = createdTarget.match
+    nextSetup = replaceMemberRecord(nextSetup, target, (member) => ({
+      ...member,
+      userId,
+      status: 'active',
+    }))
+  } else {
+    return { member: null, club: null }
+  }
+
+  if (!target) {
+    throw createServiceError('Unable to connect this account to its Club member record.', 'MEMBER_LINK_FAILED')
+  }
+
+  const timestamp = nowIso()
+  const normalizedSetup = normalizeClubSetup({
+    ...nextSetup,
+    updatedAt: timestamp,
+  })
+  context.membership.memberId = target.member.id
+  directory.clubs[context.clubIndex] = {
+    ...context.club,
+    name: normalizedSetup.workspace.name,
+    setup: normalizedSetup,
+    updatedAt: timestamp,
+  }
+  directory = writeDirectory(directory, userId)
+
+  const savedClub = directory.clubs.find((club) => club.id === context.clubId)
+  const savedMember = requireExactMemberRecord(savedClub, target.member.id).member
+
+  return {
+    member: savedMember,
+    club: publicDirectoryForUser(directory, userId).clubs.find(
+      (club) => club.id === context.clubId,
+    ) || null,
+  }
 }
 
 export async function getClubSetup(actor) {
@@ -1197,6 +1381,7 @@ export async function joinClubWithInvite(input, actor) {
     const membership = {
       userId,
       clubId: current.id,
+      memberId: target.member.id,
       role: existingMembership
         ? strongerRole(existingMembership.role, role)
         : role,

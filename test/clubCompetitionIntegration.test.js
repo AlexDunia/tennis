@@ -74,6 +74,7 @@ test('Tournament keeps participants competition-specific and scopes tagged lists
 
 test('account identity has not absorbed Ladder rank or Tournament seed', () => {
   assert.doesNotMatch(authSource, /ladderPosition|tournamentSeed|\brank\b/)
-  assert.match(authSource, /id: APP_CURRENT_PLAYER\.id/)
-  assert.match(playerSource, /APP_CURRENT_PLAYER\.id/)
+  assert.doesNotMatch(authSource, /APP_CURRENT_PLAYER|applyCurrentPlayerIdentity/)
+  assert.doesNotMatch(playerSource, /APP_CURRENT_PLAYER/)
+  assert.match(playerSource, /authStore\.user\?\.id/)
 })
