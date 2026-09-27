@@ -9,6 +9,7 @@ import {
   watch,
 } from 'vue'
 import PersonAvatar from '../PersonAvatar.vue'
+import LadderPlayerOptions from './LadderPlayerOptions.vue'
 import MatchFormatEditor from '../match/MatchFormatEditor.vue'
 import { createStandardMatchRulesSnapshot } from '../../domain/matchRules.js'
 import { ladderRulesToMatchRulesSnapshot } from '../../domain/ruleAdapters/ladderMatchRules.js'
@@ -28,6 +29,7 @@ import {
   buildAdminLadderMatchCommitPayload,
   createLadderMatchCommitRequestId,
 } from '../../domain/ladderMatchCommit.js'
+import { notifyClubCalendarChange } from '../../utils/clubCalendarSync.js'
 
 const props = defineProps({
   clubId: { type: String, default: '' },
@@ -51,16 +53,25 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  canManage: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits([
+  'move-up',
+  'move-down',
+  'move-to',
   'record-missing-match',
+  'toggle-challenges',
   'mode',
   'remove-player',
   'remove-players',
 ])
 
 const router = useRouter()
+const clubCalendarHref = computed(() => router.resolve({ name: 'ClubCalendar' }).href)
 const challengeStore = useChallengeStore()
 const notificationStore = useNotificationStore()
 const ladderMatchWorkspaceStore = useLadderMatchWorkspaceStore()
@@ -71,6 +82,7 @@ const queueRef = ref(null)
 const zoomCalendarScrollRef = ref(null)
 
 const selectedPlayerId = ref('')
+const managedPlayerId = ref('')
 const deleteSelectionMode = ref(false)
 const playerSearchOpen = ref(false)
 const playerSearchQuery = ref('')
@@ -83,21 +95,10 @@ let pendingPlayerDrag = null
 const workspaceClubId = computed(() => String(props.clubId || props.config?.clubId || '').trim())
 const workspaceLadderId = computed(() => String(props.ladder?.id || '').trim())
 const queue = computed({ get: () => ladderMatchWorkspaceStore.getBulkDrafts(workspaceClubId.value, workspaceLadderId.value), set: (drafts) => ladderMatchWorkspaceStore.replaceBulkDrafts({ clubId: workspaceClubId.value, ladderId: workspaceLadderId.value, drafts }) })
-const individualWorkspaceDraft = computed(() => {
-  if (!workspaceClubId.value || !workspaceLadderId.value) {
-    return { selectedPlayerId: '' }
-  }
-
-  return ladderMatchWorkspaceStore.getIndividualDraft(
-    workspaceClubId.value,
-    workspaceLadderId.value,
-  )
-})
-
 const bulkWorkspaceReservations = computed(() => ({
+  // Bulk owns only its own drafts; an unfinished Individual selection must not
+  // make a player unavailable in this separate mode.
   bulkDrafts: queue.value,
-  individualSelectedPlayerId:
-    individualWorkspaceDraft.value.selectedPlayerId,
 }))
 const bulkLadderRuleResult = computed(() =>
   ladderRulesToMatchRulesSnapshot({
@@ -147,7 +148,6 @@ function useScheduleLadderRules() {
 const queueDragId = ref('')
 const queuePulseId = ref('')
 const bulkWorkspaceOpen = ref(false)
-const bulkWorkspaceMinimized = ref(false)
 const cancelBulkSetupOpen = ref(false)
 const modeMenuOpen = ref(false)
 const connectorPaths = ref([])
@@ -559,17 +559,9 @@ const eligiblePlayerIds = computed(
     ),
 )
 
-const displayPlayers = computed(() => {
-  if (!selectedPlayer.value) {
-    return props.players
-  }
-
-  return props.players.filter(
-    (player) =>
-      player.id === selectedPlayer.value.id ||
-      eligiblePlayerIds.value.has(player.id),
-  )
-})
+// Never filter the ranking while a player is held. Removing and reinserting
+// rows changes the list height and makes the next eligible opponent vanish.
+const displayPlayers = computed(() => props.players)
 
 function pruneQueue() {
   const used = new Set()
@@ -654,44 +646,19 @@ watch(
 watch(pairedConnections, redrawConnectors, { deep: true })
 
 watch(
-  [
-    () => queue.value.length,
-    () => activeChallenges.value.length,
-  ],
-  ([queuedCount, activeCount]) => {
-    if (!queuedCount && !activeCount) {
-      bulkWorkspaceOpen.value = false
-      bulkWorkspaceMinimized.value = false
-      return
-    }
-
-    if (!bulkWorkspaceMinimized.value) {
-      bulkWorkspaceOpen.value = true
-    }
+  () => queue.value.length,
+  (queuedCount) => {
+    // Opening is caused by the first Bulk pairing. Scheduling its final draft
+    // must leave the queue and calendar visible for the next pairing.
+    if (queuedCount) bulkWorkspaceOpen.value = true
   },
   { immediate: true },
 )
 
-function minimizeBulkWorkspace() {
-  bulkWorkspaceMinimized.value = true
-  bulkWorkspaceOpen.value = false
-  closeZoom()
-  notificationStore.addToast({
-    title: 'Calendar minimized',
-    message: 'Your queued pairings and calendar choices are saved. Open the calendar whenever you are ready.',
-    type: 'success',
-    duration: 7000,
-  })
-}
-
-function restoreBulkWorkspace() {
-  bulkWorkspaceMinimized.value = false
-  bulkWorkspaceOpen.value = true
-}
-
 function requestCancelBulkSetup() {
   if (!queue.value.length) {
-    minimizeBulkWorkspace()
+    bulkWorkspaceOpen.value = false
+    closeZoom()
     return
   }
   cancelBulkSetupOpen.value = true
@@ -709,7 +676,6 @@ function confirmCancelBulkSetup() {
   selectedPlayerId.value = ''
   resetPlayerDrag()
   cancelBulkSetupOpen.value = false
-  bulkWorkspaceMinimized.value = false
   bulkWorkspaceOpen.value = false
   closeZoom()
   notificationStore.addToast({
@@ -806,6 +772,58 @@ function selectPlayerForPair(player) {
     addPendingPairToQueue()
 }
 
+function handleBulkPlayerRowClick(player) {
+  if (deleteSelectionMode.value) {
+    toggleDeleteSelection(player.id)
+    return
+  }
+
+  // Ordinary cards remain drag-and-drop first. A second card click is only
+  // used after the explicit “Set up a challenge” action has chosen a challenger.
+  if (selectedPlayer.value) {
+    selectPlayerForPair(player)
+    return
+  }
+
+  if (!bulkAvailability(player).available) {
+    showConflictFor(player)
+  }
+}
+
+function toggleBulkPlayerActions(player) {
+  if (
+    !props.canManage ||
+    deleteSelectionMode.value ||
+    selectedPlayer.value
+  ) {
+    return
+  }
+
+  managedPlayerId.value =
+    managedPlayerId.value === player.id
+      ? ''
+      : player.id
+}
+
+function beginBulkGuidedChallenge(player) {
+  managedPlayerId.value = ''
+  selectPlayerForPair(player)
+}
+
+function canSetUpBulkChallengeFor(player) {
+  if (!props.canManage || !player || player.challengePaused) return false
+
+  return getEligibleLadderOpponents({
+    challenger: player,
+    players: props.players,
+    challenges: challengeStore.challenges,
+    config: props.config,
+    clubId: workspaceClubId.value,
+    ladderId: workspaceLadderId.value,
+    workspace: bulkWorkspaceReservations.value,
+  }).some((opponent) => !opponent.challengePaused)
+}
+
 function resetPlayerDrag() {
   selectedPlayerId.value = ''
   dragGhost.value = null
@@ -866,30 +884,27 @@ function beginPlayerDrag(player, event) {
 }
 
 function clampPlayerGhostY(clientY) {
-  const list =
-    playerListElement()
-
+  const list = playerListElement()
   if (!list) return clientY
 
-  const bounds =
-    list.getBoundingClientRect()
+  const bounds = list.getBoundingClientRect()
+  const half = Math.max(28, Number(pendingPlayerDrag?.bounds?.height) / 2 || 30)
+  return Math.max(bounds.top + half, Math.min(clientY, bounds.bottom - half))
+}
 
-  const half =
-    Math.max(
-      28,
-      Number(
-        pendingPlayerDrag
-          ?.bounds?.height,
-      ) / 2 || 30,
-    )
+function autoScrollPlayerList(clientY) {
+  const list = playerListElement()
+  if (!list) return
 
-  return Math.max(
-    bounds.top + half,
-    Math.min(
-      clientY,
-      bounds.bottom - half,
-    ),
-  )
+  const bounds = list.getBoundingClientRect()
+  const edge = 72
+  if (clientY < bounds.top + edge) {
+    const pressure = Math.min(1, (bounds.top + edge - clientY) / edge)
+    list.scrollTop -= 6 + pressure * 20
+  } else if (clientY > bounds.bottom - edge) {
+    const pressure = Math.min(1, (clientY - (bounds.bottom - edge)) / edge)
+    list.scrollTop += 6 + pressure * 20
+  }
 }
 
 async function movePlayerDrag(event) {
@@ -953,12 +968,10 @@ async function movePlayerDrag(event) {
     return
   }
 
+  autoScrollPlayerList(event.clientY)
   dragGhost.value = {
     ...dragGhost.value,
-    top:
-      clampPlayerGhostY(
-        event.clientY,
-      ),
+    top: clampPlayerGhostY(event.clientY),
   }
 }
 
@@ -1057,7 +1070,6 @@ function addPendingPairToQueue() {
       new Date().toISOString(),
   }
 
-  bulkWorkspaceMinimized.value = false
   bulkWorkspaceOpen.value = true
   queue.value = [...queue.value, draft]
   void nextTick().then(redrawConnectors)
@@ -1741,6 +1753,8 @@ async function saveSchedule() {
     scheduleDraftId.value = ''
     scheduleChallengeId.value = ''
 
+    if (!playedNow) notifyClubCalendarChange()
+
     notificationStore.addToast({
       title: playedNow ? 'Match ready' : 'Ladder match',
       message: playedNow ? 'The match is ready. Open it when you are ready to control play.' : 'Match scheduled.',
@@ -2222,7 +2236,7 @@ function courtLabel(challenge) {
 
 onMounted(() => {
   pruneQueue()
-  bulkWorkspaceOpen.value = queue.value.length > 0 || activeChallenges.value.length > 0
+  bulkWorkspaceOpen.value = queue.value.length > 0
   redrawConnectors()
   window.addEventListener('resize', redrawConnectors)
   playerListElement()?.addEventListener('scroll', redrawConnectors)
@@ -2251,7 +2265,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="bulk-players__setup">
             <div class="bulk-header-tools">
-              <label class="bulk-player-search" :class="{ 'is-open': playerSearchOpen }" @click="window.innerWidth <= 640 && (playerSearchOpen = true)">
+              <button v-if="queue.length" type="button" class="bulk-header-clear" @click="requestCancelBulkSetup">Deselect all</button>              <label class="bulk-player-search" :class="{ 'is-open': playerSearchOpen }" @click="window.innerWidth <= 640 && (playerSearchOpen = true)">
                 <svg class="bulk-player-search__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
                 <input v-model="playerSearchQuery" type="search" placeholder="Search player" aria-label="Search player in this ladder" />
               </label>
@@ -2311,18 +2325,16 @@ onBeforeUnmount(() => {
               selectedPlayer?.id === player.id,
             'bulk-player-row--eligible':
               eligiblePlayerIds.has(player.id),
-            'bulk-player-row--blocked':
-              !bulkAvailability(player).available &&
-              selectedPlayer?.id !== player.id,
-            'bulk-player-row--mapped':
-              Boolean(matchLinkForPlayer(player.id)),
+            'bulk-player-row--blocked': !bulkAvailability(player).available && selectedPlayer?.id !== player.id && !matchLinkForPlayer(player.id)?.challenge?.scheduledAt,
+            'bulk-player-row--mapped': Boolean(matchLinkForPlayer(player.id)) && !matchLinkForPlayer(player.id)?.challenge?.scheduledAt,
             'bulk-player-row--deleting': deleteSelectionMode && selectedDeletePlayerIds.includes(player.id),
+            'bulk-player-row--managed': managedPlayerId === player.id,
             'bulk-player-row--mapped-lead':
               matchLinkForPlayer(player.id)?.draft?.challengerId === player.id ||
               matchLinkForPlayer(player.id)?.challenge?.challengerId === player.id,
           }"
           :data-bulk-player-id="player.id"
-          @click="deleteSelectionMode ? toggleDeleteSelection(player.id) : (!bulkAvailability(player).available && showConflictFor(player))"
+          @click="handleBulkPlayerRowClick(player)"
         >
           <strong class="bulk-player-row__rank">
             #{{ player.rank }}
@@ -2414,32 +2426,40 @@ onBeforeUnmount(() => {
             </button>
 
             <button
-              v-if="!deleteSelectionMode"
+              v-if="canManage && !deleteSelectionMode && !selectedPlayer"
               class="bulk-player-row__chevron"
+              :class="{ 'bulk-player-row__chevron--open': managedPlayerId === player.id }"
               type="button"
-              :aria-label="selectedPlayer?.id === player.id ? `Deselect ${player.name}` : `Choose ${player.name} without dragging`"
-              :title="selectedPlayer?.id === player.id ? 'Deselect player' : 'Choose without dragging'"
-              @click.stop="selectPlayerForPair(player)"
+              :aria-label="`Open actions for ${player.name}`"
+              :aria-expanded="managedPlayerId === player.id"
+              @click.stop="toggleBulkPlayerActions(player)"
             >
               <svg viewBox="0 0 20 20" aria-hidden="true">
                 <path d="m6 8 4 4 4-4" />
               </svg>
             </button>
           </span>
+
+          <LadderPlayerOptions
+            v-if="canManage && managedPlayerId === player.id && !selectedPlayer"
+            class="bulk-player-options"
+            :player="player"
+            :position="Number(player.rank)"
+            :player-count="players.length"
+            :challenge-paused="Boolean(player.challengePaused)"
+            :can-challenge="canSetUpBulkChallengeFor(player)"
+            @move-up="emit('move-up', player)"
+            @move-down="emit('move-down', player)"
+            @move-to="emit('move-to', player)"
+            @record-missing-match="emit('record-missing-match', player)"
+            @toggle-challenges="emit('toggle-challenges', player)"
+            @set-up-challenge="beginBulkGuidedChallenge(player)"
+            @remove="emit('remove-player', player)"
+          />
         </article>
       </TransitionGroup>
     </section>
-
-    <button
-      v-if="bulkWorkspaceMinimized"
-      type="button"
-      class="bulk-workspace-restore"
-      @click="restoreBulkWorkspace"
-    >
-      Open calendar ({{ queue.length }})
-    </button>
-
-    <Transition name="bulk-workspace">
+<Transition name="bulk-workspace">
       <aside v-if="bulkWorkspaceOpen" class="bulk-calendar">
       <section class="bulk-queue-shell">
         <header class="bulk-queue-head">
@@ -2451,9 +2471,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="bulk-workspace-actions">
-            <button type="button" class="bulk-view-calendar" @click="openZoom()">View calendar</button>
-            <button type="button" class="bulk-workspace-actions__minimize" @click="minimizeBulkWorkspace">Minimize</button>
-            <button type="button" class="bulk-workspace-actions__cancel" aria-label="Cancel bulk setup" title="Cancel bulk setup" @click="requestCancelBulkSetup">&times;</button>
+            <button type="button" class="bulk-workspace-actions__cancel" aria-label="Cancel bulk setup" @click="requestCancelBulkSetup">&times;</button>
           </div>
         </header>
 
@@ -2552,7 +2570,7 @@ onBeforeUnmount(() => {
             Next {{ rangeMonths }}
             {{ rangeMonths === 1 ? 'month' : 'months' }}
           </strong>
-
+          <a class="bulk-calendar-link" :href="clubCalendarHref" target="_blank" rel="noopener">View calendar</a>
           <div class="bulk-range">
             <button
               type="button"
@@ -3106,9 +3124,7 @@ onBeforeUnmount(() => {
                     : 'Expand'
                 }}
               </button>
-
-              <button type="button" @click="minimizeBulkWorkspace">Minimize</button>
-              <button type="button" aria-label="Cancel bulk setup" title="Cancel bulk setup" @click="requestCancelBulkSetup">&times;</button>
+              <button type="button" aria-label="Cancel bulk setup" @click="requestCancelBulkSetup">&times;</button>
             </div>
           </header>
 
@@ -6546,4 +6562,88 @@ onBeforeUnmount(() => {
   .bulk-schedule-rules__editor :deep(.match-format-editor) { padding: 18px; }
   .bulk-schedule-rules__editor :deep(.options) { grid-template-columns: 1fr; }
 }
-</style>
+
+/* Keep Bulk player cards in the same member-card family as Individual. */
+.bulk-player-list {
+  padding-block: 20px 30px;
+  gap: 13px;
+}
+
+.bulk-player-row {
+  min-height: 96px;
+  padding: 18px 20px;
+}
+
+.bulk-player-row:not(.bulk-player-row--selected):not(.bulk-player-row--eligible):not(.bulk-player-row--blocked):not(.bulk-player-row--mapped):not(.bulk-player-row--deleting) {
+  border: .5px solid rgba(175, 190, 180, .28);
+}
+
+.bulk-player-row:not(.bulk-player-row--selected):not(.bulk-player-row--eligible):not(.bulk-player-row--blocked):not(.bulk-player-row--mapped):not(.bulk-player-row--deleting):hover {
+  border-color: rgba(175, 190, 180, .28);
+  background: #fff;
+  box-shadow: 0 2px 7px rgba(15, 34, 24, .01);
+  transform: none;
+}
+
+@media (max-width: 767px) {
+  .bulk-player-list {
+    padding-block: 16px 24px;
+  }
+
+  .bulk-player-row {
+    min-height: 76px;
+    padding: 14px 12px;
+  }
+}
+/* The ball preview may extend beyond the calendar pane, so it must outrank
+   the neighbouring player pane and its sticky header. */
+.bulk-calendar {
+  position: relative;
+  z-index: 90;
+  overflow: visible;
+}
+
+.bulk-queue-item {
+  z-index: 1;
+}
+
+.bulk-queue-item:has(.bulk-tennis-ball:hover),
+.bulk-queue-item:has(.bulk-tennis-ball:focus-within) {
+  z-index: 91;
+}
+
+/* Action panels mirror Individual; drag-and-drop remains the default pairing path. */
+.bulk-player-row--managed {
+  padding-bottom: 0;
+}
+
+.bulk-player-options {
+  grid-column: 1 / -1;
+  margin: 0 -20px -18px;
+}
+
+.bulk-player-row__chevron--open svg {
+  transform: rotate(180deg);
+}
+
+/* Keep the active ladder name below the app header while the list scrolls. */
+.bulk-players__head {
+  top: var(--app-header-height) !important;
+}
+
+@media (max-width: 767px) {
+  .bulk-player-options {
+    margin: 0 -12px -14px;
+  }
+}
+
+.bulk-calendar-head { justify-content: flex-start; }
+.bulk-calendar-link { margin-left: auto; color: var(--color-primary-strong); font-size: 10px; font-weight: var(--font-weight-semibold); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.bulk-workspace-actions { margin-left: auto; }
+.bulk-workspace-actions__cancel { display: grid; width: 28px; min-width: 28px; min-height: 28px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--color-muted); font-size: 18px; line-height: 1; }
+.bulk-workspace-actions__cancel:hover, .bulk-workspace-actions__cancel:focus-visible { background: var(--color-surface-soft); color: var(--color-text); }
+.bulk-player-row--eligible { opacity: 1; }
+
+/* Clear only the current unscheduled Bulk selections. */
+.bulk-header-clear { min-height: 30px; padding: 0 2px; border: 0; background: transparent; color: var(--color-primary-strong); font-size: 10px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.bulk-header-clear:hover, .bulk-header-clear:focus-visible { color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; outline: none; }</style>

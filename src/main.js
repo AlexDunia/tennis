@@ -5,6 +5,7 @@ import App from './App.vue'
 import router from './router'
 import { hardenFormSubmissions } from './utils/formSafety'
 import { installInteractionFeedback } from './utils/interactionFeedback'
+import { suppressNativeHoverText } from './utils/disableHoverText'
 import './assets/main.css'
 import './assets/club-reference32.css'
 import './assets/compete-reference32.css'
@@ -38,8 +39,12 @@ const syncRouterWithHash = () => {
 if (typeof window !== 'undefined') {
   hardenFormSubmissions(document)
   const removeInteractionFeedback = installInteractionFeedback(document)
+  const restoreNativeHoverText = suppressNativeHoverText(document)
   if (import.meta.hot) {
-    import.meta.hot.dispose(removeInteractionFeedback)
+    import.meta.hot.dispose(() => {
+      removeInteractionFeedback()
+      restoreNativeHoverText()
+    })
   }
   window.addEventListener('hashchange', () => {
     window.setTimeout(syncRouterWithHash, 0)

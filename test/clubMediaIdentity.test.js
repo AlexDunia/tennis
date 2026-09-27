@@ -81,19 +81,17 @@ test('club cover output is a fixed wide crop and the profile hero constrains ban
   )
 })
 
-test('creation preview and real club profile reuse the same identity hero', () => {
+test('creation preview retains the shared identity hero while the active Club page uses the profile hero', () => {
   assert.match(
     createSource,
     /import ClubIdentityHero from '\.\/ClubIdentityHero\.vue'/,
   )
 
-  assert.match(
-    clubViewSource,
-    /import ClubIdentityHero from '\.\.\/components\/club\/ClubIdentityHero\.vue'/,
-  )
-
   assert.match(createSource, /<ClubIdentityHero/)
-  assert.match(clubViewSource, /<ClubIdentityHero/)
+  assert.match(clubViewSource, /class="club-signature-hero"/)
+  assert.match(clubViewSource, /Everything that keeps the club moving, in one place\./)
+  assert.match(clubViewSource, /Invite member/)
+  assert.match(clubViewSource, /Change club/)
 })
 
 test('club media editor offers both cropped uploads and curated cover presets', () => {

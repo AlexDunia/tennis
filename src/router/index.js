@@ -39,6 +39,8 @@ import ClubMemberImportView from '../views/ClubMemberImportView.vue'
 import ClubMemberManualView from '../views/ClubMemberManualView.vue'
 import ClubMemberDetailView from '../views/ClubMemberDetailView.vue'
 import ClubSettingsHubView from '../views/ClubSettingsHubView.vue'
+import ClubDetailsView from '../views/ClubDetailsView.vue'
+import ClubCalendarView from '../views/ClubCalendarView.vue'
 import AccountSettingsView from '../views/AccountSettingsView.vue'
 import TournamentCategoryView from '../views/TournamentCategory.vue'
 import TournamentCreateView from '../views/TournamentCreate.vue'
@@ -506,6 +508,16 @@ const routes = [
     },
   },
   {
+    path: '/club/calendar',
+    name: 'ClubCalendar',
+    component: ClubCalendarView,
+    meta: {
+      title: 'Club calendar',
+      subtitle: 'Scheduled Ladder and Tournament matches for your club.',
+      primarySection: 'club',
+    },
+  },
+  {
     path: '/club/members',
     name: 'ClubMembers',
     component: ClubMembersView,
@@ -552,10 +564,10 @@ const routes = [
   {
     path: '/club/manage',
     name: 'ClubSettingsHub',
-    component: ClubSettingsHubView,
+    component: ClubDetailsView,
     meta: {
-      title: 'Club settings',
-      subtitle: 'Manage how this club works.',
+      title: 'Club details',
+      subtitle: 'Update your club name, logo, and location.',
       permission: 'club.manage',
       activeClubPermission: true,
       primarySection: 'club',
@@ -565,10 +577,10 @@ const routes = [
     path: '/settings',
     alias: '/club/settings',
     name: 'Settings',
-    component: SettingsView,
+    component: ClubDetailsView,
     meta: {
-      title: 'Club Settings',
-      subtitle: 'Manage club details, members, ladders, and rules.',
+      title: 'Club details',
+      subtitle: 'Update your club name, logo, and location.',
       permission: 'club.manage',
       activeClubPermission: true,
       primarySection: 'club',
@@ -865,6 +877,13 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   if (!to.meta.public && !authStore.isAuthenticated) {
     return { name: 'SignIn', query: { redirect: to.fullPath } }
+  }
+
+  if (to.name === 'Settings') {
+    const legacySection = String(to.query.section || '').toLowerCase()
+    if (legacySection === 'members') return { name: 'ClubMembers' }
+    if (legacySection === 'ladders' || legacySection === 'rules') return { name: 'Rankings' }
+    if (legacySection === 'account') return { name: 'Profile' }
   }
 
   if (to.name === 'Clubs' && !to.query.view) {

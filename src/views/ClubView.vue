@@ -1,35 +1,24 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
-import ClubIdentityHero from '../components/club/ClubIdentityHero.vue'
-import ClubMediaEditor from '../components/club/ClubMediaEditor.vue'
 import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { useAdminStore } from '../stores/admin'
 import { useNotificationStore } from '../stores/notification'
 import { useTournamentStore } from '../stores/tournament'
 import { collectClubMembers } from '../utils/club/memberData.js'
-import { DEFAULT_CLUB_COVER_PRESET } from '../utils/club/clubMedia.js'
 
 const router = useRouter()
 const adminStore = useAdminStore()
 const tournamentStore = useTournamentStore()
 const notificationStore = useNotificationStore()
 
-const appearanceDialog = ref(null)
 const pageError = ref('')
-const appearanceBusy = ref(false)
 const clubPicker = ref(null)
 const switchingClubId = ref('')
-const switchLine = ref(null)
-const switchLineStuck = ref(false)
-
-const appearanceDraft = reactive({
-  logoUrl: '',
-  coverUrl: '',
-  coverPreset: DEFAULT_CLUB_COVER_PRESET,
-})
-
+const inviteOptionsOpen = ref(false)
+const clubSwitcherTrigger = ref(null)
+const clubSwitcherVisible = ref(false)
 const club = computed(() => adminStore.activeClub)
 const setup = computed(() => club.value?.setup || null)
 const workspace = computed(() => setup.value?.workspace || {})
@@ -43,44 +32,88 @@ const tournaments = computed(() =>
   ),
 )
 const canManage = computed(() => adminStore.hasActiveClubPermission('club.manage'))
+const heroRoleLabel = computed(() => {
+  const role = String(adminStore.activeClubRoleLabel || 'member').toLowerCase()
+  return `You're ${['admin', 'owner'].includes(role) ? 'an' : 'a'} ${role}`
+})
 const pickerClubs = computed(() => adminStore.clubOptions.map((item) => { const record = adminStore.clubs.find((club) => club.id === item.id); return { ...item, city: record?.setup?.workspace?.city || record?.setup?.workspace?.location || 'Local courts' } }))
 
-const manageItems = computed(() => {
-  const items = [
+const manageGroups = computed(() => {
+  const memberCount = members.value.length
+  const ladderCount = activeLadders.value.length
+  const tournamentCount = tournaments.value.length
+
+  const groups = [
     {
-      icon: 'users',
-      title: 'Members',
-      copy: 'Invite, import and manage your people.',
-      action: 'Open members',
-      to: { name: 'ClubMembers' },
+      id: 'people',
+      items: [
+        {
+          icon: 'users',
+          title: 'Members',
+          copy: `${memberCount} ${memberCount === 1 ? 'member' : 'members'} \u00b7 invite, import and manage people`,
+          action: 'Open',
+          to: { name: 'ClubMembers' },
+        },
+      ],
     },
     {
-      icon: 'ladder',
-      title: 'Ladders',
-      copy: 'Positions, rules, challenges and activity.',
-      action: 'Open ladders',
-      to: { name: 'Rankings' },
-    },
-    {
-      icon: 'trophy',
-      title: 'Tournaments',
-      copy: 'Events, draws, fixtures and results.',
-      action: 'Open tournaments',
-      to: { name: 'Tournaments' },
+      id: 'competition',
+      title: 'Competition',
+      copy: 'Everything that controls how members compete.',
+      items: [
+        {
+          icon: 'ladder',
+          title: 'Ladders',
+          copy: `${ladderCount} active \u00b7 positions, challenges and movement rules`,
+          action: 'Open',
+          to: { name: 'Rankings' },
+        },
+        {
+          icon: 'trophy',
+          title: 'Tournaments',
+          copy: tournamentCount
+            ? `${tournamentCount} active \u00b7 events, draws and results`
+            : 'No active tournament \u00b7 events, draws and results',
+          action: tournamentCount ? 'Open' : 'Create',
+          to: { name: 'Tournaments' },
+        },
+      ],
     },
   ]
 
+  groups.push({
+    id: 'club',
+    title: 'Club',
+    copy: 'Shared information and scheduled activity for this club.',
+    items: [
+      {
+        icon: 'calendar',
+        title: 'Calendar',
+        copy: 'Scheduled Ladder and Tournament matches',
+        action: 'Open',
+        to: { name: 'ClubCalendar' },
+      },
+    ],
+  })
+
   if (canManage.value) {
-    items.push({
-      icon: 'sliders',
-      title: 'Club settings',
-      copy: 'Club, people, play defaults and courts.',
-      action: 'Open settings',
-      to: { name: 'ClubSettingsHub' },
+    groups[0].items.push({
+      icon: 'users',
+      title: 'Access & roles',
+      copy: 'Admins, co-admins and member permissions',
+      action: 'Manage',
+      to: { name: 'ClubMembers' },
+    })
+    groups[2].items.push({
+      icon: 'home',
+      title: 'Club details',
+      copy: 'Name, location, logo and club appearance',
+      action: 'Edit',
+      to: { name: 'Settings' },
     })
   }
 
-  return items
+  return groups
 })
 
 function open(to) {
@@ -93,65 +126,48 @@ function openClubPicker() { pageError.value = ''; clubPicker.value?.showModal() 
 function closeClubPicker() { if (!switchingClubId.value) clubPicker.value?.close() }
 async function switchClub(clubId) { if (!clubId || clubId === adminStore.activeClubId) return closeClubPicker(); switchingClubId.value = clubId; try { await adminStore.switchClub(clubId); await tournamentStore.fetchTournaments(); clubPicker.value?.close(); notificationStore.addToast({ message: (club.value?.name || 'That club') + ' is now in play.', type: 'success' }) } catch (cause) { pageError.value = cause?.message || 'That club would not switch just now. Try another swing.' } finally { switchingClubId.value = '' } }
 function openClubFlow(view) { closeClubPicker(); router.push({ name: 'Clubs', query: { view } }) }
-function updateStickyState() { const top = switchLine.value?.getBoundingClientRect().top; switchLineStuck.value = Boolean(top !== undefined && top <= 78) }function openAppearance() {
-  if (!canManage.value || appearanceBusy.value) return
+function openHeroInvite(option) {
+  inviteOptionsOpen.value = false
 
-  Object.assign(appearanceDraft, {
-    logoUrl: workspace.value.logoUrl || '',
-    coverUrl: workspace.value.coverUrl || '',
-    coverPreset: workspace.value.coverPreset || DEFAULT_CLUB_COVER_PRESET,
-  })
-
-  pageError.value = ''
-  appearanceDialog.value?.showModal()
-}
-
-function closeAppearance() {
-  if (appearanceBusy.value) return
-  appearanceDialog.value?.close()
-}
-
-async function saveAppearance() {
-  if (!canManage.value || appearanceBusy.value) return
-
-  appearanceBusy.value = true
-  pageError.value = ''
-
-  try {
-    await adminStore.updateActiveClub({
-      workspace: {
-        ...workspace.value,
-        logoUrl: appearanceDraft.logoUrl,
-        coverUrl: appearanceDraft.coverUrl,
-        coverPreset: appearanceDraft.coverPreset,
-      },
-    })
-
-    notificationStore.addToast({
-      message: 'Club appearance updated.',
-      type: 'success',
-    })
-
-    appearanceDialog.value?.close()
-  } catch (error) {
-    pageError.value = error?.message || 'We could not update the club appearance.'
-  } finally {
-    appearanceBusy.value = false
+  const routes = {
+    invite: { name: 'ClubMembers', query: { invite: '1' } },
+    import: { name: 'ClubMemberImport' },
+    manual: { name: 'ClubMemberManual' },
   }
+
+  router.push(routes[option])
+}
+
+
+function setClubSwitcherTrigger(element) {
+  if (element) clubSwitcherTrigger.value = element
+}
+
+function syncClubSwitcher() {
+  const trigger = clubSwitcherTrigger.value
+  const headerHeight = document.querySelector('.app-header')?.getBoundingClientRect().height || 76
+  clubSwitcherVisible.value = Boolean(trigger && trigger.getBoundingClientRect().top <= headerHeight)
 }
 
 onMounted(async () => {
-  window.addEventListener('scroll', updateStickyState, { passive: true })
-  window.addEventListener('scroll', updateStickyState, { passive: true })
   pageError.value = ''
 
   try {
     await adminStore.loadClubs()
-    if (!adminStore.activeClub) return
-    await tournamentStore.fetchTournaments()
+    if (adminStore.activeClub) await tournamentStore.fetchTournaments()
   } catch (error) {
     pageError.value = error?.message || 'We could not open this club.'
+  } finally {
+    await nextTick()
+    syncClubSwitcher()
+    window.addEventListener('scroll', syncClubSwitcher, { passive: true })
+    window.addEventListener('resize', syncClubSwitcher)
   }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', syncClubSwitcher)
+  window.removeEventListener('resize', syncClubSwitcher)
 })
 
 useShellNestedHeader(() => ({
@@ -170,119 +186,172 @@ useShellNestedHeader(() => ({
     <p v-if="pageError" class="ref-inline-alert" role="alert">{{ pageError }}</p>
 
     <section v-if="club" class="club-profile">
-      <div ref="switchLine" class="club-profile__switch" :class="{ 'club-profile__switch--stuck': switchLineStuck }"><p>You're playing out of <strong>{{ club.name }}</strong></p><button class="ref-button" type="button" @click="openClubPicker">Change club</button></div>
-      <ClubIdentityHero
-        :name="club.name"
-        :location="workspace.location || ''"
-        :role-label="`${adminStore.activeClubRoleLabel} in this club`"
-        :logo-url="workspace.logoUrl || ''"
-        :cover-url="workspace.coverUrl || ''"
-        :cover-preset="workspace.coverPreset || DEFAULT_CLUB_COVER_PRESET"
-        :member-count="members.length"
-        :ladder-count="activeLadders.length"
-        :tournament-count="tournaments.length"
-        :editable="canManage"
-        @edit-appearance="openAppearance"
-      />
+      <section class="club-signature-hero" :aria-label="club.name">
+        <div class="club-signature-hero__main">
+          <div class="club-signature-hero__photo-frame">
+            <div class="club-signature-hero__photo">
+              <img v-if="workspace.logoUrl" :src="workspace.logoUrl" :alt="club.name" />
+              <span v-else>{{ clubInitials(club.name) }}</span>
+            </div>
 
-      <section class="ref-club-manage">
-        <header class="ref-section-heading club-profile__section-heading">
-          <h2>
-            {{
-              canManage
-                ? 'Manage your club'
-                : 'Your club'
-            }}
-          </h2>
+            <button
+              v-if="canManage"
+              class="club-signature-hero__photo-edit"
+              type="button"
+              aria-label="Edit club appearance"
+              @click="router.push({ name: 'Settings' })"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 16.5V20h3.5L18.8 8.7l-3.5-3.5L4 16.5Z" />
+                <path d="m13.8 6.7 3.5 3.5" />
+              </svg>
+            </button>
+          </div>
 
-          <p>
-            Members, ladders and tournaments in {{ club.name }}.
-          </p>
-        </header>
+          <div class="club-signature-hero__copy">
+            <h1>{{ club.name }}</h1>
+            <p class="club-signature-hero__lead">
+              Everything that keeps the club moving, in one place.
+            </p>
 
-        <div class="ref-choice-stack">
-          <RouterLink
-            v-for="item in manageItems"
-            :key="item.title"
-            class="ref-choice-row"
-            :to="item.to"
-            :aria-label="`${item.action} for ${club.name}`"
-          >
-            <span class="ref-feature-icon" aria-hidden="true">
-              <FlowIcon :name="item.icon" />
-            </span>
+            <div class="club-signature-hero__meta">
+              <span>{{ workspace.location || 'Location not added yet' }}</span>
+              <i aria-hidden="true"></i>
+              <span>{{ heroRoleLabel }}</span>
+            </div>
+          </div>
 
-            <span class="ref-choice-row-copy">
-              <strong>{{ item.title }}</strong>
-              <span>{{ item.copy }}</span>
-              <small>{{ item.action }}</small>
-            </span>
+          <div v-if="canManage" class="club-signature-hero__actions">
+            <div class="club-invite-menu">
+              <button
+                class="ref-button primary"
+                type="button"
+                aria-haspopup="menu"
+                :aria-expanded="inviteOptionsOpen"
+                @click.stop="inviteOptionsOpen = !inviteOptionsOpen"
+              >
+                Invite member
+                <FlowIcon name="chevron-down" aria-hidden="true" />
+              </button>
+              <div v-if="inviteOptionsOpen" class="club-invite-menu__panel" role="menu" @click.stop>
+                <button type="button" role="menuitem" @click="openHeroInvite('invite')">
+                  <FlowIcon name="send" aria-hidden="true" />
+                  <span><strong>Invite people</strong><small>Send a club invitation</small></span>
+                </button>
+                <button type="button" role="menuitem" @click="openHeroInvite('import')">
+                  <FlowIcon name="upload" aria-hidden="true" />
+                  <span><strong>Import members</strong><small>Bring in an existing list</small></span>
+                </button>
+                <button type="button" role="menuitem" @click="openHeroInvite('manual')">
+                  <FlowIcon name="plus" aria-hidden="true" />
+                  <span><strong>Add manually</strong><small>Create one member record</small></span>
+                </button>
+              </div>
+            </div>
+            <button class="ref-button" type="button" @click="openClubPicker">Change club</button>
+          </div>
+        </div>
 
-            <FlowIcon
-              name="arrow-right"
-              aria-hidden="true"
-            />
+        <div class="club-signature-hero__rail" aria-label="Club at a glance">
+          <RouterLink :to="{ name: 'ClubMembers' }">
+            <strong>{{ members.length }}</strong>
+            <span>Members</span>
+          </RouterLink>
+          <RouterLink :to="{ name: 'Rankings' }">
+            <strong>{{ activeLadders.length }}</strong>
+            <span>Active ladders</span>
+          </RouterLink>
+          <RouterLink :to="{ name: 'Tournaments' }">
+            <strong>{{ tournaments.length || '\u2014' }}</strong>
+            <span>{{ tournaments.length ? 'Active tournaments' : 'No tournament running' }}</span>
+          </RouterLink>
+          <RouterLink :to="{ name: 'Settings', query: { section: 'members' } }">
+            <strong>{{ adminStore.activeClubRoleLabel || 'Member' }}</strong>
+            <span>Your access</span>
           </RouterLink>
         </div>
       </section>
 
-      <dialog ref="appearanceDialog" class="ref-dialog club-appearance-dialog">
-        <div class="ref-dialog-inner">
-          <header class="ref-dialog-head">
-            <div>
-              <h2>Club appearance</h2>
-              <p>Choose how this club appears across Gorra.</p>
-            </div>
+      <section class="ref-club-manage">
+        <header class="ref-section-heading club-profile__section-heading">
+          <h2>{{ canManage ? 'Manage your club' : 'Your club' }}</h2>
 
-            <button
-              class="ref-dialog-close"
-              type="button"
-              aria-label="Close"
-              :disabled="appearanceBusy"
-              @click="closeAppearance"
+          <p>
+            Everything that keeps {{ club.name }} moving, in one place.
+          </p>
+        </header>
+
+        <div class="club-profile__manage-groups">
+          <template v-for="group in manageGroups" :key="group.id">
+            <section
+              :ref="group.id === 'people' ? setClubSwitcherTrigger : undefined"
+              class="club-profile__manage-group"
+              :aria-label="group.id === 'people' ? 'Members' : undefined"
+              :aria-labelledby="group.id === 'people' ? undefined : `${group.id}-management-title`"
             >
-              <FlowIcon name="close" />
-            </button>
-          </header>
+            <header v-if="group.id !== 'people'" class="club-profile__group-heading">
+              <h3 :id="`${group.id}-management-title`">{{ group.title }}</h3>
+              <p>{{ group.copy }}</p>
+            </header>
 
-          <ClubMediaEditor
-            :logo-url="appearanceDraft.logoUrl"
-            :cover-url="appearanceDraft.coverUrl"
-            :cover-preset="appearanceDraft.coverPreset"
-            :disabled="appearanceBusy"
-            @update:logo-url="appearanceDraft.logoUrl = $event"
-            @update:cover-url="appearanceDraft.coverUrl = $event"
-            @update:cover-preset="appearanceDraft.coverPreset = $event"
-          />
+            <div class="ref-choice-stack">
+              <template v-for="item in group.items" :key="item.title">
+                <button
+                  v-if="item.appearance"
+                  class="ref-choice-row"
+                  type="button"
+                  :aria-label="`${item.action} ${item.title.toLowerCase()} for ${club.name}`"
+                  @click="router.push({ name: 'Settings' })"
+                >
+                  <span class="ref-feature-icon" aria-hidden="true">
+                    <FlowIcon :name="item.icon" />
+                  </span>
 
-          <footer class="ref-form-actions club-appearance-actions">
-            <button
-              class="ref-button"
-              type="button"
-              :disabled="appearanceBusy"
-              @click="closeAppearance"
-            >
-              Cancel
-            </button>
+                  <span class="ref-choice-row-copy">
+                    <strong>{{ item.title }}</strong>
+                    <span>{{ item.copy }}</span>
+                  </span>
 
-            <button
-              class="ref-button primary"
-              type="button"
-              :disabled="appearanceBusy"
-              @click="saveAppearance"
-            >
-              {{ appearanceBusy ? 'Savingâ€¦' : 'Save appearance' }}
-            </button>
-          </footer>
+                  <FlowIcon name="arrow-right" aria-hidden="true" />
+                </button>
+
+                <RouterLink
+                  v-else
+                  class="ref-choice-row"
+                  :to="item.to"
+                  :aria-label="`${item.action} ${item.title.toLowerCase()} for ${club.name}`"
+                >
+                  <span class="ref-feature-icon" aria-hidden="true">
+                    <FlowIcon :name="item.icon" />
+                  </span>
+
+                  <span class="ref-choice-row-copy">
+                    <strong>{{ item.title }}</strong>
+                    <span>{{ item.copy }}</span>
+                  </span>
+
+                  <FlowIcon name="arrow-right" aria-hidden="true" />
+                </RouterLink>
+              </template>
+              </div>
+            </section>
+
+            <section v-if="group.id === 'people'" v-show="clubSwitcherVisible" class="club-profile__switch" aria-label="Active club">
+              <div class="club-profile__switch-inner">
+                <p>You're playing out of <strong>{{ club.name }}</strong></p>
+                <button class="ref-button" type="button" @click="openClubPicker">Change club</button>
+              </div>
+            </section>
+          </template>
         </div>
-      </dialog>
+      </section>
     </section>
 
     <dialog ref="clubPicker" class="club-picker" aria-labelledby="club-picker-title" @click.self="closeClubPicker">
       <section class="club-picker__sheet">
         <header><div><h2 id="club-picker-title">Your clubs</h2><p>Pick the one you are playing in today.</p></div><button type="button" aria-label="Close your clubs" @click="closeClubPicker"><FlowIcon name="close" /></button></header>
         <div class="club-picker__actions"><button class="club-picker__action club-picker__action--start" type="button" @click="openClubFlow('create')"><span><strong>Start a new club</strong><small>Be the one who runs the ladder.</small></span><FlowIcon name="arrow-right" /></button><button class="club-picker__action club-picker__action--join" type="button" @click="openClubFlow('join')"><span><strong>Join with an invite</strong><small>Got a code from a club? Bring it here.</small></span><FlowIcon name="arrow-right" /></button></div>
-        <div class="club-picker__list"><p>Your clubs</p><button v-for="item in pickerClubs" :key="item.id" type="button" :class="{ 'club-picker__club--active': item.id === adminStore.activeClubId }" :disabled="Boolean(switchingClubId)" @click="switchClub(item.id)"><b>{{ clubInitials(item.name) }}</b><span><strong>{{ item.name }}</strong><small>{{ item.city }} · {{ roleCopy(item.role) }}</small></span><FlowIcon v-if="item.id === adminStore.activeClubId" name="check" /></button></div>
+        <div class="club-picker__list"><p>Your clubs</p><button v-for="item in pickerClubs" :key="item.id" type="button" :class="{ 'club-picker__club--active': item.id === adminStore.activeClubId }" :disabled="Boolean(switchingClubId)" @click="switchClub(item.id)"><b>{{ clubInitials(item.name) }}</b><span><strong>{{ item.name }}</strong><small>{{ item.city }} ï¿½ {{ roleCopy(item.role) }}</small></span><FlowIcon v-if="item.id === adminStore.activeClubId" name="check" /></button></div>
       </section>
     </dialog>
     <section v-if="!club" class="ref-page-narrow">
@@ -307,6 +376,339 @@ useShellNestedHeader(() => ({
 .club-profile__switch { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--g-line, #e4e9e5); }
 .club-profile__switch p { margin: 0; color: var(--g-muted, #778079); font-size: 13px; }
 .club-profile__switch strong { color: var(--g-ink, #28332c); }
+
+.club-signature-hero {
+  display: grid;
+  gap: 30px;
+  padding: 18px 0 34px;
+  border-bottom: 1px solid rgba(22, 61, 43, 0.08);
+}
+
+.club-signature-hero__main {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 22px;
+}
+
+.club-signature-hero__photo-frame {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  padding: 4px;
+  border: 1px solid rgba(22, 61, 43, 0.1);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(22, 61, 43, 0.045);
+}
+
+.club-signature-hero__photo {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 8px;
+  background: #163d2b;
+  color: #fff;
+  isolation: isolate;
+}
+
+.club-signature-hero__photo::before,
+.club-signature-hero__photo::after {
+  position: absolute;
+  z-index: 1;
+  inset: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  content: '';
+}
+
+.club-signature-hero__photo::after {
+  inset: 15px 36px;
+  border-width: 0 1px;
+}
+
+.club-signature-hero__photo img {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.club-signature-hero__photo span {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 4px;
+  background: rgba(14, 52, 35, 0.92);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.club-signature-hero__photo-edit {
+  position: absolute;
+  z-index: 3;
+  right: -6px;
+  bottom: -6px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(22, 61, 43, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  color: #526057;
+  box-shadow: 0 4px 12px rgba(22, 61, 43, 0.08);
+}
+
+.club-signature-hero__photo-edit svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.club-signature-hero__copy {
+  min-width: 0;
+}
+
+.club-signature-hero__eyebrow {
+  margin: 0 0 9px;
+  color: var(--g-green-strong, #067d20);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.club-signature-hero h1 {
+  max-width: 760px;
+  margin: 0;
+  color: var(--g-ink, #28332c);
+  font-size: clamp(30px, 3.6vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.048em;
+  line-height: 1.04;
+}
+
+.club-signature-hero__lead {
+  max-width: 560px;
+  margin: 12px 0 0;
+  color: var(--g-ink-2, #465149);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.club-signature-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--g-muted, #7d8780);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.club-signature-hero__meta i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #bcc5be;
+}
+
+.club-signature-hero__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.club-signature-hero__rail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.club-signature-hero__rail a {
+  display: grid;
+  min-height: 84px;
+  align-content: center;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--g-line, #e4e9e5);
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.club-signature-hero__rail strong {
+  color: var(--g-ink, #28332c);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.club-signature-hero__rail span {
+  color: var(--g-muted, #7d8780);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.club-signature-hero__rail a:last-child strong {
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .club-signature-hero__photo-edit:hover {
+    background: #f7faf8;
+  }
+
+  .club-signature-hero__rail a:hover {
+    border-color: rgba(22, 61, 43, 0.18);
+    background: #fbfcfb;
+  }
+}
+
+@media (max-width: 900px) {
+  .club-signature-hero__main {
+    grid-template-columns: 88px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .club-signature-hero__photo-frame {
+    width: 84px;
+    height: 84px;
+  }
+
+  .club-signature-hero__actions {
+    grid-column: 2;
+    margin-top: -4px;
+  }
+}
+
+@media (max-width: 760px) {
+  .club-signature-hero {
+    gap: 25px;
+    padding: 8px 0 28px;
+  }
+
+  .club-signature-hero__main {
+    grid-template-columns: 74px minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .club-signature-hero__photo-frame {
+    width: 72px;
+    height: 72px;
+    padding: 3px;
+    border-radius: 9px;
+  }
+
+  .club-signature-hero__photo {
+    border-radius: 6px;
+  }
+
+  .club-signature-hero__photo::before {
+    inset: 12px;
+  }
+
+  .club-signature-hero__photo::after {
+    inset: 12px 29px;
+  }
+
+  .club-signature-hero__photo span {
+    width: 34px;
+    height: 34px;
+    font-size: 11px;
+  }
+
+  .club-signature-hero h1 {
+    font-size: 34px;
+  }
+
+  .club-signature-hero__lead {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+
+  .club-signature-hero__actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin-top: 2px;
+  }
+
+  .club-signature-hero__actions .ref-button {
+    flex: 1;
+  }
+
+  .club-signature-hero__rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .club-signature-hero__rail a {
+    min-height: 76px;
+    padding: 14px 16px;
+  }
+}
+
+@media (max-width: 430px) {
+  .club-signature-hero h1 {
+    font-size: 31px;
+  }
+
+  .club-signature-hero__main {
+    grid-template-columns: 66px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .club-signature-hero__photo-frame {
+    width: 64px;
+    height: 64px;
+  }
+
+  .club-signature-hero__photo::before {
+    inset: 10px;
+  }
+
+  .club-signature-hero__photo::after {
+    inset: 10px 25px;
+  }
+
+  .club-signature-hero__photo span {
+    width: 30px;
+    height: 30px;
+  }
+
+  .club-signature-hero__rail {
+    grid-template-columns: 1fr;
+  }
+
+  .club-signature-hero__rail a {
+    min-height: 62px;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .club-signature-hero__rail strong {
+    min-width: 42px;
+  }
+}
 
 .club-profile {
   display: grid;
@@ -342,6 +744,41 @@ useShellNestedHeader(() => ({
   line-height: 1.5;
 }
 
+.club-profile__manage-groups {
+  display: grid;
+  gap: 46px;
+}
+
+.club-profile__manage-group {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.club-profile__manage-group + .club-profile__manage-group {
+  padding-top: 36px;
+  border-top: 1px solid rgba(22, 61, 43, 0.08);
+}
+
+.club-profile__group-heading {
+  margin: 0 0 22px;
+}
+
+.club-profile__group-heading h3 {
+  margin: 0;
+  color: var(--g-ink, #28332c);
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+}
+
+.club-profile__group-heading p {
+  margin: 4px 0 0;
+  color: var(--g-muted, #778079);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* Active Club navigation is allowed to use the desktop width.
    The /clubs DIRECTORY remains stacked; this is a different surface. */
 .club-profile .ref-choice-stack {
@@ -365,6 +802,7 @@ useShellNestedHeader(() => ({
   padding: 22px;
   border: 1px solid var(--color-border);
   border-radius: 12px;
+  margin-block: 2px;
   background: #f5f8f6;
   box-shadow: none;
   text-align: left;
@@ -450,15 +888,6 @@ useShellNestedHeader(() => ({
 .club-profile .ref-choice-row:active {
   transform: scale(0.988) translateZ(0);
 }
-
-.club-appearance-dialog {
-  width: min(620px, 88vw);
-}
-
-.club-appearance-actions {
-  margin-top: 20px;
-}
-
 @media (max-width: 760px) {
   .club-profile__switch { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--g-line, #e4e9e5); }
 .club-profile__switch p { margin: 0; color: var(--g-muted, #778079); font-size: 13px; }
@@ -466,6 +895,18 @@ useShellNestedHeader(() => ({
 
 .club-profile {
     gap: 27px;
+  }
+
+  .club-profile__manage-groups {
+    gap: 38px;
+  }
+
+  .club-profile__manage-group {
+    padding-top: 0;
+  }
+
+  .club-profile__manage-group + .club-profile__manage-group {
+    padding-top: 28px;
   }
 
   .club-profile .ref-choice-stack {
@@ -557,5 +998,194 @@ useShellNestedHeader(() => ({
 .club-picker__action--start { color: #fff !important; background: #163d2b !important; border-color: #163d2b !important; }
 .club-picker__action--start strong { color: #fff; }.club-picker__action--start small { color: rgba(255,255,255,.68); }.club-picker__action--start :deep(.flow-icon) { color: #d8ff47; }
 .club-picker__action--join { background: #f1f4f2 !important; border-color: #e1e7e2 !important; color: #415046; }.club-picker__action--join strong { color: #2f4035; }.club-picker__action--join small { color: #728077; }
-.club-picker__club--active { background: rgba(8, 173, 43, .10) !important; }.club-picker__club--active:hover { background: rgba(8, 173, 43, .14) !important; }.club-picker__club--active b { background: rgba(8, 173, 43, .16); color: #087c29; }.club-picker__club--active :deep(.flow-icon) { color: #087c29; }</style>
+.club-picker__club--active { background: rgba(8, 173, 43, .10) !important; }.club-picker__club--active:hover { background: rgba(8, 173, 43, .14) !important; }.club-picker__club--active b { background: rgba(8, 173, 43, .16); color: #087c29; }.club-picker__club--active :deep(.flow-icon) { color: #087c29; }
+/* Keep the active-club context available throughout the Club workspace. */
+.club-profile__switch-slot { min-height: 64px; }
+.club-profile__switch {
+  position: fixed;
+  z-index: 24;
+  top: var(--app-header-height, 76px);
+  right: 0;
+  left: 0;
+  min-height: 64px;
+  margin: 0;
+  padding: 12px max(20px, calc((100vw - var(--app-header-content-width, 1100px)) / 2));
+  border-bottom: 1px solid var(--g-line, #e4e9e5);
+  background: var(--color-bg, #fff);
+  box-shadow: 0 6px 16px rgba(10, 36, 23, .045);
+}
+@media (max-width: 520px) {
+  .club-profile__switch-slot { min-height: 62px; }
+  .club-profile__switch { min-height: 62px; padding-inline: 16px; }
+  .club-profile__switch p { font-size: 12px; }
+}
+
+/* The active-club bar starts in management context, after access and roles. */
+.club-profile__switch-slot {
+  display: none;
+}
+
+.club-profile__switch {
+  position: sticky;
+  z-index: 24;
+  top: var(--app-header-height, 76px);
+  min-height: 64px;
+  margin: 0 calc(50% - 50vw);
+  padding: 0;
+  border: 0;
+  background: #163d2b;
+  box-shadow: 0 8px 18px rgba(10, 36, 23, 0.14);
+}
+
+.club-profile__switch-inner {
+  display: flex;
+  width: var(--app-header-content-width);
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 auto;
+}
+
+.club-profile__switch p,
+.club-profile__switch strong {
+  color: #fff;
+}
+
+.club-profile__switch p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.club-profile__switch strong {
+  text-decoration: underline;
+  text-decoration-color: #d8ff47;
+  text-underline-offset: 3px;
+}
+
+.club-profile__switch .ref-button {
+  border-color: #d8ff47;
+  background: #d8ff47;
+  color: #163d2b;
+}
+
+.club-invite-menu {
+  position: relative;
+}
+
+.club-invite-menu > .ref-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.club-invite-menu > .ref-button :deep(.flow-icon) {
+  width: 13px;
+  height: 13px;
+}
+
+.club-invite-menu__panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: 260px;
+  padding: 7px;
+  border: 1px solid var(--g-line, #e4e9e5);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(13, 38, 23, 0.16);
+}
+
+.club-invite-menu__panel button {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #2f4035;
+  text-align: left;
+}
+
+.club-invite-menu__panel button:hover {
+  background: #f1f6f2;
+}
+
+.club-invite-menu__panel span {
+  display: grid;
+  gap: 2px;
+}
+
+.club-invite-menu__panel strong {
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.club-invite-menu__panel small {
+  color: var(--g-muted, #778079);
+  font-size: 10px;
+}
+
+.club-invite-menu__panel :deep(.flow-icon) {
+  width: 16px;
+  height: 16px;
+  color: #078c2f;
+}
+
+@media (max-width: 760px) {
+  .club-profile__switch,
+  .club-profile__switch-inner {
+    min-height: 62px;
+  }
+
+  .club-profile__switch p {
+    font-size: 12px;
+  }
+
+  .club-invite-menu,
+  .club-invite-menu > .ref-button {
+    width: 100%;
+  }
+
+  .club-invite-menu__panel {
+    right: auto;
+    left: 0;
+    width: min(280px, calc(100vw - 32px));
+  }
+}
+/* Fixed only after the people section reaches the global header. */
+.club-profile__switch {
+  position: fixed;
+  z-index: 39;
+  top: var(--app-header-height, 76px);
+  right: 0;
+  left: var(--app-sidebar-width, 0px);
+  min-height: 64px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #163d2b;
+  box-shadow: 0 8px 18px rgba(10, 36, 23, 0.14);
+}
+
+.club-profile__switch-inner {
+  width: 90%;
+  max-width: none;
+  margin-inline: auto;
+}
+
+@media (max-width: 800px) {
+  .club-profile__switch {
+    left: 0;
+  }
+
+  .club-profile__switch-inner {
+    width: var(--app-shell-content-width);
+  }
+}</style>
 

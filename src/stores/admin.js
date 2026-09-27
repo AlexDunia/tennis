@@ -14,6 +14,7 @@ import {
   importClubMemberData,
   previewClubMemberImport,
   updateClubMemberRecord,
+  removeClubMemberRecord,
   updateClubMemberLadderPosition,
   createClub as createClubRelationship,
   createMemberRecordInvite,
@@ -417,6 +418,23 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
 
+  async function removeMemberRecord(memberId) {
+    isSaving.value = true
+    error.value = ''
+    try {
+      const currentActor = actor()
+      const result = await removeClubMemberRecord(sanitizeDirectoryId(memberId), currentActor)
+      const directory = await getClubDirectory(currentActor)
+      applyDirectory(directory)
+      setup.value = directory.clubs.find((club) => club.id === directory.activeClubId)?.setup || setup.value
+      return result
+    } catch (memberError) {
+      error.value = memberError?.message || 'Unable to remove this member.'
+      throw memberError
+    } finally {
+      isSaving.value = false
+    }
+  }
   async function saveMemberLadderPosition(memberId, ladderId, position) {
     isSaving.value = true
     error.value = ''
@@ -730,6 +748,7 @@ export const useAdminStore = defineStore('admin', () => {
     createMemberInvite,
     addMemberRecord,
     saveMemberRecord,
+    removeMemberRecord,
     saveMemberLadderPosition,
     previewMemberImport,
     importMemberData,

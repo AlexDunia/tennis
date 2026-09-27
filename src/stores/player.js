@@ -36,6 +36,7 @@ export const usePlayerStore = defineStore('player', () => {
   const roleOverrides = ref(loadRoleOverrides())
   const isLoading = ref(false)
   const error = ref('')
+  let playersLoadRequest = null
 
   // 7. COMPUTED PROPERTIES
 
@@ -112,26 +113,33 @@ export const usePlayerStore = defineStore('player', () => {
 
   // 8. ACTIONS
 
-  const loadPlayers = async () => {
+  const loadPlayers = () => {
+    if (playersLoadRequest) return playersLoadRequest
+
     error.value = ''
     isLoading.value = true
 
-    try {
-      const response = await getPlayers()
+    playersLoadRequest = (async () => {
+      try {
+        const response = await getPlayers()
 
-      if (response.success) {
-        players.value = response.data
-        return response.data
+        if (response.success) {
+          players.value = response.data
+          return response.data
+        }
+
+        error.value = response.message || 'Unable to load players.'
+      } catch (loadError) {
+        error.value = loadError?.message || 'Unable to load players.'
+      } finally {
+        isLoading.value = false
+        playersLoadRequest = null
       }
 
-      error.value = response.message || 'Unable to load players.'
-    } catch (loadError) {
-      error.value = loadError?.message || 'Unable to load players.'
-    } finally {
-      isLoading.value = false
-    }
+      return []
+    })()
 
-    return []
+    return playersLoadRequest
   }
 
   const assignCategory = (playerId, category) => {

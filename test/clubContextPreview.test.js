@@ -237,11 +237,11 @@ test('active club keeps member-facing areas visible while management stays permi
   assert.match(clubView, /title:\s*'Tournaments'/)
   assert.match(
     clubView,
-    /if \(canManage\.value\)[\s\S]*title:\s*'Club settings'/,
+    /if \(canManage\.value\)[\s\S]*title:\s*'Club details'/,
   )
   assert.match(
     memberView,
-    /v-if="canManage"[\s\S]*id="member-add-people"/,
+    /<div v-if="canManage" class="primary-action">[\s\S]*Add member/,
   )
 })
 

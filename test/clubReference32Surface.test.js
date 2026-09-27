@@ -8,14 +8,28 @@ const importView = readFileSync('src/views/ClubMemberImportView.vue', 'utf8')
 const importScenarioSource = readFileSync('src/utils/onboarding/memberImport.js', 'utf8')
 const layout = readFileSync('src/layouts/DefaultLayout.vue', 'utf8')
 const clubsView = readFileSync('src/views/ClubsView.vue', 'utf8')
+const calendarView = readFileSync('src/views/ClubCalendarView.vue', 'utf8')
+const router = readFileSync('src/router/index.js', 'utf8')
 
-test('active club surface carries the Reference 32 club identity and direct management choices', () => {
+test('active club surface uses the requested profile hero and begins management with Members', () => {
+  assert.match(clubView, /class="club-signature-hero"/)
+  assert.match(clubView, /Everything that keeps the club moving, in one place\./)
+  assert.match(clubView, /Invite member/)
+  assert.match(clubView, /Change club/)
   assert.match(clubView, /Manage your club/)
   assert.doesNotMatch(clubView, /Bring your players in/)
-  assert.doesNotMatch(clubView, /class="ref-club-state"/)
-  assert.match(clubView, /Invite, import and manage your people\./)
-  assert.match(clubView, /Positions, rules, challenges and activity\./)
-  assert.match(clubView, /Events, draws, fixtures and results\./)
+  assert.doesNotMatch(clubView, /Members and the people who can manage the club\./)
+  assert.match(clubView, /invite, import and manage people/)
+  assert.match(clubView, /title: 'Competition'/)
+  assert.match(clubView, /Everything that controls how members compete\./)
+  assert.match(clubView, /title: 'Club'/)
+  assert.match(clubView, /title: 'Club details'/)
+  assert.match(clubView, /Name, location, logo and club appearance/)
+  assert.match(clubView, /title: 'Calendar'/)
+  assert.match(clubView, /to: \{ name: 'ClubCalendar' \}/)
+  assert.doesNotMatch(clubView, /title: 'Courts'/)
+  assert.doesNotMatch(clubView, /title: 'Appearance'/)
+  assert.doesNotMatch(clubView, /appearance: true/)
 })
 
 test('member directory uses one searchable list, a quiet zero state, and progressive Add people choices', () => {
@@ -45,6 +59,12 @@ test('import flow carries exact Reference 32 scenario and work-page copy', () =>
   assert.match(importView, /Not importing/)
 })
 
+test('Club calendar belongs to the Club category and scopes scheduled match activity to the active club', () => {
+  assert.match(router, /name: 'ClubCalendar'/)
+  assert.match(calendarView, /Club calendar/)
+  assert.match(calendarView, /scheduled Ladder and Tournament matches/)
+  assert.match(calendarView, /match\.clubId === activeClubId\.value/)
+})
 test('club routes do not show the old Overview Members Rules Manage contextual strip', () => {
   assert.match(
     layout,

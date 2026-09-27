@@ -55,6 +55,12 @@ const completedChallenges = computed(
         >
           Personal information
         </BaseButton>
+        <BaseButton
+          variant="ghost"
+          @click="router.push({ name: 'AccountSettings' })"
+        >
+          Account and security
+        </BaseButton>
 
       </div>
     </div>

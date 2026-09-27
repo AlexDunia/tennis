@@ -230,8 +230,6 @@ a[role='button'],
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  transform-origin: center center;
-  will-change: transform, opacity;
 }
 
 button,
@@ -244,20 +242,10 @@ a[role='button'],
 .button-secondary,
 .button-ghost {
   transition:
-    transform var(--motion-short) var(--motion-curve),
     background var(--motion-short) var(--motion-curve),
     border-color var(--motion-short) var(--motion-curve),
     color var(--motion-short) var(--motion-curve),
     box-shadow var(--motion-short) var(--motion-curve);
-}
-
-button:hover:not(:disabled),
-a[role='button']:hover:not(:disabled),
-.t-button:hover:not(:disabled),
-.button-primary:hover:not(:disabled),
-.button-secondary:hover:not(:disabled),
-.button-ghost:hover:not(:disabled) {
-  transform: translateY(-0.5px);
 }
 
 button:active:not(:disabled),
@@ -347,11 +335,6 @@ a[role='button'],
 .section-card:hover {
   border-color: var(--color-border-strong);
   box-shadow: 0 9px 24px rgba(15, 34, 24, 0.035);
-}
-
-:where(a, button, [role='button'], summary):hover :is(svg, .flow-icon, .tennis-nav-icon) {
-  transform: translateY(-1px) rotate(-2deg);
-  transition: transform 180ms var(--motion-curve);
 }
 
 :where(a, button, [role='button'], summary):active :is(svg, .flow-icon, .tennis-nav-icon) {
@@ -570,4 +553,41 @@ img {
 /* Keep the application width stable when a compact view removes page overflow. */
 html {
   scrollbar-gutter: stable;
+}
+/*
+ * Hover feedback must not re-rasterize text. Fractional transforms make labels
+ * look soft, so hover feedback is limited to color, border, and surface changes.
+ */
+@media (hover: hover) and (pointer: fine) {
+  :where(
+    a,
+    button,
+    [role='button'],
+    [role='link'],
+    [role='tab'],
+    [role='menuitem'],
+    summary,
+    article,
+    [class*='action'],
+    [class*='button'],
+    [class*='btn'],
+    [class*='card'],
+    [class*='choice'],
+    [class*='chip'],
+    [class*='folder'],
+    [class*='item'],
+    [class*='option'],
+    [class*='pill'],
+    [class*='row'],
+    [class*='tile']
+  ):hover {
+    transform: none !important;
+  }
+}
+
+/* Custom tooltip copy is intentionally disabled: hover never adds extra text. */
+[data-tooltip]::before,
+[data-tooltip]::after {
+  content: none !important;
+  display: none !important;
 }

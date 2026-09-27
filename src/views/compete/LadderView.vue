@@ -10,6 +10,7 @@ import {
 } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import EmptyState from '../../components/EmptyState.vue'
+import RoutePageSkeleton from '../../components/RoutePageSkeleton.vue'
 import FlowIcon from '../../components/friendly/FlowIcon.vue'
 import LadderAddClubMembersView from '../LadderAddClubMembersView.vue'
 import LadderShareInviteView from '../LadderShareInviteView.vue'
@@ -64,6 +65,7 @@ const playerStore = usePlayerStore()
 const ladderMatchWorkspaceStore = useLadderMatchWorkspaceStore()
 const shell = inject('gorraShell', null)
 
+const initialPageLoading = ref(true)
 const activeLadderId = ref('')
 const ladderSwitching = ref(false)
 const matchSetupMenuOpen = ref(false)
@@ -122,7 +124,8 @@ const addPeopleOptionsRef = ref(null)
 const addPeopleFlows = ref({})
 
 const playerRowRefs = new Map()
-
+const individualConnectorPaths = ref([])
+const individualConnectorCanvas = ref({ width: 0, height: 0 })
 const challengeOriginScrollY = ref(0)
 
 const challengeOriginListScrollTop = ref(0)
@@ -412,28 +415,16 @@ const challengeSelectionActive = computed(
     ),
 )
 
-const challengeFocusPlayers = computed(() => {
-  if (!selectedPlayer.value) return []
-
-  return players.value.filter(
-    (player) =>
-      player.id === selectedPlayer.value.id ||
-      eligiblePlayerIds.value.has(player.id),
-  )
-})
-
 const challengeFocusActive = computed(() =>
   challengeSelectionActive.value || drawerOpen.value,
 )
 
+// Keep the complete ranking stable while one Individual challenge is selected.
 const displayPlayers = computed(() => {
-  const source = challengeFocusActive.value
-    ? challengeFocusPlayers.value
-    : players.value
   const query = individualSearchQuery.value.trim().toLocaleLowerCase()
   return query
-    ? source.filter((player) => String(player.name || '').toLocaleLowerCase().includes(query))
-    : source
+    ? players.value.filter((player) => String(player.name || '').toLocaleLowerCase().includes(query))
+    : players.value
 })
 
 let challengeScrollFrame = 0
@@ -580,6 +571,49 @@ function setPlayerRowRef(playerId, element) {
   playerRowRefs.delete(playerId)
 }
 
+function redrawIndividualConnectors() {
+  nextTick(() => {
+    const list = ladderListRef.value
+    const source = playerRowRefs.get(selectedPlayerId.value)?.querySelector?.('.ladder-row')
+    if (!list || !source || !challengeSelectionActive.value) {
+      individualConnectorPaths.value = []
+      return
+    }
+    const rows = list.querySelector('.ladder-list__rows')
+    const rootBounds = rows?.getBoundingClientRect()
+    const sourceBounds = source.getBoundingClientRect()
+    if (!rootBounds || !sourceBounds) return
+    const paths = eligiblePlayers.value.map((player) => {
+      const row = playerRowRefs.get(player.id)?.querySelector?.('.ladder-row')
+      const bounds = row?.getBoundingClientRect()
+      if (!bounds) return null
+      const startX = sourceBounds.right - rootBounds.left - 52
+      const startY = sourceBounds.top - rootBounds.top + sourceBounds.height / 2
+      const endX = bounds.right - rootBounds.left - 52
+      const endY = bounds.top - rootBounds.top + bounds.height / 2
+      const railX = Math.max(startX, endX) + 24
+      return { id: player.id, d: `M ${startX} ${startY} H ${railX} V ${endY} H ${endX}` }
+    }).filter(Boolean)
+    individualConnectorCanvas.value = { width: Math.ceil(rows.scrollWidth), height: Math.ceil(rows.scrollHeight) }
+    individualConnectorPaths.value = paths
+  })
+}
+
+function autoScrollIndividualList(clientY) {
+  const list = ladderListRef.value
+  if (!list) return
+  const bounds = list.getBoundingClientRect()
+  const edge = 72
+  if (clientY < bounds.top + edge) {
+    const pressure = Math.min(1, (bounds.top + edge - clientY) / edge)
+    list.scrollTop -= 6 + pressure * 20
+  } else if (clientY > bounds.bottom - edge) {
+    const pressure = Math.min(1, (clientY - (bounds.bottom - edge)) / edge)
+    list.scrollTop += 6 + pressure * 20
+  }
+  redrawIndividualConnectors()
+}
+
 function prefersReducedMotion() {
   return Boolean(
     typeof window !== 'undefined' &&
@@ -705,24 +739,8 @@ async function focusChallengeViewport() {
     `${availableHeight}px`,
   )
 
-  /*
-   * Start the focused list at its first relevant player.
-   * Larger ranges remain scrollable inside this list.
-   */
-  list.scrollTop = 0
-
-  const targetY = Math.max(
-    0,
-    window.scrollY +
-      list.getBoundingClientRect().top -
-      top,
-  )
-
-  animateChallengePageTo(targetY)
-
-  list.focus({
-    preventScroll: true,
-  })
+  list.focus({ preventScroll: true })
+  redrawIndividualConnectors()
 }
 
 watch(
@@ -778,10 +796,26 @@ function startDragChallenge(player) {
 
 function startHandDrag(player, event) {
   if (event.button !== 0) return
-  pendingDrag = { player, originX: event.clientX, originY: event.clientY, active: false }
+  const row = event.currentTarget?.closest('.ladder-row')
+  pendingDrag = {
+    player,
+    originX: event.clientX,
+    originY: event.clientY,
+    bounds: row?.getBoundingClientRect?.(),
+    active: false,
+  }
   window.addEventListener('pointermove', moveHandDrag)
   window.addEventListener('pointerup', endHandDrag, { once: true })
 }
+
+function clampHandGhostY(clientY) {
+  const list = document.querySelector('.ladder-list__rows')
+  if (!list) return clientY
+  const bounds = list.getBoundingClientRect()
+  const half = Math.max(28, Number(pendingDrag?.bounds?.height) / 2 || 30)
+  return Math.max(bounds.top + half, Math.min(clientY, bounds.bottom - half))
+}
+
 function moveHandDrag(event) {
   if (!pendingDrag) return
   if (!pendingDrag.active) {
@@ -790,10 +824,18 @@ function moveHandDrag(event) {
     if (selectedPlayerId.value !== pendingDrag.player.id) { clearHandDrag(); return }
     pendingDrag.active = true
     draggingChallengePlayerId.value = pendingDrag.player.id
-    const bounds = document.querySelector('.ladder-row--selected')?.getBoundingClientRect()
-    dragGhost.value = { player: pendingDrag.player, x: bounds ? bounds.left + bounds.width / 2 : event.clientX, y: event.clientY, width: bounds?.width || 440 }
+    const bounds = document.querySelector('.ladder-row--selected')?.getBoundingClientRect() || pendingDrag.bounds
+    dragGhost.value = {
+      player: pendingDrag.player,
+      left: bounds?.left || event.clientX,
+      top: clampHandGhostY(event.clientY),
+      width: bounds?.width || 420,
+    }
+    redrawIndividualConnectors()
+    return
   }
-  dragGhost.value = { ...dragGhost.value, player: pendingDrag.player, y: event.clientY }
+  autoScrollIndividualList(event.clientY)
+  dragGhost.value = { ...dragGhost.value, top: clampHandGhostY(event.clientY) }
 }
 function endHandDrag(event) {
   if (!pendingDrag?.active) { clearHandDrag(); return }
@@ -899,6 +941,19 @@ function handlePlayerRow(player) {
     return
   }
 
+  togglePlayerManagement(player)
+}
+
+function togglePlayerManagement(player) {
+  if (
+    !canManageLadder.value ||
+    isPlayingLive(player) ||
+    individualDeleteSelectionMode.value ||
+    selectedPlayer.value
+  ) {
+    return
+  }
+
   managedPlayerId.value =
     managedPlayerId.value === player.id
       ? ''
@@ -940,7 +995,19 @@ function setLadderMode(mode) {
   if (!canManageLadder.value) return
   const next = mode === 'bulk' ? 'bulk' : 'individual'
   if (next === ladderMode.value) return
-  if (next === 'bulk') { selectedOpponentId.value = ''; drawerResult.value = null; managedPlayerId.value = ''; moveDialogOpen.value = false; missingMatchDialogOpen.value = false; removeDialogOpen.value = false; individualDeleteSelectionMode.value = false; individualDeletePlayerIds.value = [] }
+
+  // The modes have independent drafts. Switching views never discards either
+  // one; only the visible Individual controls are reset while Bulk is active.
+  if (next === 'bulk') {
+    selectedOpponentId.value = ''
+    drawerResult.value = null
+    managedPlayerId.value = ''
+    moveDialogOpen.value = false
+    missingMatchDialogOpen.value = false
+    removeDialogOpen.value = false
+    individualDeleteSelectionMode.value = false
+    individualDeletePlayerIds.value = []
+  }
   ladderMatchWorkspaceStore.setMode(next)
   if (next === 'individual') void nextTick(restoreIndividualSelection)
 }
@@ -1699,10 +1766,14 @@ onMounted(async () => {
     tasks.push(challengeStore.loadChallenges())
   }
 
-  await Promise.allSettled(tasks)
-  const requestedMode = String(route.query.mode || '').toLowerCase()
-  if (requestedMode === 'bulk' || requestedMode === 'individual') setLadderMode(requestedMode)
-  else if (ladderMode.value === 'individual') restoreIndividualSelection()
+  try {
+    await Promise.allSettled(tasks)
+    const requestedMode = String(route.query.mode || '').toLowerCase()
+    if (requestedMode === 'bulk' || requestedMode === 'individual') setLadderMode(requestedMode)
+    else if (ladderMode.value === 'individual') restoreIndividualSelection()
+  } finally {
+    initialPageLoading.value = false
+  }
 })
 
 onUnmounted(() => {
@@ -1799,29 +1870,28 @@ function continueLadderSetup(ladder = activeLadder.value) {
       'ladder-view--switching': ladderSwitching,
     }"
   >
-    <Transition name="challenge-backdrop">
-      <button
-        v-if="challengeSelectionActive"
-        class="challenge-selection-backdrop"
-        type="button"
-        tabindex="-1"
-        aria-label="Cancel challenge selection"
-        @click="cancelChallengeSelection"
-        @wheel.prevent
-        @touchmove.prevent
-      ></button>
-    </Transition>
-    <LadderClubRail
-      :club="activeClub"
-      :ladders="ladders"
-      :active-ladder-id="activeLadder?.id || ''"
-      :can-manage="canManageLadder"
-      :mode="ladderMode"
-      @select="selectLadder"
-      @create="createLadder"
-      @import="importLadder"
-      @mode="setLadderMode"
-    />
+
+    <div
+      v-if="initialPageLoading"
+      class="ladder-initial-loading"
+      aria-busy="true"
+      aria-label="Loading ladder"
+    >
+      <RoutePageSkeleton route-name="Rankings" />
+    </div>
+
+    <template v-else>
+      <LadderClubRail
+        :club="activeClub"
+        :ladders="ladders"
+        :active-ladder-id="activeLadder?.id || ''"
+        :can-manage="canManageLadder"
+        :mode="ladderMode"
+        @select="selectLadder"
+        @create="createLadder"
+        @import="importLadder"
+        @mode="setLadderMode"
+      />
 
     <section
       v-if="activeLadder?.status === 'setup' && players.length"
@@ -1935,7 +2005,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
       </section>
     </Transition>
 
-    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :key="`${adminStore.activeClubId || 'club'}:${activeLadder.id}`" :ladder="activeLadder" :club-id="adminStore.activeClubId || ''" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" @record-missing-match="openMissingMatch" @mode="setLadderMode" @remove-player="openRemove" @remove-players="openBulkRemove" />
+    <LadderBulkScheduler v-if="bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" :key="`${adminStore.activeClubId || 'club'}:${activeLadder.id}`" :ladder="activeLadder" :club-id="adminStore.activeClubId || ''" :players="players" :config="activeLadderConfig" :courts="courts" :current-player-id="currentPlayer?.id || ''" :can-manage="canManageLadder" @move-up="moveUp" @move-down="moveDown" @move-to="openMoveTo" @record-missing-match="openMissingMatch" @toggle-challenges="toggleChallenges" @mode="setLadderMode" @remove-player="openRemove" @remove-players="openBulkRemove" />
     <main v-if="!bulkModeActive && activeLadder && activeLadder.status !== 'setup' && players.length" class="ladder-workspace">
       <div
         v-if="playerStore.isLoading"
@@ -2017,7 +2087,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
               : undefined
           "
           @click="handleChallengeListClick"
-          @keydown.esc.prevent="
+          @scroll="redrawIndividualConnectors"          @keydown.esc.prevent="
             challengeSelectionActive &&
             cancelChallengeSelection()
           "
@@ -2031,6 +2101,9 @@ function continueLadderSetup(ladder = activeLadder.value) {
             tag="div"
             class="ladder-list__rows"
           >
+          <svg v-if="individualConnectorPaths.length" class="ladder-player-connectors" :width="individualConnectorCanvas.width" :height="individualConnectorCanvas.height" :viewBox="`0 0 ${individualConnectorCanvas.width} ${individualConnectorCanvas.height}`" aria-hidden="true">
+            <path v-for="connector in individualConnectorPaths" :key="connector.id" :d="connector.d" />
+          </svg>
           <article
             v-for="player in displayPlayers"
             :key="player.id"
@@ -2209,17 +2282,25 @@ function continueLadderSetup(ladder = activeLadder.value) {
                     Paused
                   </small>
 
-                  <svg
-                    class="ladder-row__chevron"
-                    :class="{
-                      'ladder-row__chevron--open':
-                        playerRowState(player).managed,
-                    }"
-                    viewBox="0 0 20 20"
-                    aria-hidden="true"
+                  <button
+                    class="ladder-row__options-trigger"
+                    type="button"
+                    :aria-label="`Open actions for ${player.name}`"
+                    :aria-expanded="playerRowState(player).managed"
+                    @click.stop="togglePlayerManagement(player)"
                   >
-                    <path d="m6 8 4 4 4-4" />
-                  </svg>
+                    <svg
+                      class="ladder-row__chevron"
+                      :class="{
+                        'ladder-row__chevron--open':
+                          playerRowState(player).managed,
+                      }"
+                      viewBox="0 0 20 20"
+                      aria-hidden="true"
+                    >
+                      <path d="m6 8 4 4 4-4" />
+                    </svg>
+                  </button>
                 </span>
               </span>
 
@@ -2272,7 +2353,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
         </section>
       </template>
     </main>
-
+    </template>
     <teleport to="body">
       <div
         v-if="populateTestConfirmOpen"
@@ -2310,7 +2391,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
       </div>
     </teleport>
     <teleport to="body">
-      <article v-if="dragGhost" class="ladder-drag-ghost" :style="{ left: `${dragGhost.x}px`, top: `${dragGhost.y}px`, width: `${dragGhost.width}px` }"><strong>#{{ dragGhost.player.rank }}</strong><PersonAvatar :name="dragGhost.player.name" :image="dragGhost.player.imageUrl" :size="40" /><span>{{ dragGhost.player.name }}</span></article>
+      <article v-if="dragGhost" class="ladder-drag-ghost" :style="{ left: `${dragGhost.left}px`, top: `${dragGhost.top}px`, width: `${dragGhost.width}px` }"><strong>#{{ dragGhost.player.rank }}</strong><PersonAvatar :name="dragGhost.player.name" :image="dragGhost.player.imageUrl" :size="40" /><span>{{ dragGhost.player.name }}</span></article>
     </teleport>
     <teleport to="body">
       <div v-if="dragActionOpen" class="ladder-drag-action" @click.self="dragActionOpen = false; dragDropTargetId = ''; resetChallengeSelection()">
@@ -2433,6 +2514,12 @@ function continueLadderSetup(ladder = activeLadder.value) {
 .ladder-view--drawer {
   grid-template-columns:
     236px minmax(0, 1fr) 390px;
+}
+
+.ladder-initial-loading {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 24px 30px 46px;
 }
 
 .ladder-workspace {
@@ -2790,14 +2877,9 @@ function continueLadderSetup(ladder = activeLadder.value) {
 }
 
 .ladder-row--quiet {
-  opacity: 0.1;
-  filter: blur(1.15px) saturate(0.72);
-  transform: scale(0.997);
+  opacity: 0.42;
   pointer-events: none;
-  transition:
-    opacity 140ms ease,
-    filter 140ms ease,
-    transform 140ms ease;
+  transition: opacity 140ms ease;
 }
 
 .ladder-row--paused:not(.ladder-row--selected) {
@@ -3023,6 +3105,23 @@ function continueLadderSetup(ladder = activeLadder.value) {
 .ladder-row__chevron--open {
   color: var(--color-primary-strong);
   transform: rotate(180deg);
+}
+
+.ladder-row__options-trigger {
+  display: inline-grid;
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.ladder-row__options-trigger:hover,
+.ladder-row__options-trigger:focus-visible {
+  background: #edf5ee;
 }
 
 .ladder-row__action {
@@ -4266,4 +4365,62 @@ function continueLadderSetup(ladder = activeLadder.value) {
 <style scoped>
 .ladder-header-player-access { min-height: 30px; padding: 0 9px; border: 1px solid var(--color-border); border-radius: var(--app-control-radius, 7px); background: var(--color-surface); color: var(--color-text); font-size: 10px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
 .ladder-header-player-access:hover, .ladder-header-player-access:focus-visible { border-color: var(--color-border-strong); background: var(--color-surface-soft); outline: none; }
-</style>
+
+/* Match the quieter Club Members card stroke and roomier rhythm. */
+.ladder-list {
+  padding: 20px 0 30px !important;
+}
+
+.ladder-list__rows {
+  gap: 13px !important;
+}
+
+.ladder-row {
+  min-height: 96px !important;
+  padding: 18px 20px !important;
+}
+
+.ladder-row:not(.ladder-row--live):not(.ladder-row--managed):not(.ladder-row--selected):not(.ladder-row--eligible) {
+  border: .5px solid rgba(175, 190, 180, .28);
+}
+
+.ladder-row--interactive:not(.ladder-row--live):not(.ladder-row--managed):not(.ladder-row--selected):not(.ladder-row--eligible):hover {
+  border-color: rgba(175, 190, 180, .28);
+  background: #fff;
+  box-shadow: 0 2px 7px rgba(15, 34, 24, .01);
+  transform: none;
+}
+
+@media (max-width: 767px) {
+  .ladder-list {
+    padding: 16px 0 24px !important;
+  }
+
+  .ladder-row {
+    min-height: 76px !important;
+    padding: 14px 12px !important;
+  }
+}
+/* Keep the current ladder identity below the app header while the player list scrolls. */
+.ladder-workspace > .ladder-heading--setup {
+  top: var(--app-header-height) !important;
+}
+
+/* Individual uses the same player-card and held-player treatment as Bulk. */
+.ladder-row { grid-template-columns: 42px 40px minmax(0, 1fr) auto !important; gap: 11px !important; }
+.ladder-row__rank { text-align: left; font-size: 12px; }
+.ladder-row__player { display: grid; gap: 2px; }
+.ladder-row__player strong { font-size: 12px; }
+.ladder-row__metric { margin-top: 0; font-size: 9.5px; }
+.ladder-drag-ghost { min-height: 65px; grid-template-columns: 42px 40px minmax(0, 1fr); gap: 11px; padding: 10px 14px 10px 18px; border: 1px solid color-mix(in srgb, var(--color-primary) 38%, var(--color-border)); border-radius: var(--app-card-radius); background: var(--color-surface); box-shadow: 0 18px 40px rgba(20, 38, 25, .18); color: var(--color-text); font-size: 12px; font-weight: var(--font-weight-semibold); transform: translateY(-50%); }
+.ladder-drag-action__panel .button-primary { border-color: var(--color-primary-strong); background: var(--color-primary-strong); color: #fff; }
+/* Bulk is the shared drag baseline: selection never blacks out the page. */
+.ladder-view--selection .challenge-selection-backdrop { display: none; }
+.ladder-row--selected { z-index: 2; }
+.ladder-row--eligible { z-index: 2; }
+.ladder-player-connectors { position: absolute; inset: 0 auto auto 0; z-index: 1; overflow: visible; pointer-events: none; }
+.ladder-player-connectors path { fill: none; stroke: var(--color-primary); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
+.ladder-row { position: relative; z-index: 2; }
+.ladder-row--quiet { opacity: .5; pointer-events: none; }
+/* Individual selection owns a real scroll viewport, matching Bulk’s player pane. */
+.ladder-view--selection .ladder-list { height: var(--challenge-window-max-height, calc(100dvh - var(--app-header-height) - 24px)) !important; max-height: none !important; overflow-y: scroll !important; overscroll-behavior-y: contain; touch-action: pan-y; }</style>

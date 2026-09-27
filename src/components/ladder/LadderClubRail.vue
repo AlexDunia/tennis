@@ -152,6 +152,8 @@ function selectLadder(ladderId) {
 <style scoped>
 .ladder-navigation {
   min-width: 0;
+  min-height: calc(100dvh - var(--app-header-height));
+  align-self: stretch;
 }
 
 .ladder-navigation__mobile {
@@ -165,7 +167,9 @@ function selectLadder(ladderId) {
   height: calc(100dvh - var(--app-header-height));
   min-height: 0;
   overflow-y: auto;
-  scrollbar-gutter: auto;
+  box-sizing: border-box;
+  z-index: 20;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   overscroll-behavior: contain;
   padding: 22px 14px;

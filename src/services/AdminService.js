@@ -1635,6 +1635,35 @@ export async function updateClubMemberRecord(memberIdInput, input = {}, actor) {
   }
 }
 
+export async function removeClubMemberRecord(memberIdInput, actor) {
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+  const target = requireExactMemberRecord(context.club, memberIdInput)
+  const linkedUserId = sanitizeDirectoryId(target.member.userId)
+
+  if (linkedUserId) {
+    const linkedMembership = membershipFor(directory, linkedUserId, context.clubId)
+    if (linkedMembership?.status === 'active' && MANAGER_ROLES.has(linkedMembership.role)) {
+      const activeManagers = directory.memberships.filter(
+        (membership) => membership.clubId === context.clubId && membership.status === 'active' && MANAGER_ROLES.has(membership.role),
+      )
+      if (activeManagers.length <= 1) throw createServiceError('Keep at least one club admin.', 'LAST_CLUB_MANAGER')
+    }
+  }
+
+  const collection = Array.isArray(context.club.setup.membership?.[target.collectionKey]) ? context.club.setup.membership[target.collectionKey] : []
+  const membership = { ...context.club.setup.membership, [target.collectionKey]: collection.filter((_, index) => index !== target.index) }
+  const timestamp = nowIso()
+  const nextSetup = normalizeClubSetup({ ...context.club.setup, membership, updatedAt: timestamp })
+  directory.clubs[context.clubIndex] = { ...context.club, name: nextSetup.workspace.name, setup: nextSetup, updatedAt: timestamp }
+  if (linkedUserId) {
+    const linkedMembership = membershipFor(directory, linkedUserId, context.clubId)
+    if (linkedMembership) linkedMembership.status = 'inactive'
+  }
+  directory = writeDirectory(directory, userId)
+  return { club: publicDirectoryForUser(directory, userId).clubs.find((club) => club.id === context.clubId), memberId: target.memberId }
+}
 export async function previewClubMemberImport(
   draft,
   actor,
