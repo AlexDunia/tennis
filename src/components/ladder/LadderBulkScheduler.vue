@@ -2837,8 +2837,8 @@ onBeforeUnmount(() => {
           <p class="bulk-cancel-dialog__message">{{ cancellationMessage() }}</p>
           <p class="bulk-cancel-dialog__impact">Both players will become available again.</p>
           <div class="bulk-modal__actions bulk-cancel-dialog__actions">
-            <button type="button" :disabled="scheduleBusy" @click="closeCancellation">Keep match</button>
             <button type="button" class="bulk-cancel-match" :disabled="scheduleBusy" @click="confirmCancellation">{{ scheduleBusy ? 'Cancelling...' : 'Cancel match' }}</button>
+            <button type="button" class="bulk-cancel-dialog__keep" :disabled="scheduleBusy" @click="closeCancellation">Keep match</button>
           </div>
         </section>
       </div>
@@ -6652,3 +6652,27 @@ onBeforeUnmount(() => {
 .bulk-match-setup-tabs { display: flex; align-items: center; }
 .bulk-selection-clear { min-height: 30px; margin-left: auto; padding: 0 2px; border: 0; background: transparent; color: var(--color-primary-strong); font-size: 10px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
 .bulk-selection-clear:hover, .bulk-selection-clear:focus-visible { color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; outline: none; }</style>
+/* Cancellation confirmation: the destructive decision is explicit; preserving is a quiet exit. */
+.bulk-cancel-dialog__actions .bulk-cancel-match {
+  border-color: #a94943 !important;
+  background: #a94943 !important;
+  color: #fff !important;
+}
+.bulk-cancel-dialog__actions .bulk-cancel-match:hover {
+  border-color: #8f3934 !important;
+  background: #8f3934 !important;
+  color: #fff !important;
+}
+.bulk-cancel-dialog__actions .bulk-cancel-dialog__keep {
+  min-width: 0;
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--color-primary-strong) !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.bulk-cancel-dialog__actions .bulk-cancel-dialog__keep:hover {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--color-primary-strong) !important;
+}

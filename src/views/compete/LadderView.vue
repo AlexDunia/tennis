@@ -4423,4 +4423,15 @@ function continueLadderSetup(ladder = activeLadder.value) {
 .ladder-row { position: relative; z-index: 2; }
 .ladder-row--quiet { opacity: .5; pointer-events: none; }
 /* Individual selection owns a real scroll viewport, matching Bulk’s player pane. */
-.ladder-view--selection .ladder-list { height: var(--challenge-window-max-height, calc(100dvh - var(--app-header-height) - 24px)) !important; max-height: none !important; overflow-y: scroll !important; overscroll-behavior-y: contain; touch-action: pan-y; }</style>
+.ladder-view--selection .ladder-list { height: var(--challenge-window-max-height, calc(100dvh - var(--app-header-height) - 24px)) !important; max-height: none !important; overflow-y: scroll !important; overscroll-behavior-y: contain; touch-action: pan-y; }
+/* Individual uses the same independently scrollable player pane as Bulk. */
+.ladder-workspace { display: flex; height: calc(100dvh - var(--app-header-height)); min-height: 0; flex-direction: column; overflow: hidden; padding-bottom: 0 !important; }
+.ladder-workspace > .ladder-heading--setup { flex: 0 0 auto; }
+.ladder-workspace > .ladder-list { flex: 1 1 auto; min-height: 0; margin-right: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+/* The fixed Individual pane starts flush beneath the application header. */
+.ladder-workspace { padding-top: 0 !important; }
+.ladder-workspace > .ladder-heading--setup { margin-top: 0 !important; }
+/* Definitive Individual pane geometry: one header row, one scrolling player row. */
+.ladder-workspace { display: grid !important; grid-template-rows: auto minmax(0, 1fr); height: calc(100dvh - var(--app-header-height)) !important; min-height: 0; padding: 0 !important; overflow: hidden; }
+.ladder-workspace > .ladder-heading--setup { position: relative !important; top: auto !important; min-height: 0 !important; margin: 0 !important; padding: 18px 30px 0 !important; box-shadow: none; }
+.ladder-workspace > .ladder-list { height: 100%; min-height: 0; margin: 0 !important; padding: 20px 30px 30px !important; overflow-y: auto !important; overflow-x: hidden; }</style>
