@@ -2265,7 +2265,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="bulk-players__setup">
             <div class="bulk-header-tools">
-              <button v-if="queue.length" type="button" class="bulk-header-clear" @click="requestCancelBulkSetup">Deselect all</button>              <label class="bulk-player-search" :class="{ 'is-open': playerSearchOpen }" @click="window.innerWidth <= 640 && (playerSearchOpen = true)">
+              <label class="bulk-player-search" :class="{ 'is-open': playerSearchOpen }" @click="window.innerWidth <= 640 && (playerSearchOpen = true)">
                 <svg class="bulk-player-search__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>
                 <input v-model="playerSearchQuery" type="search" placeholder="Search player" aria-label="Search player in this ladder" />
               </label>
@@ -2282,6 +2282,7 @@ onBeforeUnmount(() => {
         <nav class="bulk-match-setup-tabs" aria-label="Ladder scheduling mode">
           <button type="button" @click="emit('mode', 'individual')">Individual</button>
           <button type="button" class="active" aria-pressed="true">Bulk</button>
+          <button v-if="queue.length" type="button" class="bulk-selection-clear" @click="requestCancelBulkSetup">Deselect all</button>
         </nav>
       </header>
 
@@ -6646,4 +6647,8 @@ onBeforeUnmount(() => {
 
 /* Clear only the current unscheduled Bulk selections. */
 .bulk-header-clear { min-height: 30px; padding: 0 2px; border: 0; background: transparent; color: var(--color-primary-strong); font-size: 10px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
-.bulk-header-clear:hover, .bulk-header-clear:focus-visible { color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; outline: none; }</style>
+.bulk-header-clear:hover, .bulk-header-clear:focus-visible { color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; outline: none; }
+/* Bulk selection reset belongs on the mode-tab row, not in the search toolbar. */
+.bulk-match-setup-tabs { display: flex; align-items: center; }
+.bulk-selection-clear { min-height: 30px; margin-left: auto; padding: 0 2px; border: 0; background: transparent; color: var(--color-primary-strong); font-size: 10px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.bulk-selection-clear:hover, .bulk-selection-clear:focus-visible { color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; outline: none; }</style>
