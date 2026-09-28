@@ -20,6 +20,18 @@ test('challenge setup shows the complete authoritative scoring summary', () => {
   assert.match(settings, /MatchFormatEditor/)
 })
 
+test('selected ladder controls are visually obvious', () => {
+  assert.match(settings, /class="ls-toggle__control"/)
+  assert.match(
+    settings,
+    /\.ls-choice--active\s*\{[\s\S]*background:\s*var\(--color-primary-strong\)/,
+  )
+  assert.match(
+    settings,
+    /\.ls-format-preset--active\s*\{[\s\S]*background:\s*var\(--color-primary-strong\)/,
+  )
+})
+
 test('unsupported points ranking is not presented as a working setting', () => {
   assert.match(
     settings,

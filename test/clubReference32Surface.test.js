@@ -15,6 +15,10 @@ test('active club surface uses the requested profile hero and begins management 
   assert.match(clubView, /class="club-signature-hero"/)
   assert.match(clubView, /Everything that keeps the club moving, in one place\./)
   assert.match(clubView, /Invite member/)
+  assert.doesNotMatch(clubView, /club-invite-menu__toggle/)
+  assert.match(clubView, /ref="inviteMenuRoot" class="club-invite-menu"/)
+  assert.match(clubView, /document\.addEventListener\('pointerdown', dismissInviteOptionsOnOutsidePointer\)/)
+  assert.match(clubView, /!inviteMenuRoot\.value\?\.contains\(event\.target\)/)
   assert.match(clubView, /Change club/)
   assert.match(clubView, /Manage your club/)
   assert.doesNotMatch(clubView, /Bring your players in/)
@@ -41,6 +45,14 @@ test('member directory uses one searchable list, a quiet zero state, and progres
   assert.match(membersView, /Connected accounts/)
   assert.match(membersView, /Bring your data to Gorra/)
   assert.match(membersView, /Add someone manually/)
+})
+
+test('Members uses the detailed Club invitation menu', () => {
+  assert.match(membersView, /class="club-invite-menu"/)
+  assert.match(membersView, /club-invite-menu__panel/)
+  assert.match(membersView, /Send a club invitation/)
+  assert.match(membersView, /Bring in an existing list/)
+  assert.match(membersView, /Create one member record/)
 })
 
 test('import flow carries exact Reference 32 scenario and work-page copy', () => {

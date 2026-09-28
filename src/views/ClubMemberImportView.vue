@@ -1234,7 +1234,7 @@ useShellNestedHeader(() => {
       </div>
 
       <div
-        class="ref-import-grid gorra-data-grid"
+        class="ref-import-grid gorra-data-grid gorra-data-grid--members"
       >
         <div
           class="
@@ -1244,7 +1244,7 @@ useShellNestedHeader(() => {
           "
         >
           <table
-            class="ref-import-table gorra-data-table"
+            class="ref-import-table gorra-data-table gorra-data-table--members"
           >
             <thead>
               <tr>

@@ -54,6 +54,7 @@ import {
   removePlayerFromLadder,
   setLadderChallengePaused,
 } from '../../services/LadderAdminService.js'
+import { playLadderHeartbeat } from '../../utils/notificationSound'
 
 const router = useRouter()
 const route = useRoute()
@@ -68,6 +69,7 @@ const shell = inject('gorraShell', null)
 const initialPageLoading = ref(true)
 const activeLadderId = ref('')
 const ladderSwitching = ref(false)
+const importPrerequisiteVisible = ref(false)
 const matchSetupMenuOpen = ref(false)
 const playerAccessOpen = ref(false)
 
@@ -1790,17 +1792,15 @@ onUnmounted(() => {
   shell?.endAdminMatchDrawer?.()
 })
 function createLadder() {
+  importPrerequisiteVisible.value = false
   router.push({ name: 'LadderCreate' })
 }
 
 function importLadder() {
   const ladderId = activeLadder.value?.id
   if (!ladderId) {
-    notificationStore.addToast({
-      title: 'Create a ladder first',
-      message: 'Set up a club ladder before importing players.',
-      type: 'warning',
-    })
+    importPrerequisiteVisible.value = true
+    void playLadderHeartbeat()
     return
   }
 
@@ -1926,7 +1926,35 @@ function continueLadderSetup(ladder = activeLadder.value) {
       v-else-if="!activeLadder"
       class="ladder-zero"
     >
+      <Transition name="ladder-import-guidance">
+        <section
+          v-if="importPrerequisiteVisible"
+          class="ladder-import-guidance"
+          role="alert"
+          aria-live="assertive"
+        >
+          <span class="ladder-import-guidance__icon" aria-hidden="true">!</span>
+          <div>
+            <strong>Create a ladder first</strong>
+            <p>
+              Set up a club ladder before importing players. The highlighted button below will get you started.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="ladder-import-guidance__dismiss"
+            aria-label="Dismiss import guidance"
+            @click="importPrerequisiteVisible = false"
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m6 6 8 8M14 6l-8 8" />
+            </svg>
+          </button>
+        </section>
+      </Transition>
+
       <EmptyState
+        class="ladder-zero__empty"
         illustration="ladder"
         title="No ladders yet"
         :description="
@@ -1934,9 +1962,18 @@ function continueLadderSetup(ladder = activeLadder.value) {
             ? 'Create your first club ladder. You can add or import players in the next step.'
             : 'Your club has not started a ladder yet.'
         "
-        :primary-action-label="canManageLadder ? 'Create ladder' : ''"
-        @primary-action="createLadder"
-      />
+      >
+        <template v-if="canManageLadder" #actions>
+          <button
+            type="button"
+            class="button-primary ladder-zero__create-action"
+            :class="{ 'ladder-zero__create-action--attention': importPrerequisiteVisible }"
+            @click="createLadder"
+          >
+            <span>Create ladder</span>
+          </button>
+        </template>
+      </EmptyState>
     </section>
 
     <section
@@ -3372,11 +3409,145 @@ function continueLadderSetup(ladder = activeLadder.value) {
     width: 100%;
   }
 }
-.ladder-setup-gate,
-.ladder-zero {
+.ladder-setup-gate {
   width: min(100%, 720px);
   margin: 40px auto;
   padding: 0 20px;
+}
+
+.ladder-zero {
+  display: grid;
+  min-width: 0;
+  width: 100%;
+  grid-column: 2;
+  align-content: start;
+  margin: 0;
+  padding: 24px 30px 46px;
+  box-sizing: border-box;
+}
+
+.ladder-zero__empty {
+  width: min(100%, 720px);
+  margin: 28px auto 0;
+}
+
+.ladder-import-guidance {
+  display: grid;
+  width: 100%;
+  min-height: 78px;
+  grid-template-columns: 36px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid #24563d;
+  border-radius: 13px;
+  background: #163d2b;
+  box-shadow: 0 14px 34px rgba(7, 36, 22, 0.15);
+  box-sizing: border-box;
+  color: #f7fbf8;
+}
+
+.ladder-import-guidance__icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(241, 202, 114, 0.18);
+  color: #f1ca72;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ladder-import-guidance > div {
+  min-width: 0;
+}
+
+.ladder-import-guidance strong {
+  display: block;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.3;
+}
+
+.ladder-import-guidance p {
+  margin: 3px 0 0;
+  color: rgba(247, 251, 248, 0.84);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ladder-import-guidance__dismiss {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(247, 251, 248, 0.72);
+}
+
+.ladder-import-guidance__dismiss:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.ladder-import-guidance__dismiss:focus-visible {
+  outline: 2px solid #f1ca72;
+  outline-offset: 2px;
+}
+
+.ladder-import-guidance__dismiss svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
+.ladder-zero__create-action {
+  display: inline-flex;
+  min-width: 156px;
+  border-radius: 13px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transform-origin: center;
+}
+
+
+.ladder-zero__create-action--attention {
+  animation: ladder-heartbeat 1.35s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(8, 173, 43, 0.5), 0 7px 18px rgba(8, 173, 43, 0.22);
+}
+
+@keyframes ladder-heartbeat {
+  0%, 16%, 34%, 100% { transform: scale(1); }
+  8%, 25% { transform: scale(1.075); }
+  20% { transform: scale(0.99); }
+}
+
+
+.ladder-import-guidance-enter-active,
+.ladder-import-guidance-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.ladder-import-guidance-enter-from,
+.ladder-import-guidance-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ladder-import-guidance,
+  .ladder-zero__create-action {
+    animation: none !important;
+  }
 }
 
 .ladder-empty-workspace {
@@ -3493,7 +3664,17 @@ function continueLadderSetup(ladder = activeLadder.value) {
 
   .ladder-zero {
     margin-top: 24px;
-    padding: 0 16px;
+    padding: 0 16px 30px;
+  }
+
+  .ladder-zero__empty {
+    margin-top: 20px;
+  }
+
+  .ladder-import-guidance {
+    grid-template-columns: 32px minmax(0, 1fr) 30px;
+    gap: 10px;
+    padding: 12px;
   }
 }
 
@@ -4442,4 +4623,19 @@ function continueLadderSetup(ladder = activeLadder.value) {
 /* Definitive Individual pane geometry: one header row, one scrolling player row. */
 .ladder-workspace { display: grid !important; grid-template-rows: auto minmax(0, 1fr); height: calc(100dvh - var(--app-header-height)) !important; min-height: 0; padding: 0 !important; overflow: hidden; }
 .ladder-workspace > .ladder-heading--setup { position: relative !important; top: auto !important; min-height: 0 !important; margin: 0 !important; padding: 18px 30px 0 !important; box-shadow: none; }
-.ladder-workspace > .ladder-list { height: 100%; min-height: 0; margin: 0 !important; padding: 20px 30px 30px !important; overflow-y: auto !important; overflow-x: hidden; }</style>
+.ladder-workspace > .ladder-list { height: 100%; min-height: 0; margin: 0 !important; padding: 20px 30px 30px !important; overflow-y: auto !important; overflow-x: hidden; }
+/* Empty ladder: use the standard GORRA primary and a calmer action rhythm. */
+.ladder-zero__create-action.button-primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.ladder-zero__create-action.button-primary:hover:not(:disabled) {
+  border-color: var(--color-primary-strong);
+  background: var(--color-primary-strong);
+}
+
+.ladder-zero__empty :deep(.empty-state-system__actions) {
+  margin-top: 18px;
+}</style>

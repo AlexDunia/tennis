@@ -2,7 +2,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import FlowIcon from '../components/friendly/FlowIcon.vue'
-import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import { useAdminStore } from '../stores/admin'
 import { useNotificationStore } from '../stores/notification'
 import { useTournamentStore } from '../stores/tournament'
@@ -17,6 +16,7 @@ const pageError = ref('')
 const clubPicker = ref(null)
 const switchingClubId = ref('')
 const inviteOptionsOpen = ref(false)
+const inviteMenuRoot = ref(null)
 const clubSwitcherTrigger = ref(null)
 const clubSwitcherVisible = ref(false)
 const club = computed(() => adminStore.activeClub)
@@ -138,6 +138,12 @@ function openHeroInvite(option) {
   router.push(routes[option])
 }
 
+function dismissInviteOptionsOnOutsidePointer(event) {
+  if (!inviteOptionsOpen.value) return
+  if (!inviteMenuRoot.value?.contains(event.target)) {
+    inviteOptionsOpen.value = false
+  }
+}
 
 function setClubSwitcherTrigger(element) {
   if (element) clubSwitcherTrigger.value = element
@@ -162,23 +168,16 @@ onMounted(async () => {
     syncClubSwitcher()
     window.addEventListener('scroll', syncClubSwitcher, { passive: true })
     window.addEventListener('resize', syncClubSwitcher)
+    document.addEventListener('pointerdown', dismissInviteOptionsOnOutsidePointer)
   }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', syncClubSwitcher)
   window.removeEventListener('resize', syncClubSwitcher)
+  document.removeEventListener('pointerdown', dismissInviteOptionsOnOutsidePointer)
 })
 
-useShellNestedHeader(() => ({
-  label: club.value?.name || 'Club',
-  backLabel: 'Back',
-  back: () => router.back(),
-  crumbs: [
-    { label: 'Club' },
-    { label: club.value?.name || 'Current club' },
-  ],
-}))
 </script>
 
 <template>
@@ -222,7 +221,7 @@ useShellNestedHeader(() => ({
           </div>
 
           <div v-if="canManage" class="club-signature-hero__actions">
-            <div class="club-invite-menu">
+            <div ref="inviteMenuRoot" class="club-invite-menu">
               <button
                 class="ref-button primary"
                 type="button"
@@ -231,7 +230,6 @@ useShellNestedHeader(() => ({
                 @click.stop="inviteOptionsOpen = !inviteOptionsOpen"
               >
                 Invite member
-                <FlowIcon name="chevron-down" aria-hidden="true" />
               </button>
               <div v-if="inviteOptionsOpen" class="club-invite-menu__panel" role="menu" @click.stop>
                 <button type="button" role="menuitem" @click="openHeroInvite('invite')">
@@ -1079,10 +1077,6 @@ useShellNestedHeader(() => ({
   gap: 7px;
 }
 
-.club-invite-menu > .ref-button :deep(.flow-icon) {
-  width: 13px;
-  height: 13px;
-}
 
 .club-invite-menu__panel {
   position: absolute;

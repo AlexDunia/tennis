@@ -60,6 +60,11 @@ const ladder = computed(() =>
   ) || null,
 )
 
+const isSetupFlow = computed(() =>
+  route.query.setup === 'rules' &&
+  ladder.value?.status === 'setup',
+)
+
 const resolvedConfig = computed(() =>
   resolveLadderConfigFromSetup(
     activeClub.value?.setup || {},
@@ -443,10 +448,24 @@ async function save() {
     pageError.value = ''
 
     notificationStore.addToast({
-      title: 'Ladder settings saved',
-      message: `${sanitizePlainText(form.name, 70)} now uses these challenge and match rules.`,
+      title: isSetupFlow.value
+        ? 'Rules saved'
+        : 'Ladder settings saved',
+      message: isSetupFlow.value
+        ? 'Now add the players for this ladder.'
+        : `${sanitizePlainText(form.name, 70)} now uses these challenge and match rules.`,
       type: 'success',
     })
+
+    if (isSetupFlow.value) {
+      await router.push({
+        name: 'LadderSetup',
+        params: {
+          ladderId: ladder.value.id,
+          step: 'members',
+        },
+      })
+    }
   } catch (error) {
     pageError.value =
       error?.message ||
@@ -504,10 +523,24 @@ function closeFormatEditor() {
 }
 
 useShellNestedHeader(() => ({
-  label: 'Ladder settings',
-  backLabel: 'Back to ladder',
+  label: isSetupFlow.value
+    ? 'Set ladder rules'
+    : 'Ladder settings',
+  backLabel: isSetupFlow.value
+    ? 'Back to setup'
+    : 'Back to ladder',
   back: () =>
-    router.push({ name: 'Rankings' }),
+    router.push(
+      isSetupFlow.value
+        ? {
+            name: 'LadderSetup',
+            params: {
+              ladderId: ladderId.value,
+              step: 'members',
+            },
+          }
+        : { name: 'Rankings' },
+    ),
   crumbs: [
     { label: 'Ladder' },
     {
@@ -515,7 +548,11 @@ useShellNestedHeader(() => ({
         ladder.value?.name ||
         'Current ladder',
     },
-    { label: 'Settings' },
+    {
+      label: isSetupFlow.value
+        ? 'Set rules'
+        : 'Settings',
+    },
   ],
 }))
 
@@ -585,9 +622,19 @@ onMounted(async () => {
       <header class="ladder-settings__intro">
         <div>
           <p>THIS LADDER ONLY</p>
-          <h1>{{ ladder.name }}</h1>
+          <h1>
+            {{
+              isSetupFlow
+                ? `Set rules for ${ladder.name}`
+                : ladder.name
+            }}
+          </h1>
           <span>
-            Changes here do not change your other ladders.
+            {{
+              isSetupFlow
+                ? 'Choose how challenges and matches work before adding players.'
+                : 'Changes here do not change your other ladders.'
+            }}
           </span>
         </div>
       </header>
@@ -734,7 +781,11 @@ onMounted(async () => {
               "
               type="checkbox"
             />
-            <span>
+            <span
+              class="ls-toggle__control"
+              aria-hidden="true"
+            ></span>
+            <span class="ls-toggle__copy">
               <strong>
                 Allow challenges below
               </strong>
@@ -898,7 +949,17 @@ onMounted(async () => {
           type="button"
           :disabled="saving"
           @click="
-            router.push({ name: 'Rankings' })
+            router.push(
+              isSetupFlow
+                ? {
+                    name: 'LadderSetup',
+                    params: {
+                      ladderId,
+                      step: 'members',
+                    },
+                  }
+                : { name: 'Rankings' },
+            )
           "
         >
           Cancel
@@ -912,7 +973,9 @@ onMounted(async () => {
           {{
             saving
               ? 'Saving…'
-              : 'Save ladder settings'
+              : isSetupFlow
+                ? 'Save rules and add players'
+                : 'Save ladder settings'
           }}
         </button>
       </footer>
@@ -1170,24 +1233,67 @@ onMounted(async () => {
 }
 
 .ls-toggle {
-  display: flex;
+  position: relative;
+  display: grid;
   min-height: 72px;
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
+  margin-top: 4px;
   padding: 14px;
   border: 1px solid var(--color-border);
   border-radius: 12px;
   background: var(--color-surface);
+  cursor: pointer;
 }
 
 .ls-toggle input {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  accent-color: var(--color-primary);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.ls-toggle > span {
+.ls-toggle__control {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 22px;
+  border: 1px solid #b8c4bc;
+  border-radius: 999px;
+  background: #dce4de;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.ls-toggle__control::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(16, 39, 25, 0.24);
+  content: '';
+  transition: transform 140ms ease;
+}
+
+.ls-toggle input:checked + .ls-toggle__control {
+  border-color: var(--color-primary-strong);
+  background: var(--color-primary-strong);
+}
+
+.ls-toggle input:checked + .ls-toggle__control::after {
+  transform: translateX(18px);
+}
+
+.ls-toggle input:focus-visible + .ls-toggle__control {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 38%, transparent);
+  outline-offset: 3px;
+}
+
+.ls-toggle__copy {
   display: grid;
   min-width: 0;
   gap: 3px;
@@ -1204,7 +1310,7 @@ onMounted(async () => {
 .ls-format-presets {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
 .ls-choice {
@@ -1225,18 +1331,21 @@ onMounted(async () => {
 }
 
 .ls-choice--active {
-  border-color:
-    color-mix(
-      in srgb,
-      var(--color-primary) 38%,
-      var(--color-border)
-    );
-  background:
-    color-mix(
-      in srgb,
-      var(--color-primary) 4.5%,
-      white
-    );
+  border-color: var(--color-primary-strong);
+  background: var(--color-primary-strong);
+  box-shadow: 0 10px 22px rgba(15, 69, 38, 0.16);
+}
+
+.ls-choice--active strong {
+  color: #fff;
+}
+
+.ls-choice--active small {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.ls-choice--active input {
+  accent-color: #d8ff47;
 }
 
 .ls-choice input {
@@ -1300,18 +1409,22 @@ onMounted(async () => {
 }
 
 .ls-format-preset--active {
-  border-color:
-    color-mix(
-      in srgb,
-      var(--color-primary) 40%,
-      var(--color-border)
-    );
-  background:
-    color-mix(
-      in srgb,
-      var(--color-primary) 4.5%,
-      white
-    );
+  border-color: var(--color-primary-strong);
+  background: var(--color-primary-strong);
+  box-shadow: 0 10px 22px rgba(15, 69, 38, 0.16);
+}
+
+.ls-format-preset--active strong {
+  color: #fff;
+}
+
+.ls-format-preset--active small {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.ls-format-preset--active .ls-format-preset__check {
+  background: #d8ff47;
+  color: #163d2b;
 }
 
 .ls-format-preset__check {

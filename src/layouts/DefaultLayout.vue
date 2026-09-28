@@ -135,6 +135,8 @@
         :class="{
           'app-header--with-sidebar': showSidebar,
           'app-header--section': showSectionHeaderContext,
+          'app-header--ladder-create-aligned': route.name === 'LadderCreate',
+          'app-header--body-aligned': showSidebar && !isLadderSurface,
         }"
       >
         <div class="header-content">
@@ -513,7 +515,15 @@ const tournamentCreateSubtitles = {
 }
 
 const isTournamentCreate = computed(() => route.name === 'TournamentCreate')
-const isLadderWorkspace = computed(() => route.name === 'Rankings')
+const isLadderWorkspace = computed(() =>
+  ['Rankings', 'LadderCreate'].includes(
+    String(route.name || ''),
+  ),
+)
+const isLadderSurface = computed(() =>
+  route.path.startsWith('/rankings') ||
+  String(route.name || '').startsWith('Ladder'),
+)
 const isTournamentViewer = computed(
   () => route.path.startsWith('/tournaments/') && route.name !== 'TournamentCreate',
 )
@@ -553,7 +563,6 @@ const clubOwnsPageHeading = computed(() => {
   const name = String(route.name || '')
 
   return (
-    name === 'Club' ||
     name === 'ClubMembers' ||
     name === 'ClubMemberImport' ||
     name === 'ClubMemberManual' ||
@@ -2793,4 +2802,20 @@ onUnmounted(() => {
   margin-inline: 0;
   padding: 0;
 }
-</style>
+
+@media (min-width: 768px) {
+  /* Match the global header to each surface's body grid. */
+  .app-header--body-aligned .header-content {
+    width: 90%;
+  }
+
+  /* Club subpages inherit the same full content track as their header. */
+  .layout.layout--club-theme .main .content:not(.content--fullscreen):not(.content--public) {
+    width: 90%;
+    max-width: none;
+  }
+
+  .app-header--ladder-create-aligned .header-content {
+    width: calc(100% - clamp(96px, 12vw, 176px));
+  }
+}</style>

@@ -1,83 +1,84 @@
+
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFriendlyMatchStore } from '../stores/friendlyMatch'
 import { useMatchStore } from '../stores/match'
 import { usePlayerStore } from '../stores/player'
 import { useAdminStore } from '../stores/admin'
+import { useChallengeStore } from '../stores/challenge'
 import { useNotificationStore } from '../stores/notification'
 import { startOrResumeLadderMatch } from '../services/LadderLiveMatchService.js'
 import { startOrResumeMatch } from '../services/LiveMatchService.js'
 import {
-  PLAY_MATCH_ACTIONS,
-  compareOperationalPlayMatches,
-  getPlayMatchActions,
-  isOperationalPlayMatch,
-} from '../domain/playMatchActions.js'
+  PERSONAL_PLAY_ACTIONS,
+  PERSONAL_PLAY_GROUPS,
+  buildPersonalPlayItems,
+} from '../domain/playMatchItems.js'
 import EmptyState from '../components/EmptyState.vue'
-import PlayMatchRow from '../components/play/PlayMatchRow.vue'
-import LadderMatchManageDialog from '../components/play/LadderMatchManageDialog.vue'
+import PlayMatchItemRow from '../components/play/PlayMatchItemRow.vue'
 
 const router = useRouter()
 const friendlyMatchStore = useFriendlyMatchStore()
 const matchStore = useMatchStore()
 const playerStore = usePlayerStore()
 const adminStore = useAdminStore()
+const challengeStore = useChallengeStore()
 const notificationStore = useNotificationStore()
+
+const activeMode = ref('play')
 const hasLoaded = ref(false)
-const managedMatch = ref(null)
-const manageMode = ref('')
+const now = ref(Date.now())
+const pendingActionKey = ref('')
+let minuteTimer = null
 
 const currentPlayerId = computed(() => playerStore.currentPlayerId)
-const courts = computed(() => adminStore.activeClub?.setup?.workspace?.courts || [])
-const canManageClub = computed(() => adminStore.hasActiveClubPermission('club.manage'))
-const canControlLive = computed(() => adminStore.hasActiveClubPermission('matches.live_score'))
 
-const ladderOperationalMatches = computed(() =>
-  matchStore.matches
-    .filter((match) =>
-      isOperationalPlayMatch(match, {
-        actorId: currentPlayerId.value,
-        activeClubId: adminStore.activeClubId || '',
-        canManage: canManageClub.value,
-      }),
-    )
-    .sort(compareOperationalPlayMatches),
+const personalMatches = computed(() =>
+  buildPersonalPlayItems({
+    challenges: challengeStore.challenges,
+    matches: matchStore.matches,
+    players: playerStore.players,
+    actorId: currentPlayerId.value,
+    activeClubId: adminStore.activeClubId || '',
+    now: now.value,
+  }),
 )
 
-const otherOperationalMatches = computed(() =>
-  matchStore.matches.filter(
-    (match) =>
-      match.type !== 'ladder' &&
-      ['pending', 'scheduled', 'live'].includes(match.status) &&
-      [match.player1Id, match.player2Id, match.challengerId, match.defenderId].includes(
-        currentPlayerId.value,
-      ),
-  ),
+const matchGroups = computed(() => [
+  {
+    key: PERSONAL_PLAY_GROUPS.NOW,
+    label: 'Now',
+    items: personalMatches.value.filter((item) => item.group === PERSONAL_PLAY_GROUPS.NOW),
+  },
+  {
+    key: PERSONAL_PLAY_GROUPS.NEEDS_YOU,
+    label: 'Needs you',
+    items: personalMatches.value.filter(
+      (item) => item.group === PERSONAL_PLAY_GROUPS.NEEDS_YOU,
+    ),
+  },
+  {
+    key: PERSONAL_PLAY_GROUPS.UPCOMING,
+    label: 'Upcoming',
+    items: personalMatches.value.filter(
+      (item) => item.group === PERSONAL_PLAY_GROUPS.UPCOMING,
+    ),
+  },
+].filter((group) => group.items.length))
+
+const isLoadingMatches = computed(
+  () =>
+    !hasLoaded.value &&
+    (playerStore.isLoading || challengeStore.isLoading || matchStore.isLoading),
 )
 
-const operationalMatches = computed(() =>
-  [...ladderOperationalMatches.value, ...otherOperationalMatches.value].sort(
-    compareOperationalPlayMatches,
-  ),
-)
+function actionKey(item, actionId) {
+  return `${item?.id || 'match'}:${actionId || 'action'}`
+}
 
-function actionsForMatch(match) {
-  if (match.type === 'ladder') {
-    return getPlayMatchActions(match, {
-      actorId: currentPlayerId.value,
-      canManage: canManageClub.value,
-      canLiveControl: canControlLive.value,
-    })
-  }
-
-  return [
-    {
-      id: 'continue_non_ladder',
-      label: 'Continue',
-      tone: 'primary',
-    },
-  ]
+function setMode(mode) {
+  activeMode.value = mode === 'matches' ? 'matches' : 'play'
 }
 
 function startMatch(mode) {
@@ -91,7 +92,96 @@ function startMatch(mode) {
   router.push({ name: 'FriendlyMatchScoring' })
 }
 
-async function continueNonLadderMatch(match) {
+function openChallenge(item) {
+  if (!item?.challengeId) return
+  router.push({
+    name: 'ChallengeDetails',
+    params: { challengeId: item.challengeId },
+  })
+}
+
+function openMatch(item) {
+  if (!item?.matchId) {
+    openChallenge(item)
+    return
+  }
+
+  router.push({
+    name: 'MatchDetails',
+    params: { matchId: item.matchId },
+  })
+}
+
+async function refreshMatchState() {
+  await Promise.all([challengeStore.loadChallenges(), matchStore.loadMatches()])
+  now.value = Date.now()
+}
+
+async function runChallengeAction(item, actionId, action, successMessage) {
+  const key = actionKey(item, actionId)
+  if (pendingActionKey.value) return
+
+  pendingActionKey.value = key
+  try {
+    const result = await action()
+    if (!result) {
+      throw new Error(challengeStore.error || 'Unable to update this challenge.')
+    }
+
+    if (successMessage) {
+      notificationStore.addToast({ message: successMessage, type: 'success' })
+    }
+
+    await refreshMatchState()
+  } catch (error) {
+    notificationStore.addToast({
+      message: error?.message || 'Unable to update this challenge.',
+      type: 'warning',
+    })
+  } finally {
+    pendingActionKey.value = ''
+  }
+}
+
+async function startLadderMatch(item) {
+  if (!item?.match?.id) {
+    openChallenge(item)
+    return
+  }
+
+  const key = actionKey(item, PERSONAL_PLAY_ACTIONS.START_MATCH)
+  if (pendingActionKey.value) return
+  pendingActionKey.value = key
+
+  try {
+    const result = await startOrResumeLadderMatch({
+      match: item.match,
+      actorId: currentPlayerId.value,
+      clubId: adminStore.activeClubId || '',
+      explicitStart: true,
+    })
+
+    if (!result.ok) {
+      notificationStore.addToast({
+        message: result.message || 'This Ladder Match cannot be started yet.',
+        type: 'warning',
+      })
+      return
+    }
+
+    router.push({
+      name: 'LiveMatch',
+      params: { matchId: result.match.id },
+    })
+  } finally {
+    pendingActionKey.value = ''
+  }
+}
+
+async function continueNonLadderMatch(item) {
+  const match = item?.match
+  if (!match?.id) return
+
   if (match.type === 'tournament') {
     const result = await startOrResumeMatch({
       match,
@@ -111,147 +201,65 @@ async function continueNonLadderMatch(match) {
 
     router.push({
       name: 'LiveMatch',
-      params: {
-        matchId: result.match.id,
-      },
-    })
-
-    return
-  }
-
-  router.push({
-    name: 'MatchDetails',
-    params: {
-      matchId: match.id,
-    },
-  })
-}
-
-function ladderActionStillAllowed(match, actionId) {
-  return getPlayMatchActions(match, {
-    actorId: currentPlayerId.value,
-    canManage: canManageClub.value,
-    canLiveControl: canControlLive.value,
-  }).some((action) => action.id === actionId)
-}
-
-async function startLadderMatch(match) {
-  if (!ladderActionStillAllowed(match, PLAY_MATCH_ACTIONS.START_MATCH)) {
-    notificationStore.addToast({
-      message: 'This match is no longer ready to start.',
-      type: 'warning',
+      params: { matchId: result.match.id },
     })
     return
   }
 
-  const result = await startOrResumeLadderMatch({
-    match,
-    actorId: currentPlayerId.value,
-    clubId: adminStore.activeClubId || '',
-    explicitStart: true,
-  })
-
-  if (!result.ok) {
-    notificationStore.addToast({
-      message: result.message || 'This Ladder Match cannot be started yet.',
-      type: 'warning',
-    })
-    return
-  }
-
-  router.push({
-    name: 'LiveMatch',
-    params: {
-      matchId: result.match.id,
-    },
-  })
+  openMatch(item)
 }
 
-function openManageDialog(match, mode) {
-  managedMatch.value = match
-  manageMode.value = mode
-}
-
-function closeManageDialog() {
-  managedMatch.value = null
-  manageMode.value = ''
-}
-
-function handleManagedResult() {
-  closeManageDialog()
-}
-
-async function handleMatchAction({ action, match }) {
-  const actionId =
-    typeof action === 'string' ? action : action?.id || action?.key || action?.type || ''
-
-  if (!match || !actionId) {
-    return
-  }
-
-  if (match.type !== 'ladder') {
-    if (actionId === 'continue_non_ladder') {
-      await continueNonLadderMatch(match)
-    }
-
-    return
-  }
-
-  if (!ladderActionStillAllowed(match, actionId)) {
-    notificationStore.addToast({
-      message: 'That action is no longer available for this match.',
-      type: 'warning',
-    })
-    return
-  }
+async function handleMatchAction({ action, item }) {
+  const actionId = action?.id || ''
+  if (!item || !actionId) return
 
   switch (actionId) {
-    case PLAY_MATCH_ACTIONS.VIEW_MATCH:
-      router.push({
-        name: 'MatchDetails',
-        params: {
-          matchId: match.id,
-        },
-      })
+    case PERSONAL_PLAY_ACTIONS.VIEW_CHALLENGE:
+    case PERSONAL_PLAY_ACTIONS.SCHEDULE_MATCH:
+    case PERSONAL_PLAY_ACTIONS.REVIEW_RESULT:
+      openChallenge(item)
       return
 
-    case PLAY_MATCH_ACTIONS.START_MATCH:
-      await startLadderMatch(match)
+    case PERSONAL_PLAY_ACTIONS.ACCEPT_CHALLENGE:
+      await runChallengeAction(
+        item,
+        actionId,
+        () => challengeStore.acceptChallenge(item.challengeId, null, currentPlayerId.value),
+        'Challenge accepted. Agree the match schedule next.',
+      )
       return
 
-    case PLAY_MATCH_ACTIONS.RESUME_SCORING:
-      router.push({
-        name: 'LiveMatch',
-        params: {
-          matchId: match.id,
-        },
-      })
+    case PERSONAL_PLAY_ACTIONS.DECLINE_CHALLENGE:
+      await runChallengeAction(
+        item,
+        actionId,
+        () => challengeStore.declineChallenge(item.challengeId, currentPlayerId.value),
+        'Challenge declined.',
+      )
       return
 
-    case PLAY_MATCH_ACTIONS.VIEW_LIVE_SCORE:
-      router.push({
-        name: 'LiveScoreboard',
-        params: {
-          matchId: match.id,
-        },
-      })
+    case PERSONAL_PLAY_ACTIONS.VIEW_MATCH:
+      openMatch(item)
       return
 
-    case PLAY_MATCH_ACTIONS.OPEN_MATCH_CONTROL:
-      router.push({
-        name: 'LiveOperationDetail',
-        params: {
-          matchId: match.id,
-        },
-      })
+    case PERSONAL_PLAY_ACTIONS.START_MATCH:
+      await startLadderMatch(item)
       return
 
-    case PLAY_MATCH_ACTIONS.RESCHEDULE:
-      openManageDialog(match, 'reschedule')
+    case PERSONAL_PLAY_ACTIONS.RESUME_SCORING:
+      if (item.matchId) {
+        router.push({ name: 'LiveMatch', params: { matchId: item.matchId } })
+      }
       return
 
-    case PLAY_MATCH_ACTIONS.CANCEL:
-      openManageDialog(match, 'cancel')
+    case PERSONAL_PLAY_ACTIONS.VIEW_LIVE_SCORE:
+      if (item.matchId) {
+        router.push({ name: 'LiveScoreboard', params: { matchId: item.matchId } })
+      }
+      return
+
+    case PERSONAL_PLAY_ACTIONS.CONTINUE_NON_LADDER:
+      await continueNonLadderMatch(item)
       return
 
     default:
@@ -260,19 +268,66 @@ async function handleMatchAction({ action, match }) {
 }
 
 onMounted(async () => {
+  minuteTimer = window.setInterval(() => {
+    now.value = Date.now()
+  }, 60_000)
+
   try {
-    await Promise.all([playerStore.loadPlayers(), matchStore.loadMatches()])
+    await Promise.all([
+      playerStore.loadPlayers(),
+      challengeStore.loadChallenges(),
+      matchStore.loadMatches(),
+    ])
   } finally {
+    now.value = Date.now()
     hasLoaded.value = true
   }
+})
+
+onUnmounted(() => {
+  if (minuteTimer) window.clearInterval(minuteTimer)
 })
 </script>
 
 <template>
   <section class="play-hub" aria-label="Personal match hub">
-    <section class="play-section" aria-labelledby="start-match-title">
+    <nav class="play-mode-tabs" role="tablist" aria-label="Play mode">
+      <button
+        id="play-mode-tab"
+        type="button"
+        role="tab"
+        :aria-selected="activeMode === 'play'"
+        :tabindex="activeMode === 'play' ? 0 : -1"
+        :class="{ active: activeMode === 'play' }"
+        @click="setMode('play')"
+      >
+        Play
+      </button>
+
+      <button
+        id="my-matches-mode-tab"
+        type="button"
+        role="tab"
+        :aria-selected="activeMode === 'matches'"
+        :tabindex="activeMode === 'matches' ? 0 : -1"
+        :class="{ active: activeMode === 'matches' }"
+        @click="setMode('matches')"
+      >
+        <span>My matches</span>
+        <span v-if="personalMatches.length" class="play-mode-tabs__count">
+          {{ personalMatches.length }}
+        </span>
+      </button>
+    </nav>
+
+    <section
+      v-if="activeMode === 'play'"
+      class="play-mode-panel"
+      role="tabpanel"
+      aria-labelledby="play-mode-tab"
+    >
       <header class="section-heading">
-        <h2 id="start-match-title">Start a match</h2>
+        <h2>Start a match</h2>
         <p>Choose how you want to play.</p>
       </header>
 
@@ -299,27 +354,33 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section class="play-section play-section--matches" aria-labelledby="your-matches-title">
-      <header class="section-heading section-heading--split">
-        <div>
-          <h2 id="your-matches-title">Your matches</h2>
-          <p>Active matches and the actions available to you.</p>
-        </div>
-        <span v-if="operationalMatches.length" class="match-count">{{ operationalMatches.length }}</span>
-      </header>
-
-      <div v-if="matchStore.isLoading && !hasLoaded" class="match-loading" aria-label="Loading your matches">
+    <section
+      v-else
+      class="play-mode-panel play-mode-panel--matches"
+      role="tabpanel"
+      aria-labelledby="my-matches-mode-tab"
+    >
+      <div v-if="isLoadingMatches" class="match-loading" aria-label="Loading your matches">
         <span v-for="row in 3" :key="row" class="match-loading__row"></span>
       </div>
 
-      <div v-else-if="operationalMatches.length" class="match-list">
-        <PlayMatchRow
-          v-for="match in operationalMatches"
-          :key="match.id"
-          :match="match"
-          :actions="actionsForMatch(match)"
-          @action="handleMatchAction"
-        />
+      <div v-else-if="matchGroups.length" class="match-groups">
+        <section v-for="group in matchGroups" :key="group.key" class="match-group">
+          <header class="match-group__heading">
+            <h2>{{ group.label }}</h2>
+            <span>{{ group.items.length }}</span>
+          </header>
+
+          <div class="match-list">
+            <PlayMatchItemRow
+              v-for="item in group.items"
+              :key="item.id"
+              :item="item"
+              :busy="pendingActionKey.startsWith(`${item.id}:`)"
+              @action="handleMatchAction"
+            />
+          </div>
+        </section>
       </div>
 
       <EmptyState
@@ -328,19 +389,13 @@ onMounted(async () => {
         variant="quiet"
         illustration="matches"
         title="No active matches"
-        description="Scheduled, ready, and live matches will appear here when there is something to do or follow."
+        description="When a match needs you, is ready to play, or is scheduled, it will appear here."
+        primary-action-label="Friendly match"
+        secondary-action-label="Ladder match"
+        @primary-action="startMatch('friendly')"
+        @secondary-action="startMatch('ladder')"
       />
     </section>
-
-    <LadderMatchManageDialog
-      :open="Boolean(managedMatch)"
-      :match="managedMatch"
-      :mode="manageMode"
-      :courts="courts"
-      @close="closeManageDialog"
-      @saved="handleManagedResult"
-      @cancelled="handleManagedResult"
-    />
   </section>
 </template>
 
@@ -348,25 +403,67 @@ onMounted(async () => {
 .play-hub {
   display: grid;
   width: 100%;
-  gap: clamp(42px, 5vw, 52px);
-  padding: 4px 0 42px;
+  gap: 32px;
+  padding: 8px 0 56px;
 }
 
-.play-section {
+.play-mode-tabs {
+  display: inline-flex;
+  width: fit-content;
+  align-items: flex-end;
+  gap: 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.play-mode-tabs button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 0 10px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.play-mode-tabs button.active {
+  border-bottom-color: var(--color-primary-strong);
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text);
+}
+
+.play-mode-tabs button:hover:not(.active) {
+  background: transparent;
+  color: var(--color-text);
+}
+
+.play-mode-tabs button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.play-mode-tabs__count {
+  color: currentColor;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.play-mode-panel {
   display: grid;
-  gap: 16px;
+  gap: 26px;
 }
 
 .section-heading {
   display: grid;
-  gap: 4px;
-}
-
-.section-heading--split {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 8px;
 }
 
 .section-heading h2,
@@ -392,30 +489,38 @@ onMounted(async () => {
   display: grid;
   width: 100%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 .play-option {
   display: grid;
   width: 100%;
   min-width: 0;
-  min-height: 112px;
+  min-height: 120px;
   grid-template-columns: 38px minmax(0, 1fr);
   align-items: center;
   justify-content: start;
   gap: 14px;
-  padding: 22px;
+  padding: 24px;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--app-card-radius);
   background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
   color: var(--color-text);
   text-align: left;
   white-space: normal;
+  cursor: pointer;
 }
 
 .play-option:hover {
   border-color: var(--color-border-strong);
-  transform: translateY(-1px);
+  background: var(--color-surface-softest);
+  box-shadow: var(--shadow-soft);
+}
+
+.play-option:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .feature-icon {
@@ -424,8 +529,8 @@ onMounted(async () => {
   height: 38px;
   flex: 0 0 38px;
   place-items: center;
-  border-radius: 10px;
-  background: var(--color-surface-soft);
+  border-radius: var(--app-inner-radius);
+  background: var(--color-primary-soft);
   color: var(--color-primary-strong);
 }
 
@@ -442,7 +547,7 @@ onMounted(async () => {
 .play-option__copy {
   display: grid;
   min-width: 0;
-  gap: 4px;
+  gap: 6px;
 }
 
 .play-option__copy strong {
@@ -459,54 +564,98 @@ onMounted(async () => {
   line-height: 1.5;
 }
 
-.match-count {
+.match-groups {
   display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border-radius: 9px;
-  background: var(--color-surface-soft);
-  color: var(--color-primary-strong);
-  font-size: 12px;
-  font-weight: var(--font-weight-semibold);
+  gap: 26px;
 }
 
-.match-list {
+.match-group {
   display: grid;
+  gap: 9px;
+}
+
+.match-group__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.match-group__heading h2,
+.match-group__heading span {
+  margin: 0;
+}
+
+.match-group__heading h2 {
+  color: var(--color-text-soft);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.match-group__heading span {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+}
+
+.match-list,
+.match-loading {
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--app-card-radius);
   background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.match-list :deep(.play-match-item-row:last-child) {
+  border-bottom: 0;
 }
 
 .match-loading {
   display: grid;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-surface);
 }
 
 .match-loading__row {
-  height: 86px;
-  border-top: 1px solid var(--color-border);
-  background: linear-gradient(100deg, #f1f5f2 20%, #fbfcfb 44%, #f1f5f2 68%);
+  height: 88px;
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(
+    100deg,
+    var(--color-bg-muted) 20%,
+    var(--color-surface) 44%,
+    var(--color-bg-muted) 68%
+  );
   background-size: 220% 100%;
   animation: play-shimmer 1.2s ease-in-out infinite;
 }
 
-.match-loading__row:first-child {
-  border-top: 0;
+.match-loading__row:last-child {
+  border-bottom: 0;
 }
 
 @keyframes play-shimmer {
-  to { background-position: -120% 0; }
+  to {
+    background-position: -120% 0;
+  }
 }
 
 @media (max-width: 640px) {
   .play-hub {
-    gap: 40px;
-    padding-bottom: 30px;
+    gap: 26px;
+    padding: 4px 0 36px;
+  }
+
+  .play-mode-tabs {
+    max-width: 100%;
+    gap: 18px;
+  }
+
+  .play-mode-tabs button {
+    min-height: 40px;
+    padding-bottom: 8px;
+    font-size: 14px;
   }
 
   .play-options {
@@ -514,8 +663,12 @@ onMounted(async () => {
   }
 
   .play-option {
-    min-height: 104px;
-    padding: 18px;
+    min-height: 108px;
+    padding: 20px;
+  }
+
+  .match-groups {
+    gap: 22px;
   }
 }
 
@@ -526,22 +679,19 @@ onMounted(async () => {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .play-option,
-  .match-loading__row {
-    animation: none;
-    transition: none;
-  }
-}
-
 .play-option--ladder {
   border-color: #163d2b;
   background: #163d2b;
+  box-shadow: 0 7px 18px rgba(22, 61, 43, 0.16);
 }
 
 .play-option--ladder .play-option__copy strong,
 .play-option--ladder .play-option__copy small {
   color: #fff;
+}
+
+.play-option--ladder .play-option__copy small {
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .play-option--ladder .feature-icon {
@@ -550,14 +700,37 @@ onMounted(async () => {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .play-option:not(.play-option--ladder):hover {
-    background: #f4f8f5;
-    border-color: var(--color-border);
-  }
-
   .play-option--ladder:hover {
-    background: #1d4432;
     border-color: #163d2b;
+    background: #1d4432;
+    box-shadow: 0 10px 22px rgba(22, 61, 43, 0.2);
   }
 }
-</style>
+@media (prefers-reduced-motion: reduce) {
+  .match-loading__row {
+    animation: none;
+  }
+}
+
+/* Play tabs need a deliberate pause before the panel content. */
+.play-mode-tabs {
+  gap: 32px;
+  margin-bottom: 12px;
+}
+
+.play-mode-tabs button {
+  min-height: 46px;
+  padding: 2px 0 14px;
+}
+
+@media (max-width: 640px) {
+  .play-mode-tabs {
+    gap: 22px;
+    margin-bottom: 8px;
+  }
+
+  .play-mode-tabs button {
+    min-height: 44px;
+    padding: 1px 0 11px;
+  }
+}</style>

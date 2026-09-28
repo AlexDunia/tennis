@@ -32,7 +32,6 @@ const inviteEmails = ref('')
 const pageError = ref('')
 const inviteBusy = ref(false)
 const actionMember = ref(null)
-const actionMenuStyle = ref({})
 const detailMember = ref(null)
 const removeDialog = ref(null)
 const memberPendingRemoval = ref(null)
@@ -203,23 +202,12 @@ function chooseFilter(value) {
   filterOpen.value = false
 }
 
-function openMemberActions(member, event) {
+function openMemberActions(member) {
   const wasOpen = actionMember.value?.id === member.id
   closeMenus()
   if (wasOpen) return
-
-  const row = event?.currentTarget
-  const bounds = row?.getBoundingClientRect()
-  const menuWidth = 178
-  actionMenuStyle.value = bounds
-    ? {
-        top: `${Math.min(bounds.bottom + 6, window.innerHeight - 160)}px`,
-        left: `${Math.max(8, Math.min(bounds.right - menuWidth, window.innerWidth - menuWidth - 8))}px`,
-      }
-    : {}
   actionMember.value = member
 }
-
 function viewMember(member) {
   actionMember.value = null
   detailMember.value = member
@@ -367,14 +355,49 @@ useShellNestedHeader(() => ({
       </div>
 
       <div v-if="canManage" class="primary-action">
-        <button class="add-button" type="button" :aria-expanded="addOpen" aria-haspopup="menu" @click.stop="addOpen = !addOpen; filterOpen = false">
-          <FlowIcon name="plus" />
-          <span>Add member</span>
-        </button>
-        <div v-if="addOpen" class="add-menu open" role="menu">
-          <button type="button" role="menuitem" @click="openInvitePeople"><FlowIcon name="send" />Invite people</button>
-          <button type="button" role="menuitem" aria-label="Bring your data to Gorra" @click="closeMenus(); router.push({ name: 'ClubMemberImport' })"><FlowIcon name="upload" />Import members</button>
-          <button type="button" role="menuitem" aria-label="Add someone manually" @click="closeMenus(); router.push({ name: 'ClubMemberManual' })"><FlowIcon name="plus" />Add manually</button>
+        <div class="club-invite-menu">
+          <button
+            class="ref-button primary"
+            type="button"
+            aria-haspopup="menu"
+            :aria-expanded="addOpen"
+            @click.stop="addOpen = !addOpen; filterOpen = false"
+          >
+            Add member
+
+          </button>
+
+          <div
+            v-if="addOpen"
+            class="club-invite-menu__panel"
+            role="menu"
+            @click.stop
+          >
+            <button type="button" role="menuitem" @click="openInvitePeople">
+              <FlowIcon name="send" aria-hidden="true" />
+              <span><strong>Invite people</strong><small>Send a club invitation</small></span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              aria-label="Bring your data to Gorra"
+              @click="closeMenus(); router.push({ name: 'ClubMemberImport' })"
+            >
+              <FlowIcon name="upload" aria-hidden="true" />
+              <span><strong>Import members</strong><small>Bring in an existing list</small></span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              aria-label="Add someone manually"
+              @click="closeMenus(); router.push({ name: 'ClubMemberManual' })"
+            >
+              <FlowIcon name="plus" aria-hidden="true" />
+              <span><strong>Add manually</strong><small>Create one member record</small></span>
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -418,7 +441,13 @@ useShellNestedHeader(() => ({
       </div>
 
       <div v-if="visibleMembers.length" class="rows">
-        <button v-for="member in visibleMembers" :key="member.id" class="member-row" type="button" @click="openMemberActions(member, $event)">
+        <div
+          v-for="member in visibleMembers"
+          :key="member.id"
+          class="member-row-wrap"
+          :class="{ 'member-row-wrap--actions-open': actionMember?.id === member.id }"
+        >
+          <button class="member-row" type="button" @click="openMemberActions(member)">
           <span class="cell member-cell">
             <span class="avatar" aria-hidden="true"><img v-if="member.photoUrl" :src="member.photoUrl" alt="" /><span v-else>{{ initials(member.name) }}</span></span>
             <span class="member-copy"><strong>{{ member.name || 'Club member' }}</strong><small :class="{ issue: !member.email }">{{ member.email || 'Email missing' }}</small></span>
@@ -428,14 +457,22 @@ useShellNestedHeader(() => ({
           <span class="cell activity-cell"><strong :class="memberActivity(member).type">{{ memberActivity(member).label }}</strong><small>{{ memberActivity(member).meta }}</small></span>
           <span class="cell rating">{{ memberUtr(member) }}<small>UTR</small></span>
           <span class="cell menu-cell"><span class="row-menu-trigger" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span></span>
-        </button>
+          </button>
+
+          <div
+            v-if="actionMember?.id === member.id"
+            class="row-actions open"
+            role="menu"
+            :aria-label="`Actions for ${member.name || 'member'}`"
+            @click.stop
+          >
+            <button type="button" role="menuitem" @click="viewMember(member)">View member</button>
+            <button v-if="canManage" type="button" role="menuitem" @click="editMember(member)">Edit details</button>
+            <button v-if="canManage" class="danger" type="button" role="menuitem" @click="requestMemberRemoval(member)">Remove from club</button>
+          </div>
+        </div>
       </div>
 
-      <div v-if="actionMember" class="row-actions open" :style="actionMenuStyle" role="menu" :aria-label="`Actions for ${actionMember.name || 'member'}`" @click.stop>
-        <button type="button" role="menuitem" @click="viewMember(actionMember)">View member</button>
-        <button v-if="canManage" type="button" role="menuitem" @click="editMember(actionMember)">Edit details</button>
-        <button v-if="canManage" class="danger" type="button" role="menuitem" @click="requestMemberRemoval(actionMember)">Remove from club</button>
-      </div>
 
       <p v-else class="empty" aria-label="You currently have no active members. People added to this club will appear here.">No members found.</p>
 
@@ -1210,6 +1247,12 @@ input:focus-visible{
   margin-top:2px;
 }
 
+.member-row-wrap{
+  position:relative;
+  z-index:0;
+}
+
+.member-row-wrap--actions-open{z-index:20}
 .member-row{
   width:100%;
   min-height:88px;
@@ -1413,8 +1456,10 @@ input:focus-visible{
 
 /* ROW ACTIONS */
 .row-actions{
-  position:fixed;
-  z-index:90;
+  position:absolute;
+  z-index:20;
+  top:calc(100% + 8px);
+  right:12px;
   width:170px;
   padding:6px;
   border:.5px solid var(--color-border);
@@ -1441,7 +1486,6 @@ input:focus-visible{
 
 .row-actions button:hover{background:var(--color-surface-soft)}
 .row-actions button.danger{color:var(--color-danger)}
-
 /* MEMBER DETAIL */
 .drawer-backdrop{
   position:fixed;
@@ -3060,11 +3104,65 @@ dialog::backdrop{background:rgba(18,28,21,.3)}
 }
 </style>
 <style>
-.layout.layout--club-theme .content:has(.members-screen) { width: min(92%, 1240px); padding: 56px 0 96px; }
-@media (max-width: 800px) { .layout.layout--club-theme .content:has(.members-screen) { width: 86%; max-width: none; padding-top: 46px; padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); } }
+.layout.layout--club-theme .content:has(.members-screen) { padding: 56px 0 96px; }
+@media (max-width: 767px) { .layout.layout--club-theme .content:has(.members-screen) { width: var(--app-shell-content-width); max-width: none; padding-top: 46px; padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); } }
 </style>
 <style scoped>
 .members-screen .primary-action { margin-left: auto; }
+.members-screen .club-invite-menu {
+  position: relative;
+}
+.members-screen .club-invite-menu > .ref-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.members-screen .club-invite-menu__panel {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 10px);
+  right: 0;
+  display: grid;
+  width: 260px;
+  padding: 7px;
+  border: 1px solid var(--g-line, #e4e9e5);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(13, 38, 23, 0.16);
+}
+.members-screen .club-invite-menu__panel button {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #2f4035;
+  text-align: left;
+}
+.members-screen .club-invite-menu__panel button:hover {
+  background: #f1f6f2;
+}
+.members-screen .club-invite-menu__panel span {
+  display: grid;
+  gap: 2px;
+}
+.members-screen .club-invite-menu__panel strong {
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold, 600);
+}
+.members-screen .club-invite-menu__panel small {
+  color: var(--g-muted, #778079);
+  font-size: 10px;
+}
+.members-screen .club-invite-menu__panel :deep(.flow-icon) {
+  width: 16px;
+  height: 16px;
+  color: #078c2f;
+}
 .members-screen .add-menu { left: auto; right: 0; transform-origin: top right; }
 .members-screen .search { gap: 7px; }
 .members-screen .table-head > .th {

@@ -83,3 +83,536 @@
 .gorra-data-table {
   min-width: 100%;
 }
+
+/* Members is the canonical data-table language: a quiet heading rail and
+   individually defined rows, with no heavy table container. */
+.layout .page-shell .gorra-directory-table {
+  width: 100%;
+  min-width: 36rem;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.layout .page-shell .gorra-directory-table thead th {
+  padding: 12px 14px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-softest);
+  color: var(--color-muted);
+  font-size: var(--type-overline);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  line-height: 1.35;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.layout .page-shell .gorra-directory-table thead th:first-child {
+  border-left: 1px solid var(--color-border);
+  border-radius: var(--app-card-radius) 0 0 var(--app-card-radius);
+}
+
+.layout .page-shell .gorra-directory-table thead th:last-child {
+  border-right: 1px solid var(--color-border);
+  border-radius: 0 var(--app-card-radius) var(--app-card-radius) 0;
+}
+
+.layout .page-shell .gorra-directory-table tbody td {
+  padding: 18px 14px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.layout .page-shell .gorra-directory-table tbody td:first-child {
+  border-left: 1px solid var(--color-border);
+  border-radius: var(--app-card-radius) 0 0 var(--app-card-radius);
+}
+
+.layout .page-shell .gorra-directory-table tbody td:last-child {
+  border-right: 1px solid var(--color-border);
+  border-radius: 0 var(--app-card-radius) var(--app-card-radius) 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .layout .page-shell .gorra-directory-table tbody tr:hover td {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-softest);
+  }
+}
+
+@media (max-width: 480px) {
+  .layout .page-shell .gorra-directory-table {
+    min-width: 22rem;
+    border-spacing: 0 8px;
+  }
+
+  .layout .page-shell .gorra-directory-table thead th,
+  .layout .page-shell .gorra-directory-table tbody td {
+    padding-inline: 12px;
+  }
+}
+/* Authenticated product rhythm: generous, repeatable whitespace rather than
+   isolated one-off gaps. The live ladder workspace keeps its task density. */
+@media (min-width: 761px) {
+  .layout.layout--migrated .dashboard-page {
+    padding: 12px 0 64px;
+  }
+
+  .layout.layout--migrated .dashboard-stack {
+    gap: 56px;
+  }
+
+  .layout.layout--migrated .dashboard-section {
+    gap: 24px;
+  }
+
+  .layout.layout--migrated .dashboard-section .section-heading {
+    gap: 8px;
+  }
+
+  .layout.layout--migrated .dashboard-section .section-heading--split {
+    gap: 20px;
+  }
+
+  .layout.layout--migrated .dashboard-page :is(.quick-grid, .summary-grid) {
+    gap: 20px;
+  }
+
+  .layout.layout--migrated .dashboard-page .quick-card {
+    min-height: 120px;
+    padding: 24px;
+  }
+
+  .layout.layout--migrated .dashboard-page :is(.action-row, .event-row) {
+    padding: 20px 24px;
+  }
+
+  .layout.layout--migrated .dashboard-page :is(.quick-card > span:last-child, .action-row > div, .event-row > div) {
+    gap: 6px;
+  }
+
+  .layout.layout--migrated .play-hub {
+    padding-top: 12px;
+    padding-bottom: 64px;
+  }
+
+  .layout.layout--migrated .tournament-playground {
+    gap: 36px;
+    padding: 12px 0 64px;
+  }
+
+  .layout.layout--migrated .tournament-hero {
+    padding: 16px 0 8px;
+  }
+
+  .layout.layout--migrated .tournament-hero__copy {
+    gap: 12px;
+  }
+
+  .layout.layout--migrated .tournament-metrics {
+    gap: 16px;
+  }
+
+  .layout.layout--migrated .tournament-metrics article {
+    padding: 18px 20px;
+  }
+
+  .layout.layout--migrated .tournament-browser {
+    gap: 24px;
+    padding-top: 4px;
+  }
+
+  .layout.layout--migrated .tournament-browser__heading p {
+    margin-top: 8px;
+  }
+
+  .layout.layout--migrated .tournament-filters {
+    gap: 10px;
+    padding-bottom: 4px;
+  }
+
+  .layout.layout--migrated .tournament-grid {
+    gap: 20px;
+  }
+
+  .layout.layout--migrated .challenges {
+    gap: 36px;
+    padding: 12px 0 64px;
+  }
+
+  .layout.layout--migrated .summary-row {
+    gap: 24px;
+  }
+
+  .layout.layout--migrated :is(.hero-card, .next-card) {
+    padding: 28px;
+  }
+
+  .layout.layout--migrated .next-card {
+    gap: 18px;
+  }
+
+  .layout.layout--migrated .tabs-wrap {
+    padding: 6px;
+  }
+
+  .layout.layout--migrated .cards-list {
+    gap: 20px;
+  }
+
+  .layout.layout--club-theme .gorra-club-ref.ref-page {
+    padding: 16px 0 64px;
+  }
+
+  .layout.layout--club-theme .club-profile {
+    gap: 48px;
+    padding-bottom: 64px;
+  }
+
+  .layout.layout--club-theme .club-profile__section-heading {
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .layout.layout--club-theme .club-profile__manage-groups {
+    gap: 52px;
+  }
+
+  .layout.layout--club-theme .club-profile__manage-group + .club-profile__manage-group {
+    padding-top: 40px;
+  }
+
+  .layout.layout--club-theme .club-profile__group-heading {
+    margin-bottom: 26px;
+  }
+
+  .layout.layout--club-theme .club-profile__group-heading p {
+    margin-top: 8px;
+  }
+
+  .layout.layout--club-theme .club-profile .ref-choice-stack {
+    gap: 20px;
+  }
+
+  .layout.layout--club-theme .club-profile .ref-choice-row {
+    min-height: 120px;
+    padding: 24px;
+  }
+
+  .layout.layout--club-theme .club-profile .ref-choice-row-copy {
+    gap: 6px;
+  }
+
+  .layout.layout--club-theme .members-screen .page-head {
+    margin-bottom: 40px;
+  }
+
+  .layout.layout--club-theme .members-screen .table-toolbar {
+    margin-bottom: 20px;
+  }
+
+  .layout.layout--club-theme .gorra-club-ref .ref-page-head {
+    margin-bottom: 32px;
+  }
+
+  .layout.layout--club-theme .gorra-club-ref :is(.ref-page-head p, .ref-flow-head p, .ref-section-heading p) {
+    margin-top: 8px;
+  }
+
+  .layout.layout--club-theme .gorra-club-ref .ref-form-card {
+    padding: 28px;
+  }
+
+  .layout.layout--club-theme .gorra-club-ref .ref-form-grid {
+    gap: 24px;
+  }
+
+  .layout.layout--club-theme .gorra-club-ref .ref-form-field {
+    gap: 10px;
+  }
+
+  .layout.layout--club-theme .gorra-club-ref .ref-profile-section + .ref-profile-section {
+    margin-top: 36px;
+    padding-top: 32px;
+  }
+
+  .layout.layout--club-theme .gorra-club-ref .ref-profile-section-head {
+    margin-bottom: 20px;
+  }
+
+  .layout.layout--club-theme .gorra-club-ref .ref-form-actions {
+    margin-top: 28px;
+    padding-top: 22px;
+    gap: 10px;
+  }
+
+  .layout.layout--club-theme .club-calendar {
+    padding: 12px 0 64px;
+  }
+
+  .layout.layout--club-theme .club-calendar__back {
+    margin-bottom: 32px;
+  }
+
+  .layout.layout--club-theme .club-calendar__hero {
+    padding-bottom: 32px;
+  }
+
+  .layout.layout--club-theme .club-calendar__layout {
+    gap: 24px;
+    margin-top: 32px;
+  }
+
+  .layout.layout--club-theme :is(.club-calendar__month, .club-calendar__agenda) {
+    padding: 24px;
+  }
+
+  .layout.layout--club-theme .club-calendar__event-list {
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .layout.layout--club-theme .club-details {
+    padding: 12px 0 64px;
+  }
+
+  .layout.layout--club-theme .club-details__back {
+    margin-bottom: 32px;
+  }
+
+  .layout.layout--club-theme .club-details__hero {
+    padding-bottom: 32px;
+  }
+
+  .layout.layout--club-theme .club-details__form {
+    gap: 24px;
+    margin-top: 32px;
+  }
+
+  .layout.layout--club-theme .club-details__card {
+    padding: 28px;
+  }
+
+  .layout.layout--club-theme .club-details__section-head {
+    margin-bottom: 24px;
+  }
+
+  .layout.layout--club-theme :is(.club-details__grid, .club-details__dates) {
+    gap: 22px;
+  }
+
+  .layout.layout--club-theme .club-details__field {
+    gap: 10px;
+  }
+
+  .layout.layout--club-theme .club-details__courts {
+    margin-top: 28px;
+    padding-top: 26px;
+  }
+
+  .layout.layout--migrated .account-settings {
+    gap: 40px;
+    padding: 12px 0 64px;
+  }
+
+  .layout.layout--migrated .account-context {
+    gap: 16px;
+    padding-bottom: 32px;
+  }
+
+  .layout.layout--migrated :is(.account-context > div, .account-card__heading) {
+    gap: 8px;
+  }
+
+  .layout.layout--migrated .account-settings__grid {
+    gap: 20px;
+  }
+
+  .layout.layout--migrated .account-card {
+    gap: 20px;
+    padding: 26px;
+  }
+
+  .layout.layout--migrated .account-card__heading {
+    margin-bottom: 6px;
+  }
+
+  .layout.layout--migrated .session-row {
+    min-height: 90px;
+    padding: 22px 0;
+  }
+
+  .layout.layout--club-theme .settings-page__header {
+    margin-bottom: 40px;
+  }
+
+  .layout.layout--club-theme .settings-shell {
+    gap: 40px;
+  }
+
+  .layout.layout--club-theme .settings-section {
+    gap: 24px;
+  }
+
+  .layout.layout--club-theme .settings-card {
+    padding: 28px;
+  }
+
+  .layout.layout--club-theme .settings-grid {
+    gap: 24px;
+  }
+
+  .layout.layout--club-theme .settings-field {
+    gap: 10px;
+  }
+
+  .layout.layout--club-theme .settings-subhead {
+    margin-bottom: 24px;
+  }
+
+  .layout.layout--club-theme .settings-divider {
+    margin: 28px 0;
+  }
+}
+
+/* Primary actions use the Gorra sidebar green everywhere. Selection controls
+   retain their brighter green, so actions and states remain distinguishable. */
+:root {
+  --gorra-action-primary: #163d2b;
+  --gorra-action-primary-hover: #214d37;
+  --gorra-action-primary-active: #113222;
+}
+
+.layout.layout--migrated {
+  --button-primary-bg: var(--gorra-action-primary);
+  --button-primary-bg-hover: var(--gorra-action-primary-hover);
+}
+
+.layout.layout--migrated :is(
+  .button-primary,
+  .base-button--primary,
+  .compete-primary,
+  .t-button--primary,
+  .ref-button.primary,
+  .settings-button--primary,
+  .directory-primary,
+  .add-club-button,
+  .add-button,
+  .header-create-button,
+  .club-details__primary,
+  .play-ladder-button.primary
+) {
+  border-color: var(--gorra-action-primary) !important;
+  background: var(--gorra-action-primary) !important;
+  color: #fff !important;
+}
+
+.layout.layout--migrated :is(
+  .button-primary,
+  .base-button--primary,
+  .compete-primary,
+  .t-button--primary,
+  .ref-button.primary,
+  .settings-button--primary,
+  .directory-primary,
+  .add-club-button,
+  .add-button,
+  .header-create-button,
+  .club-details__primary,
+  .play-ladder-button.primary
+):hover:not(:disabled) {
+  border-color: var(--gorra-action-primary-hover) !important;
+  background: var(--gorra-action-primary-hover) !important;
+}
+
+.layout.layout--migrated :is(
+  .button-primary,
+  .base-button--primary,
+  .compete-primary,
+  .t-button--primary,
+  .ref-button.primary,
+  .settings-button--primary,
+  .directory-primary,
+  .add-club-button,
+  .add-button,
+  .header-create-button,
+  .club-details__primary,
+  .play-ladder-button.primary
+):active:not(:disabled) {
+  border-color: var(--gorra-action-primary-active) !important;
+  background: var(--gorra-action-primary-active) !important;
+}
+
+/* The Matches empty state uses the same intentional vertical rhythm as the
+   Play chooser: a visible pause after the tabs, then evenly spaced content. */
+@media (min-width: 761px) {
+  .layout.layout--migrated .play-hub .play-mode-panel--matches {
+    gap: 28px;
+    padding-top: 4px;
+  }
+
+  .layout.layout--migrated .play-mode-panel--matches .empty-state-system--compact {
+    min-height: 196px;
+    gap: 14px;
+    padding: 32px 24px 38px;
+  }
+
+  .layout.layout--migrated .play-mode-panel--matches .empty-state-system__content p {
+    margin-top: 8px;
+  }
+
+  .layout.layout--migrated .play-mode-panel--matches .empty-state-system__actions {
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  /* Directory, club-entry, and settings drill-down routes share this rhythm. */
+  .layout.layout--club-theme .club-directory-hub {
+    gap: 40px;
+    padding: 12px 0 64px;
+  }
+
+  .layout.layout--club-theme .club-directory-hub :is(.directory-section, .entry-options) {
+    gap: 20px;
+  }
+
+  .layout.layout--club-theme .club-directory-hub :is(.directory-section-heading, .entry-option__copy) {
+    gap: 8px;
+  }
+
+  .layout.layout--club-theme .club-directory-hub .entry-option {
+    min-height: 120px;
+    padding: 24px;
+  }
+
+  .layout.layout--club-theme .club-preview {
+    gap: 32px;
+    padding: 12px 0 64px;
+  }
+
+  .layout.layout--club-theme .club-preview :is(.club-preview__trigger, .club-preview__panel) {
+    padding: 24px;
+  }
+
+  .layout.layout--club-theme .ladder-settings {
+    padding: 12px 0 64px;
+  }
+
+  .layout.layout--club-theme .ladder-settings__form {
+    gap: 56px;
+  }
+
+  .layout.layout--club-theme .ladder-settings__section {
+    gap: 24px;
+  }
+
+  .layout.layout--migrated .rankings-page {
+    gap: 40px;
+    padding: 12px 0 64px;
+  }
+}

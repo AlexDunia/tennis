@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict'
+import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import {
@@ -29,13 +29,13 @@ function source(relativePath) {
   return readFileSync(new URL(relativePath, import.meta.url), 'utf8')
 }
 
-function actionCase(sourceText, actionName) {
-  const marker = `case PLAY_MATCH_ACTIONS.${actionName}:`
+function personalActionCase(sourceText, actionName) {
+  const marker = `case PERSONAL_PLAY_ACTIONS.${actionName}:`
   const start = sourceText.indexOf(marker)
 
   assert.notEqual(start, -1, `Missing ${actionName} action case.`)
 
-  const next = sourceText.indexOf('case PLAY_MATCH_ACTIONS.', start + marker.length)
+  const next = sourceText.indexOf('case PERSONAL_PLAY_ACTIONS.', start + marker.length)
   return sourceText.slice(start, next === -1 ? undefined : next)
 }
 
@@ -60,7 +60,7 @@ test('shows an active-club ready Ladder match to its participant only', () => {
   )
 })
 
-test('shows active-club operational Ladder matches to managers without cross-club leakage', () => {
+test('keeps the legacy operational helper manager-aware for admin surfaces', () => {
   const match = ladderMatch()
 
   assert.equal(
@@ -183,7 +183,7 @@ test('returns live score and match control to a live-control manager', () => {
   )
 })
 
-test('keeps accepted and pending-review participant actions passive', () => {
+test('keeps accepted and pending-review participant actions passive in the legacy match helper', () => {
   for (const status of ['accepted', 'pending_review']) {
     const actions = actionIds(ladderMatch({ status }), { actorId: 'player-a' })
     assert.deepEqual(actions, [PLAY_MATCH_ACTIONS.VIEW_MATCH])
@@ -226,48 +226,46 @@ test('sorts scheduled matches by their earliest schedule', () => {
   )
 })
 
-test('integrates the Play policy, operational sorting, row, and dialog into PlayHub', () => {
+test('integrates the personal projection and participant-only row into PlayHub', () => {
   const playHub = source('../src/views/PlayHubView.vue')
 
   for (const token of [
-    'isOperationalPlayMatch',
-    'getPlayMatchActions',
-    'compareOperationalPlayMatches',
-    'PlayMatchRow',
-    'LadderMatchManageDialog',
-    'LiveScoreboard',
-    'LiveOperationDetail',
-    'MatchDetails',
+    'buildPersonalPlayItems',
+    'useChallengeStore',
+    'PlayMatchItemRow',
+    'PERSONAL_PLAY_ACTIONS',
+    "name: 'ChallengeDetails'",
+    "name: 'LiveScoreboard'",
+    "name: 'MatchDetails'",
   ]) {
     assert.ok(playHub.includes(token), `PlayHub is missing ${token}.`)
   }
 
+  assert.ok(!playHub.includes('isOperationalPlayMatch('))
+  assert.ok(!playHub.includes('LadderMatchManageDialog'))
   assert.ok(!playHub.includes('.slice(0, 3)'))
   assert.ok(!playHub.includes('.slice(0,3)'))
-  assert.ok(!playHub.includes('async function continueMatch(match)'))
 })
 
-test('keeps explicit start separate from passive Match Details navigation', () => {
+test('keeps explicit Ladder start separate from passive Match Details navigation', () => {
   const playHub = source('../src/views/PlayHubView.vue')
-  const viewMatch = actionCase(playHub, 'VIEW_MATCH')
+  const viewMatch = personalActionCase(playHub, 'VIEW_MATCH')
 
   assert.ok(playHub.includes('startLadderMatch'))
   assert.ok(playHub.includes('explicitStart: true'))
-  assert.match(viewMatch, /name:\s*'MatchDetails'/)
+  assert.match(viewMatch, /openMatch\(item\)/)
   assert.ok(!viewMatch.includes('startOrResumeLadderMatch'))
   assert.ok(!viewMatch.includes('explicitStart'))
 })
 
-test('uses the correct passive and live routes for each live action', () => {
+test('uses the correct passive and live routes for personal live actions', () => {
   const playHub = source('../src/views/PlayHubView.vue')
-  const resume = actionCase(playHub, 'RESUME_SCORING')
-  const viewLive = actionCase(playHub, 'VIEW_LIVE_SCORE')
-  const control = actionCase(playHub, 'OPEN_MATCH_CONTROL')
+  const resume = personalActionCase(playHub, 'RESUME_SCORING')
+  const viewLive = personalActionCase(playHub, 'VIEW_LIVE_SCORE')
 
   assert.match(resume, /name:\s*'LiveMatch'/)
   assert.ok(!resume.includes('explicitStart'))
   assert.match(viewLive, /name:\s*'LiveScoreboard'/)
-  assert.match(control, /name:\s*'LiveOperationDetail'/)
 })
 
 test('keeps Match Details route metadata neutral and in the Play section', () => {
@@ -283,19 +281,15 @@ test('keeps Match Details route metadata neutral and in the Play section', () =>
   assert.ok(!route.includes('move the ladder forward'))
 })
 
-test('keeps row display permission-free and management dialog limited to schedule or cancel', () => {
-  const row = source('../src/components/play/PlayMatchRow.vue')
-  const dialog = source('../src/components/play/LadderMatchManageDialog.vue')
+test('keeps the personal row display permission-free and store-free', () => {
+  const row = source('../src/components/play/PlayMatchItemRow.vue')
 
-  assert.match(row, /actions:\s*\{/)
+  assert.match(row, /item:\s*\{/)
   assert.match(row, /defineEmits\(\['action'\]\)/)
   assert.doesNotMatch(row, /stores\/admin/)
   assert.doesNotMatch(row, /stores\/player/)
+  assert.doesNotMatch(row, /stores\/challenge/)
+  assert.doesNotMatch(row, /stores\/match/)
   assert.doesNotMatch(row, /club\.manage/)
-
-  assert.match(dialog, /updateAdminLadderMatchSchedule/)
-  assert.match(dialog, /cancelAdminLadderMatch/)
-  assert.doesNotMatch(dialog, /startOrResumeLadderMatch/)
-  assert.doesNotMatch(dialog, /explicitStart/)
 })
 

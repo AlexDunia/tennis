@@ -4,7 +4,9 @@ export function buildNavigationBreadcrumbs({ route, club, member, tournament, ca
   const current = title || route.meta?.title || name
   const crumb = (label, routeName, params, query) => ({ label, ...(routeName ? { to: { name: routeName, ...(params ? { params } : {}), ...(query ? { query } : {}) } } : {}) })
   const clubRoot = crumb('Club', 'Clubs')
-  const clubTrail = [clubRoot, crumb(club?.name || 'Current club', 'Club')]
+  // The Club header already supplies the active-club context and back action.
+  // Keep subpage trails focused on the destination, not the repeated club name.
+  const clubTrail = []
   let items = []
   if (name === 'Clubs') {
     if (route.query?.view === 'create') items = [clubRoot, crumb('Create club')]

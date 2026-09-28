@@ -30,7 +30,7 @@ defineProps({
       </div>
     </div>
     <div class="standings-table__scroll">
-      <table>
+      <table class="gorra-directory-table">
         <thead>
           <tr>
             <th title="Rank">Rank</th>
@@ -73,12 +73,9 @@ defineProps({
 
 <style scoped>
 .standings-table {
+  display: grid;
   min-width: 0;
-  border: 1px solid var(--tournament-line);
-  border-radius: var(--app-card-radius);
-  background: #fff;
-  padding: 18px;
-  box-shadow: var(--tournament-card-shadow);
+  gap: 16px;
 }
 
 .standings-table__header {
@@ -93,43 +90,27 @@ defineProps({
 }
 
 .standings-table h3 {
-  font-size: 16px;
+  font-size: var(--type-section-title);
   font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.015em;
 }
 
 .standings-table__scroll {
   overflow-x: auto;
-  margin-top: 12px;
 }
 
 table {
   width: 100%;
   min-width: 34rem;
-  border-collapse: collapse;
 }
 
-th,
-td {
-  padding: 0.7rem 0.6rem;
-  border-bottom: 1px solid var(--tournament-line);
-  text-align: left;
-  font-size: 13px;
+.standings-table__qualified td:first-child {
+  box-shadow: inset 3px 0 0 var(--tournament-green);
 }
 
-th {
-  color: var(--tournament-faint);
-  font-size: 11px;
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-}
-
-.standings-table__qualified {
-  border-left: 3px solid var(--tournament-green);
-}
-
-.standings-table__current-player {
-  background: rgba(0, 181, 26, 0.055);
-  box-shadow: inset 5px 0 0 var(--tournament-green);
+.standings-table__current-player td {
+  border-color: color-mix(in srgb, var(--tournament-green) 24%, var(--color-border));
+  background: color-mix(in srgb, var(--tournament-green) 5%, var(--color-surface));
 }
 
 td span {
@@ -148,9 +129,10 @@ td span.standings-table__you {
 }
 
 .standings-table p {
-  margin-top: 0.75rem;
+  margin-top: 5px;
   color: var(--tournament-muted);
-  font-size: 12px;
+  font-size: var(--type-page-description);
+  line-height: 1.5;
 }
 
 @media (max-width: 480px) {

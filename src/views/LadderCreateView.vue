@@ -97,28 +97,6 @@ const ratingSystems = Object.values(
 const ntrpOptions =
   playerRatingOptions('ntrp')
 
-const selectedRatingSystem = computed(
-  () =>
-    playerRatingSystem(
-      form.levelSystem,
-    ),
-)
-
-const hasClubRules = computed(() =>
-  Boolean(
-    activeClub.value?.setup?.rules &&
-      Object.keys(
-        activeClub.value.setup.rules,
-      ).length,
-  ),
-)
-
-const ruleSourceLabel = computed(
-  () =>
-    hasClubRules.value
-      ? `Uses ${clubName.value} defaults`
-      : 'Uses GORRA defaults',
-)
 
 function cancel() {
   router.push({
@@ -126,16 +104,6 @@ function cancel() {
   })
 }
 
-function viewRules() {
-  notificationStore.addToast({
-    title: hasClubRules.value
-      ? `${clubName.value} rules`
-      : 'GORRA defaults',
-    message:
-      'Challenge and match rules can be reviewed or customized after the Ladder is created.',
-    type: 'info',
-  })
-}
 
 function setRatingDefaults(systemId) {
   const system = playerRatingSystem(
@@ -352,16 +320,18 @@ async function create() {
       title:
         'Ladder created',
       message:
-        `${result.ladder.name} is ready for players.`,
+        `${result.ladder.name} is ready for its rules.`,
       type: 'success',
     })
 
     await router.push({
-      name: 'LadderSetup',
+      name: 'LadderSettings',
       params: {
         ladderId:
           result.ladder.id,
-        step: 'members',
+      },
+      query: {
+        setup: 'rules',
       },
     })
   } catch (createError) {
@@ -414,7 +384,7 @@ onMounted(async () => {
 <template>
   <main
     v-if="ready"
-    class="ladder-workspace-page"
+    class="ladder-workspace-page ladder-workspace-page--create"
   >
     <header
       class="lw-club-context"
@@ -442,13 +412,14 @@ onMounted(async () => {
         </strong>
 
         <p>
-          Choose who can play. Members and starting positions come next.
+          Choose who can play. You will set the challenge and match rules next,
+          before adding members.
         </p>
       </div>
     </header>
 
     <form
-      class="lw-form"
+      class="lw-form lw-create-form"
       @submit.prevent="create"
     >
       <p
@@ -459,7 +430,17 @@ onMounted(async () => {
         {{ error }}
       </p>
 
-      <section class="lw-section">
+      <section class="lw-section lw-create-basics">
+        <div class="lw-section__heading">
+          <h2>
+            Ladder details
+          </h2>
+
+          <p>
+            Give players a clear name and choose how they will play.
+          </p>
+        </div>
+
         <div
           class="lw-grid lw-grid--single"
         >
@@ -472,7 +453,7 @@ onMounted(async () => {
               v-model="form.name"
               maxlength="70"
               autocomplete="off"
-              placeholder="MenÃ¢â‚¬â„¢s Singles"
+              placeholder="Men's Singles"
               required
             />
           </label>
@@ -511,7 +492,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="lw-section">
+      <section class="lw-section lw-create-eligibility">
         <div
           class="lw-section__heading"
         >
@@ -930,33 +911,6 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="lw-section">
-        <div
-          class="lw-rule-row"
-        >
-          <div>
-            <strong>
-              Competition rules
-            </strong>
-
-            <small>
-              {{ ruleSourceLabel }}
-            </small>
-          </div>
-
-          <div
-            class="lw-inline-actions"
-          >
-            <button
-              class="lw-text-button"
-              type="button"
-              @click="viewRules"
-            >
-              View
-            </button>
-          </div>
-        </div>
-      </section>
 
       <footer class="lw-footer">
         <BaseButton
@@ -974,7 +928,7 @@ onMounted(async () => {
         >
           {{
             saving
-              ? 'CreatingÃ¢â‚¬Â¦'
+              ? 'Creating…'
               : 'Create ladder'
           }}
         </BaseButton>

@@ -62,7 +62,7 @@ const emptyIconName = computed(() => {
     <div v-if="hasPrimaryAction || hasSecondaryAction || $slots.actions" class="empty-state-system__actions">
       <slot name="actions">
         <BaseButton v-if="hasPrimaryAction" @click="emit('primary-action')">{{ primaryActionLabel }}</BaseButton>
-        <BaseButton v-if="hasSecondaryAction" variant="ghost" @click="emit('secondary-action')">{{ secondaryActionLabel }}</BaseButton>
+        <BaseButton v-if="hasSecondaryAction" variant="secondary" @click="emit('secondary-action')">{{ secondaryActionLabel }}</BaseButton>
       </slot>
     </div>
   </section>
@@ -138,11 +138,14 @@ const emptyIconName = computed(() => {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .empty-state-system__actions :deep(button) {
-  min-height: 42px;
+  min-height: var(--app-button-height, 44px);
+  padding-inline: 18px;
+  border-radius: var(--app-inner-radius, 9px);
   font-size: 12px;
 }
 

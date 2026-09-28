@@ -52,8 +52,9 @@ function connectTone(context, {
   duration = 0.075,
   gainPeak = 0.08,
   highpass = 280,
+  delay = 0,
 } = {}) {
-  const start = context.currentTime
+  const start = context.currentTime + Math.max(0, delay)
   const oscillator = context.createOscillator()
   const gain = context.createGain()
   const filter = context.createBiquadFilter()
@@ -128,6 +129,31 @@ export async function playLadderMoveClick() {
     duration: 0.055,
     gainPeak: 0.09,
     highpass: 340,
+  })
+}
+
+export async function playLadderHeartbeat() {
+  const context = await prepareContext()
+  if (!context) return
+
+  // A short double beat gives the blocked import action a gentle, familiar
+  // signal without starting a repeating sound in the background.
+  connectTone(context, {
+    type: 'triangle',
+    from: 210,
+    to: 165,
+    duration: 0.075,
+    gainPeak: 0.045,
+    highpass: 90,
+  })
+  connectTone(context, {
+    type: 'triangle',
+    from: 195,
+    to: 150,
+    duration: 0.09,
+    gainPeak: 0.055,
+    highpass: 90,
+    delay: 0.18,
   })
 }
 
