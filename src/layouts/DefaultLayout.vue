@@ -484,7 +484,7 @@ const accountItems = computed(() => {
 
 const currentPlayer = computed(() => playerStore.currentPlayer)
 const unreadCount = computed(() => notificationStore.unreadCount)
-const currentClubName = computed(() => adminStore.activeClub?.name || 'Your tennis club')
+const currentClubName = computed(() => adminStore.activeClub?.name || 'Dunia Club')
 const currentClubInitials = computed(() =>
   currentClubName.value
     .split(/\s+/)
@@ -2437,13 +2437,13 @@ onUnmounted(() => {
   .layout {
     --app-header-height: 80px;
     --app-bottom-nav-height: 64px;
-    --app-shell-content-width: min(calc(100% - 32px), 720px);
-    --app-header-content-width: min(calc(100% - 32px), 720px);
+    --app-shell-content-width: 85%;
+    --app-header-content-width: 85%;
   }
 
   .layout--migrated {
-    --app-shell-content-width: min(calc(100% - 32px), 720px);
-    --app-header-content-width: min(calc(100% - 32px), 720px);
+    --app-shell-content-width: 85%;
+    --app-header-content-width: 85%;
   }
 
   .sidebar {

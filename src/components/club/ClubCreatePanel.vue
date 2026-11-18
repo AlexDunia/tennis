@@ -324,14 +324,14 @@ function cancel() {
 <style scoped>
 .club-create-page {
   width: 100%;
-  padding: 4px 0 54px;
+  padding: 0;
 }
 
 .club-create-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.28fr) minmax(300px, 0.72fr);
   align-items: start;
-  gap: 30px;
+  gap: clamp(32px, 4vw, 52px);
 }
 
 .club-create-form.ref-form-card {
@@ -341,7 +341,7 @@ function cancel() {
 }
 
 .club-create-form__head {
-  padding: 24px 24px 0;
+  padding: 32px 28px 0;
 }
 
 .club-create-form__head h2,
@@ -365,7 +365,7 @@ function cancel() {
 }
 
 .club-create-form__body {
-  padding: 22px 24px 24px;
+  padding: 30px 28px 34px;
 }
 
 .club-create-fields {
@@ -417,13 +417,13 @@ function cancel() {
 }
 
 .club-create-appearance {
-  margin-top: 24px;
-  padding-top: 22px;
+  margin-top: var(--space-block);
+  padding-top: var(--space-block);
   border-top: 1px solid rgba(44, 58, 48, 0.07);
 }
 
 .club-create-appearance > header {
-  margin-bottom: 2px;
+  margin-bottom: var(--space-block);
 }
 
 .club-create-appearance > header strong {
@@ -445,8 +445,8 @@ function cancel() {
   grid-template-columns: 32px minmax(0, 1fr);
   align-items: center;
   gap: 11px;
-  margin-top: 22px;
-  padding: 13px 14px;
+  margin-top: var(--space-block);
+  padding: 16px;
   border-radius: 10px;
   background: var(--g-green-soft-2, #f7fcf8);
 }
@@ -489,7 +489,7 @@ function cancel() {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  padding: 18px 24px;
+  padding: 22px 28px;
   border-top: 1px solid var(--g-line, #e4e9e5);
   background: #fcfdfc;
 }

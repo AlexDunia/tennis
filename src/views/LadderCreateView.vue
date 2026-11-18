@@ -6,7 +6,7 @@ import {
   ref,
   watch,
 } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import BaseButton from '../components/BaseButton.vue'
 import { useAdminStore } from '../stores/admin.js'
 import { useNotificationStore } from '../stores/notification.js'
@@ -23,10 +23,12 @@ import { useShellNestedHeader } from '../composables/useShellNestedHeader.js'
 import '../assets/ladder-workspace.css'
 
 const router = useRouter()
+const route = useRoute()
 const adminStore = useAdminStore()
 const notificationStore = useNotificationStore()
 
 const ready = ref(false)
+const accessDenied = ref(false)
 const error = ref('')
 const saving = ref(false)
 
@@ -97,6 +99,14 @@ const ratingSystems = Object.values(
 const ntrpOptions =
   playerRatingOptions('ntrp')
 
+const quickStartIntent = computed(() => {
+  const intent = String(route.query.ladderAsk || '').toLowerCase()
+  return ['add', 'import'].includes(intent) ? intent : ''
+})
+const quickStart = computed(() => Boolean(quickStartIntent.value))
+const requestedClubId = computed(() =>
+  sanitizeDirectoryId(route.query.club),
+)
 
 function cancel() {
   router.push({
@@ -316,6 +326,18 @@ async function create() {
         },
       })
 
+    if (quickStart.value) {
+      await router.replace({
+        name: 'Rankings',
+        query: {
+          ladder: result.ladder.id,
+          flow: 'add-people',
+          step: quickStartIntent.value === 'import' ? 'import' : 'members',
+        },
+      })
+      return
+    }
+
     notificationStore.addToast({
       title:
         'Ladder created',
@@ -356,20 +378,42 @@ useShellNestedHeader(() => ({
 
 onMounted(async () => {
   try {
-    if (!adminStore.activeClub) {
-      await adminStore.loadClubs()
-    }
+    await adminStore.loadClubs()
 
     if (
-      !adminStore.hasActiveClubPermission(
-        'club.manage',
-      )
+      requestedClubId.value &&
+      requestedClubId.value !== adminStore.activeClubId
     ) {
+      const requestedClub = adminStore.clubOptions.find(
+        (club) => club.id === requestedClubId.value,
+      )
+      if (!requestedClub) {
+        accessDenied.value = true
+        return
+      }
+      await adminStore.switchClub(requestedClub.id)
+    }
+
+    if (!adminStore.hasActiveClubPermission('club.manage')) {
+      accessDenied.value = true
+      return
+    }
+
+    const existingLadder = adminStore.activeLadders[0]
+    if (quickStart.value && existingLadder) {
       await router.replace({
         name: 'Rankings',
+        query: {
+          ladder: existingLadder.id,
+          flow: 'add-people',
+          step: quickStartIntent.value === 'import' ? 'import' : 'members',
+        },
       })
-
       return
+    }
+
+    if (quickStart.value && !form.name) {
+      form.name = `${clubName.value} Ladder`
     }
   } catch (loadError) {
     error.value =
@@ -383,8 +427,19 @@ onMounted(async () => {
 
 <template>
   <main
-    v-if="ready"
-    class="ladder-workspace-page ladder-workspace-page--create"
+    v-if="ready && accessDenied"
+    class="ladder-workspace-page ladder-workspace-page--create ds-page-rhythm"
+  >
+    <section class="lw-section lw-create-basics">
+      <div class="lw-section__heading">
+        <h2>You can't do this here</h2>
+      </div>
+    </section>
+  </main>
+
+  <main
+    v-else-if="ready"
+    class="ladder-workspace-page ladder-workspace-page--create ds-page-rhythm"
   >
     <header
       class="lw-club-context"
@@ -433,11 +488,11 @@ onMounted(async () => {
       <section class="lw-section lw-create-basics">
         <div class="lw-section__heading">
           <h2>
-            Ladder details
+            {{ quickStart ? 'Name your ladder' : 'Ladder details' }}
           </h2>
 
           <p>
-            Give players a clear name and choose how they will play.
+            {{ quickStart ? 'We will start a singles ladder for every club member.' : 'Give players a clear name and choose how they will play.' }}
           </p>
         </div>
 
@@ -458,7 +513,7 @@ onMounted(async () => {
             />
           </label>
 
-          <div class="lw-field">
+          <div v-if="!quickStart" class="lw-field">
             <span>Format</span>
 
             <div
@@ -492,7 +547,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="lw-section lw-create-eligibility">
+      <section v-if="!quickStart" class="lw-section lw-create-eligibility">
         <div
           class="lw-section__heading"
         >
@@ -929,7 +984,11 @@ onMounted(async () => {
           {{
             saving
               ? 'Creating…'
-              : 'Create ladder'
+              : quickStart
+                ? quickStartIntent === 'import'
+                  ? 'Create and import players'
+                  : 'Create and add players'
+                : 'Create ladder'
           }}
         </BaseButton>
       </footer>

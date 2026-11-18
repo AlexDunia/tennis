@@ -14,6 +14,11 @@ const props = defineProps({
   showPrimaryAction: { type: Boolean, default: undefined },
   showSecondaryAction: { type: Boolean, default: undefined },
   compact: { type: Boolean, default: false },
+  blockSpacing: {
+    type: String,
+    default: 'none',
+    validator: (value) => ['none', 'block', 'section'].includes(value),
+  },
   align: { type: String, default: 'center' },
   ariaLabel: { type: String, default: '' },
 })
@@ -47,6 +52,7 @@ const emptyIconName = computed(() => {
     class="empty-state-system"
     :class="[
       `empty-state-system--${variant}`,
+      `empty-state-system--spacing-${blockSpacing}`,
       { 'empty-state-system--compact': compact, 'empty-state-system--left': align === 'left' },
     ]"
     :aria-label="ariaLabel || title"
@@ -57,6 +63,10 @@ const emptyIconName = computed(() => {
     <div class="empty-state-system__content">
       <h3>{{ title }}</h3>
       <p>{{ description }}</p>
+    </div>
+
+    <div v-if="$slots.guidance" class="empty-state-system__guidance">
+      <slot name="guidance" />
     </div>
 
     <div v-if="hasPrimaryAction || hasSecondaryAction || $slots.actions" class="empty-state-system__actions">
@@ -89,6 +99,14 @@ const emptyIconName = computed(() => {
   min-height: 148px;
   gap: 9px;
   padding: 24px 16px 30px;
+}
+
+.empty-state-system--spacing-block {
+  margin-block: var(--space-block);
+}
+
+.empty-state-system--spacing-section {
+  margin-block: var(--space-section);
 }
 
 .empty-state-system--left {
@@ -129,6 +147,10 @@ const emptyIconName = computed(() => {
   color: var(--color-muted);
   font-size: 13px;
   line-height: 1.55;
+}
+
+.empty-state-system__guidance {
+  width: min(100%, 520px);
 }
 
 .empty-state-system--compact .empty-state-system__content h3 { font-size: 15px; }

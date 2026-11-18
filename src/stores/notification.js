@@ -2,6 +2,7 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { playNotificationSound } from '../utils/notificationSound'
 import { APP_DATA_MODES, appDataMode } from '../dataMode'
+import { useAuthStore } from './auth.js'
 
 const NOTIFICATION_STORAGE_KEY =
   'tennis.local.notifications.v1'
@@ -45,6 +46,13 @@ function saveStoredJson(key, value) {
     getModeStorageKey(key),
     JSON.stringify(value),
   )
+}
+
+function notificationIsVisibleTo(notification, userId) {
+  const recipientUserIds = Array.isArray(notification?.recipientUserIds)
+    ? notification.recipientUserIds
+    : []
+  return !recipientUserIds.length || recipientUserIds.includes(userId)
 }
 
 function getMatchSignature(match) {
@@ -113,6 +121,7 @@ function buildTournamentScoreNotification(
 export const useNotificationStore = defineStore(
   'notification',
   () => {
+    const authStore = useAuthStore()
     const notifications = ref(
       loadStoredJson(NOTIFICATION_STORAGE_KEY, []),
     )
@@ -135,14 +144,30 @@ export const useNotificationStore = defineStore(
       )
     })
 
+    const currentUserId = computed(
+      () =>
+        String(
+          authStore.user?.id ||
+            authStore.user?.playerId ||
+            authStore.user?.email ||
+            '',
+        ).trim(),
+    )
+
+    const visibleNotifications = computed(() =>
+      notifications.value.filter((item) =>
+        notificationIsVisibleTo(item, currentUserId.value),
+      ),
+    )
+
     const unreadCount = computed(
       () =>
-        notifications.value.filter((item) => !item.read)
+        visibleNotifications.value.filter((item) => !item.read)
           .length,
     )
 
     const recentNotifications = computed(() =>
-      [...notifications.value].sort(
+      [...visibleNotifications.value].sort(
         (a, b) =>
           new Date(b.time).getTime() -
           new Date(a.time).getTime(),
@@ -158,6 +183,7 @@ export const useNotificationStore = defineStore(
       eventKey = '',
       meta = {},
       sound = 'toast',
+      recipientUserIds = [],
       actionLabel = '',
       onAction = null,
     }) => {
@@ -182,6 +208,11 @@ export const useNotificationStore = defineStore(
         read,
         eventKey,
         meta,
+        recipientUserIds: [...new Set(
+          (Array.isArray(recipientUserIds) ? recipientUserIds : [])
+            .map((value) => String(value || '').trim())
+            .filter(Boolean),
+        )],
       }
 
       notifications.value.unshift(notification)
@@ -196,6 +227,42 @@ export const useNotificationStore = defineStore(
       }
 
       return notification
+    }
+
+    const upsertNotification = ({ eventKey = '', ...input }) => {
+      if (!eventKey) return addNotification(input)
+
+      const index = notifications.value.findIndex(
+        (notification) => notification.eventKey === eventKey,
+      )
+      if (index === -1) {
+        return addNotification({ ...input, eventKey })
+      }
+
+      const previous = notifications.value[index]
+      const next = {
+        ...previous,
+        ...input,
+        eventKey,
+        recipientUserIds: [...new Set(
+          (Array.isArray(input.recipientUserIds)
+            ? input.recipientUserIds
+            : previous.recipientUserIds || [])
+            .map((value) => String(value || '').trim())
+            .filter(Boolean),
+        )],
+      }
+      notifications.value.splice(index, 1, next)
+      saveStoredJson(NOTIFICATION_STORAGE_KEY, notifications.value)
+      return next
+    }
+
+    const dismissByEventKey = (eventKey) => {
+      if (!eventKey) return
+      notifications.value = notifications.value.filter(
+        (notification) => notification.eventKey !== eventKey,
+      )
+      saveStoredJson(NOTIFICATION_STORAGE_KEY, notifications.value)
     }
 
     const addToast = ({
@@ -273,7 +340,10 @@ export const useNotificationStore = defineStore(
     }
 
     const clearNotifications = () => {
-      notifications.value = []
+      notifications.value = notifications.value.filter(
+        (notification) =>
+          !notificationIsVisibleTo(notification, currentUserId.value),
+      )
 
       saveStoredJson(
         NOTIFICATION_STORAGE_KEY,
@@ -372,9 +442,12 @@ export const useNotificationStore = defineStore(
     return {
       notifications,
       toasts,
+      visibleNotifications,
       unreadCount,
       recentNotifications,
       addNotification,
+      upsertNotification,
+      dismissByEventKey,
       addToast,
       addTournamentScoreNotification,
       syncTournamentMatchEvents,

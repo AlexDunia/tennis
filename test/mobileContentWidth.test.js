@@ -7,7 +7,7 @@ const layout = readFileSync('src/layouts/DefaultLayout.vue', 'utf8')
 test('normal authenticated mobile content uses bounded side gutters', () => {
   assert.match(
     layout,
-    /@media \(max-width: 767px\)[\s\S]*--app-shell-content-width:\s*min\(calc\(100% - 32px\), 720px\)/,
+    /@media \(max-width: 767px\)[\s\S]*--app-shell-content-width:\s*85%/,
   )
   assert.match(
     layout,
@@ -19,7 +19,7 @@ test('normal authenticated mobile content uses bounded side gutters', () => {
 test('mobile application header retains bounded side gutters', () => {
   assert.match(
     layout,
-    /@media \(max-width: 767px\)[\s\S]*--app-header-content-width:\s*min\(calc\(100% - 32px\), 720px\)/,
+    /@media \(max-width: 767px\)[\s\S]*--app-header-content-width:\s*85%/,
   )
   assert.match(layout, /\.header-content[\s\S]*width:\s*var\(--app-header-content-width\)/)
   assert.doesNotMatch(layout, /@media \(max-width: 767px\)[\s\S]*--app-header-content-width:\s*100%/)

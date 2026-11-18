@@ -81,6 +81,8 @@
   --space-heading-copy: var(--space-2);
   --space-row-copy: var(--space-1);
   --space-section: clamp(1.75rem, 4vw, 3.5rem);
+  --space-block: clamp(1.25rem, 2.5vw, 2rem);
+  --space-block-loose: clamp(2rem, 5vw, 4rem);
   --space-page: clamp(1.25rem, 3vw, 2rem);
 
   /* Shape and elevation. Shadows identify elevation; borders identify groups. */
@@ -206,6 +208,30 @@ textarea:disabled,
   gap: var(--space-5);
 }
 
+.ds-block {
+  margin-block: var(--space-block);
+}
+
+.ds-block--tight {
+  margin-block: var(--space-6);
+}
+
+.ds-block--section {
+  margin-block: var(--space-section);
+}
+
+.ds-block--loose {
+  margin-block: var(--space-block-loose);
+}
+
+/* Reusable page rhythm: generous breathing room above and below page content. */
+.ds-page-rhythm {
+  padding-block: var(--space-block-loose);
+}
+
+.ds-page-rhythm > * + * {
+  margin-block-start: var(--space-block);
+}
 .ds-section-heading,
 .ds-page-heading {
   display: grid;

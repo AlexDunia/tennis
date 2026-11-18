@@ -21,7 +21,8 @@ const emit = defineEmits([
   'mode',
 ])
 
-const clubName = computed(() => props.club?.name || 'Your tennis club')
+const hasClub = computed(() => Boolean(props.club?.id || props.club?.name))
+const clubName = computed(() => props.club?.name || '')
 const clubLogo = computed(
   () => props.club?.logoUrl || props.club?.avatarUrl || props.club?.setup?.workspace?.logoUrl || '',
 )
@@ -36,6 +37,8 @@ const clubInitials = computed(() =>
 )
 const yourLadders = computed(() => props.ladders.filter((ladder) => ladder.isMember))
 const clubLadders = computed(() => props.ladders.filter((ladder) => !ladder.isMember))
+const hasLadders = computed(() => props.ladders.length > 0)
+const emptyRailLabel = computed(() => (hasClub.value ? 'No ladders found' : 'No club found'))
 
 function selectLadder(ladderId) {
   if (ladderId && ladderId !== props.activeLadderId) emit('select', ladderId)
@@ -63,6 +66,7 @@ function selectLadder(ladderId) {
         aria-label="Choose a club ladder"
         @change="selectLadder($event.target.value)"
       >
+        <option v-if="!hasLadders" disabled value="">{{ emptyRailLabel }}</option>
         <option v-for="ladder in ladders" :key="ladder.id" :value="ladder.id">
           {{ ladder.name }}
         </option>
@@ -78,12 +82,18 @@ function selectLadder(ladderId) {
     </div>
 
     <aside class="ladder-rail" aria-label="Club ladders">
-      <div class="ladder-rail__club">
+      <div v-if="hasClub" class="ladder-rail__club">
         <img v-if="clubLogo" :src="clubLogo" alt="" />
         <span v-else class="ladder-rail__initials" aria-hidden="true">{{ clubInitials }}</span>
         <span class="ladder-rail__club-copy">
           <strong>{{ clubName }}</strong>
-          <small>Ladders</small>
+          <small>{{ hasLadders ? 'Ladders' : 'No ladders yet' }}</small>
+        </span>
+      </div>
+      <div v-else class="ladder-rail__club" aria-live="polite">
+        <span class="ladder-rail__club-copy">
+          <strong>No club found</strong>
+          <small>No ladder found yet.</small>
         </span>
       </div>
       <div v-if="canManage && activeLadderId" class="ladder-rail__mode-wrap">
@@ -180,7 +190,6 @@ function selectLadder(ladderId) {
   padding: 4px 7px 17px;
   border-bottom: 1px solid var(--color-border);
 }
-
 .ladder-rail__club img,
 .ladder-rail__initials {
   width: 36px;
@@ -217,6 +226,7 @@ function selectLadder(ladderId) {
 
 .ladder-rail__club-copy small {
   margin-top: 2px;
+  padding-left: 3px;
   color: var(--color-muted);
   font-size: 10px;
 }

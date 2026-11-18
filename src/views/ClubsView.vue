@@ -41,6 +41,12 @@ const pageMessage = ref('')
 const heading = ref(null)
 const inviteCode = ref('')
 const pendingInvite = ref(null)
+// Temporary local-development code. Remove with the development invite alias in AdminService.
+const TEMPORARY_DEVELOPMENT_MEMBER_INVITE_CODE = '556'
+const isUsableInviteCode = (value) => {
+  const invite = String(value || '').trim()
+  return invite === TEMPORARY_DEVELOPMENT_MEMBER_INVITE_CODE || invite.length >= 6
+}
 const courtsText = ref('')
 const administratorsText = ref('')
 const rankingOrderText = ref('')
@@ -216,7 +222,7 @@ const inviteLink = computed(() => {
 })
 const canContinue = computed(() => {
   if (adminStore.isSaving || adminStore.isLoading) return false
-  if (routeView.value === 'join') return inviteCode.value.trim().length >= 4
+  if (routeView.value === 'join') return isUsableInviteCode(inviteCode.value)
   if (routeView.value !== 'wizard') return true
   if (activeStep.value.key === 'workspace') {
     return form.workspace.name.trim().length >= 2 && form.workspace.location.trim().length >= 2
@@ -396,7 +402,7 @@ async function previewDirectoryInvite() {
 
   const invite = inviteCode.value.trim()
 
-  if (invite.length < 6) {
+  if (!isUsableInviteCode(invite)) {
     pageError.value = 'Enter the invitation sent by your club.'
     return null
   }
@@ -731,7 +737,7 @@ onMounted(async () => {
 <template>
   <main
     v-if="isDirectoryExperience"
-    class="gorra-club-ref ref-page ref-clubs-directory-page"
+    class="gorra-club-ref ref-page ref-clubs-directory-page ds-page-rhythm"
     :aria-busy="adminStore.isLoading || !directoryLoaded"
   >
     <p v-if="pageError" class="flow-alert" role="alert">{{ pageError }}</p>
@@ -812,7 +818,7 @@ onMounted(async () => {
       <button
         class="ref-button primary relationship-submit"
         type="submit"
-        :disabled="adminStore.isSaving || inviteCode.trim().length < 6"
+        :disabled="adminStore.isSaving || !isUsableInviteCode(inviteCode)"
       >
         {{ directoryJoinSubmitLabel }}
       </button>

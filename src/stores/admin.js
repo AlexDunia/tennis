@@ -1,8 +1,13 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ADMIN_SETUP_STEPS, createDefaultClubSetup } from '../config/admin.js'
+import {
+  ADMIN_SETUP_STEPS,
+  CLUB_DIRECTORY_STORAGE_KEY,
+  createDefaultClubSetup,
+} from '../config/admin.js'
 import {
   addClubLadderMembers,
+  askForClubLadder as askForClubLadderRequest,
   createClubLadder,
   createLadderInvite,
   importLadderRoster,
@@ -19,6 +24,7 @@ import {
   createClub as createClubRelationship,
   createMemberRecordInvite,
   discardClubSetupDraft,
+  deleteActiveClub as deleteActiveClubRequest,
   getClubDirectory,
   getClubSetup,
   joinClubWithInvite,
@@ -38,6 +44,7 @@ import {
   hasClubMembershipPermission,
 } from '../utils/auth/accessControl.js'
 import { useAuthStore } from './auth.js'
+import { useNotificationStore } from './notification.js'
 
 const CLUB_TEST_DATA_BOOTSTRAP_PREFIX = 'gorra.clubTestDataBootstrap.v1'
 
@@ -108,6 +115,78 @@ export const useAdminStore = defineStore('admin', () => {
     return sanitizeDirectoryId(value.userId || value.id || value.playerId || value.email)
   }
 
+  function syncLadderAskNotifications(directory) {
+    const userId = currentUserId()
+    if (!userId) return
+
+    const notificationStore = useNotificationStore()
+    const allMemberships = Array.isArray(directory?.memberships)
+      ? directory.memberships
+      : []
+
+    ;(Array.isArray(directory?.clubs) ? directory.clubs : []).forEach((club) => {
+      const membership = allMemberships.find(
+        (item) =>
+          item.userId === userId &&
+          item.clubId === club.id &&
+          item.status === 'active',
+      )
+      if (!membership) return
+
+      const asks = Array.isArray(club.ladderAsks) ? club.ladderAsks : []
+      if (['admin', 'co-admin'].includes(membership.role)) {
+        const pending = asks
+          .filter((ask) => ask.status === 'open')
+          .sort((left, right) =>
+            String(left.createdAt || '').localeCompare(String(right.createdAt || '')),
+          )
+        const eventKey = `ladder-asks:${club.id}:${userId}`
+
+        if (!pending.length) {
+          notificationStore.dismissByEventKey(eventKey)
+          return
+        }
+
+        const firstAsk = pending[0]
+        const otherCount = pending.length - 1
+        notificationStore.upsertNotification({
+          title: 'Ladder',
+          message: otherCount
+            ? `${firstAsk.memberName} and ${otherCount} others asked for a ladder.`
+            : `${firstAsk.memberName} asked for a ladder.`,
+          type: 'info',
+          time: firstAsk.createdAt || new Date().toISOString(),
+          eventKey,
+          recipientUserIds: [userId],
+          meta: { to: { name: 'Rankings' } },
+          sound: false,
+        })
+        return
+      }
+
+      const completedAsk = asks.find(
+        (ask) => ask.userId === userId && ask.status === 'done' && ask.ladderId,
+      )
+      if (!completedAsk) return
+
+      notificationStore.upsertNotification({
+        title: "Your club's ladder is ready.",
+        message: 'Open the Ladder page.',
+        type: 'success',
+        time: completedAsk.completedAt || completedAsk.createdAt || new Date().toISOString(),
+        eventKey: `ladder-ready:${club.id}:${userId}`,
+        recipientUserIds: [userId],
+        meta: {
+          to: {
+            name: 'Rankings',
+            query: { ladder: completedAsk.ladderId },
+          },
+        },
+        sound: false,
+      })
+    })
+  }
+
   function applyDirectory(directory) {
     clubs.value = Array.isArray(directory?.clubs) ? directory.clubs : []
     memberships.value = Array.isArray(directory?.memberships)
@@ -117,6 +196,7 @@ export const useAdminStore = defineStore('admin', () => {
         }))
       : []
     activeClubId.value = directory?.activeClubId || ''
+    syncLadderAskNotifications(directory)
   }
 
   async function ensureActiveClubTestData(directory, currentActor) {
@@ -253,6 +333,13 @@ export const useAdminStore = defineStore('admin', () => {
     )
   const activeClubPermissions = computed(() => activeMembership.value?.permissions || [])
   const isActiveClubAdmin = computed(() => Boolean(activeMembership.value?.isManager))
+  const canDeleteActiveClub = computed(() => {
+    const creatorIds = Array.isArray(activeClub.value?.setup?.workspace?.administratorIds)
+      ? activeClub.value.setup.workspace.administratorIds.map((id) => sanitizeDirectoryId(id))
+      : []
+
+    return activeMembership.value?.role === 'admin' && creatorIds.includes(currentUserId())
+  })
   const hasClubPermission = computed(
     () => (clubId, permission) =>
       hasClubMembershipPermission(membershipForClub.value(clubId) || {}, permission),
@@ -270,6 +357,17 @@ export const useAdminStore = defineStore('admin', () => {
     const source = activeClub.value?.setup || setup.value
     return source.ladders.filter((ladder) => ladder.enabled && !ladder.archived)
   })
+  const activeClubLadderAsk = computed(() =>
+    (activeClub.value?.ladderAsks || []).find(
+      (ask) => ask.userId === currentUserId(),
+    ) || null,
+  )
+  const activeClubOpenLadderAskCount = computed(
+    () =>
+      (activeClub.value?.ladderAsks || []).filter(
+        (ask) => ask.status === 'open',
+      ).length,
+  )
   const resumeStep = computed(() => {
     const nextIndex = Math.min(
       Math.max(Number(setup.value.completedStep) || 0, 0),
@@ -299,6 +397,16 @@ export const useAdminStore = defineStore('admin', () => {
     } finally {
       isLoading.value = false
     }
+  }
+
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.addEventListener === 'function'
+  ) {
+    window.addEventListener('storage', (event) => {
+      if (event.key !== CLUB_DIRECTORY_STORAGE_KEY) return
+      void loadClubs().catch(() => {})
+    })
   }
 
   async function loadSetup() {
@@ -417,6 +525,40 @@ export const useAdminStore = defineStore('admin', () => {
       throw switchError
     } finally {
       isLoading.value = false
+    }
+  }
+
+  async function askForLadder() {
+    error.value = ''
+    try {
+      const currentActor = actor()
+      const result = await askForClubLadderRequest(currentActor)
+      const directory = await getClubDirectory(currentActor)
+      applyDirectory(directory)
+      return result
+    } catch (askError) {
+      error.value = askError?.message || "Couldn't send. Try again."
+      throw askError
+    }
+  }
+
+  async function deleteActiveClub(options = {}) {
+    isSaving.value = true
+    error.value = ''
+    try {
+      const currentActor = actor()
+      const result = await deleteActiveClubRequest(currentActor, options)
+      const directory = result.directory || await getClubDirectory(currentActor)
+      applyDirectory(directory)
+      setup.value =
+        directory.clubs.find((club) => club.id === directory.activeClubId)?.setup ||
+        createDefaultClubSetup()
+      return result
+    } catch (deleteError) {
+      error.value = deleteError?.message || 'Unable to delete this club.'
+      throw deleteError
+    } finally {
+      isSaving.value = false
     }
   }
 
@@ -841,6 +983,7 @@ export const useAdminStore = defineStore('admin', () => {
     activeClubRoleLabel,
     activeClubPermissions,
     isActiveClubAdmin,
+    canDeleteActiveClub,
     hasClubPermission,
     hasActiveClubPermission,
     isLoading,
@@ -848,6 +991,8 @@ export const useAdminStore = defineStore('admin', () => {
     error,
     isConfigured,
     activeLadders,
+    activeClubLadderAsk,
+    activeClubOpenLadderAskCount,
     resumeStep,
     loadClubs,
     loadSetup,
@@ -858,6 +1003,8 @@ export const useAdminStore = defineStore('admin', () => {
     previewInvite,
     joinClub,
     switchClub,
+    askForLadder,
+    deleteActiveClub,
     updateActiveClub,
     rotateInvite,
     createMemberInvite,

@@ -68,6 +68,8 @@ const shell = inject('gorraShell', null)
 
 const initialPageLoading = ref(true)
 const activeLadderId = ref('')
+const ladderAskBusy = ref(false)
+const ladderAskError = ref('')
 const ladderSwitching = ref(false)
 const importPrerequisiteVisible = ref(false)
 const matchSetupMenuOpen = ref(false)
@@ -319,6 +321,11 @@ const courts = computed(
 
 const canManageLadder = computed(() =>
   adminStore.hasActiveClubPermission('club.manage'),
+)
+const memberLadderAsk = computed(() => adminStore.activeClubLadderAsk)
+const memberHasAskedForLadder = computed(() => Boolean(memberLadderAsk.value))
+const waitingMemberCount = computed(
+  () => adminStore.activeClubOpenLadderAskCount,
 )
 const ladderMode = computed(() => !canManageLadder.value ? 'individual' : (ladderMatchWorkspaceStore.mode === 'bulk' ? 'bulk' : 'individual'))
 const bulkModeActive = computed(() => canManageLadder.value && ladderMode.value === 'bulk')
@@ -1791,6 +1798,23 @@ onUnmounted(() => {
   challengeScrollFrame = 0
   shell?.endAdminMatchDrawer?.()
 })
+
+async function askAdminToStartLadder() {
+  if (ladderAskBusy.value || memberHasAskedForLadder.value) return
+
+  ladderAskBusy.value = true
+  ladderAskError.value = ''
+  try {
+    await adminStore.askForLadder()
+  } catch (askError) {
+    // During integration, surface the service's actual reason so backend failures are actionable.
+    if (import.meta.env?.DEV) console.error('Unable to save ladder ask.', askError)
+    ladderAskError.value = askError?.message || 'Unable to save your ask.'
+  } finally {
+    ladderAskBusy.value = false
+  }
+}
+
 function createLadder() {
   importPrerequisiteVisible.value = false
   router.push({ name: 'LadderCreate' })
@@ -1924,7 +1948,7 @@ function continueLadderSetup(ladder = activeLadder.value) {
 
     <section
       v-else-if="!activeLadder"
-      class="ladder-zero"
+      class="ladder-zero ds-page-rhythm"
     >
       <Transition name="ladder-import-guidance">
         <section
@@ -1955,15 +1979,41 @@ function continueLadderSetup(ladder = activeLadder.value) {
 
       <EmptyState
         class="ladder-zero__empty"
+        block-spacing="section"
         illustration="ladder"
-        title="No ladders yet"
+        :title="canManageLadder ? 'No ladders yet' : 'Your club is ready to start a ladder'"
         :description="
           canManageLadder
             ? 'Create your first club ladder. You can add or import players in the next step.'
-            : 'Your club has not started a ladder yet.'
+            : 'A club admin needs to set up the first ladder before members can join the playing order.'
         "
       >
-        <template v-if="canManageLadder" #actions>
+        <template v-if="canManageLadder && waitingMemberCount" #guidance>
+          <p class="ladder-zero__waiting" aria-live="polite">
+            {{ waitingMemberCount }} {{ waitingMemberCount === 1 ? 'member is waiting.' : 'members are waiting.' }}
+          </p>
+        </template>
+
+        <template v-if="!canManageLadder" #actions>
+          <div class="ladder-zero__ask-actions">
+            <button
+              type="button"
+              class="button-primary ladder-zero__ask-action"
+              :disabled="ladderAskBusy || memberHasAskedForLadder"
+              @click="askAdminToStartLadder"
+            >
+              {{ memberHasAskedForLadder ? 'Sent to admin ✓' : ladderAskBusy ? 'Sending…' : 'Ask admin to start' }}
+            </button>
+            <p v-if="memberHasAskedForLadder" class="ladder-zero__ask-copy">
+              We'll tell you when it's ready.
+            </p>
+            <p v-else-if="ladderAskError" class="ladder-zero__ask-copy ladder-zero__ask-copy--error" role="status">
+              {{ ladderAskError }}
+            </p>
+          </div>
+        </template>
+
+        <template v-else #actions>
           <button
             type="button"
             class="button-primary ladder-zero__create-action"
@@ -3419,16 +3469,75 @@ function continueLadderSetup(ladder = activeLadder.value) {
   display: grid;
   min-width: 0;
   width: 100%;
+  min-height: calc(100dvh - var(--app-header-height));
   grid-column: 2;
-  align-content: start;
+  align-content: center;
   margin: 0;
-  padding: 24px 30px 46px;
+  padding: clamp(56px, 8vh, 96px) clamp(28px, 5vw, 72px) clamp(72px, 10vh, 120px);
   box-sizing: border-box;
 }
 
 .ladder-zero__empty {
-  width: min(100%, 720px);
-  margin: 28px auto 0;
+  width: min(100%, 760px);
+  margin-inline: auto;
+}
+
+.ladder-zero__empty :deep(.empty-state-system) {
+  min-height: 390px;
+  gap: 18px;
+  padding: 52px 42px 58px;
+}
+
+.ladder-zero__empty :deep(.empty-state-system__visual) {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+}
+
+.ladder-zero__empty :deep(.empty-state-system__visual .flow-icon) {
+  width: 32px;
+  height: 32px;
+}
+
+.ladder-zero__empty :deep(.empty-state-system__content h3) {
+  color: var(--color-text);
+  font-size: 23px;
+  line-height: 1.25;
+}
+
+.ladder-zero__empty :deep(.empty-state-system__content p) {
+  max-width: 540px;
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.ladder-zero__ask-actions {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+}
+
+.ladder-zero__ask-action:disabled {
+  cursor: default;
+  opacity: 0.82;
+}
+
+.ladder-zero__ask-copy,
+.ladder-zero__waiting {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ladder-zero__ask-copy--error {
+  color: var(--color-danger, #b42318);
+}
+
+.ladder-zero__waiting {
+  color: var(--color-primary-strong);
+  font-weight: var(--font-weight-medium);
 }
 
 .ladder-import-guidance {
@@ -3663,13 +3772,21 @@ function continueLadderSetup(ladder = activeLadder.value) {
   }
 
   .ladder-zero {
-    margin-top: 24px;
-    padding: 0 16px 30px;
+    min-height: auto;
+    margin: 0;
+    padding: var(--space-block) 16px var(--space-block-loose);
   }
 
   .ladder-zero__empty {
-    margin-top: 20px;
+    margin-inline: auto;
   }
+
+  .ladder-zero__empty :deep(.empty-state-system) {
+    min-height: 0;
+    padding: 34px 18px 40px;
+  }
+
+
 
   .ladder-import-guidance {
     grid-template-columns: 32px minmax(0, 1fr) 30px;

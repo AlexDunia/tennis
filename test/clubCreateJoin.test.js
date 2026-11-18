@@ -3,10 +3,12 @@ import test from 'node:test'
 import { CLUB_DIRECTORY_STORAGE_KEY } from '../src/config/admin.js'
 import {
   createClub,
+  deleteActiveClub,
   getClubDirectory,
   joinClubWithInvite,
   previewClubInvite,
   rotateClubInvite,
+  switchActiveClub,
 } from '../src/services/AdminService.js'
 import { hasClubMembershipPermission } from '../src/utils/auth/accessControl.js'
 
@@ -131,6 +133,59 @@ test('Create and Join reject missing identity or invalid input', async () => {
       () => joinClubWithInvite('NOT-A-REAL-INVITE', { userId: 'jordan' }),
       /not valid/i,
     )
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+  }
+})
+
+test('only the club creator can permanently delete a club, and remaining clubs become active', async () => {
+  const originalWindow = globalThis.window
+  const localStorage = createMemoryStorage()
+  globalThis.window = { localStorage }
+
+  try {
+    const alex = { userId: 'alex' }
+    const firstClub = await createClub(
+      { name: 'Greenview Tennis Club', country: 'Nigeria', city: 'Lagos' },
+      alex,
+    )
+    const secondClub = await createClub(
+      { name: 'Harbour Tennis Club', country: 'Nigeria', city: 'Abuja' },
+      alex,
+    )
+
+    await switchActiveClub(firstClub.club.id, alex)
+    await rotateClubInvite('co-admin', alex)
+    const ownerDirectory = await getClubDirectory(alex)
+    const coAdminInvite = ownerDirectory.clubs
+      .find((club) => club.id === firstClub.club.id)
+      .invitations.find((invite) => invite.role === 'co-admin')
+
+    await joinClubWithInvite(coAdminInvite.code, { userId: 'riley' })
+
+    await assert.rejects(
+      () => deleteActiveClub({ userId: 'riley' }),
+      /only the club creator/i,
+    )
+
+    const deleted = await deleteActiveClub(alex)
+    assert.equal(deleted.clubId, firstClub.club.id)
+    assert.equal(deleted.activeClubId, secondClub.club.id)
+
+    const alexDirectory = await getClubDirectory(alex)
+    assert.equal(alexDirectory.clubs.length, 1)
+    assert.equal(alexDirectory.clubs[0].id, secondClub.club.id)
+    assert.equal(alexDirectory.activeClubId, secondClub.club.id)
+
+    const rileyDirectory = await getClubDirectory({ userId: 'riley' })
+    assert.deepEqual(rileyDirectory.clubs, [])
+    assert.equal(rileyDirectory.activeClubId, '')
+
+    const persisted = JSON.parse(localStorage.getItem(CLUB_DIRECTORY_STORAGE_KEY))
+    assert.equal(persisted.clubs.some((club) => club.id === firstClub.club.id), false)
+    assert.equal(persisted.memberships.some((membership) => membership.clubId === firstClub.club.id), false)
+    assert.equal(persisted.activeClubByUser.riley, undefined)
   } finally {
     if (originalWindow === undefined) delete globalThis.window
     else globalThis.window = originalWindow

@@ -17,6 +17,10 @@ import {
   saveStartingOrder,
   startLadder,
 } from './LadderWorkspaceService.js'
+import {
+  deleteClubThroughApi,
+  isClubDeletionApiEnabled,
+} from './ClubDeletionService.js'
 
 import {
   ADMIN_SETUP_STEPS,
@@ -66,7 +70,13 @@ const MANAGER_ROLES = new Set(['admin', 'co-admin'])
 const ROLE_WEIGHT = Object.freeze({ player: 1, 'co-admin': 2, admin: 3 })
 const ROLE_LABELS = Object.freeze({ player: 'Member', 'co-admin': 'Co-admin', admin: 'Admin' })
 const INVITE_ROLES = new Set(Object.keys(ROLE_LABELS))
-
+const LADDER_ASK_STATUSES = new Set(['open', 'done'])
+const MAX_LADDER_ASKS = 5000
+const MAX_LADDER_ASK_EMAILS = 1600
+// Temporary local-development shortcut. Remove before the real invitation API ships.
+const TEMPORARY_DEVELOPMENT_MEMBER_INVITE_CODE = '556'
+const TEMPORARY_DEVELOPMENT_MEMBER_INVITE_CLUB = 'your tennis club'
+const TEMPORARY_DEVELOPMENT_MEMBER_CLUB_ID = 'development-your-tennis-club'
 function canUseStorage() {
   return typeof window !== 'undefined' && Boolean(window.localStorage)
 }
@@ -148,6 +158,87 @@ function normalizeInvite(input = {}) {
   }
 }
 
+function ladderAskActionPath(clubId, intent) {
+  const query = new URLSearchParams({
+    club: clubId,
+    ladderAsk: intent,
+  })
+  return `/rankings/create?${query.toString()}`
+}
+
+function normalizeLadderAsk(input = {}) {
+  const userId = sanitizeDirectoryId(input.userId || input.user_id)
+  if (!userId) return null
+
+  return {
+    id: sanitizeDirectoryId(input.id, `ladder-ask-${userId}`),
+    userId,
+    memberId: sanitizeDirectoryId(input.memberId || input.member_id),
+    memberName: sanitizePlainText(input.memberName || input.member_name || 'A member', 100) || 'A member',
+    status: LADDER_ASK_STATUSES.has(input.status) ? input.status : 'open',
+    createdAt: normalizeTimestamp(input.createdAt || input.created_at),
+    completedAt: normalizeTimestamp(input.completedAt || input.completed_at),
+    ladderId: sanitizeDirectoryId(input.ladderId || input.ladder_id),
+  }
+}
+
+function ladderAskEmailFor(recipientUserId, ask, clubId, clubName, sentAt = nowIso()) {
+  const memberName = sanitizePlainText(ask?.memberName || 'A member', 100) || 'A member'
+  const safeClubName = sanitizePlainText(clubName, 100) || 'your club'
+
+  return {
+    id: `ladder-ask-email-${clubId}-${recipientUserId}`,
+    recipientUserId,
+    memberName,
+    status: 'queued',
+    sentAt: normalizeTimestamp(sentAt) || nowIso(),
+    subject: `${memberName} wants a ladder`,
+    title: 'Your members want a ladder',
+    lines: [
+      `${memberName} asked to start a ladder at ${safeClubName}.`,
+      'It only takes a few minutes.',
+    ],
+    actions: [
+      { label: 'Add players', href: ladderAskActionPath(clubId, 'add') },
+      { label: 'Import players', href: ladderAskActionPath(clubId, 'import') },
+    ],
+    smallLine: 'More members may ask. You\'ll see the count in the app.',
+    footer: `You got this because you're an admin at ${safeClubName}.`,
+  }
+}
+
+function normalizeLadderAskEmail(input = {}, clubId, clubName) {
+  const recipientUserId = sanitizeDirectoryId(input.recipientUserId || input.recipient_user_id)
+  if (!recipientUserId) return null
+
+  return ladderAskEmailFor(
+    recipientUserId,
+    { memberName: input.memberName || input.member_name },
+    clubId,
+    clubName,
+    input.sentAt || input.sent_at,
+  )
+}
+
+function activeLadderForClub(club) {
+  return (club?.setup?.ladders || []).find(
+    (ladder) => ladder?.enabled !== false && !ladder?.archived,
+  ) || null
+}
+
+function completeOpenLadderAsks(asks, ladderId, completedAt = nowIso()) {
+  return asks.map((ask) =>
+    ask.status === 'open'
+      ? {
+          ...ask,
+          status: 'done',
+          completedAt,
+          ladderId,
+        }
+      : ask,
+  )
+}
+
 function normalizeClubRecord(input = {}) {
   const setupSource = input.setup || input
   const setup = normalizeClubSetup(setupSource)
@@ -166,6 +257,26 @@ function normalizeClubRecord(input = {}) {
       return true
     })
 
+  const askUserIds = new Set()
+  const ladderAsks = (Array.isArray(input.ladderAsks) ? input.ladderAsks : [])
+    .slice(0, MAX_LADDER_ASKS)
+    .map(normalizeLadderAsk)
+    .filter((ask) => {
+      if (!ask || askUserIds.has(ask.userId)) return false
+      askUserIds.add(ask.userId)
+      return true
+    })
+
+  const emailRecipientIds = new Set()
+  const ladderAskEmails = (Array.isArray(input.ladderAskEmails) ? input.ladderAskEmails : [])
+    .slice(0, MAX_LADDER_ASK_EMAILS)
+    .map((email) => normalizeLadderAskEmail(email, id, setup.workspace.name))
+    .filter((email) => {
+      if (!email || emailRecipientIds.has(email.recipientUserId)) return false
+      emailRecipientIds.add(email.recipientUserId)
+      return true
+    })
+
   return {
     id,
     name: setup.workspace.name,
@@ -175,6 +286,8 @@ function normalizeClubRecord(input = {}) {
       status: setup.status === 'active' ? 'active' : 'draft',
     },
     invites,
+    ladderAsks,
+    ladderAskEmails,
     createdAt: normalizeTimestamp(input.createdAt) || setup.createdAt,
     updatedAt: normalizeTimestamp(input.updatedAt) || setup.updatedAt,
   }
@@ -787,6 +900,12 @@ function publicDirectoryForUser(directory, userId) {
         invitations: canManage
           ? club.invites.map((invite) => ({ ...invite, roleLabel: ROLE_LABELS[invite.role] }))
           : [],
+        ladderAsks: canManage
+          ? club.ladderAsks
+          : club.ladderAsks.filter((ask) => ask.userId === userId),
+        ladderAskEmails: club.ladderAskEmails.filter(
+          (email) => email.recipientUserId === userId,
+        ),
         createdAt: club.createdAt,
         updatedAt: club.updatedAt,
       }
@@ -1115,7 +1234,83 @@ function extractInviteCandidates(input) {
   )
 }
 
+function isTemporaryDevelopmentMemberInvite(input) {
+  return (
+    import.meta.env?.DEV &&
+    String(input || '').trim() === TEMPORARY_DEVELOPMENT_MEMBER_INVITE_CODE
+  )
+}
+
+function createTemporaryDevelopmentMemberClub() {
+  const timestamp = nowIso()
+  const setup = normalizeClubSetup({
+    ...createMinimalClubSetup({
+      name: 'Dunia Club',
+      country: 'Nigeria',
+      city: 'Lagos',
+    }),
+    clubId: TEMPORARY_DEVELOPMENT_MEMBER_CLUB_ID,
+    status: 'active',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+
+  return {
+    id: TEMPORARY_DEVELOPMENT_MEMBER_CLUB_ID,
+    name: setup.workspace.name,
+    setup,
+    invites: [],
+    ladderAsks: [],
+    ladderAskEmails: [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+function temporaryDevelopmentMemberInvite(directory, input) {
+  // Intentionally development-only: 556 is never a production credential.
+  if (!isTemporaryDevelopmentMemberInvite(input)) return null
+
+  const club =
+    directory.clubs.find(
+      (item) =>
+        item.name.trim().toLowerCase() === TEMPORARY_DEVELOPMENT_MEMBER_INVITE_CLUB,
+    ) || createTemporaryDevelopmentMemberClub()
+
+  return {
+    club,
+    invite: {
+      id: 'temporary-development-member-invite-556',
+      kind: CLUB_INVITE_KINDS.GENERIC,
+      memberId: '',
+      code: TEMPORARY_DEVELOPMENT_MEMBER_INVITE_CODE,
+      token: '',
+      role: 'player',
+      enabled: true,
+      createdAt: '',
+    },
+  }
+}
+
+function ensureTemporaryDevelopmentMemberClub(directory, input) {
+  if (!isTemporaryDevelopmentMemberInvite(input)) return directory
+
+  const hasDemoClub = directory.clubs.some(
+    (item) =>
+      item.name.trim().toLowerCase() === TEMPORARY_DEVELOPMENT_MEMBER_INVITE_CLUB,
+  )
+  if (hasDemoClub) return directory
+
+  return {
+    ...directory,
+    clubs: [...directory.clubs, createTemporaryDevelopmentMemberClub()],
+  }
+}
+
 function findStoredInvite(directory, input) {
+  const developmentInvite = temporaryDevelopmentMemberInvite(directory, input)
+  if (developmentInvite) return developmentInvite
+
   const candidates = extractInviteCandidates(input)
 
   if (!candidates.code && !candidates.token) {
@@ -1307,6 +1502,7 @@ function strongerRole(currentRole, invitedRole) {
 export async function joinClubWithInvite(input, actor) {
   const userId = requireUserId(actor)
   let directory = loadDirectory(actor)
+  directory = ensureTemporaryDevelopmentMemberClub(directory, input)
 
   const match = findStoredInvite(directory, input)
 
@@ -1490,6 +1686,150 @@ export async function switchActiveClub(clubIdInput, actor) {
   directory.activeClubByUser[userId] = clubId
   directory = writeDirectory(directory, userId)
   return publicDirectoryForUser(directory, userId).clubs.find((item) => item.id === clubId)
+}
+
+export async function askForClubLadder(actor) {
+  const userId = requireUserId(actor)
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId)
+
+  if (MANAGER_ROLES.has(context.membership.role)) {
+    throw createServiceError('Only club members can ask an admin to start a ladder.', 'FORBIDDEN')
+  }
+
+  if (activeLadderForClub(context.club)) {
+    throw createServiceError('This club already has a ladder.', 'LADDER_EXISTS')
+  }
+
+  const existing = context.club.ladderAsks.find((ask) => ask.userId === userId)
+  if (existing) {
+    return { ask: existing, alreadyAsked: true }
+  }
+
+  const clubMember = collectClubMembers(context.club.setup).find(
+    (member) => member.id === context.membership.memberId || member.userId === userId,
+  )
+  const memberName =
+    sanitizePlainText(actor.name || actor.displayName || clubMember?.name || 'A member', 100) ||
+    'A member'
+  const timestamp = nowIso()
+  const ask = {
+    id: `ladder-ask-${userId}`,
+    userId,
+    memberId: context.membership.memberId,
+    memberName,
+    status: 'open',
+    createdAt: timestamp,
+    completedAt: '',
+    ladderId: '',
+  }
+  const hasOpenAsk = context.club.ladderAsks.some((item) => item.status === 'open')
+  const ladderAskEmails = [...context.club.ladderAskEmails]
+
+  if (!hasOpenAsk) {
+    directory.memberships
+      .filter(
+        (membership) =>
+          membership.clubId === context.clubId &&
+          membership.status === 'active' &&
+          MANAGER_ROLES.has(membership.role),
+      )
+      .forEach((membership) => {
+        if (
+          ladderAskEmails.some(
+            (email) => email.recipientUserId === membership.userId,
+          )
+        ) {
+          return
+        }
+        ladderAskEmails.push(
+          ladderAskEmailFor(
+            membership.userId,
+            ask,
+            context.clubId,
+            context.club.name,
+            timestamp,
+          ),
+        )
+      })
+  }
+
+  directory.clubs[context.clubIndex] = {
+    ...context.club,
+    ladderAsks: [...context.club.ladderAsks, ask],
+    ladderAskEmails,
+    updatedAt: timestamp,
+  }
+  directory = writeDirectory(directory, userId)
+
+  return {
+    ask,
+    alreadyAsked: false,
+    waitingCount: directory.clubs[context.clubIndex].ladderAsks.filter(
+      (item) => item.status === 'open',
+    ).length,
+  }
+}
+
+export async function deleteActiveClub(actor, options = {}) {
+  const userId = requireUserId(actor)
+
+  // In production, authorization and cascade behavior belong exclusively to
+  // the backend. The browser supplies only the addressed club and the visible
+  // exact-name confirmation; it never supplies an actor, role, or capability.
+  if (isClubDeletionApiEnabled()) {
+    const deletedClubId = validateClubId(options.clubId)
+    return deleteClubThroughApi({
+      clubId: deletedClubId,
+      confirmationName: options.confirmationName,
+    })
+  }
+
+  let directory = loadDirectory(actor)
+  const context = activeClubWriteContext(directory, userId, { manager: true })
+  const creatorIds = Array.isArray(context.club.setup?.workspace?.administratorIds)
+    ? context.club.setup.workspace.administratorIds.map((id) => sanitizeDirectoryId(id))
+    : []
+
+  if (context.membership.role !== 'admin' || !creatorIds.includes(userId)) {
+    throw createServiceError(
+      'Only the club creator can permanently delete this club.',
+      'FORBIDDEN',
+    )
+  }
+
+  const deletedClubId = context.clubId
+  const deletedClubName = context.club.name
+
+  directory.clubs.splice(context.clubIndex, 1)
+  directory.memberships = directory.memberships.filter(
+    (membership) => membership.clubId !== deletedClubId,
+  )
+
+  Object.keys(directory.activeClubByUser).forEach((memberId) => {
+    if (directory.activeClubByUser[memberId] !== deletedClubId) return
+
+    const fallbackMembership = directory.memberships.find(
+      (membership) => membership.userId === memberId && membership.status === 'active',
+    )
+
+    if (fallbackMembership) {
+      directory.activeClubByUser[memberId] = fallbackMembership.clubId
+    } else {
+      delete directory.activeClubByUser[memberId]
+    }
+  })
+
+  directory = writeDirectory(directory, userId)
+  const result = publicDirectoryForUser(directory, userId)
+
+  return {
+    clubId: deletedClubId,
+    clubName: deletedClubName,
+    activeClubId: result.activeClubId,
+    directory: result,
+    source: 'local',
+  }
 }
 
 function mergeSetup(current, input) {
@@ -1841,7 +2181,15 @@ export async function removeClubMemberRecord(memberIdInput, actor) {
   const membership = { ...context.club.setup.membership, [target.collectionKey]: collection.filter((_, index) => index !== target.index) }
   const timestamp = nowIso()
   const nextSetup = normalizeClubSetup({ ...context.club.setup, membership, updatedAt: timestamp })
-  directory.clubs[context.clubIndex] = { ...context.club, name: nextSetup.workspace.name, setup: nextSetup, updatedAt: timestamp }
+  directory.clubs[context.clubIndex] = {
+    ...context.club,
+    name: nextSetup.workspace.name,
+    setup: nextSetup,
+    ladderAsks: context.club.ladderAsks.filter(
+      (ask) => ask.memberId !== target.member.id && ask.userId !== linkedUserId,
+    ),
+    updatedAt: timestamp,
+  }
   if (linkedUserId) {
     const linkedMembership = membershipFor(directory, linkedUserId, context.clubId)
     if (linkedMembership) linkedMembership.status = 'inactive'
@@ -2501,11 +2849,12 @@ async function resolveLadderInvite(tokenInput) {
   return null
 }
 
-function persistManagerClub(directory, userId, context, nextSetup) {
+function persistManagerClub(directory, userId, context, nextSetup, clubPatch = {}) {
   const timestamp = nowIso()
 
   const nextClub = {
     ...context.club,
+    ...clubPatch,
     setup: normalizeClubSetup(nextSetup),
     updatedAt: timestamp,
   }
@@ -2524,8 +2873,28 @@ function persistManagerClub(directory, userId, context, nextSetup) {
 
 export async function createClubLadder(input, actor) {
   const userId = requireUserId(actor)
-  const directory = loadDirectory(actor)
+  let directory = loadDirectory(actor)
   const context = activeClubWriteContext(directory, userId, { manager: true })
+  const existing = activeLadderForClub(context.club)
+
+  if (existing) {
+    const ladderAsks = completeOpenLadderAsks(context.club.ladderAsks, existing.id)
+    if (ladderAsks.some((ask, index) => ask !== context.club.ladderAsks[index])) {
+      directory.clubs[context.clubIndex] = {
+        ...context.club,
+        ladderAsks,
+        updatedAt: nowIso(),
+      }
+      directory = writeDirectory(directory, userId)
+    }
+
+    const savedClub = directory.clubs.find((club) => club.id === context.clubId)
+    return {
+      club: savedClub,
+      ladder: ladderRecord(savedClub, existing.id),
+      alreadyExists: true,
+    }
+  }
 
   const result = createLadderFromForm({
     setup: context.club.setup,
@@ -2539,6 +2908,12 @@ export async function createClubLadder(input, actor) {
     {
       ...context.club.setup,
       ladders: result.ladders,
+    },
+    {
+      ladderAsks: completeOpenLadderAsks(
+        context.club.ladderAsks,
+        result.ladder.id,
+      ),
     },
   )
 

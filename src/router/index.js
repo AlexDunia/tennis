@@ -141,8 +141,6 @@ const routes = [
     meta: {
       title: 'Create ladder',
       subtitle: '',
-      permission: 'club.manage',
-      activeClubPermission: true,
       primarySection: 'ladder',
     },
   },

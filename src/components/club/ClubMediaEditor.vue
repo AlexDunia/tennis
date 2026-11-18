@@ -299,11 +299,12 @@ onUnmounted(clearCropSource)
 <style scoped>
 .club-media-editor {
   display: grid;
-  gap: 16px;
+  gap: clamp(26px, 3vw, 36px);
+  margin-top: var(--space-block);
 }
 
 .club-media-editor__section {
-  padding-top: 16px;
+  padding-top: clamp(20px, 2.5vw, 28px);
   border-top: 1px solid rgba(44, 58, 48, 0.07);
 }
 
@@ -312,6 +313,7 @@ onUnmounted(clearCropSource)
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
+  padding-bottom: 2px;
 }
 
 .club-media-editor__heading > div:first-child {
@@ -340,6 +342,13 @@ onUnmounted(clearCropSource)
   gap: 8px;
 }
 
+/* Keep media actions compact beside the small setting labels without reducing the hit area. */
+.club-media-editor .ref-button.small {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .club-media-editor__remove {
   min-height: 35px;
   padding: 0 4px;
@@ -354,7 +363,8 @@ onUnmounted(clearCropSource)
   display: flex;
   flex-wrap: wrap;
   gap: 9px;
-  margin-top: 13px;
+  margin-top: var(--space-block);
+  padding-bottom: 4px;
 }
 
 .club-media-editor__preset {

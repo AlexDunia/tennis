@@ -2,7 +2,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 4px 0 64px;
+  padding: var(--space-block-loose) 0;
   color: var(--color-text);
   font-family: var(--font-family-app);
 }
@@ -44,7 +44,7 @@
   width: 100%;
   align-items: center;
   gap: 12px;
-  margin-bottom: 30px;
+  margin-bottom: var(--space-block-loose);
 }
 
 .lw-club-context__mark {
@@ -89,7 +89,7 @@
 .lw-form {
   display: grid;
   width: 100%;
-  gap: 34px;
+  gap: var(--space-block-loose);
 }
 
 .lw-section {
@@ -100,7 +100,7 @@
 }
 
 .lw-section + .lw-section {
-  padding-top: 28px;
+  padding-top: var(--space-block);
   border-top: 1px solid var(--color-border);
 }
 

@@ -1,11 +1,13 @@
 <script setup>
 // 1. IMPORTS
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
 import EmptyState from '../components/EmptyState.vue'
 
 // 2. STORE
 const notificationStore = useNotificationStore()
+const router = useRouter()
 const hasLoaded = ref(false)
 
 onMounted(() => {
@@ -41,11 +43,7 @@ if (false && notificationStore.notifications.length === 0) {
 }
 
 // 4. COMPUTED
-const notifications = computed(() =>
-  [...notificationStore.notifications].sort(
-    (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
-  ),
-)
+const notifications = computed(() => notificationStore.recentNotifications)
 
 const unreadCount = computed(() => notificationStore.unreadCount)
 
@@ -72,6 +70,10 @@ const handleMarkAllRead = () => {
   }
 }
 const handleClearAll = () => notificationStore.clearNotifications()
+const openNotification = async (notification) => {
+  notificationStore.markRead(notification.id)
+  if (notification.meta?.to) await router.push(notification.meta.to)
+}
 
 // 6. HELPERS
 
@@ -267,6 +269,14 @@ const formatTime = (value) => {
                   @click="handleMarkRead(notification.id)"
                 >
                   Mark as read
+                </button>
+                <button
+                  v-if="notification.meta?.to"
+                  type="button"
+                  class="notif-btn notif-btn--primary"
+                  @click="openNotification(notification)"
+                >
+                  Open ladder
                 </button>
                 <button
                   type="button"

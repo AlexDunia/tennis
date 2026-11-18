@@ -21,7 +21,13 @@ const workspace = computed(() => club.value?.setup?.workspace || {})
 const clubName = computed(() => details.name || club.value?.name || 'Your club')
 const hasSafeLogo = computed(() => Boolean(details.logoUrl) && isSafeImageSource(details.logoUrl))
 const hasSafeCover = computed(() => Boolean(details.coverUrl) && isSafeImageSource(details.coverUrl))
-
+const deleteConfirmationOpen = ref(false)
+const deleteConfirmation = ref('')
+const deleting = ref(false)
+const canDeleteClub = computed(() => adminStore.canDeleteActiveClub)
+const deleteConfirmationMatches = computed(
+  () => deleteConfirmation.value.trim() === String(club.value?.name || '').trim(),
+)
 function hydrate() {
   const value = workspace.value
   Object.assign(details, {
@@ -63,6 +69,37 @@ async function save() {
     error.value = cause?.message || 'We could not save the club details. Try again.'
   } finally {
     saving.value = false
+  }
+}
+
+function openDeleteConfirmation() {
+  deleteConfirmation.value = ''
+  deleteConfirmationOpen.value = true
+}
+
+function cancelDeleteConfirmation() {
+  deleteConfirmationOpen.value = false
+  deleteConfirmation.value = ''
+}
+
+async function permanentlyDeleteClub() {
+  if (!canDeleteClub.value || !deleteConfirmationMatches.value || deleting.value) return
+
+  const deletedName = club.value?.name || 'Club'
+  deleting.value = true
+  error.value = ''
+
+  try {
+    await adminStore.deleteActiveClub({
+      clubId: club.value?.id || '',
+      confirmationName: deleteConfirmation.value,
+    })
+    notificationStore.addToast({ message: `${deletedName} was permanently deleted.`, type: 'success' })
+    router.replace({ name: 'Clubs' })
+  } catch (cause) {
+    error.value = cause?.message || 'We could not delete this club. Try again.'
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -134,6 +171,50 @@ onMounted(async () => {
         />
       </section>
 
+      <section v-if="canDeleteClub" class="club-details__danger" aria-labelledby="delete-club-title">
+        <div class="club-details__danger-copy">
+          <p>Danger zone</p>
+          <h2 id="delete-club-title">Delete this club</h2>
+          <span>
+            This permanently removes the club, its members, ladders, and invitations. It cannot be undone.
+          </span>
+        </div>
+
+        <button
+          v-if="!deleteConfirmationOpen"
+          class="club-details__danger-button"
+          type="button"
+          :disabled="saving"
+          @click="openDeleteConfirmation"
+        >
+          Delete club
+        </button>
+
+        <div v-else class="club-details__danger-confirmation">
+          <label :for="'delete-club-confirmation'">
+            Type <strong>{{ club?.name }}</strong> to confirm
+          </label>
+          <input
+            id="delete-club-confirmation"
+            v-model="deleteConfirmation"
+            type="text"
+            :disabled="deleting"
+            autocomplete="off"
+            :aria-label="`Type ${club?.name || 'the club name'} to confirm deletion`"
+          />
+          <div>
+            <button type="button" :disabled="deleting" @click="cancelDeleteConfirmation">Cancel</button>
+            <button
+              class="club-details__danger-button"
+              type="button"
+              :disabled="!deleteConfirmationMatches || deleting"
+              @click="permanentlyDeleteClub"
+            >
+              {{ deleting ? 'Deleting…' : 'Permanently delete' }}
+            </button>
+          </div>
+        </div>
+      </section>
 
       <footer class="club-details__footer">
         <p>Member access, ladders, tournaments, and match rules are managed where they are used.</p>
@@ -184,6 +265,29 @@ onMounted(async () => {
 .club-details__secondary:hover, .club-details__remove:hover { background: var(--color-surface-soft, #f4f7f4); color: var(--color-text, #18221b); }
 .club-details__primary:hover { filter: brightness(.94); }
 .club-details__secondary:disabled, .club-details__primary:disabled { cursor: not-allowed; opacity: .6; }
+.club-details__danger {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 18px;
+  margin-top: 8px;
+  padding: 22px 24px;
+  border: 1px solid rgba(168, 70, 66, .22);
+  border-radius: 16px;
+  background: #fffafa;
+}
+.club-details__danger-copy p { margin: 0; color: #a34640; font-size: 10px; font-weight: var(--font-weight-semibold, 600); letter-spacing: .1em; text-transform: uppercase; }
+.club-details__danger-copy h2 { margin: 5px 0 5px; color: var(--color-text, #18221b); font-size: 17px; letter-spacing: -.02em; }
+.club-details__danger-copy span { display: block; max-width: 540px; color: var(--color-muted, #728077); font-size: 11px; line-height: 1.5; }
+.club-details__danger-button { min-height: 40px; padding: 0 14px; border: 1px solid #a34640; border-radius: 9px; background: #a34640; color: #fff; font: inherit; font-size: 11px; font-weight: var(--font-weight-semibold, 600); white-space: nowrap; }
+.club-details__danger-button:hover:not(:disabled) { background: #8d3833; border-color: #8d3833; }
+.club-details__danger-button:disabled { cursor: not-allowed; opacity: .55; }
+.club-details__danger-confirmation { display: grid; grid-column: 1 / -1; gap: 9px; width: 100%; padding-top: 18px; border-top: 1px solid rgba(168, 70, 66, .15); }
+.club-details__danger-confirmation label { color: var(--color-text-soft, #526057); font-size: 11px; }
+.club-details__danger-confirmation input { width: min(100%, 360px); min-height: 40px; box-sizing: border-box; padding: 9px 11px; border: 1px solid rgba(168, 70, 66, .28); border-radius: 9px; background: #fff; color: var(--color-text, #18221b); font: inherit; font-size: 12px; }
+.club-details__danger-confirmation input:focus { outline: none; border-color: #a34640; box-shadow: 0 0 0 3px rgba(168, 70, 66, .1); }
+.club-details__danger-confirmation > div { display: flex; gap: 8px; }
+.club-details__danger-confirmation > div > button:first-child { min-height: 40px; padding: 0 13px; border: 1px solid var(--color-border, #e1e7e2); border-radius: 9px; background: #fff; color: var(--color-text-soft, #526057); font: inherit; font-size: 11px; font-weight: var(--font-weight-semibold, 600); }
 .club-details__footer { align-items: flex-start; padding: 4px 0; }
 .club-details__footer > p { max-width: 420px; }
 .club-details__footer > div { display: flex; gap: 8px; }
@@ -195,6 +299,13 @@ onMounted(async () => {
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @keyframes club-details-shimmer { to { background-position: -220% 0; } }
 @media (max-width: 650px) { .club-details { padding-bottom: 32px; } .club-details__hero { align-items: flex-start; flex-direction: column; gap: 19px; } .club-details__identity { width: 100%; box-sizing: border-box; } .club-details__grid, .club-details__dates { grid-template-columns: 1fr; } .club-details__card { padding: 18px; } .club-details__footer { align-items: stretch; flex-direction: column; } .club-details__footer > div { width: 100%; } .club-details__footer button { flex: 1; } }
+@media (max-width: 650px) {
+  .club-details__danger { grid-template-columns: 1fr; align-items: start; padding: 18px; }
+  .club-details__danger-button { width: 100%; }
+  .club-details__danger-confirmation input { width: 100%; }
+  .club-details__danger-confirmation > div { display: grid; grid-template-columns: 1fr 1fr; }
+}
+
 @media (max-width: 420px) { .club-details__court-label { align-items: stretch; flex-direction: column; } .club-details__court-label .club-details__secondary { width: 100%; } }
 </style>
 
