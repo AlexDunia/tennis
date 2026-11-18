@@ -35,7 +35,7 @@ const tournament = computed(() =>
 
 const registrationEditable = computed(() => Boolean(tournament.value?.rules?.registrationStage))
 
-const hasStartedCompetition = computed(() =>when i  !tournament.value?.rules?.registrationStage)
+const hasStartedCompetition = computed(() => !tournament.value?.rules?.registrationStage)
 
 const eventCount = computed(
   () => (tournament.value?.categories || tournament.value?.events || []).length,

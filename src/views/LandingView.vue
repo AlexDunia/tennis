@@ -336,7 +336,7 @@ const audiences = [
         <div class="lp-container lp-hero__grid">
           <div class="lp-hero__copy">
             <p class="lp-kicker"><span></span> One home for your tennis club</p>
-            <h1>Club tennis, tournaments<br /><em>and ladders made simple.</em></h1>
+            <h1>This is the new page<br />Club tennis, tournaments<br /><em>and ladders made simple.</em></h1>
             <p class="lp-hero__lead">
               Run ladders, challenges, match schedules, live scores and tournaments in one place.
               Players know what comes next; organizers spend less time chasing updates.
